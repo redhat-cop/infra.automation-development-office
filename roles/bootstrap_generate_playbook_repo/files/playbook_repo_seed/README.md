@@ -17,3 +17,11 @@ Flow:
 | RHACS | `templates/RHACS/dashboards/rhacs-vulnerability-overview.json` |
 
 See `templates/README.md` for `grafana_folders` wiring.
+
+## Terraform stacks
+
+`terraform/` is copied out with the seed. Put customer root modules under
+`terraform/stacks/<name>/`. Contoller job templates plan/apply those stacks
+when the `terraform` component is selected.
+
+See `terraform/README.md`.

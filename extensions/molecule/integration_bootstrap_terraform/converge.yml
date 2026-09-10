@@ -1,0 +1,51 @@
+---
+- name: Generate bootstrap content for terraform
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    env: molecule
+    preflight_json: "{{ playbook_dir }}/ado-preflight-terraform.json"
+
+    generate_env_vars: true
+    generate_env_vars_force: true
+    generate_playbooks: true
+    generate_aap_configs: true
+    apply_aap_configs: false
+
+    generate_env_vars_encrypt_vault_files: false
+    generate_env_vars_encrypt_vault: false
+    generate_env_vars_vault_encrypt: false
+    generate_env_vars_prompt_encrypt_vault_files:
+      user_input: "n"
+    generate_env_vars_prompt_encrypt_vault:
+      user_input: "n"
+
+    generate_playbook_repo_pause_for_push: false
+    generate_playbook_repo_git_push: false
+    generate_playbook_repo_git_commit: false
+
+  pre_tasks:
+    - name: Clean previous generated content
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/{{ item }}"
+        state: absent
+      loop:
+        - playbooks
+        - configs
+        - group_vars
+        - inventory
+        - collections
+        - templates
+        - terraform
+        - ado-preflight-terraform.json
+
+    - name: Write terraform preflight JSON
+      ansible.builtin.copy:
+        src: ado-preflight-terraform.fixture.json
+        dest: "{{ preflight_json }}"
+        mode: "0644"
+
+  roles:
+    - role: infra.ado.bootstrap_controller

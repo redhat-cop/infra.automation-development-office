@@ -306,6 +306,18 @@ ec2_ami_copy_tags: {{ ec2_ami_copy_config.tags | default(bootstrap_generate_env_
 aws_profile: {{ aws_config.profile | default(bootstrap_generate_env_vars_aws_profile | default('', true), true) | to_json }}
 aws_default_region: {{ aws_config.default_region | default(bootstrap_generate_env_vars_aws_default_region | default('us-east-1', true), true) | to_json }}
 
+{% elif component_name == 'terraform' %}
+{% set terraform_config = bootstrap_generate_env_vars_preflight.component_config.terraform | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+terraform_bin: {{ terraform_config.bin | default(terraform_config.terraform_bin | default('terraform', true), true) | to_json }}
+terraform_stack: {{ terraform_config.stack | default(terraform_config.terraform_stack | default('example', true), true) | to_json }}
+terraform_stack_dir: {{ terraform_config.stack_dir | default(terraform_config.terraform_stack_dir | default('', true), true) | to_json }}
+terraform_workspace: {{ terraform_config.workspace | default(terraform_config.terraform_workspace | default('', true), true) | to_json }}
+terraform_backend_configured: {{ terraform_config.backend_configured | default(terraform_config.terraform_backend_configured | default(false), true) | bool | lower }}
+terraform_require_remote_backend: {{ terraform_config.require_remote_backend | default(terraform_config.terraform_require_remote_backend | default(true), true) | bool | lower }}
+terraform_init_upgrade: {{ terraform_config.init_upgrade | default(terraform_config.terraform_init_upgrade | default(false), true) | bool | lower }}
+terraform_init_reconfigure: {{ terraform_config.init_reconfigure | default(terraform_config.terraform_init_reconfigure | default(false), true) | bool | lower }}
+terraform_backend_config: {{ terraform_config.backend_config | default(terraform_config.terraform_backend_config | default({}), true) | to_json }}
+
 {% elif component_name == 'rhbk' %}
 components_env:
   rhbk:

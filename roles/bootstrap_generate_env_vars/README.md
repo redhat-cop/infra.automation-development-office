@@ -180,10 +180,11 @@ under `group_vars/all/<env>/`:
 | `vars_aws.yml` | `aws_profile`, `aws_default_region` |
 
 Consumers include ``infra.ado.ec2_ami_copy`` (``ado-copy-ami-bootstrap``),
-cert-manager AWS PCA (``ado-install-and-configure-awspca-bootstrap``), and
-future AWS bootstrap apps. Set credentials in preflight
-``component_config.aws`` (or legacy per-component keys that overlay into
-``vault_aws.yml`` during generation).
+cert-manager AWS PCA (``ado-install-and-configure-awspca-bootstrap``),
+``infra.ado.terraform`` (plan/apply bootstrap playbooks), and future AWS
+bootstrap apps. Set credentials in preflight ``component_config.aws`` (or
+legacy per-component keys that overlay into ``vault_aws.yml`` during
+generation).
 
 #### Migrating existing environments (legacy AWS PCA vault)
 

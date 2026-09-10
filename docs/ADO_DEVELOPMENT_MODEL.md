@@ -35,6 +35,10 @@ In practice, there are three layers:
      - `configs/controller/...`
      - `configs/job_templates/...`
      - `configs/workflows/...`
+     - `templates/` (Grafana dashboard seeds)
+     - `terraform/stacks/` (optional Terraform/OpenTofu roots; seed is always
+       copied, playbooks and job templates are emitted when `terraform` is
+       selected in preflight JSON)
 
 ---
 ## 2) System Boundaries (what you should change where)
@@ -97,6 +101,9 @@ Use this flow when explaining ADO to someone new:
 
 - UI input → preflight JSON (the UI is **only a form**; see `.cursor/rules/bootstrap-ui-cli-parity.mdc`)
 - CLI uses the **same JSON** via `-e preflight_json=…` on `run-ado-scaffolding.yml` - behavior must match the UI run
+- New optional components (for example `terraform`) must work from that JSON
+  even before a preflight-ui checkbox exists. Add the UI selection in a follow-up
+  so CLI and UI stay on the same payload.
 
 Core fields typically include:
 
@@ -126,6 +133,7 @@ In `infra.ado`, the important roles are:
      - `configs/controller/...`
      - `configs/job_templates/...`
      - `configs/workflows/...`
+     - seed trees such as `templates/` and `terraform/stacks/`
 
 3. `infra.ado.bootstrap_controller`
    - applies controller objects to AAP when "Using AAP" is enabled

@@ -2,3 +2,14 @@
 *.retry
 *.log
 .vault_pass
+
+# Terraform local state (remote backend is required from AAP)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

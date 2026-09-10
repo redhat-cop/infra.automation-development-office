@@ -211,6 +211,9 @@ bootstrap_generate_playbook_repo_component_map:
   aws:
     - ec2_ami_copy
 
+  terraform:
+    - terraform
+
 bootstrap_generate_playbook_repo_generated_playbooks:
 
   - src: aap/ado-aap-ocp-install-bootstrap.yml
@@ -242,6 +245,18 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: aws
     category: aws
     app: ec2_ami_copy
+
+  - src: terraform/ado-terraform-plan-bootstrap.yml
+    dest: playbooks/terraform/ado-terraform-plan-bootstrap.yml
+    target_platform: terraform
+    category: iac
+    app: terraform
+
+  - src: terraform/ado-terraform-apply-bootstrap.yml
+    dest: playbooks/terraform/ado-terraform-apply-bootstrap.yml
+    target_platform: terraform
+    category: iac
+    app: terraform
 
   - src: acm/ado-deploy-and-configure-bootstrap.yml
     dest: playbooks/acm/ado-deploy-and-configure-bootstrap.yml

@@ -139,6 +139,7 @@ mock_roles:
     - infra.ado.satellite_content_view
     - infra.ado.satellite_install
     - infra.ado.satellite_oidc
+    - infra.ado.terraform
     - infra.ado.netbox_oidc
     - infra.ado.bookstack_openshift
     - infra.ado.install_gitlab

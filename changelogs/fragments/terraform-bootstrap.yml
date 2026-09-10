@@ -1,0 +1,10 @@
+---
+minor_changes:
+  - terraform - Added ``infra.ado.terraform`` wrap role, generated plan/apply
+    playbooks, Contoller job templates, and a ``terraform/stacks`` scaffold for
+    customers who want Terraform or OpenTofu beside Ansible day-2.
+doc_changes:
+  - terraform - Documented optional Terraform bootstrap stacks in the
+    development model and ``infra.ado.bootstrap_generate_playbook_repo``
+    platform coverage.
+

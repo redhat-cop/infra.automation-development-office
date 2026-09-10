@@ -1,0 +1,20 @@
+---
+- name: Cleanup generated bootstrap terraform molecule content
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Remove generated molecule artifacts
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/{{ item }}"
+        state: absent
+      loop:
+        - playbooks
+        - configs
+        - group_vars
+        - inventory
+        - collections
+        - templates
+        - terraform
+        - ado-preflight-terraform.json

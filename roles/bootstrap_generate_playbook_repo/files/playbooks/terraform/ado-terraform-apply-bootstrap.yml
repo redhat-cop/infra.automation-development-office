@@ -1,0 +1,27 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | Terraform apply or destroy
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: terraform
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aws.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aws.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_terraform.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_terraform.yml"
+  tasks:
+    - name: ADO | Default terraform_action to apply
+      ansible.builtin.set_fact:
+        terraform_action: apply
+      when: terraform_action is not defined
+
+    - name: ADO | Resolve vars for component from framework defaults + env overrides
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+
+    - name: ADO | Apply or destroy the Terraform stack
+      ansible.builtin.include_role:
+        name: infra.ado.terraform
+# yamllint enable rule:line-length

@@ -187,6 +187,10 @@
       ec2_ami_copy:
         - ado-copy-ami-bootstrap.jt.yml
 
+      terraform:
+        - ado-terraform-plan-bootstrap.jt.yml
+        - ado-terraform-apply-bootstrap.jt.yml
+
       gitlab:
         - ado-gitlab-deploy-and-configure-bootstrap.jt.yml
         - ado-install-gitlab-standalone-bootstrap.jt.yml
