@@ -7,4 +7,3 @@ doc_changes:
   - terraform - Documented optional Terraform bootstrap stacks in the
     development model and ``infra.ado.bootstrap_generate_playbook_repo``
     platform coverage.
-
