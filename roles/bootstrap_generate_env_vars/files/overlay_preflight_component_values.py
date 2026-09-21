@@ -3924,6 +3924,26 @@ if "oauth_rhbk" in openshift_options:
         rhbk_vars["openshift_oidc_auth"] = oidc_auth
         write_yaml(rhbk_vars_path, rhbk_vars, "0644")
 
+        rhbk_vault_path = env_dir / "vault_rhbk.yml"
+        if rhbk_vault_path.exists():
+            rhbk_vault = load_yaml(rhbk_vault_path)
+            rhbk_vault_changed = False
+            for stale_key in (
+                "openshift_oidc_idp_name",
+                "rhbk_client",
+                "openshift_oidc_client_id",
+                "rhbk_realm",
+                "ocp_rhbk_realm",
+                "ocp_rhbk_hostname",
+                "rhbk_hostname",
+                "openshift_oidc_auth",
+            ):
+                if stale_key in rhbk_vault:
+                    rhbk_vault.pop(stale_key, None)
+                    rhbk_vault_changed = True
+            if rhbk_vault_changed:
+                write_yaml(rhbk_vault_path, rhbk_vault, "0600")
+
 route_options = {
     opt
     for opt in openshift_options
