@@ -7,6 +7,9 @@ ocp_devspaces_app_ns: "{{ app_namespace | default(devspaces_namespace | default(
 ocp_devspaces_disable_default_samples: true
 # Optional custom samples JSON array (string or list). Empty + disable => empty sample list.
 ocp_devspaces_custom_samples: []
+# When true (preflight), role builds/augments custom_samples; bundled icon from files/.
+ocp_devspaces_custom_sample_enabled: false
+ocp_devspaces_custom_sample_icon_source: bundled
 
 # Workspace defaults
 ocp_devspaces_customize_workspace: false
@@ -16,3 +19,11 @@ ocp_devspaces_default_workspace_image: ""
 # Optional image overrides (empty = operator defaults)
 ocp_devspaces_che_image_tag: ""
 ocp_devspaces_dashboard_image: ""
+
+# Optional Grafana-facing DevWorkspace phase/reason metrics exporter.
+# Default true so Dev Spaces + Grafana dashboards get dw_* / extension metrics
+# without a separate toggle. Set false to skip. Needs pods/exec RBAC.
+ocp_devspaces_status_exporter_enabled: true
+ocp_devspaces_status_exporter_name: devworkspace-status-exporter
+ocp_devspaces_status_exporter_namespace: "{{ ocp_devspaces_operator_ns }}"
+ocp_devspaces_status_exporter_image: registry.redhat.io/ubi9/python-311:latest

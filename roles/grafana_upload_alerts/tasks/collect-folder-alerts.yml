@@ -1,17 +1,70 @@
 ---
+- name: Ensure alerts workspace directory exists
+  ansible.builtin.file:
+    path: >-
+      /tmp/grafana-alerts-src-{{
+        (
+          grafana_folder_item.name
+          | default('general')
+          | regex_replace('[^A-Za-z0-9_-]', '_')
+        )
+        if (grafana_folder_item.name | default('') | string | trim | length) > 0
+        else 'general'
+      }}
+    state: directory
+    mode: "0755"
+
+- name: Clone git alert source
+  ansible.builtin.git:
+    repo: "{{ grafana_folder_item.source }}"
+    dest: >-
+      /tmp/grafana-alerts-src-{{
+        (
+          grafana_folder_item.name
+          | default('general')
+          | regex_replace('[^A-Za-z0-9_-]', '_')
+        )
+        if (grafana_folder_item.name | default('') | string | trim | length) > 0
+        else 'general'
+      }}
+    version: "{{ grafana_folder_item.version | default('HEAD') }}"
+    force: true
+  when:
+    - (grafana_folder_item.source_type | default('path')) == 'git'
+    - grafana_folder_item.source | default('') | length > 0
+
 - name: Resolve alerts root for folder
   ansible.builtin.set_fact:
     grafana_upload_alerts_root: >-
       {{
         (
-          '/tmp/grafana-folder-src-'
-          ~ (grafana_folder_item.name | regex_replace('[^A-Za-z0-9_-]', '_'))
+          '/tmp/grafana-alerts-src-'
+          ~ (
+            (
+              grafana_folder_item.name
+              | default('general')
+              | regex_replace('[^A-Za-z0-9_-]', '_')
+            )
+            if (grafana_folder_item.name | default('') | string | trim | length) > 0
+            else 'general'
+          )
           ~ '/'
           ~ (grafana_folder_item.alerts_path | default('alerts'))
         )
         if ((grafana_folder_item.source_type | default('path')) == 'git')
         else (
-          (grafana_folder_item.source | default(''))
+          (
+            (
+              grafana_folder_item.source
+              if (grafana_folder_item.source is match('^/'))
+              else (
+                (playbook_dir | dirname | dirname)
+                ~ '/'
+                ~ (grafana_folder_item.source | default('') | regex_replace('^\\./', ''))
+              )
+            )
+            | regex_replace('/$', '')
+          )
           ~ '/'
           ~ (grafana_folder_item.alerts_path | default('alerts'))
         )

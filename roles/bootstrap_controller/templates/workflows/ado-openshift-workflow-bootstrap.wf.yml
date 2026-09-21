@@ -20,6 +20,13 @@ controller_workflow_job_templates:
           - Print ADO Routes
           - Alt Routes Workflow
 
+      - identifier: Configure LDAP in OpenShift
+        unified_job_template: ADO | Configure LDAP in OpenShift
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
       - identifier: Configure Console Banner
         unified_job_template: ADO | Configure Console Banner
         lookup_organization: "{{ bootstrap_controller_organization }}"

@@ -1,0 +1,221 @@
+---
+# Optional DevWorkspace status metrics exporter for Grafana.
+# Labels use dw_* so Prometheus scrape labels never collide with workspace
+# fields. Namespace defaults to the Dev Spaces operator namespace.
+
+- name: Resolve status exporter namespace
+  ansible.builtin.set_fact:
+    ocp_devspaces_status_exporter_namespace: >-
+      {{
+        ocp_devspaces_status_exporter_namespace
+        | default(ocp_devspaces_operator_ns)
+        | default('openshift-operators')
+      }}
+
+- name: Ensure DevWorkspace status exporter ServiceAccount
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+        labels:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/name: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/part-of: ado
+          app.kubernetes.io/component: metrics
+
+- name: Ensure DevWorkspace status exporter ClusterRole
+  kubernetes.core.k8s:
+    state: present
+    # Force replace so older incomplete ClusterRoles (missing pods/exec) converge.
+    force: true
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        labels:
+          app.kubernetes.io/part-of: ado
+          app.kubernetes.io/name: "{{ ocp_devspaces_status_exporter_name }}"
+      rules:
+        - apiGroups: ["workspace.devfile.io"]
+          resources: ["devworkspaces"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "list"]
+        - apiGroups: [""]
+          resources: ["pods/exec"]
+          verbs: ["get", "create"]
+
+- name: Ensure DevWorkspace status exporter ClusterRoleBinding
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        labels:
+          app.kubernetes.io/part-of: ado
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+      subjects:
+        - kind: ServiceAccount
+          name: "{{ ocp_devspaces_status_exporter_name }}"
+          namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Ensure DevWorkspace status exporter ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    force: true
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+        labels:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/part-of: ado
+      data:
+        exporter.py: >-
+          {{
+            lookup(
+              'ansible.builtin.file',
+              role_path ~ '/files/devworkspace_status_exporter.py'
+            )
+          }}
+
+- name: Compute status exporter script checksum for rollout
+  ansible.builtin.set_fact:
+    ocp_devspaces_status_exporter_script_checksum: >-
+      {{
+        lookup(
+          'ansible.builtin.file',
+          role_path ~ '/files/devworkspace_status_exporter.py'
+        )
+        | hash('sha256')
+      }}
+
+- name: Ensure DevWorkspace status exporter Deployment
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+        labels:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/name: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/part-of: ado
+          app.kubernetes.io/component: metrics
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ ocp_devspaces_status_exporter_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ ocp_devspaces_status_exporter_name }}"
+              app.kubernetes.io/name: "{{ ocp_devspaces_status_exporter_name }}"
+              app.kubernetes.io/part-of: ado
+            annotations:
+              ado.infra/exporter-script-checksum: "{{ ocp_devspaces_status_exporter_script_checksum }}"
+          spec:
+            serviceAccountName: "{{ ocp_devspaces_status_exporter_name }}"
+            containers:
+              - name: exporter
+                image: "{{ ocp_devspaces_status_exporter_image }}"
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    pip install --quiet kubernetes &&
+                    exec python3 /app/exporter.py
+                ports:
+                  - name: metrics
+                    containerPort: 8080
+                volumeMounts:
+                  - name: app
+                    mountPath: /app
+                resources:
+                  requests:
+                    cpu: 20m
+                    memory: 64Mi
+                  limits:
+                    cpu: 200m
+                    memory: 256Mi
+                readinessProbe:
+                  httpGet:
+                    path: /metrics
+                    port: metrics
+                  initialDelaySeconds: 25
+                  periodSeconds: 15
+                livenessProbe:
+                  httpGet:
+                    path: /metrics
+                    port: metrics
+                  initialDelaySeconds: 40
+                  periodSeconds: 30
+            volumes:
+              - name: app
+                configMap:
+                  name: "{{ ocp_devspaces_status_exporter_name }}"
+                  defaultMode: "0755"
+
+- name: Ensure DevWorkspace status exporter Service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+        labels:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/name: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/part-of: ado
+      spec:
+        selector:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+        ports:
+          - name: metrics
+            port: 8080
+            targetPort: metrics
+
+- name: Ensure DevWorkspace status exporter ServiceMonitor
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      metadata:
+        name: "{{ ocp_devspaces_status_exporter_name }}"
+        namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+        labels:
+          app: "{{ ocp_devspaces_status_exporter_name }}"
+          app.kubernetes.io/part-of: ado
+      spec:
+        selector:
+          matchLabels:
+            app: "{{ ocp_devspaces_status_exporter_name }}"
+        namespaceSelector:
+          matchNames:
+            - "{{ ocp_devspaces_status_exporter_namespace }}"
+        endpoints:
+          - port: metrics
+            interval: 30s
+            path: /metrics
+            scheme: http
+            honorLabels: true

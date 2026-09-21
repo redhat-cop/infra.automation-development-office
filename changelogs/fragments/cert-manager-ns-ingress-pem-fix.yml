@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - ocp_default_ingress_cert - Fix PEM normalize register/fail variable name
+    mismatch (``ocp_default_ingress_cert_pem_normalize``) that always surfaced
+    ``unknown openssl/normalize error``.
+  - bootstrap_generate_playbook_repo - Keep cert-manager operator namespace
+    (``cert-manager-operator``) distinct from the operand (``cert-manager``) so
+    OperatorGroup create no longer 404s after creating only the operand ns.

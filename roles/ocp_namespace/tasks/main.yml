@@ -1,8 +1,12 @@
 ---
+# Prefer ocp_namespace_name when set so playbooks can create a namespace that
+# differs from the framework host fact ``name_space`` (e.g. cert-manager-operator
+# vs operand cert-manager). Role params named ``name_space`` lose to that host
+# fact on Contoller/ansible-core 2.16 in the ``roles:`` section.
 - name: Create namespace
   kubernetes.core.k8s:
     api_version: v1
     kind: Namespace
-    name: "{{ name_space }}"
-    state: "{{ state }}"
-    validate_certs: "{{ validate_certs }}"
+    name: "{{ ocp_namespace_name | default(name_space) }}"
+    state: "{{ state | default('present') }}"
+    validate_certs: "{{ validate_certs | default(omit) }}"

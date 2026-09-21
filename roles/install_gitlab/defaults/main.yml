@@ -6,7 +6,7 @@
 # Set install_gitlab_allow_online_repo=true only for connected labs (packages.gitlab.com).
 state: present  # noqa: var-naming[no-role-prefix]
 
-install_gitlab_hostname: "{{ gitlab_hostname | default('gitlab-ado.server.lab') }}"
+install_gitlab_hostname: "{{ gitlab_hostname | default('') }}"
 install_gitlab_http_port: 80
 install_gitlab_https_port: 443
 install_gitlab_root_password: "{{ gitlab_root_password | default('redhat123') }}"

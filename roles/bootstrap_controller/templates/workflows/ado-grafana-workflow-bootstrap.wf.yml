@@ -2,9 +2,10 @@
 controller_workflow_job_templates:
   - name: ADO | Grafana Workflow
     description: >-
-      Grafana on OpenShift — install, then optional OIDC, email/SMTP,
-      datasource/folders/dashboards, and alternate route based on preflight
-      Grafana options.
+      Grafana — optional OpenShift or standalone install, then independent
+      OIDC, email/SMTP, datasources, folders, dashboards, alerts, and
+      alternate route based on preflight Grafana options. Content steps run
+      without install when only those options are selected.
     organization: "{{ bootstrap_controller_organization }}"
     inventory: "{{ bootstrap_controller_inventory_name }}"
     state: present
@@ -17,11 +18,25 @@ controller_workflow_job_templates:
         unified_job_template: ADO | Deploy Grafana
         lookup_organization: "{{ bootstrap_controller_organization }}"
         success_nodes:
+          - Install Grafana Standalone
           - Deploy Grafana OIDC
           - Deploy Grafana Email
           - Deploy Grafana Datasource
           - Deploy Grafana Folders
           - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
+          - Deploy Grafana Alternate Route
+
+      - identifier: Install Grafana Standalone
+        unified_job_template: ADO | Install Grafana Standalone
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Deploy Grafana OIDC
+          - Deploy Grafana Email
+          - Deploy Grafana Datasource
+          - Deploy Grafana Folders
+          - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
           - Deploy Grafana Alternate Route
 
       - identifier: Deploy Grafana OIDC
@@ -32,6 +47,7 @@ controller_workflow_job_templates:
           - Deploy Grafana Datasource
           - Deploy Grafana Folders
           - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
           - Deploy Grafana Alternate Route
 
       - identifier: Deploy Grafana Email
@@ -41,6 +57,7 @@ controller_workflow_job_templates:
           - Deploy Grafana Datasource
           - Deploy Grafana Folders
           - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
           - Deploy Grafana Alternate Route
 
       - identifier: Deploy Grafana Datasource
@@ -49,6 +66,7 @@ controller_workflow_job_templates:
         success_nodes:
           - Deploy Grafana Folders
           - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
           - Deploy Grafana Alternate Route
 
       - identifier: Deploy Grafana Folders
@@ -56,10 +74,18 @@ controller_workflow_job_templates:
         lookup_organization: "{{ bootstrap_controller_organization }}"
         success_nodes:
           - Deploy Grafana Dashboards
+          - Deploy Grafana Alerts
           - Deploy Grafana Alternate Route
 
       - identifier: Deploy Grafana Dashboards
         unified_job_template: ADO | Deploy Grafana Dashboards
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Deploy Grafana Alerts
+          - Deploy Grafana Alternate Route
+
+      - identifier: Deploy Grafana Alerts
+        unified_job_template: ADO | Deploy Grafana Alerts
         lookup_organization: "{{ bootstrap_controller_organization }}"
         success_nodes:
           - Deploy Grafana Alternate Route

@@ -8,6 +8,10 @@
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_openshift.yml"
+    # Load dedicated htpasswd vault LAST so it wins over any stale
+    # vault_openshift htpasswd_users (and over the admin_htpasswd stub name).
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_admin_htpasswd.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_admin_htpasswd.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
   environment:

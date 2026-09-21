@@ -17,6 +17,8 @@
         | bool
       }}
     bootstrap_controller_aap_install_during_bootstrap: false
+    bootstrap_controller_aap_full_install_during_bootstrap: false
+    bootstrap_controller_aap_license_only: false
 
 - name: Seed hub-only flag from bootstrap extra var
   ansible.builtin.set_fact:
@@ -127,37 +129,17 @@
   when: bootstrap_controller_vars_only | default(false) | bool
 
 - name: Resolve AAP install-during-bootstrap from preflight
+  # Prefer this preflight JSON only — do not inherit stale group_vars facts
+  # (aap_ocp_install_license_only / aap_install_during_bootstrap) from a prior
+  # license-attach run. Those leftovers were blocking hub-only publish/EE push.
   ansible.builtin.set_fact:
-    bootstrap_controller_aap_install_during_bootstrap: >-
-      {{
-        (
-          bootstrap_controller_preflight_component_config.get('aap', {}).get(
-            'install_during_bootstrap',
-            aap_install_during_bootstrap | default(false)
-          )
-          | bool
-        )
-        or (
-          bootstrap_controller_preflight_pre_installs.get('attach_aap_license', false)
-          | bool
-        )
-        or (
-          bootstrap_controller_preflight_pre_installs.get('aap', {}).get(
-            'license_only',
-            false
-          )
-          | bool
-        )
-        or (aap_ocp_install_license_only | default(false) | bool)
-      }}
     bootstrap_controller_aap_license_only: >-
       {{
         (
-          aap_ocp_install_license_only | default(false) | bool
-        )
-        or (
-          bootstrap_controller_preflight_pre_installs.get('attach_aap_license', false)
-          | bool
+          (
+            bootstrap_controller_preflight_pre_installs.get('attach_aap_license', false)
+            | bool
+          )
           and not (
             bootstrap_controller_preflight_pre_installs.get('install_aap', false)
             | bool
@@ -178,12 +160,54 @@
           | bool
         )
       }}
+    bootstrap_controller_aap_install_during_bootstrap: >-
+      {{
+        (
+          bootstrap_controller_preflight_pre_installs.get('install_aap', false)
+          | bool
+        )
+        or (
+          bootstrap_controller_preflight_pre_installs.get('attach_aap_license', false)
+          | bool
+        )
+        or (
+          bootstrap_controller_preflight_pre_installs.get('aap', {}).get(
+            'license_only',
+            false
+          )
+          | bool
+        )
+        or (
+          bootstrap_controller_preflight_component_config.get('aap', {}).get(
+            'license_only',
+            false
+          )
+          | bool
+        )
+        or (
+          bootstrap_controller_preflight_component_config.get('aap', {}).get(
+            'install_during_bootstrap',
+            false
+          )
+          | bool
+        )
+      }}
   when:
     - bootstrap_controller_generate_env_vars | default(false) | bool
-    - >-
-      bootstrap_generate_env_vars_preflight is defined
-      or aap_install_during_bootstrap is defined
-      or aap_ocp_install_license_only is defined
+    - bootstrap_generate_env_vars_preflight is defined
+
+- name: Derive full AAP operator install (blocks Contoller apply; license-only does not)
+  ansible.builtin.set_fact:
+    bootstrap_controller_aap_full_install_during_bootstrap: >-
+      {{
+        (
+          bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
+        )
+        and not (
+          bootstrap_controller_aap_license_only | default(false) | bool
+        )
+      }}
+  when: bootstrap_controller_generate_env_vars | default(false) | bool
 
 - name: Resolve OpenShift prep-during-bootstrap flags from preflight
   ansible.builtin.set_fact:
@@ -222,14 +246,13 @@
       }}
   when: bootstrap_controller_generate_env_vars | default(false) | bool
 
-# Install-only path: when bootstrap is installing AAP on OpenShift, do not
-# generate Controller JT configs, push AAP configs, or apply to Controller.
-# Rerun bootstrap after AAP is up to configure it.
+# Full operator install only: skip Controller configure until AAP is up.
+# License-only attach must NOT block hub-only collection/EE publish.
 - name: Skip AAP Controller configure when installing AAP during bootstrap
   ansible.builtin.set_fact:
     bootstrap_controller_generate_aap_configs: false
     bootstrap_controller_apply_aap_configs: false
-  when: bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
+  when: bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool
 
 - name: Resolve generated environment name
   ansible.builtin.set_fact:
@@ -323,7 +346,7 @@
   register: bootstrap_controller_generated_aap_config_vars
   when:
     - bootstrap_controller_generated_env | default('') | length > 0
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - not (bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool)
 
 - name: Load generated AAP config vars
   ansible.builtin.include_vars:
@@ -341,7 +364,7 @@
     - >-
       bootstrap_controller_generated_aap_config_vars.stat.exists
       | default(false)
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - not (bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool)
 
 - name: Re-apply manual git after loading aap_config_vars (hub-only)
   ansible.builtin.set_fact:
@@ -353,7 +376,7 @@
     bootstrap_controller_apply_aap_configs: true
   when:
     - bootstrap_controller_hub_update_collection_only | default(false) | bool
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - not (bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool)
 
 - name: Check for AAP config vars before repo generation
   ansible.builtin.stat:
@@ -468,7 +491,7 @@
       }}
   when:
     - bootstrap_controller_generate_aap_configs | default(false) | bool
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - not (bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool)
 
 - name: Push generated repo after AAP config generation
   ansible.builtin.shell: |
@@ -526,4 +549,4 @@
   ansible.builtin.include_tasks: aap.yml
   when:
     - bootstrap_controller_apply_aap_configs | default(false) | bool
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - not (bootstrap_controller_aap_full_install_during_bootstrap | default(false) | bool)

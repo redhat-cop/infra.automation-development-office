@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - install_rhbk - Fix cert-manager Certificate wait ``until`` using wrong
+    register name (``ocp_rhbk_certificate_info`` vs
+    ``install_rhbk_certificate_info``), which never saw Ready and retried until
+    failure even when the Certificate was already issued.

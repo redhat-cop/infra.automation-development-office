@@ -14,10 +14,19 @@
 
 - name: Publish preflight collection | Resolve tarball path
   ansible.builtin.set_fact:
-    bootstrap_controller_hub_pub_tarball: >-
+    bootstrap_controller_hub_pub_file: >-
       {{
-        (bootstrap_controller_hub_pub_find.files | default([]) | map(attribute='path') | sort | last | default(''))
+        bootstrap_controller_hub_pub_find.files
+        | default([])
+        | sort(attribute='path')
+        | last
+        | default({})
       }}
+
+- name: Publish preflight collection | Set tarball path and size
+  ansible.builtin.set_fact:
+    bootstrap_controller_hub_pub_tarball: "{{ bootstrap_controller_hub_pub_file.path | default('') }}"
+    bootstrap_controller_hub_pub_tarball_size: "{{ bootstrap_controller_hub_pub_file.size | default(0) | int }}"
 
 - name: Publish preflight collection | Skip when tarball missing
   ansible.builtin.debug:
@@ -30,6 +39,43 @@
 - name: Publish preflight collection | Publish tarball when present
   when: bootstrap_controller_hub_pub_tarball | default('') | length > 0
   block:
+    - name: Publish preflight collection | Scale pulp wait for large tarballs
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_verify_retries: >-
+          {{
+            (
+              bootstrap_controller_hub_publish_large_verify_retries
+              | default(120)
+              | int
+            )
+            if (
+              (bootstrap_controller_hub_pub_tarball_size | default(0) | int)
+              >= (bootstrap_controller_hub_publish_large_bytes | default(30000000) | int)
+            )
+            else (
+              bootstrap_controller_hub_publish_verify_retries
+              | default(60)
+              | int
+            )
+          }}
+        bootstrap_controller_hub_pub_verify_delay: >-
+          {{
+            (
+              bootstrap_controller_hub_publish_large_verify_delay
+              | default(10)
+              | int
+            )
+            if (
+              (bootstrap_controller_hub_pub_tarball_size | default(0) | int)
+              >= (bootstrap_controller_hub_publish_large_bytes | default(30000000) | int)
+            )
+            else (
+              bootstrap_controller_hub_publish_verify_delay
+              | default(10)
+              | int
+            )
+          }}
+
     - name: Publish preflight collection | Parse version from tarball name
       ansible.builtin.set_fact:
         bootstrap_controller_hub_pub_version: "{{ (bootstrap_controller_hub_pub_tarball | basename | replace('.tar.gz', '')).split('-')[2:] | join('-') }}"
@@ -49,6 +95,9 @@
         msg: >-
           {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }}
           from {{ bootstrap_controller_hub_pub_tarball }}
+          ({{ bootstrap_controller_hub_pub_tarball_size | default(0) }} bytes;
+          pulp wait retries={{ bootstrap_controller_hub_pub_verify_retries }},
+          delay={{ bootstrap_controller_hub_pub_verify_delay }}s)
 
     - name: Publish preflight collection | Build Hub API URLs for this collection
       ansible.builtin.set_fact:
@@ -165,8 +214,8 @@
         auto_approve: false
         overwrite_existing: false
         wait: false
-        timeout: "{{ bootstrap_controller_hub_publish_timeout | default(300) | int }}"
-        request_timeout: "{{ bootstrap_controller_hub_publish_request_timeout | default(60) | int }}"
+        timeout: "{{ bootstrap_controller_hub_publish_timeout | default(900) | int }}"
+        request_timeout: "{{ bootstrap_controller_hub_publish_request_timeout | default(120) | int }}"
         ah_host: "{{ bootstrap_controller_hub_pub_api_host }}"
         ah_username: >-
           {{
@@ -215,8 +264,8 @@
         force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
       register: bootstrap_controller_hub_pub_cv_lookup
       until: (bootstrap_controller_hub_pub_cv_lookup.json.count | default(0) | int) >= 1
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(36) | int }}"
-      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(5) | int }}"
+      retries: "{{ bootstrap_controller_hub_pub_verify_retries | default(bootstrap_controller_hub_publish_verify_retries | default(60)) | int }}"
+      delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       when: bootstrap_controller_hub_pub_should_publish | bool
 
     # wait:false upload can register pulp content before the version is in the
@@ -234,8 +283,8 @@
         force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
       register: bootstrap_controller_hub_pub_staging_ready
       until: (bootstrap_controller_hub_pub_staging_ready.status | default(0) | int) == 200
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(36) | int }}"
-      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(5) | int }}"
+      retries: "{{ bootstrap_controller_hub_pub_verify_retries | default(bootstrap_controller_hub_publish_verify_retries | default(60)) | int }}"
+      delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       when: bootstrap_controller_hub_pub_should_publish | bool
 
     - name: Publish preflight collection | Promote from staging to validated via pulp
@@ -339,8 +388,8 @@
         - (bootstrap_controller_hub_pub_async_task | default('') | length) > 0
       register: bootstrap_controller_hub_pub_promote_task
       until: (bootstrap_controller_hub_pub_promote_task.json.state | default('')) in ['completed', 'failed']
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(36) | int }}"
-      delay: 5
+      retries: "{{ bootstrap_controller_hub_pub_verify_retries | default(bootstrap_controller_hub_publish_verify_retries | default(60)) | int }}"
+      delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       failed_when: (bootstrap_controller_hub_pub_promote_task.json.state | default('')) == 'failed'
 
     - name: Publish preflight collection | Re-check validated after promote/copy
@@ -387,8 +436,8 @@
         force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
       register: bootstrap_controller_hub_pub_verify
       until: (bootstrap_controller_hub_pub_verify.status | default(0) | int) == 200
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(36) | int }}"
-      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(5) | int }}"
+      retries: "{{ bootstrap_controller_hub_pub_verify_retries | default(bootstrap_controller_hub_publish_verify_retries | default(60)) | int }}"
+      delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       when: bootstrap_controller_hub_pub_should_publish | bool
 
     - name: Publish preflight collection | Confirm publish landed in validated

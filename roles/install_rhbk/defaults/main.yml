@@ -32,8 +32,44 @@ ocp_rhbk_route_name: keycloak
 # Default true — callers should not need to set this.
 ocp_rhbk_recreate_ss_on_immutable_change: "{{ rhbk_recreate_ss_on_immutable_change | default(true) }}"
 
+# Native RHBK user-event metrics (keycloak_user_events_total) — not the old
+# community Metrics SPI. Requires RHBK / Keycloak 26.1+ (supported 26.2+) with
+# feature user-event-metrics. Lab channel stable-v26.0 rejects the feature and
+# crash-loops if event-metrics-user-enabled is set — keep false until upgraded.
+install_rhbk_metrics_enabled: "{{ rhbk_metrics_enabled | default(true) | bool }}"
+install_rhbk_event_metrics_user_enabled: >-
+  {{
+    rhbk_event_metrics_user_enabled
+    | default(event_metrics_user_enabled | default(false))
+    | bool
+  }}
+install_rhbk_event_metrics_user_events: >-
+  {{
+    rhbk_event_metrics_user_events
+    | default('login,logout,register,refresh_token,code_to_token')
+  }}
+install_rhbk_event_metrics_user_tags: >-
+  {{ rhbk_event_metrics_user_tags | default('realm,clientId') }}
+install_rhbk_http_metrics_histograms_enabled: >-
+  {{ rhbk_http_metrics_histograms_enabled | default(true) | bool }}
+# Set true on RHBK builds that list user-event-metrics (26.1+/26.2+).
+# When event metrics are enabled, ADO also sets this unless explicitly false.
+install_rhbk_user_event_metrics_feature: >-
+  {{
+    rhbk_user_event_metrics_feature
+    | default(install_rhbk_event_metrics_user_enabled)
+    | bool
+  }}
+# OpenShift ServiceMonitor for management /metrics (user-workload monitoring).
+install_rhbk_servicemonitor_enabled: >-
+  {{
+    rhbk_servicemonitor_enabled
+    | default(install_rhbk_metrics_enabled)
+    | bool
+  }}
+
 # --- RHEL / standalone path (official RHBK zip) ---
-install_rhbk_standalone_hostname: "{{ rhbk_hostname | default('keycloak-ado.server.lab') }}"
+install_rhbk_standalone_hostname: "{{ rhbk_hostname | default('') }}"
 install_rhbk_standalone_http_port: 8080
 install_rhbk_standalone_https_port: 8443
 # Optional HTTPS (same PEM pattern as OpenShift install_rhbk: tls_crt + tls_key).

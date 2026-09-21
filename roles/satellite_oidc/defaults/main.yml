@@ -8,7 +8,7 @@ satellite_oidc_configure_satellite: true
 satellite_oidc_client_id: ado-satellite
 satellite_oidc_client_name: ADO Satellite
 satellite_oidc_realm: rhlab
-satellite_oidc_keycloak_url: https://keycloak.apps.ocp.prod.rhlab
+satellite_oidc_keycloak_url: ""
 satellite_oidc_keycloak_hostname: ""
 satellite_oidc_issuer: ""
 satellite_oidc_client_secret: ""

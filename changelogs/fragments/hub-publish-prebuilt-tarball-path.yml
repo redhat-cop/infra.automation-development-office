@@ -1,0 +1,4 @@
+bugfixes:
+  - bootstrap_controller - Hub publish finds prebuilt ``infra-ado-*.tar.gz`` under
+    ``/opt/ado-collections`` as well as ``/workspace``, so force updates stage the
+    exact preflight tarball instead of silently rebuilding from ``ado-source``.

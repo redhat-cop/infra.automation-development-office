@@ -1,0 +1,4 @@
+---
+bugfixes:
+  - bootstrap_generate_env_vars - Wire OpenShift console banner ``state`` (add/update/delete), LDAP Auth ``ldap_config`` IdM fields, and OAuth/RHBK client/realm/scopes from preflight ``openshift.*`` into generated vars/vault.
+  - bootstrap_generate_env_vars - Pass Quay OIDC client/realm and optional client secret from preflight ``component_config.quay``.

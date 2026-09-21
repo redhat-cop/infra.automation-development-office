@@ -1,0 +1,5 @@
+bugfixes:
+  - bootstrap_generate_playbook_repo - Seed ``ado-rhbk-api-pre_tasks.yml``
+    (and enable-realm / client-scope playbooks) into the Contoller project.
+    Realm/client/mapper jobs imported that shared file but bootstrap never
+    copied it, so Contoller failed with ``Unable to retrieve file contents``.

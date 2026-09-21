@@ -15,8 +15,8 @@ idm_ad_trust_ipa_domain: "{{ ansible_domain | default('server.lab') }}"
 # AD forest (override via group_vars / extra-vars; lab example: ad.lab / .61)
 idm_ad_trust_ad_domain: ad.lab
 idm_ad_trust_ad_realm: "{{ idm_ad_trust_ad_domain | upper }}"
-idm_ad_trust_ad_dc_hostname: adwindows.ad.lab
-idm_ad_trust_ad_dc_ip: 192.168.0.61
+idm_ad_trust_ad_dc_hostname: ""
+idm_ad_trust_ad_dc_ip: ""
 
 # NetBIOS name for ipa-adtrust-install (max 15 chars; derived from IdM domain)
 idm_ad_trust_netbios_name: >-

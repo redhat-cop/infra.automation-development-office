@@ -1,7 +1,11 @@
 ---
-- name: Resolve DevSpaces app namespace for delete  # noqa: jinja[invalid]
+- name: Resolve DevSpaces namespaces for delete  # noqa: jinja[invalid]
   ansible.builtin.set_fact:
+    ocp_devspaces_operator_ns: "{{ operator_namespace | default(name_space | default('openshift-operators')) }}"
     ocp_devspaces_app_ns: "{{ app_namespace | default(devspaces_namespace | default(namespace | default('openshift-devspaces'))) }}"
+
+- name: Delete optional DevWorkspace status exporter
+  ansible.builtin.import_tasks: delete-status-exporter.yml
 
 - name: Delete CheCluster instance
   kubernetes.core.k8s:

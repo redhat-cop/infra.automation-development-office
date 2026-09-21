@@ -1,6 +1,7 @@
 ---
 # Upload Grafana alert rule JSON files from folder sources.
 # Plain .json uploaded as-is; .json.j2 templated first.
+# Auth: grafana_api_key (Bearer) or grafana admin basic auth.
 
 - name: Skip alerts when disabled
   ansible.builtin.meta: end_host
@@ -9,6 +10,20 @@
 - name: Normalize alert work items
   ansible.builtin.set_fact:
     grafana_upload_alerts_work_items: []
+    grafana_upload_alerts_url: "https://{{ grafana_hostname }}"
+    grafana_upload_alerts_user: "{{ grafana_admin_user | default('admin') }}"
+    grafana_upload_alerts_password: "{{ grafana_admin_password | default('') }}"
+
+- name: Assert Grafana credentials for alert upload
+  ansible.builtin.assert:
+    that:
+      - grafana_hostname | default('') | length > 0
+      - >-
+        (grafana_api_key | default('') | length > 0)
+        or (grafana_upload_alerts_password | length > 0)
+    fail_msg: >-
+      grafana_upload_alerts needs grafana_hostname and either grafana_api_key
+      or grafana_admin_password.
 
 - name: Collect alerts from grafana_folders
   ansible.builtin.include_tasks: collect-folder-alerts.yml

@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - grafana - Optional OpenShift or standalone install; content steps
+    (datasources, folders, dashboards, alerts) run independently or
+    config-only against an existing Grafana.
+  - grafana - Preflight tabs; datasources form (Prometheus URL/bearer and
+    git/path JSON); General/root folder; Grafana API token/admin auth.
+  - grafana_upload_alerts - Admin basic auth fallback; clone git sources;
+    independent Contoller JT.
+  - grafana_create_datasource - Import datasource JSON from git/path;
+    accept Grafana API token.

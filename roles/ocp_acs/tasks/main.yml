@@ -167,7 +167,26 @@
 
 # ------------------------------------------------------------
 # Ensure PVCs referenced by Central exist (claimName does not auto-create).
+# Never invent a cluster "default" StorageClass — storage must come from
+# preflight / group_vars (storage, storage_class, ocp_acs_storage_class).
+# When unset, omit storageClassName so existing bound claims are not patched
+# to storageClassName: "" (immutable / Forbidden).
 # ------------------------------------------------------------
+- name: Resolve ACS storage class for PVCs
+  ansible.builtin.set_fact:
+    ocp_acs_storage_class_effective: >-
+      {{
+        (
+          ocp_acs_storage_class
+          | default(storage, true)
+          | default(storage_class, true)
+          | default('', true)
+        )
+        | string
+        | trim
+      }}
+  tags: [acs, rhacs, central]
+
 - name: Ensure ACS Central / DB PVCs exist
   kubernetes.core.k8s:
     state: present
@@ -177,13 +196,18 @@
       metadata:
         name: "{{ item.name }}"
         namespace: "{{ ocp_acs_namespace }}"
-      spec:
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: "{{ item.size }}"
-        storageClassName: "{{ ocp_acs_storage_class | default(storage | default(storage_class | default(''), true), true) }}"
+      spec: >-
+        {{
+          {
+            'accessModes': ['ReadWriteOnce'],
+            'resources': {'requests': {'storage': item.size}},
+          }
+          | combine(
+              {'storageClassName': ocp_acs_storage_class_effective}
+              if (ocp_acs_storage_class_effective | length > 0)
+              else {}
+            )
+        }}
   loop:
     - name: "{{ ocp_acs_central_pvc_name | default('central-pvc') }}"
       size: "{{ ocp_acs_central_pvc_size | default('10Gi') }}"

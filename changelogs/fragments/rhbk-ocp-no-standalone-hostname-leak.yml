@@ -1,0 +1,11 @@
+bugfixes:
+  - preflight / infra.ado - Remove hardcoded lab hostname defaults.
+    Hostnames must come from the form, inventory, or survey — never silent defaults.
+  - bootstrap_generate_env_vars - For OpenShift RHBK, Grafana, and GitLab
+    (standalone option not selected), do not write any ``standalone_*`` fields
+    or RHEL ``install_*`` / zip / RPM / edition vars into group_vars — only
+    when Standalone is selected.
+  - rhbk_realm - Prefer ``ocp_rhbk_hostname`` for the admin API wait when
+    ``install_rhbk_platform`` is ``openshift``.
+  - bootstrap_generate_playbook_repo - Deploy RHBK / Grafana / GitLab playbooks
+    prefer the OpenShift route host over a poisoned standalone hostname.

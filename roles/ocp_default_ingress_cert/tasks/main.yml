@@ -105,18 +105,18 @@
   ansible.builtin.fail:
     msg: >-
       Ingress PEM normalize/validate failed:
-      {{ ocp_default_ingress_pem_normalize.stderr
-         | default(ocp_default_ingress_pem_normalize.stdout, true)
-         | default(ocp_default_ingress_pem_normalize.msg, true)
+      {{ ocp_default_ingress_cert_pem_normalize.stderr
+         | default(ocp_default_ingress_cert_pem_normalize.stdout, true)
+         | default(ocp_default_ingress_cert_pem_normalize.msg, true)
          | default('unknown openssl/normalize error')
          | trim }}
-  when: (ocp_default_ingress_pem_normalize.rc | default(1) | int) != 0
+  when: (ocp_default_ingress_cert_pem_normalize.rc | default(1) | int) != 0
 
 - name: Default ingress cert | Load normalized PEMs
   ansible.builtin.set_fact:
-    ocp_default_ingress_cert_combined_crt: "{{ (ocp_default_ingress_pem_normalize.stdout | from_json).tls_crt }}"
-    ocp_default_ingress_cert_normalized_key: "{{ (ocp_default_ingress_pem_normalize.stdout | from_json).tls_key }}"
-    ocp_default_ingress_cert_count: "{{ (ocp_default_ingress_pem_normalize.stdout | from_json).cert_count }}"
+    ocp_default_ingress_cert_combined_crt: "{{ (ocp_default_ingress_cert_pem_normalize.stdout | from_json).tls_crt }}"
+    ocp_default_ingress_cert_normalized_key: "{{ (ocp_default_ingress_cert_pem_normalize.stdout | from_json).tls_key }}"
+    ocp_default_ingress_cert_count: "{{ (ocp_default_ingress_cert_pem_normalize.stdout | from_json).cert_count }}"
   no_log: true
 
 - name: Default ingress cert | Create TLS secret in openshift-ingress

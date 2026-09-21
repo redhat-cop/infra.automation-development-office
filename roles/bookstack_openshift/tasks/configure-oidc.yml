@@ -1,4 +1,59 @@
 ---
+- name: Read existing BookStack app secret for OIDC redeploy
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: bookstack-app
+    namespace: "{{ bookstack_namespace }}"
+    validate_certs: "{{ bookstack_validate_certs }}"
+  register: bookstack_openshift_oidc_app_secret
+  no_log: true
+
+- name: Resolve APP_KEY / APP_URL for OIDC redeploy from existing secret
+  ansible.builtin.set_fact:
+    bookstack_openshift_app_key_effective: >-
+      {{
+        bookstack_app_key
+        if (bookstack_app_key | default('') | length > 0)
+        else (
+          (bookstack_openshift_oidc_app_secret.resources[0].data['app-key'] | b64decode)
+          if (
+            bookstack_openshift_oidc_app_secret.resources | default([]) | length > 0
+            and bookstack_openshift_oidc_app_secret.resources[0].data['app-key'] is defined
+          )
+          else ''
+        )
+      }}
+    bookstack_openshift_app_url_effective: >-
+      {{
+        bookstack_app_url
+        if (bookstack_app_url | default('') | length > 0)
+        else (
+          (bookstack_openshift_oidc_app_secret.resources[0].data['app-url'] | b64decode)
+          if (
+            bookstack_openshift_oidc_app_secret.resources | default([]) | length > 0
+            and bookstack_openshift_oidc_app_secret.resources[0].data['app-url'] is defined
+          )
+          else (
+            'https://'
+            ~ (
+              bookstack_route_host
+              if (bookstack_route_host | default('') | length > 0)
+              else (bookstack_namespace ~ '.' ~ (bookstack_apps_domain | default('apps.ocp.example.com')))
+            )
+          )
+        )
+      }}
+  no_log: true
+
+- name: Assert BookStack APP_KEY is available for OIDC redeploy
+  ansible.builtin.assert:
+    that:
+      - (bookstack_openshift_app_key_effective | default('') | length) > 0
+    fail_msg: >-
+      BookStack OIDC redeploy requires an existing bookstack-app Secret app-key
+      (or bookstack_app_key). Run the BookStack install JT before OIDC.
+
 - name: Patch BookStack app secret with OIDC client credentials
   kubernetes.core.k8s:
     state: present

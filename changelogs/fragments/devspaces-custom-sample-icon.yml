@@ -1,0 +1,8 @@
+---
+minor_changes:
+  - ocp_devspaces / preflight - Add custom getting-started sample fields
+    (display name, git/devfile URL, bundled ADO icon or upload) so Dev Spaces
+    can replace stock samples with an ADO-branded card.
+bugfixes:
+  - ocp_devspaces - Do not overwrite ``custom_samples`` ConfigMap with the
+    icon-less ``default_devfile_url`` sample when custom samples are set.

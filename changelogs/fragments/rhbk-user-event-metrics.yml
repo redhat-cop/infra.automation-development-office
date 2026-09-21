@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - install_rhbk - Wire correct native user-event metrics options
+    (``event-metrics-user-enabled`` + optional feature ``user-event-metrics``)
+    instead of the invalid ``event-metrics-user-events-enabled`` typo; do not
+    enable them by default on RHBK ``stable-v26.0`` (crash-loop).
+minor_changes:
+  - install_rhbk - Add ``event_metrics_user_enabled`` /
+    ``install_rhbk_event_metrics_user_enabled`` (default false until RHBK 26.2+)
+    plus ServiceMonitor for management ``/metrics``.
+  - bootstrap_resolve_component - Prefer RHBK operator channel ``stable-v26.2``
+    so login-event metrics are available after upgrade.
+  - preflight - RHBK checkbox for user-event metrics (enable after upgrading
+    off ``stable-v26.0``).

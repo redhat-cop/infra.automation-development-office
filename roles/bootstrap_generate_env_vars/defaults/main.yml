@@ -114,9 +114,9 @@ bootstrap_generate_env_vars_satellite_activation_key: ""
 bootstrap_generate_env_vars_satellite_rhn_connected: true
 bootstrap_generate_env_vars_satellite_oidc_client_id: ado-satellite
 bootstrap_generate_env_vars_satellite_oidc_realm: rhlab
-bootstrap_generate_env_vars_satellite_oidc_keycloak_url: https://keycloak.apps.ocp.prod.rhlab
-bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname: keycloak.apps.ocp.prod.rhlab
-bootstrap_generate_env_vars_satellite_oidc_issuer: https://keycloak.apps.ocp.prod.rhlab/realms/rhlab
+bootstrap_generate_env_vars_satellite_oidc_keycloak_url: ""
+bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname: ""
+bootstrap_generate_env_vars_satellite_oidc_issuer: ""
 bootstrap_generate_env_vars_satellite_oidc_create_client: true
 bootstrap_generate_env_vars_satellite_oidc_client_secret: ""
 bootstrap_generate_env_vars_satellite_oidc_admin_user: admin

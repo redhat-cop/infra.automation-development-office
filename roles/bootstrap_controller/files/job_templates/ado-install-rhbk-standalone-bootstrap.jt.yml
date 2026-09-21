@@ -47,7 +47,7 @@ controller_templates:
           required: true
           type: text
           variable: rhbk_hostname
-          default: keycloak-ado.server.lab
+          default: ""
         - question_name: ADO | Admin username
           required: true
           type: text

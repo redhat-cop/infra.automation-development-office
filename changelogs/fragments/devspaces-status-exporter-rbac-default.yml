@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    ocp_devspaces - Status exporter ClusterRole now force-converges with
+    ``pods`` get/list and ``pods/exec`` get/create. Incomplete live ClusterRoles
+    (devworkspaces-only) caused empty ``devworkspace_vscode_extension`` metrics
+    even when the exporter Deployment was Running. ConfigMap updates force-replace
+    and a pod template checksum annotation rolls the Deployment when the script
+    changes.
+minor_changes:
+  - >-
+    ocp_devspaces - Default ``ocp_devspaces_status_exporter_enabled`` /
+    preflight ``status_exporter_enabled`` to ``true`` so Grafana Dev Spaces
+    dashboards get phase and VS Code extension metrics out of the box.

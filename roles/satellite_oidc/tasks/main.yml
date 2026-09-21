@@ -13,7 +13,7 @@
       {{
         (
           satellite_oidc_keycloak_url
-          | default(rhbk_url | default(rhbk_hostname | default('keycloak.apps.ocp.prod.rhlab')), true)
+          | default(rhbk_url | default(rhbk_hostname | default('')), true)
           | string
         )
         | regex_replace('/+$', '')

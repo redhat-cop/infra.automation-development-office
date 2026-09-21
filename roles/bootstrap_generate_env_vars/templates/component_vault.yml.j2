@@ -26,6 +26,7 @@ dirsrv:
 {% elif component_name == 'grafana' %}
 grafana_admin_user: admin
 grafana_admin_password: redhat123
+vault_grafana_api_key: ""
 
 {% elif component_name == 'satellite' %}
 vault_satellite_service_account_username: "{{ bootstrap_generate_env_vars_satellite_service_account_username | default('') }}"
@@ -56,19 +57,10 @@ idm_configure_replica_dm_password: "{% raw %}{{ vault_idm_directory_manager_pass
 idm_ad_trust_ipa_admin_password: "{% raw %}{{ vault_idm_admin_password }}{% endraw %}"
 idm_ad_trust_ad_admin_password: "{% raw %}{{ vault_ad_trust_admin_password }}{% endraw %}"
 
-{% elif component_name == 'htpasswd' %}
-htpasswd_users:
-  - name: admin
-    password: redhat123
-    role: cluster-admin
-  - name: chad-adm
-    password: knuckle
-    role: cluster-admin
-  - name: developer
-    password: redhat123
-    role: developer
-
-htpasswd_pass: redhat123
+{% elif component_name == 'htpasswd' or component_name == 'htpass_admin' or component_name == 'admin_htpasswd' %}
+# Populated by overlay from preflight openshift.htpasswd_users — no silent defaults.
+htpasswd_users: []
+htpasswd_pass: ""
 
 {% elif component_name == 'cert_manager' %}
 tls_crt:
@@ -80,11 +72,9 @@ vault_aws_secret_access_key: ""
 vault_aws_session_token: ""
 
 {% elif component_name == 'openshift' %}
-htpasswd_users:
-  - name: admin
-    password: redhat123
-    role: cluster-admin
-htpasswd_pass: redhat123
+# HTPasswd users come from preflight overlay (openshift.htpasswd_users) — no silent defaults.
+htpasswd_users: []
+htpasswd_pass: ""
 
 {% elif component_name == 'openshift_virt' %}
 {% set openshift_virt_config = bootstrap_generate_env_vars_preflight.component_config.openshift_virt | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}

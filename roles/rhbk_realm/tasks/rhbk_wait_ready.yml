@@ -3,11 +3,21 @@
 # UNEXPECTED_EOF usually means ingress/pod TLS is not ready yet (or broken cert).
 - name: Normalize Keycloak hostname for realm wait
   ansible.builtin.set_fact:
+    # On OpenShift, prefer the route host. rhbk_hostname may still carry a
+    # stale UI default (keycloak-ado.server.lab) from preflight passthrough.
     rhbk_realm_wait_hostname: >-
       {{
         (
-          rhbk_hostname
-          | default(ocp_rhbk_hostname)
+          (
+            ocp_rhbk_hostname
+            if (
+              (install_rhbk_platform | default(rhbk_platform) | default('openshift') | string | lower)
+              == 'openshift'
+            )
+            else rhbk_hostname
+          )
+          | default(ocp_rhbk_hostname, true)
+          | default(rhbk_hostname, true)
           | default('')
           | string
           | regex_replace('^https?://', '')

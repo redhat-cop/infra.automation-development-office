@@ -13,6 +13,7 @@
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_rhbk.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_rhbk.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_bookstack.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_bookstack.yml"
   environment:

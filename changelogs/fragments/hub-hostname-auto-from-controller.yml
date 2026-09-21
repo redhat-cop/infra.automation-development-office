@@ -1,0 +1,4 @@
+bugfixes:
+  - bootstrap_generate_env_vars - Hub hostname auto-discovers from Contoller
+    ``aap.hostname`` unless ``hub_hostname_manual`` is true, so stale imported
+    ``hub_hostname`` values no longer publish collections to the wrong Hub.

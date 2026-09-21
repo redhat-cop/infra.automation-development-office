@@ -1,11 +1,19 @@
 ---
+- name: Skip create for Grafana General / root folder
+  ansible.builtin.debug:
+    msg: >-
+      Folder '{{ grafana_manage_folders_name | default('') }}' maps to Grafana
+      General (root); no folder create required.
+  when: grafana_manage_folders_is_general | default(false) | bool
+
 - name: Create/Update a Folder in Grafana
   community.grafana.grafana_folder:
     name: "{{ grafana_manage_folders_name }}"
     uid: "{{ grafana_manage_folders_name }}-folder"
     url: "{{ grafana_manage_folders_url }}"
-    url_username: "{{ grafana_manage_folders_user }}"
-    url_password: "{{ grafana_manage_folders_password }}"
+    url_username: "{{ grafana_manage_folders_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_manage_folders_password if (grafana_api_key | default('') | length) == 0 else omit }}"
     grafana_api_key: "{{ grafana_api_key | default(omit) }}"
     state: "{{ grafana_manage_folders_state }}"
     validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when: not (grafana_manage_folders_is_general | default(false) | bool)

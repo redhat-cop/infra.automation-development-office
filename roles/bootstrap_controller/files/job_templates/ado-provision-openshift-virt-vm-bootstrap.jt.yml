@@ -52,13 +52,13 @@ controller_templates:
           required: false
           type: text
           variable: provision_openshift_virt_vm_name
-          default: keycloak-ado
+          default: ""
         - question_name: ADO | Guest hostname
           question_description: Hostname written into cloud-init for the guest
           required: false
           type: text
           variable: provision_openshift_virt_hostname
-          default: keycloak-ado.server.lab
+          default: ""
         - question_name: ADO | Boot image
           question_description: OpenShift Virtualization boot image/DataSource
           required: false

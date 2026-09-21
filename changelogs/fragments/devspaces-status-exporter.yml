@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - ocp_devspaces - Optional DevWorkspace status metrics exporter
+    (``status_exporter_enabled``) for Grafana; portable ``dw_*`` labels
+    in the Dev Spaces operator namespace.

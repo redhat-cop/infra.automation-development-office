@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Stop forcing ``install_rhbk_platform: rhel`` when
+    preflight UI ships default ``standalone_hostname`` / zip fields without the
+    ``standalone`` RHBK option selected. OpenShift Deploy RHBK stays on the
+    operator path; standalone ZIP vars apply only when ``standalone`` is checked.
+  - >-
+    bootstrap_generate_playbook_repo - OpenShift Deploy RHBK playbook now
+    ``set_fact``s ``install_rhbk_platform: openshift`` (and role vars) so stale
+    ``vars_rhbk.yml`` cannot divert Contoller onto the standalone zip path.

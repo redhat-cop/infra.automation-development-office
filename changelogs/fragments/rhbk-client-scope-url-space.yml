@@ -1,0 +1,5 @@
+bugfixes:
+  - rhbk_client_scope - Stop folding Keycloak mapper URLs across lines with
+    ``>-`` after ``/client-scopes/``. YAML inserted a space before the scope
+    UUID (``.../client-scopes/ <uuid>/...``), so Contoller failed with
+    ``URL can't contain control characters``.

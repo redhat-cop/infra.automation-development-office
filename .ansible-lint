@@ -64,6 +64,7 @@ mock_roles:
     - infra.ado.grafana_install
     - infra.ado.grafana_manage_folders
     - infra.ado.grafana_upload_dashboards
+    - infra.ado.grafana_upload_alerts
     - infra.ado.idm_client
     - infra.ado.idm_configure_replica
     - infra.ado.idm_dns

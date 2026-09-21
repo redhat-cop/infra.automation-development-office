@@ -168,14 +168,14 @@ rhel_sat_reg_validate_certs: {{ bootstrap_generate_env_vars_satellite_validate_c
 rhel_sat_reg_insecure: {{ (not (bootstrap_generate_env_vars_satellite_validate_certs | default(false) | bool)) | bool | lower }}
 satellite_oidc_client_id: "{{ bootstrap_generate_env_vars_satellite_oidc_client_id | default('ado-satellite') }}"
 satellite_oidc_realm: "{{ bootstrap_generate_env_vars_satellite_oidc_realm | default('rhlab') }}"
-satellite_oidc_keycloak_url: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_url | default('https://keycloak.apps.ocp.prod.rhlab') }}"
-satellite_oidc_keycloak_hostname: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname | default('keycloak.apps.ocp.prod.rhlab') }}"
-satellite_oidc_issuer: "{{ bootstrap_generate_env_vars_satellite_oidc_issuer | default('https://keycloak.apps.ocp.prod.rhlab/realms/rhlab') }}"
+satellite_oidc_keycloak_url: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_url | default('') }}"
+satellite_oidc_keycloak_hostname: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname | default('') }}"
+satellite_oidc_issuer: "{{ bootstrap_generate_env_vars_satellite_oidc_issuer | default('') }}"
 satellite_oidc_create_client: {{ bootstrap_generate_env_vars_satellite_oidc_create_client | default(true) | bool | lower }}
 satellite_oidc_server_url: "{{ bootstrap_generate_env_vars_satellite_server_url | default('') }}"
 satellite_oidc_validate_certs: {{ bootstrap_generate_env_vars_satellite_validate_certs | default(false) | bool | lower }}
 satellite_oidc_keycloak_validate_certs: {{ bootstrap_generate_env_vars_satellite_oidc_keycloak_validate_certs | default(false) | bool | lower }}
-rhbk_hostname: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname | default('keycloak.apps.ocp.prod.rhlab') }}"
+rhbk_hostname: "{{ bootstrap_generate_env_vars_satellite_oidc_keycloak_hostname | default('') }}"
 rhbk_realm: "{{ bootstrap_generate_env_vars_satellite_oidc_realm | default('rhlab') }}"
 rhbk_client: "{{ bootstrap_generate_env_vars_satellite_oidc_client_id | default('ado-satellite') }}"
 rhbk_verify_ssl: {{ bootstrap_generate_env_vars_satellite_oidc_keycloak_validate_certs | default(false) | bool | lower }}
@@ -421,7 +421,7 @@ rhel_system_roles:
 {% set idm_domain = idm_cfg.domain | default(bootstrap_generate_env_vars_idm_domain | default(''), true) %}
 {% set idm_realm = idm_cfg.realm | default(bootstrap_generate_env_vars_idm_realm | default(idm_domain | upper if idm_domain else ''), true) %}
 {% set idm_ad_domain = idm_cfg.ad_domain | default('ad.lab', true) %}
-{% set idm_ad_dc_hostname = idm_cfg.ad_dc_hostname | default('adwindows.ad.lab', true) %}
+{% set idm_ad_dc_hostname = idm_cfg.ad_dc_hostname | default('', true) %}
 {% set idm_ad_dc_ip = idm_cfg.ad_dc_ip | default('192.168.0.61', true) %}
 {% set idm_ad_admin = idm_cfg.ad_admin | default('Administrator', true) %}
 components_env:

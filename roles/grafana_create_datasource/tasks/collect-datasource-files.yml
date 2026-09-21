@@ -1,0 +1,86 @@
+---
+# Collect datasource JSON (.json / .json.j2) from a git repo or local path.
+
+- name: Ensure datasource source workspace exists
+  ansible.builtin.file:
+    path: >-
+      /tmp/grafana-ds-src-{{
+        grafana_ds_source_item.name
+        | default('datasources')
+        | regex_replace('[^A-Za-z0-9_-]', '_')
+      }}
+    state: directory
+    mode: "0755"
+
+- name: Clone git datasource source
+  ansible.builtin.git:
+    repo: "{{ grafana_ds_source_item.source }}"
+    dest: >-
+      /tmp/grafana-ds-src-{{
+        grafana_ds_source_item.name
+        | default('datasources')
+        | regex_replace('[^A-Za-z0-9_-]', '_')
+      }}
+    version: "{{ grafana_ds_source_item.version | default('HEAD') }}"
+    force: true
+  when:
+    - (grafana_ds_source_item.source_type | default('path')) == 'git'
+    - grafana_ds_source_item.source | default('') | length > 0
+
+- name: Resolve datasource files root
+  ansible.builtin.set_fact:
+    grafana_create_datasource_files_root: >-
+      {{
+        (
+          '/tmp/grafana-ds-src-'
+          ~ (
+            grafana_ds_source_item.name
+            | default('datasources')
+            | regex_replace('[^A-Za-z0-9_-]', '_')
+          )
+          ~ '/'
+          ~ (grafana_ds_source_item.datasources_path | default('datasources'))
+        )
+        if ((grafana_ds_source_item.source_type | default('path')) == 'git')
+        else (
+          (
+            (
+              grafana_ds_source_item.source
+              if (grafana_ds_source_item.source is match('^/'))
+              else (
+                (playbook_dir | dirname | dirname)
+                ~ '/'
+                ~ (grafana_ds_source_item.source | default('') | regex_replace('^\\./', ''))
+              )
+            )
+            | regex_replace('/$', '')
+          )
+          ~ '/'
+          ~ (grafana_ds_source_item.datasources_path | default(''))
+        )
+      }}
+
+- name: Find datasource JSON files
+  ansible.builtin.find:
+    paths: "{{ grafana_create_datasource_files_root | regex_replace('/$', '') }}"
+    patterns:
+      - "*.json"
+      - "*.json.j2"
+    recurse: true
+  register: grafana_create_datasource_found_files
+  failed_when: false
+
+- name: Append datasource file work items
+  ansible.builtin.set_fact:
+    grafana_create_datasource_file_work_items: >-
+      {{
+        grafana_create_datasource_file_work_items
+        + [
+          {
+            'name': (item.path | basename | regex_replace('\\.json(\\.j2)?$', '')),
+            'path': item.path,
+            'template': (item.path | basename | regex_search('\\.json\\.j2$')) is not none
+          }
+        ]
+      }}
+  loop: "{{ grafana_create_datasource_found_files.files | default([]) }}"

@@ -45,6 +45,12 @@ Automation Development Office
 | `bootstrap_controller_templates` | Job template definitions loaded from generated YAML. |
 | `bootstrap_controller_workflow_job_templates` | Workflow job template definitions loaded from generated YAML. |
 | `bootstrap_controller_controller_labels` | Controller labels to create. Generated runs include an organization label such as `ADO` alongside component labels such as `ADO | rhel`. |
+| `bootstrap_controller_hub_publish_timeout` | Hub collection upload timeout (seconds). Defaults to `900`. |
+| `bootstrap_controller_hub_publish_verify_retries` | Pulp import/promote poll retries. Defaults to `60` (~10m with delay `10`). |
+| `bootstrap_controller_hub_publish_large_bytes` | Tarball size threshold for the large-collection wait path. Defaults to `30000000`. |
+| `bootstrap_controller_hub_publish_large_verify_retries` | Pulp poll retries for large tarballs. Defaults to `120` (~20m). |
+| `bootstrap_controller_hub_ee_skopeo_retry_times` | skopeo `--retry-times` for Hub EE push. Defaults to `8`. |
+| `bootstrap_controller_hub_ee_push_retries` | Ansible retries around Hub EE skopeo push (502/gateway flakes). Defaults to `5`. |
 
 ## Install / configure matrix
 

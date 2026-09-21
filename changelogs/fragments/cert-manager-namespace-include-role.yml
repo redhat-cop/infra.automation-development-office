@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - ocp_namespace - Prefer ``ocp_namespace_name`` over host fact ``name_space``
+    so dual-namespace installs (cert-manager-operator vs cert-manager) create
+    the correct Namespace on Contoller.
+  - bootstrap_generate_playbook_repo - cert-manager playbook uses
+    ``include_role`` with explicit operator/operand namespaces (``roles:``
+    params named ``name_space`` were ignored and only the operand NS existed).

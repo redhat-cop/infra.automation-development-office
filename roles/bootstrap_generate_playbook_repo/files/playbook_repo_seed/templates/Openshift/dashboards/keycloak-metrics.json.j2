@@ -3,7 +3,7 @@
   "annotations": {
     "list": []
   },
-  "description": "RHBK / Keycloak Micrometer metrics (jvm_*, http_server_*). Lab IdP runs on Prod; use the Cluster dropdown if both Prometheus datasources expose metrics.",
+  "description": "RHBK Micrometer + native user-event metrics (keycloak_user_events_total). Login stats use absolute counters (Prometheus omits empty error labels; increase() is 0 for events that happened before the series was first scraped). Username is NOT available on this metric (Keycloak only tags realm/clientId/idp/error) — use Keycloak Admin Events for per-user failures.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -11,27 +11,13 @@
   "links": [],
   "panels": [
     {
-      "type": "text",
-      "title": "About this dashboard",
-      "gridPos": {
-        "h": 4,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "RHBK scrapes **Micrometer** metrics from the management port (`/metrics`).\n\n- **Memory / CPU / HTTP**: from `jvm_*`, `process_*`, `http_server_*`\n- **Login/realm panels from community dashboard 10441 will stay empty** unless the Keycloak Metrics SPI is installed (this lab does not ship those `keycloak_*` series).\n- Select **K8S = Openshift-Prod** (or Dev on the Dev dashboard)."
-      }
-    },
-    {
       "type": "stat",
       "title": "Uptime",
       "gridPos": {
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 4
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -80,7 +66,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 4
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -129,7 +115,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 4
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -186,7 +172,7 @@
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 4
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -235,7 +221,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 4
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -284,7 +270,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 4
       },
       "datasource": {
         "type": "prometheus",
@@ -326,7 +312,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 4
       },
       "datasource": {
         "type": "prometheus",
@@ -378,7 +364,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -420,7 +406,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -452,6 +438,496 @@
           "expr": "sum(rate(jvm_gc_pause_seconds_count{namespace=~\"$namespace\", pod=~\"$pod\"}[5m])) or sum(rate(jvm_gc_pause_seconds_count{exported_namespace=~\"$namespace\", pod=~\"$pod\"}[5m]))",
           "legendFormat": "GC pauses/s",
           "refId": "A"
+        }
+      ]
+
+    },
+    {
+      "type": "row",
+      "title": "Login events (user-event metrics)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Login success (total)",
+      "description": "event=login with empty error",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "(sum(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\"}) - sum(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"})) or (sum(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\"}) - sum(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"})) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Login failures (total)",
+      "description": "event=login with non-empty error",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"}) or sum(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"}) or vector(0)",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Login success vs failure rate",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "showPoints": "never",
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\"}[5m])) - sum(rate(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m]))) or (sum(rate(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\"}[5m])) - sum(rate(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m])))",
+          "legendFormat": "success",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m])) or sum(rate(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m]))",
+          "legendFormat": "failure",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Failed logins by reason",
+      "description": "Native keycloak_user_events_total (no username). See panel below for who failed.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          },
+          "mappings": [
+            {
+              "options": {
+                "invalid_user_credentials": {
+                  "text": "Bad password",
+                  "index": 0
+                },
+                "user_not_found": {
+                  "text": "Unknown user",
+                  "index": 1
+                },
+                "user_disabled": {
+                  "text": "User disabled",
+                  "index": 2
+                },
+                "user_temporarily_disabled": {
+                  "text": "Temporarily disabled",
+                  "index": 3
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Fail reason"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Count"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "namespace": true,
+              "exported_namespace": true,
+              "pod": true,
+              "container": true,
+              "endpoint": true,
+              "service": true,
+              "prometheus": true,
+              "prometheus_replica": true,
+              "event": true,
+              "idp": true
+            },
+            "renameByName": {
+              "error": "Fail reason",
+              "Value": "Count"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sum by (error, realm, client_id) (keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"}) or sum by (error, realm, client_id) (keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Failed login rate by reason",
+      "description": "Stacked by Keycloak error (bad password / unknown user / …)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "showPoints": "never",
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (error) (rate(keycloak_user_events_total{namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m])) or sum by (error) (rate(keycloak_user_events_total{exported_namespace=~\"$namespace\", event=\"login\", error=~\".+\"}[5m]))",
+          "legendFormat": "{{error}}",
+          "refId": "A"
+        }
+      ]
+
+    },
+    {
+      "type": "table",
+      "title": "Failed logins by username",
+      "description": "From Admin event store via keycloak-login-events exporter. Sorted by newest failure. Requires realm eventsEnabled + exporter deploy.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          },
+          "mappings": [
+            {
+              "options": {
+                "invalid_user_credentials": {
+                  "text": "Bad password",
+                  "index": 0
+                },
+                "user_not_found": {
+                  "text": "Unknown user",
+                  "index": 1
+                },
+                "user_disabled": {
+                  "text": "User disabled",
+                  "index": 2
+                },
+                "user_temporarily_disabled": {
+                  "text": "Temporarily disabled",
+                  "index": 3
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Last seen",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "namespace": true,
+              "pod": true,
+              "container": true,
+              "endpoint": true,
+              "service": true,
+              "prometheus": true,
+              "prometheus_replica": true
+            },
+            "renameByName": {
+              "username": "Username",
+              "error": "Fail reason",
+              "client_id": "client_id",
+              "realm": "realm",
+              "ip": "IP",
+              "Value #Count": "Count",
+              "Value #Last": "Last seen",
+              "Value": "Count"
+            },
+            "indexByName": {
+              "Last seen": 0,
+              "Username": 1,
+              "Fail reason": 2,
+              "client_id": 3,
+              "realm": 4,
+              "IP": 5,
+              "Count": 6
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Last seen",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sum by (username, error, client_id, realm, ip) (keycloak_login_failure_events)",
+          "format": "table",
+          "instant": true,
+          "refId": "Count"
+        },
+        {
+          "expr": "max by (username, error, client_id, realm, ip) (keycloak_login_failure_last_timestamp)",
+          "format": "table",
+          "instant": true,
+          "refId": "Last"
         }
       ]
     }
@@ -542,8 +1018,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenShift \u2014 Keycloak Metrics",
+  "title": "OpenShift — Keycloak Metrics",
   "uid": "ado-keycloak-metrics",
-  "version": 2
+  "version": 4
 }
 {% endraw %}

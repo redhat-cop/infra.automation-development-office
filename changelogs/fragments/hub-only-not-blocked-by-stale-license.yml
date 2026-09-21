@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - bootstrap_controller - Hub-only collection/EE publish no longer skipped
+    after a prior license-attach left ``aap_ocp_install_license_only`` /
+    ``aap_install_during_bootstrap`` in group_vars. Resolve install flags from
+    preflight only; only a full AAP operator install blocks Contoller apply
+    (license-only attach does not).
+  - bootstrap_generate_env_vars - Clear stale ``license_only`` /
+    ``install_during_bootstrap`` when preflight has attach/install off.

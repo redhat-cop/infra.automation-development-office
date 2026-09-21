@@ -209,8 +209,19 @@
     # Keep uid == display name so pinned dashboards (uid: Openshift-Prod) resolve.
     uid: "{{ grafana_create_datasource_item_name }}"
     url: "https://{{ grafana_create_datasource_hostname }}"
-    url_username: "{{ grafana_create_datasource_admin_user }}"
-    url_password: "{{ grafana_create_datasource_admin_password }}"
+    url_username: >-
+      {{
+        grafana_create_datasource_admin_user
+        if (grafana_api_key | default('') | length) == 0
+        else omit
+      }}
+    url_password: >-
+      {{
+        grafana_create_datasource_admin_password
+        if (grafana_api_key | default('') | length) == 0
+        else omit
+      }}
+    grafana_api_key: "{{ grafana_api_key | default(omit) }}"
     ds_type: prometheus
     ds_url: "https://{{ grafana_create_datasource_prometheus_source_hostname }}"
     access: proxy

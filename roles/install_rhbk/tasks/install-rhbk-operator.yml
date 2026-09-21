@@ -96,9 +96,9 @@
     namespace: "{{ name_space }}"
   register: install_rhbk_certificate_info
   until: >-
-    ocp_rhbk_certificate_info.resources | default([]) | length > 0
+    install_rhbk_certificate_info.resources | default([]) | length > 0
     and (
-      ocp_rhbk_certificate_info.resources[0].status.conditions
+      install_rhbk_certificate_info.resources[0].status.conditions
       | default([])
       | selectattr('type', 'equalto', 'Ready')
       | selectattr('status', 'equalto', 'True')
@@ -343,6 +343,61 @@
       }}
   changed_when: false
 
+- name: Build Keycloak CR additionalOptions for metrics
+  ansible.builtin.set_fact:
+    install_rhbk_additional_options: >-
+      {{
+        (
+          [{'name': 'metrics-enabled', 'value': 'true'}]
+          if (install_rhbk_metrics_enabled | bool) else []
+        )
+        + (
+          [{'name': 'health-enabled', 'value': 'true'}]
+          if (install_rhbk_metrics_enabled | bool) else []
+        )
+        + (
+          [
+            {'name': 'event-metrics-user-enabled', 'value': 'true'},
+            {
+              'name': 'event-metrics-user-events',
+              'value': (install_rhbk_event_metrics_user_events | string)
+            },
+            {
+              'name': 'event-metrics-user-tags',
+              'value': (install_rhbk_event_metrics_user_tags | string)
+            }
+          ]
+          if (
+            (install_rhbk_metrics_enabled | bool)
+            and (install_rhbk_event_metrics_user_enabled | bool)
+          ) else []
+        )
+        + (
+          [{'name': 'http-metrics-histograms-enabled', 'value': 'true'}]
+          if (
+            (install_rhbk_metrics_enabled | bool)
+            and (install_rhbk_http_metrics_histograms_enabled | bool)
+          ) else []
+        )
+      }}
+  changed_when: false
+
+- name: Build Keycloak CR features for user-event-metrics
+  ansible.builtin.set_fact:
+    # Required with event-metrics-user-enabled on RHBK 26.1+/26.2+.
+    # Older images (e.g. stable-v26.0) reject the feature and crash-loop —
+    # leave install_rhbk_event_metrics_user_enabled false until upgraded.
+    install_rhbk_features_spec: >-
+      {{
+        {'features': {'enabled': ['user-event-metrics']}}
+        if (
+          (install_rhbk_metrics_enabled | bool)
+          and (install_rhbk_event_metrics_user_enabled | bool)
+          and (install_rhbk_user_event_metrics_feature | bool)
+        ) else {}
+      }}
+  changed_when: false
+
 - name: Deploy Keycloak Custom Resource
   kubernetes.core.k8s:
     state: "{{ state }}"
@@ -352,31 +407,67 @@
       metadata:
         name: keycloak
         namespace: "{{ name_space }}"
+      # IMPORTANT: Creates the real admin user at initial creation
+      spec: >-
+        {{
+          {
+            'instances': 1,
+            'bootstrapAdmin': {
+              'user': {
+                'secret': 'keycloak-admin-creds'
+              }
+            },
+            'db': {
+              'vendor': 'postgres',
+              'host': postgres_service_name,
+              'usernameSecret': {
+                'name': postgres_secret_name,
+                'key': 'username'
+              },
+              'passwordSecret': {
+                'name': postgres_secret_name,
+                'key': 'password'
+              }
+            },
+            'http': install_rhbk_http_spec,
+            'hostname': {
+              'hostname': ocp_rhbk_hostname
+            },
+            'proxy': {
+              'headers': 'xforwarded'
+            },
+            'additionalOptions': install_rhbk_additional_options
+          }
+          | combine(install_rhbk_features_spec, recursive=True)
+        }}
+
+- name: Ensure Keycloak ServiceMonitor for management metrics
+  kubernetes.core.k8s:
+    state: "{{ state }}"
+    definition:
+      apiVersion: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      metadata:
+        name: keycloak
+        namespace: "{{ name_space }}"
+        labels:
+          app: keycloak
       spec:
-        instances: 1
-
-        # IMPORTANT: This is what actually creates the real admin user at initial creation
-        bootstrapAdmin:
-          user:
-            secret: keycloak-admin-creds
-
-        db:
-          vendor: postgres
-          host: "{{ postgres_service_name }}"
-          usernameSecret:
-            name: "{{ postgres_secret_name }}"
-            key: username
-          passwordSecret:
-            name: "{{ postgres_secret_name }}"
-            key: password
-
-        http: "{{ install_rhbk_http_spec }}"
-
-        hostname:
-          hostname: "{{ ocp_rhbk_hostname }}"
-
-        proxy:
-          headers: xforwarded
+        selector:
+          matchLabels:
+            app: keycloak
+            app.kubernetes.io/instance: keycloak
+        endpoints:
+          - port: management
+            path: /metrics
+            scheme: https
+            interval: 30s
+            honorLabels: true
+            tlsConfig:
+              insecureSkipVerify: true
+  when:
+    - state == 'present'
+    - install_rhbk_servicemonitor_enabled | bool
 
 - name: Ensure OpenShift edge Route for Keycloak (HTTP backend)
   kubernetes.core.k8s:

@@ -347,11 +347,22 @@ components_defaults:
     default_devfile_url: ""
     default_workspace_image: ""
     dashboard_image: ""
+    custom_sample_enabled: false
+    custom_sample_display_name: ADO
+    custom_sample_description: ADO default Dev Spaces workspace
+    custom_sample_tags: ado
+    custom_sample_url: ""
+    custom_sample_icon_source: bundled
+    status_exporter_enabled: true
     ocp_devspaces_disable_default_samples: true
     ocp_devspaces_customize_workspace: false
     ocp_devspaces_default_devfile_url: ""
     ocp_devspaces_default_workspace_image: ""
     ocp_devspaces_dashboard_image: ""
+    ocp_devspaces_custom_samples: []
+    ocp_devspaces_custom_sample_enabled: false
+    ocp_devspaces_custom_sample_icon_source: bundled
+    ocp_devspaces_status_exporter_enabled: true
 
   389ds:
     name_space: dirsrv
@@ -470,8 +481,9 @@ components_defaults:
     root_password_secret: gitlab-root-password
 
     # Standalone RHEL Omnibus (role: install_gitlab) — also see gitlab_standalone.
-    install_gitlab_hostname: gitlab-ado.server.lab
-    install_gitlab_external_url: http://gitlab-ado.server.lab
+    # No hostname default — must be set from preflight / inventory.
+    install_gitlab_hostname: ""
+    install_gitlab_external_url: ""
     install_gitlab_root_password: redhat123
     install_gitlab_http_port: 80
     install_gitlab_https_port: 443
@@ -480,8 +492,8 @@ components_defaults:
 
   # Standalone GitLab on RHEL (install_gitlab). OpenShift operator remains under gitlab.
   gitlab_standalone:
-    install_gitlab_hostname: gitlab-ado.server.lab
-    install_gitlab_external_url: http://gitlab-ado.server.lab
+    install_gitlab_hostname: ""
+    install_gitlab_external_url: ""
     install_gitlab_root_password: redhat123
     install_gitlab_http_port: 80
     install_gitlab_https_port: 443
@@ -560,6 +572,16 @@ components_defaults:
           name: grafana-openshift-dev-prometheus
           namespace: grafana
           key: token
+      # Optional ACM Observability (Observatorium) — fleet metrics with cluster=
+      # labels. Not the same as Openshift-Prod thanos-querier. Enable by setting
+      # grafana_acm_observability_enabled: true and providing URL + mTLS/bearer
+      # via vault (see grafana_create_datasource README).
+      # - name: ACM-Observatorium
+      #   prometheus_url: "https://observatorium-api-open-cluster-management-observability.{{ bootstrap_resolve_component_app_domain }}/api/metrics/v1/default"
+      #   bearer_token_secret:
+      #     name: grafana-acm-observatorium
+      #     namespace: grafana
+      #     key: token
     grafana_folder: "Openshift"
     dashboard_dir: "../templates"
     grafana_dashboards_type: templates
@@ -602,6 +624,8 @@ components_defaults:
         dashboards_path: dashboards
         datasource_mode: none
     grafana_alerts_enabled: false
+    # Optional git/path sources of datasource JSON (independent of prometheus list).
+    grafana_datasource_sources: []
     grafana_email:
       enabled: false
       host: ""
@@ -651,7 +675,7 @@ components_defaults:
 
   # Standalone Grafana on RHEL (install_grafana). OpenShift operator remains under grafana.
   grafana_standalone:
-    install_grafana_hostname: grafana-ado.server.lab
+    install_grafana_hostname: ""
     install_grafana_http_port: 3000
     install_grafana_admin_user: admin
     install_grafana_admin_password: redhat123
@@ -846,12 +870,15 @@ components_defaults:
     operatorgroup: rhbk-operator
 
     operator_name: rhbk-operator
-    operator_channel: stable-v26.0
+    operator_channel: stable-v26.2
     operator_source: redhat-operators
     operator_source_namespace: openshift-marketplace
     operator_name_substring: rhbk-operator
     operator_csv_contains: rhbk-operator
     install_rhbk_operator: true
+    # OpenShift operator path (standalone RHEL uses component rhbk_standalone).
+    install_rhbk_platform: openshift
+    rhbk_platform: openshift
 
     rhbk_hostname: "keycloak.{{ bootstrap_resolve_component_app_domain }}"
     ocp_rhbk_hostname: "keycloak.{{ bootstrap_resolve_component_app_domain }}"
@@ -891,6 +918,17 @@ components_defaults:
     rhbk_db_user: keycloak
     rhbk_db_password: changeme-db
 
+    # Native RHBK user-event metrics for Grafana login panels
+    # (keycloak_user_events_total). Needs RHBK 26.2+ (user-event-metrics).
+    # Default false until operator channel/image supports the feature; enable
+    # via preflight checkbox after upgrading off stable-v26.0.
+    event_metrics_user_enabled: false
+    rhbk_event_metrics_user_enabled: false
+    install_rhbk_event_metrics_user_enabled: false
+    install_rhbk_metrics_enabled: true
+    rhbk_metrics_enabled: true
+    install_rhbk_servicemonitor_enabled: true
+
     # Flattened name — dotted keys are skipped by resolve_component export.
     openshift_oidc_auth:
       enabled: true
@@ -909,9 +947,10 @@ components_defaults:
     component: rhbk
     install_rhbk_platform: rhel
     rhbk_platform: rhel
-    rhbk_hostname: keycloak-ado.server.lab
-    rhbk_host: keycloak-ado.server.lab
-    install_rhbk_standalone_hostname: keycloak-ado.server.lab
+    # No hostname default — must be set from preflight / inventory.
+    rhbk_hostname: ""
+    rhbk_host: ""
+    install_rhbk_standalone_hostname: ""
     rhbk_realm: rhlab
     ocp_rhbk_realm: rhlab
     rhbk_enabled: true

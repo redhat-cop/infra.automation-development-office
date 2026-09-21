@@ -35,7 +35,7 @@ Controller / bootstrap wiring:
 | Variable | Description |
 |----------|-------------|
 | `state` | Desired state (`present` / `absent`). Default `present`. |
-| `install_gitlab_hostname` | GitLab hostname. Default `gitlab-ado.server.lab`. |
+| `install_gitlab_hostname` | GitLab hostname. Required — no default. |
 | `install_gitlab_http_port` | HTTP port. Default `80`. |
 | `install_gitlab_https_port` | HTTPS port. Default `443`. |
 | `install_gitlab_root_password` | Initial root password. Default `redhat123`. |
