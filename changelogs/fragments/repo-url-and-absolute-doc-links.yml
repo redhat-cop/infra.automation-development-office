@@ -1,0 +1,11 @@
+---
+doc_changes:
+  - |
+    Update repository, documentation, homepage, and issues URLs from
+    ``Automation-Development-Office/ado`` to
+    ``redhat-cop/infra.automation-development-office`` in ``galaxy.yml``,
+    ``README.md``, ``CODE_OF_CONDUCT.md``, and the Developers Guide.
+  - |
+    Convert relative documentation links to absolute GitHub blob URLs under
+    ``https://github.com/redhat-cop/infra.automation-development-office/blob/main/``
+    in ``README.md`` and remaining collection docs.

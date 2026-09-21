@@ -1,0 +1,34 @@
+---
+- name: configure_firewall | Ensure firewalld is installed
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: configure_firewall | Ensure service is running and enabled
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: configure_firewall | Ensure RH-Satellite-6 service is allowed
+  ansible.posix.firewalld:
+    service: RH-Satellite-6-capsule
+    immediate: true
+    permanent: true
+    state: enabled
+
+- name: configure_firewall | Firewall Config
+  when:
+    - capsule_install_satellite_haproxy | bool
+    - capsule_install_loadbalancer_fqdn is defined
+    - capsule_install_loadbalancer_fqdn | length > 0
+  block:
+    - name: configure_firewall | Open ports on Proxy for load balancing
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        state: enabled
+        immediate: true
+        permanent: true
+      loop: "{{ capsule_install_satellite_loadbalancer_ports }}"
+      run_once: true
+      delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"

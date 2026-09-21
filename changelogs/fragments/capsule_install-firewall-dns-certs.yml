@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - >-
+    capsule_install - Added firewall, DNS, and custom Capsule certificate
+    generation tasks after package installation.
+  - >-
+    capsule_install - Renamed OAuth consumer facts to
+    ``capsule_install_foreman_proxy_oauth_consumer_key`` and
+    ``capsule_install_foreman_proxy_oauth_consumer_secret``.
+doc_changes:
+  - capsule_install - Documented firewall, DNS, and custom certificate generation tasks and DNS variables.

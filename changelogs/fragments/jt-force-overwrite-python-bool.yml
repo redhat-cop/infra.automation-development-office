@@ -1,6 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - Fix ``NameError: name 'false' is not defined`` when
-    generating job templates. The force-overwrite flag is now emitted as Python
-    ``True``/``False`` instead of JSON ``true``/``false``.

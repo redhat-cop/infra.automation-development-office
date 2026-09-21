@@ -1,6 +1,0 @@
----
-bugfixes:
-  - bootstrap_generate_playbook_repo - Stop listing ``infra.aap_utilities`` and
-    ``infra.rhacs_configuration`` in Contoller ``collections/requirements.yml``
-    (Private Hub cannot resolve them and project sync fails). Bundle on the EE
-    or publish to Hub when those JTs need them.

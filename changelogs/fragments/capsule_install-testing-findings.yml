@@ -1,0 +1,12 @@
+---
+minor_changes:
+  - >-
+    capsule_install - Ensure ``firewalld`` is installed before enabling the
+    ``RH-Satellite-6-capsule`` service and opening load-balancer ports.
+  - >-
+    capsule_install - Skip load-balancer firewall delegation when
+    ``capsule_install_loadbalancer_fqdn`` is unset so non-HAProxy runs do not
+    fail firewall configuration.
+  - >-
+    capsule_install - Install packages from ``capsule_install_packages`` instead
+    of ``satellite_install_packages``.

@@ -1,8 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - Hub namespace/publish now probes ansible.hub auth modes
-    in order (Hub / Galaxy API token, Contoller OAuth, admin basic). ansible.hub
-    hardcodes ``Authorization: Token``, so Contoller Gateway OAuth that only
-    works as Bearer no longer hard-fails ``ah_namespace`` on AAP 2.6 gateways.
-    Raw Pulp URI calls continue to use Contoller OAuth Bearer (or basic).

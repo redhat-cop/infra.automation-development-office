@@ -1,0 +1,95 @@
+---
+- name: Verify integration_capsule_install scenario
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  vars:
+    repo_root: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/../.."
+    capsule_install_role_root: "{{ repo_root }}/roles/capsule_install"
+    capsule_install_task_files:
+      - install_capsule.yml
+      - post_config.yml
+      - sync_capsule.yml
+      - haproxy.yml
+    capsule_install_legacy_task_files:
+      - 08_install_capsule.yml
+      - 09_post_config.yml
+      - 10_sync_capsule.yml
+      - 11_haproxy.yml
+    capsule_install_main_yml: "{{ capsule_install_role_root }}/tasks/main.yml"
+    capsule_install_haproxy_template: >-
+      {{ capsule_install_role_root }}/templates/haproxy.cfg.j2
+    capsule_install_readme_path: "{{ capsule_install_role_root }}/README.md"
+    capsule_install_verify_script: "{{ repo_root }}/scripts/verify_readme.py"
+    capsule_install_readme_template: >-
+      {{ repo_root }}/docs/templates/role_readme_format_template.md
+
+  tasks:
+    - name: Assert renamed capsule_install task files exist
+      ansible.builtin.assert:
+        that:
+          - (capsule_install_role_root ~ '/tasks/' ~ item) is file
+        fail_msg: >-
+          Expected task file {{ item }} under roles/capsule_install/tasks/.
+      loop: "{{ capsule_install_task_files }}"
+
+    - name: Assert legacy numbered capsule_install task files are absent
+      ansible.builtin.assert:
+        that:
+          - not ((capsule_install_role_root ~ '/tasks/' ~ item) is file)
+        fail_msg: >-
+          Legacy numbered task file {{ item }} should not exist after rename.
+      loop: "{{ capsule_install_legacy_task_files }}"
+
+    - name: Assert HAProxy template exists
+      ansible.builtin.assert:
+        that:
+          - capsule_install_haproxy_template is file
+        fail_msg: >-
+          Expected HAProxy template at {{ capsule_install_haproxy_template }}.
+
+    - name: Read capsule_install main task file
+      ansible.builtin.slurp:
+        path: "{{ capsule_install_main_yml }}"
+      register: capsule_install_main_yml_raw
+
+    - name: Set capsule_install main task file content
+      ansible.builtin.set_fact:
+        capsule_install_main_content: >-
+          {{ capsule_install_main_yml_raw.content | b64decode }}
+
+    - name: Assert main.yml wires capsule_install task files
+      ansible.builtin.assert:
+        that:
+          - >-
+            capsule_install_main_content is search('include_tasks: install_capsule.yml')
+          - >-
+            capsule_install_main_content is search('include_tasks: post_config.yml')
+          - >-
+            capsule_install_main_content is search('include_tasks: sync_capsule.yml')
+          - >-
+            capsule_install_main_content is search('include_tasks: haproxy.yml')
+        fail_msg: >-
+          main.yml must include install_capsule, post_config, sync_capsule, and
+          haproxy task files.
+
+    - name: Verify role README format with verify_readme.py
+      ansible.builtin.command:
+        argv:
+          - python
+          - "{{ capsule_install_verify_script }}"
+          - "{{ capsule_install_readme_path }}"
+          - --template
+          - "{{ capsule_install_readme_template }}"
+        chdir: "{{ repo_root }}"
+      register: capsule_install_verify_readme
+      changed_when: false
+
+    - name: Fail when README verification fails
+      ansible.builtin.fail:
+        msg: >-
+          README verification failed for {{ capsule_install_readme_path }}:
+          {{ capsule_install_verify_readme.stdout }}
+          {{ capsule_install_verify_readme.stderr }}
+      when: capsule_install_verify_readme.rc != 0

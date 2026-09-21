@@ -1,0 +1,88 @@
+---
+- name: sync_capsule | Get capsules information
+  ansible.builtin.uri:
+    url: >-
+      https://{{ capsule_install_satellite_fqdn
+      }}/katello/api/capsules?per_page=100
+    method: GET
+    return_content: true
+    user: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    force_basic_auth: true
+  register: capsule_install_capsules
+
+- name: sync_capsule | Set variable for capsule ID
+  ansible.builtin.set_fact:
+    capsule_install_capsule_id: >-
+      {{
+        capsule_install_capsules['json']['results']
+        | selectattr('name', 'match', ansible_fqdn)
+        | map(attribute='id')
+        | join(', ')
+      }}
+
+- name: sync_capsule | Start capsule sync
+  ansible.builtin.uri:
+    url: >-
+      https://{{ capsule_install_satellite_fqdn }}/katello/api/capsules/{{
+      capsule_install_capsule_id }}/content/sync
+    user: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    method: POST
+    body_format: json
+    headers:
+      Content_Type: application/json
+    body:
+      id: "{{ capsule_install_capsule_id }}"
+    status_code:
+      - 202
+    force_basic_auth: true
+  register: capsule_install_capsule_sync
+
+- name: sync_capsule | Set variable for sync task id
+  ansible.builtin.set_fact:
+    capsule_install_sync_task_id: "{{ capsule_install_capsule_sync['json']['id'] }}"
+
+- name: sync_capsule | Wait until capsule sync is finished
+  ansible.builtin.uri:
+    url: >-
+      https://{{ capsule_install_satellite_fqdn }}/katello/api/capsules/{{
+      capsule_install_capsule_id }}/content/sync
+    user: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    method: GET
+    body_format: json
+    headers:
+      Content_Type: application/json
+    body:
+      id: "{{ capsule_install_capsule_id }}"
+    force_basic_auth: true
+  register: capsule_install_capsule_sync_status
+  until: capsule_install_capsule_sync_status['json']['active_sync_tasks'] | length == 0
+  retries: "{{ (capsule_install_sync_wait_time // 10) }}"
+  delay: 10
+
+- name: sync_capsule | Get sync history
+  ansible.builtin.uri:
+    url: >-
+      https://{{ capsule_install_satellite_fqdn }}/katello/api/capsules/{{
+      capsule_install_capsule_id }}/content/sync
+    user: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    method: GET
+    body_format: json
+    headers:
+      Content_Type: application/json
+    body:
+      id: "{{ capsule_install_capsule_id }}"
+    force_basic_auth: true
+  register: capsule_install_capsule_sync_history
+
+- name: sync_capsule | Assert that sync was successful
+  ansible.builtin.assert:
+    that: >-
+      capsule_install_capsule_sync_history['json']['last_sync_task']['result']
+      == 'success'
+  when: >-
+    capsule_install_capsule_sync_history['json']['last_sync_task']['id']
+    == capsule_install_sync_task_id

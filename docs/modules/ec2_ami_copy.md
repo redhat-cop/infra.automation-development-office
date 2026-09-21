@@ -4,7 +4,7 @@ Copy an Amazon Machine Image (AMI) from a source AWS region into a destination
 region. Returns the new AMI ID. Designed for environments that have
 `amazon.aws` available but **not** `community.aws`.
 
-Module source: [`plugins/modules/ec2_ami_copy.py`](../../plugins/modules/ec2_ami_copy.py)
+Module source: [`plugins/modules/ec2_ami_copy.py`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/plugins/modules/ec2_ami_copy.py)
 
 ## Requirements
 

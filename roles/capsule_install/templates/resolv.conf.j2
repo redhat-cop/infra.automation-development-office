@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+
+{% if capsule_install_dns_search is defined and capsule_install_dns_search |length > 0 %}
+search {{ capsule_install_dns_search | join(' ') }}
+{% endif %}
+{% for nameserver in capsule_install_dns_servers %}
+nameserver {{ nameserver }}
+{% endfor %}

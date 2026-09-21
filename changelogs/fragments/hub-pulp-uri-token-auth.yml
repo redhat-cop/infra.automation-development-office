@@ -1,9 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - After ansible.hub staging upload succeeds, Pulp URI
-    calls now use ``Authorization: Token`` with the same Hub/OAuth token that
-    authenticated ``ah_namespace``/``ah_collection`` (or admin basic). Bearer
-    Contoller OAuth was ignored on some gateways
-    (``Authentication credentials were not provided``) when resolving pulp
-    hrefs after upload.

@@ -1,9 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_generate_env_vars - Controller Source Control credentials for
-    Bitbucket use ``git.username`` plus ``git.token`` instead of hardcoded
-    ``oauth2``, which Bitbucket Server rejects during project sync.
-  - >-
-    ado-preflight-ui - Git Configuration collects Bitbucket username and
-    validates it before bootstrap when Controller apply is enabled.

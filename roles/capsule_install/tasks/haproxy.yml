@@ -1,0 +1,83 @@
+---
+- name: haproxy | Set timezone to UTC
+  community.general.timezone:
+    name: UTC
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Restart crond
+  ansible.builtin.service:
+    name: crond
+    state: restarted
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Generate registration command for loadbalancer server
+  redhat.satellite.registration_command:
+    username: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    server_url: "https://{{ capsule_install_satellite_fqdn }}"
+    organization: "{{ capsule_install_org_id }}"
+    activation_keys: "{{ capsule_install_loadbalancer_activation_key }}"
+    location: "{{ capsule_install_location }}"
+    setup_insights: false
+    update_packages: true
+    insecure: true
+    validate_certs: false
+    force: true
+  register: capsule_install_loadbalancer_registration
+  run_once: true
+
+- name: haproxy | Perform registration  # noqa: command-instead-of-shell no-changed-when
+  ansible.builtin.shell:
+    cmd: "{{ capsule_install_loadbalancer_registration.registration_command }}"
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Install required packages  # noqa: package-latest
+  ansible.builtin.dnf:
+    name:
+      - haproxy
+      - policycoreutils-python-utils
+    state: latest
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Update server with latest packages  # noqa: package-latest
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Configure SELinux
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Copy haproxy.cfg to server
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: "0644"
+    backup: true
+    validate: haproxy -f %s -c -q
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Enable HAProxy
+  ansible.builtin.service:
+    name: haproxy
+    state: started
+    enabled: true
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true
+
+- name: haproxy | Reboot server
+  ansible.builtin.reboot:
+    reboot_timeout: 3600
+  delegate_to: "{{ capsule_install_loadbalancer_fqdn }}"
+  run_once: true

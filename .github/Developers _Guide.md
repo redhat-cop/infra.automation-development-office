@@ -15,6 +15,7 @@ Ansible Galaxy publishing.
 - [Changelog requirements](#changelog-requirements)
 - [Ansible Collection CI/CD (`main.yml`)](#ansible-collection-cicd-mainyml)
 - [CI (`tests.yml`)](#ci-testsyml)
+- [Certification checker (`certification.yml`)](#certification-checker-certificationyml)
 - [Security Check (`security-check.yml`)](#security-check-security-checkyml)
 - [Molecule testing](#molecule-testing)
 - [Local development checklist](#local-development-checklist)
@@ -30,12 +31,13 @@ Ansible Galaxy publishing.
 
 ## Overview
 
-The repository uses four GitHub Actions workflows:
+The repository uses these GitHub Actions workflows:
 
 | Workflow | Primary audience | Role |
 | --- | --- | --- |
 | **Ansible Collection CI/CD** | Contributors and maintainers | Primary integration pipeline: changelog, lint, Molecule, build, dev pre-releases |
 | **CI** | Contributors | Upstream Ansible collection checks: sanity, unit, build-import, lint |
+| **Certification checker** | Maintainers | Automation Hub import checks on `main` pushes, daily schedule, or manual `workflow_dispatch` |
 | **Security Check** | Contributors | Role security and data-exposure scans |
 | **Release infra.ado** | Maintainers | Attach tarballs to GitHub Releases; compile changelog |
 | **Publish to Ansible Galaxy** | Maintainers | Manual Galaxy publish only (`workflow_dispatch`) |
@@ -43,6 +45,7 @@ The repository uses four GitHub Actions workflows:
 Most day-to-day development is validated by **Ansible Collection CI/CD** on pull
 requests. The **CI** workflow runs in parallel with overlapping checks. Treat both as
 signals until required status checks are configured in the repository settings.
+The **certification checker** does not run on PR pushes. It runs after merge to `main`, on a daily schedule, or when you start it manually.
 
 ## Repository layout
 
@@ -50,40 +53,44 @@ Paths most relevant to the pipeline:
 
 | Path | Purpose |
 | --- | --- |
-| [`.github/workflows/main.yml`](workflows/main.yml) | Primary CI/CD workflow |
-| [`.github/workflows/tests.yml`](workflows/tests.yml) | Upstream collection CI workflow |
-| [`.github/workflows/security-check.yml`](workflows/security-check.yml) | Standalone security scans |
-| [`.github/workflows/release.yml`](workflows/release.yml) | GitHub Release build and attach |
-| [`.github/workflows/open-changelog-pr.yml`](workflows/open-changelog-pr.yml) | Manual recovery to open a changelog PR for a release tag |
-| [`.github/actions/build-collection/`](actions/build-collection/) | Shared tag-versioned collection build |
-| [`.github/actions/generate-changelog/`](actions/generate-changelog/) | Compile changelog fragments into `CHANGELOG.rst` |
-| [`.github/actions/open-changelog-pr/`](actions/open-changelog-pr/) | Open a PR to land consumed changelog on `main` |
-| [`extensions/molecule/`](../extensions/molecule/) | Integration test scenarios |
-| [`extensions/molecule/pr_exclude.txt`](../extensions/molecule/pr_exclude.txt) | Scenarios skipped on PR CI |
-| [`changelogs/fragments/`](../changelogs/fragments/) | Per-PR changelog fragments |
-| [`changelogs/config.yaml`](../changelogs/config.yaml) | antsibull-changelog configuration |
-| [`galaxy.yml`](../galaxy.yml) | Collection namespace, name, and version |
-| [`collections/requirements.yml`](../collections/requirements.yml) | Dependency collections for lint and CI |
-| [`scripts/validate_changelog.py`](../scripts/validate_changelog.py) | Local changelog validation |
-| [`scripts/verify_readme.py`](../scripts/verify_readme.py) | Role README format checks |
-| [`scripts/security_checks.py`](../scripts/security_checks.py) | Role security scanning |
-| [`scripts/security_data_exposure_scan.py`](../scripts/security_data_exposure_scan.py) | Sensitive data exposure scan |
-| [`docs/templates/role_readme_format_template.md`](../docs/templates/role_readme_format_template.md) | Role README template |
+| [`.github/workflows/main.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/main.yml) | Primary CI/CD workflow |
+| [`.github/workflows/tests.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/tests.yml) | Upstream collection CI workflow |
+| [`.github/workflows/certification.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/certification.yml) | Partner certification checker (pinned reusable workflow) |
+| [`.github/dependabot.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/dependabot.yml) | Weekly GitHub Actions version updates, including the certification workflow pin |
+| [`.github/workflows/security-check.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/security-check.yml) | Standalone security scans |
+| [`.github/workflows/release.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/release.yml) | GitHub Release build and attach |
+| [`.github/workflows/open-changelog-pr.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/open-changelog-pr.yml) | Manual recovery to open a changelog PR for a release tag |
+| [`.github/actions/build-collection/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/build-collection) | Shared tag-versioned collection build |
+| [`.github/actions/generate-changelog/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/generate-changelog) | Compile changelog fragments into `CHANGELOG.rst` |
+| [`.github/actions/open-changelog-pr/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/open-changelog-pr) | Open a PR to land consumed changelog on `main` |
+| [`extensions/molecule/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule) | Integration test scenarios |
+| [`extensions/molecule/pr_exclude.txt`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule/pr_exclude.txt) | Scenarios skipped on PR CI |
+| [`changelogs/fragments/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/fragments) | Per-PR changelog fragments |
+| [`changelogs/config.yaml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/config.yaml) | antsibull-changelog configuration |
+| [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml) | Collection namespace, name, and version |
+| [`collections/requirements.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/collections/requirements.yml) | Dependency collections for lint and CI |
+| [`scripts/validate_changelog.py`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/scripts/validate_changelog.py) | Local changelog validation |
+| [`scripts/verify_readme.py`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/scripts/verify_readme.py) | Role README format checks |
+| [`scripts/security_checks.py`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/scripts/security_checks.py) | Role security scanning |
+| [`scripts/security_data_exposure_scan.py`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/scripts/security_data_exposure_scan.py) | Sensitive data exposure scan |
+| [`docs/templates/role_readme_format_template.md`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/docs/templates/role_readme_format_template.md) | Role README template |
 
 ## Workflow summary
 
 | Workflow | File | Triggers | Jobs |
 | --- | --- | --- | --- |
-| Ansible Collection CI/CD | [`main.yml`](workflows/main.yml) | `push`, `pull_request`, `workflow_dispatch` | Changelog, lint, README check, security (manual), Molecule, PR gate, build, dev release |
-| CI | [`tests.yml`](workflows/tests.yml) | PR to `main`, `workflow_dispatch` | Changelog, build-import, lint, README, sanity, unit, all_green |
-| Security Check | [`security-check.yml`](workflows/security-check.yml) | `pull_request`, `workflow_dispatch` | Security and data-exposure scans |
-| Release infra.ado | [`release.yml`](workflows/release.yml) | GitHub Release published | Build, changelog, attach tarball |
-| Publish to Ansible Galaxy | [`publish-galaxy.yml`](workflows/publish-galaxy.yml) | Manual `workflow_dispatch` only | Publish to Galaxy |
+| Ansible Collection CI/CD | [`main.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/main.yml) | `push`, `pull_request`, `workflow_dispatch` | Changelog, lint, README check, security (manual), Molecule, PR gate, build, dev release |
+| CI | [`tests.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/tests.yml) | PR to `main`, `workflow_dispatch` | Changelog, build-import, lint, README, sanity, unit, all_green |
+| Certification checker | [`certification.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/certification.yml) | Push to `main`, daily schedule, manual `workflow_dispatch` | Galaxy importer, production ansible-lint, sanity matrix, `Certification` gate |
+| Security Check | [`security-check.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/security-check.yml) | `pull_request`, `workflow_dispatch` | Security and data-exposure scans |
+| Release infra.ado | [`release.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/release.yml) | GitHub Release published | Build, changelog, attach tarball |
+| Publish to Ansible Galaxy | [`publish-galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/publish-galaxy.yml) | Manual `workflow_dispatch` only | Publish to Galaxy |
 
 Status badges:
 
-- [Ansible Collection CI/CD](https://github.com/Automation-Development-Office/ado/actions/workflows/main.yml)
-- [Security Check](https://github.com/Automation-Development-Office/ado/actions/workflows/security-check.yml)
+- [Ansible Collection CI/CD](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/main.yml)
+- [Security Check](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/security-check.yml)
+- [Certification checker](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/certification.yml)
 
 ## End-to-end pipeline
 
@@ -105,6 +112,7 @@ flowchart TD
 
   subgraph branchFlow [Branch and tag pushes]
     pushMain[Push main or Dev] --> buildArtifact[Build collection artifact]
+    pushMain --> certMain[Certification checker on main]
     tagPush[Push git tag] --> buildArtifact
     tagPush --> devRelease[Dev Release pre-release asset]
   end
@@ -119,7 +127,7 @@ flowchart TD
 
 ## Contributing and pull requests
 
-Use the [pull request template](pull_request_template.md) when opening a PR. At minimum:
+Use the [pull request template](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/pull_request_template.md) when opening a PR. At minimum:
 
 1. Describe what changed and why
 2. List affected roles, scenarios, or workflow paths
@@ -138,6 +146,7 @@ The **PR gate** in `main.yml` requires these jobs to pass on pull requests:
 | Changelog | Yes, unless PR has `skip-changelog` label |
 | README format check | No (informational) |
 | Security Check (`security-check.yml`) | No (informational) |
+| Certification checker (`certification.yml`) | No. Runs after merge to `main`, not on PR pushes |
 | CI workflow `all_green` | Partial (unit-galaxy and ansible-lint only) |
 
 Configure branch protection in GitHub to match the jobs you want to enforce.
@@ -155,7 +164,7 @@ Do not edit `CHANGELOG.rst` or `changelogs/changelog.yaml` directly in normal PR
 
 ### When to add a fragment
 
-Add a new file under [`changelogs/fragments/`](../changelogs/fragments/) when a PR:
+Add a new file under [`changelogs/fragments/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/fragments) when a PR:
 
 - Modifies an existing role, plugin, or module
 - Changes CI, release, or workflow behavior that affects maintainers or consumers
@@ -169,7 +178,7 @@ A fragment is **not** required for:
 
 ### Fragment format
 
-Use sections defined in [`changelogs/config.yaml`](../changelogs/config.yaml):
+Use sections defined in [`changelogs/config.yaml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/config.yaml):
 
 ```yaml
 minor_changes:
@@ -225,14 +234,14 @@ Primary workflow for integration testing and collection builds.
 
 - **Runs on:** pull requests; pushes to branches other than `main`, `Dev`, and tags
 - **Container:** `registry.gitlab.com/pipeline-components/ansible-lint:latest`
-- **Collections:** installs [`collections/requirements.yml`](../collections/requirements.yml) with retry logic
+- **Collections:** installs [`collections/requirements.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/collections/requirements.yml) with retry logic
 - **Output:** `ansible-lint-report` artifact (JUnit XML)
 - **Note:** lint step uses `continue-on-error: true` but the PR gate still requires the job result to be `success`. Failures must be fixed before merge.
 
 #### README Format Verification
 
 - **Runs on:** pull requests; manual dispatch when `run_readme_verification` is true
-- **Script:** `scripts/verify_readme.py` against [`docs/templates/role_readme_format_template.md`](../docs/templates/role_readme_format_template.md)
+- **Script:** `scripts/verify_readme.py` against [`docs/templates/role_readme_format_template.md`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/docs/templates/role_readme_format_template.md)
 - **Status:** informational (`continue-on-error: true`), not in PR gate
 
 #### Security Check (in `main.yml`)
@@ -245,7 +254,7 @@ Primary workflow for integration testing and collection builds.
 
 - **Runs on:** pull requests and manual dispatch
 - **Discovery:** finds `extensions/molecule/*/molecule.yml` at depth 2
-- **PR exclusions:** reads [`extensions/molecule/pr_exclude.txt`](../extensions/molecule/pr_exclude.txt)
+- **PR exclusions:** reads [`extensions/molecule/pr_exclude.txt`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule/pr_exclude.txt)
 - **Manual dispatch:** includes only scenarios whose boolean input is `true`, plus all `ocp_*` scenarios when `run_ocp_scenarios` is enabled
 
 #### Molecule
@@ -266,7 +275,7 @@ Primary workflow for integration testing and collection builds.
 #### Prepare Build Variables
 
 - **Runs on:** push to `main`, `Dev`, or any tag
-- **Output:** `version`, `name`, `namespace` from [`galaxy.yml`](../galaxy.yml)
+- **Output:** `version`, `name`, `namespace` from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml)
 
 #### Build Collection
 
@@ -328,6 +337,53 @@ reusable workflows. Runs on pull requests targeting `main` and on manual dispatc
 
 Concurrency is enabled per PR branch (`cancel-in-progress: true`).
 
+## Certification checker (`certification.yml`)
+
+Reusable [partner certification checker](https://github.com/ansible-collections/partner-certification-checker)
+workflow. It runs the same class of checks used during Ansible Automation Hub import:
+galaxy-importer, ansible-lint (`--profile=production`), and ansible-core sanity tests.
+
+This is not a substitute for unit, integration, or Molecule tests, and it does not cover
+every [partner certification requirement](https://docs.ansible.com/projects/partner-certification-requirements/).
+
+### Triggers
+
+This workflow does **not** run on every PR push.
+
+- Push to `main` (including merges)
+- Daily schedule (`0 6 * * *`) on `main`
+- Manual `workflow_dispatch` on any branch
+
+The **Run workflow** button appears after this file exists on `main`. Until then, dispatch from the CLI:
+
+```bash
+gh workflow run certification.yml --ref main
+gh workflow run certification.yml --ref <pr-branch>
+```
+
+A `workflow_dispatch` run on a PR branch does not appear as a pull request check. Push-to-`main` runs report on `main`, not on the PR that was merged.
+
+Concurrency cancels in-progress runs for the same PR branch or git ref (so overlapping `main` runs do not stack).
+
+### Inputs
+
+| Input | Value | Reason |
+| --- | --- | --- |
+| Reusable workflow pin | `certification-reusable.yml@v5.0.0` | Supply-chain pin; Dependabot opens PRs when new tags are released |
+| `ansible-core-version` | `2.18.0` | Compatible with `requires_ansible: ">=2.17.0"` (workflow default is `2.16.0`) |
+| `collection-deps` | Collections listed in [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml) | Sanity tests do not install `galaxy.yml` dependencies automatically |
+
+Unsupported sanity branches are skipped from `meta/runtime.yml` (`requires_ansible`).
+Do not set `skip-sanity-versions` unless you need to override that auto-detection.
+
+Certified Automation Hub collections are still omitted from `galaxy.yml` so public Galaxy
+installs do not fail. Leave `automation-hub` unset unless you also pass `AH_TOKEN`
+(this repository's existing secret is `AUTOMATION_HUB_TOKEN`).
+
+Dependabot is configured in [`.github/dependabot.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/dependabot.yml) for the
+`github-actions` ecosystem on a weekly schedule so the certification workflow pin stays
+current.
+
 ## Security Check (`security-check.yml`)
 
 Standalone workflow for security review. Runs automatically on every pull request and
@@ -354,13 +410,13 @@ python3 scripts/security_data_exposure_scan.py roles/<role_name>
 
 ## Molecule testing
 
-Integration scenarios live under [`extensions/molecule/`](../extensions/molecule/).
+Integration scenarios live under [`extensions/molecule/`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule).
 
 ### PR CI behavior
 
 On pull requests, `main.yml` discovers all scenarios with a `molecule.yml` file and runs
 them in parallel, except those listed in
-[`pr_exclude.txt`](../extensions/molecule/pr_exclude.txt):
+[`pr_exclude.txt`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule/pr_exclude.txt):
 
 | Pattern | Reason |
 | --- | --- |
@@ -439,7 +495,7 @@ ansible-galaxy collection install . --force -p ~/.ansible/collections
 
 Triggered by pushes to `main`, `Dev`, or any git tag.
 
-1. `prepare` reads `namespace`, `name`, and `version` from [`galaxy.yml`](../galaxy.yml)
+1. `prepare` reads `namespace`, `name`, and `version` from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml)
 2. `build` runs `ansible-galaxy collection build`
 3. On tags, `galaxy.yml` `version` is temporarily set from the tag name
 4. Result is uploaded as the `collection-build` workflow artifact
@@ -461,7 +517,7 @@ release changelog will look like.
 
 ## Shared build action
 
-[`actions/build-collection/action.yml`](actions/build-collection/action.yml) centralizes
+[`actions/build-collection/action.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/build-collection/action.yml) centralizes
 tag-versioned builds for release jobs.
 
 **Inputs:**
@@ -491,7 +547,7 @@ Used by:
 
 ## Generate changelog action
 
-[`actions/generate-changelog/action.yml`](actions/generate-changelog/action.yml) compiles
+[`actions/generate-changelog/action.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/generate-changelog/action.yml) compiles
 accumulated changelog fragments into release notes before the collection tarball is built.
 
 **Inputs:**
@@ -510,7 +566,7 @@ accumulated changelog fragments into release notes before the collection tarball
 3. Otherwise, if `origin/main` already contains the release entry, sync those changelog files into the build workspace
 4. Otherwise, if fragments exist under `changelogs/fragments/`, run `antsibull-changelog release --version <version>`
 5. Render `CHANGELOG.rst` and per-release notes with `antsibull-changelog generate`
-6. Consumed fragments are removed in the runner workspace (`keep_fragments: false` in [`changelogs/config.yaml`](../changelogs/config.yaml))
+6. Consumed fragments are removed in the runner workspace (`keep_fragments: false` in [`changelogs/config.yaml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/config.yaml))
 
 Set `consume_fragments: false` to sync an already-compiled changelog without deleting fragments.
 
@@ -521,7 +577,7 @@ Used by:
 
 ## Open changelog PR action
 
-[`actions/open-changelog-pr/action.yml`](actions/open-changelog-pr/action.yml) commits the
+[`actions/open-changelog-pr/action.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/open-changelog-pr/action.yml) commits the
 generated changelog from the release workspace and opens a pull request to `main`.
 
 **Inputs:**
@@ -545,7 +601,7 @@ Merge the changelog PR to update `main` and permanently remove consumed fragment
 
 ## Preview changelog action
 
-[`actions/preview-changelog/action.yml`](actions/preview-changelog/action.yml) builds a
+[`actions/preview-changelog/action.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/actions/preview-changelog/action.yml) builds a
 read-only changelog preview for dev pre-releases.
 
 **Behavior:**
@@ -631,7 +687,7 @@ Install without cloning:
 
 ```bash
 ansible-galaxy collection install \
-  https://github.com/Automation-Development-Office/ado/releases/download/v1.2.0-beta1/infra-ado-1.2.0-beta1.tar.gz
+  https://github.com/redhat-cop/infra.automation-development-office/releases/download/v1.2.0-beta1/infra-ado-1.2.0-beta1.tar.gz
 ```
 
 Re-pushing a tag or re-running the workflow replaces the asset with `--clobber`.
@@ -689,7 +745,7 @@ changelog from `main` before building the collection tarball.
 | Dev tags | Use pre-release identifiers, for example `v1.2.0-rc1` or `v249.0.0-rc1` |
 | Official tags | Use clean semver, for example `v1.2.0` |
 | Invalid examples | `v249.0.0.1-rc1` (extra numeric segment before `-rc1` is rejected by antsibull-changelog) |
-| Namespace and name | Always from [`galaxy.yml`](../galaxy.yml); only `version` is overridden at build time |
+| Namespace and name | Always from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml); only `version` is overridden at build time |
 | Artifact name | `infra-ado-<version>.tar.gz` |
 
 ### Which git ref is used
@@ -751,12 +807,12 @@ Download artifacts from the workflow run summary page in GitHub Actions.
 
 - Add a fragment under `changelogs/fragments/` or apply the `skip-changelog` label if no entry is needed
 - Validate locally: `python3 scripts/validate_changelog.py --ref main`
-- Ensure fragment sections match [`changelogs/config.yaml`](../changelogs/config.yaml)
+- Ensure fragment sections match [`changelogs/config.yaml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/changelogs/config.yaml)
 
 ### Molecule scenario missing from PR CI
 
 - Confirm `extensions/molecule/<scenario>/molecule.yml` exists
-- Check whether the scenario is excluded in [`pr_exclude.txt`](../extensions/molecule/pr_exclude.txt)
+- Check whether the scenario is excluded in [`pr_exclude.txt`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule/pr_exclude.txt)
 - Run it manually via **Actions → Ansible Collection CI/CD → Run workflow**
 
 ### Molecule passed locally but failed in CI
@@ -789,7 +845,7 @@ Both workflows run `ansible-lint` with different configurations (container image
 
 ### Wrong tarball name or namespace
 
-- Namespace and name come from [`galaxy.yml`](../galaxy.yml) and should be `infra` and `ado`
+- Namespace and name come from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml) and should be `infra` and `ado`
 - Only `version` is set from the tag at build time
 - Expected artifact: `infra-ado-<version>.tar.gz`
 
@@ -814,12 +870,18 @@ Enable them as required checks when the team is ready to enforce them.
 
 ### Pre-commit hooks
 
-Local formatting and lint hooks are configured in [`.pre-commit-config.yaml`](../.pre-commit-config.yaml)
+Local formatting and lint hooks are configured in [`.pre-commit-config.yaml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.pre-commit-config.yaml)
 (black, isort, prettier, trailing commas). Run `pre-commit run --all-files` before pushing.
+
+### Dependabot
+
+[`.github/dependabot.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/dependabot.yml) requests weekly pull requests for GitHub
+Actions, including the pinned partner certification checker reusable workflow.
 
 ### Future improvements
 
 - Consolidate duplicate lint and changelog jobs between `main.yml` and `tests.yml`
 - Add `galaxy-importer` validation to the release build path
 - Enforce README and security checks in the PR gate
+- Require the `Certification` status check on `main` after it has run once
 - Add Automation Hub publish support alongside Galaxy

@@ -28,3 +28,28 @@
         satellite_install_data_device_name: "{{ capsule_install_data_device_name }}"
         satellite_install_req_dirs: "{{ capsule_install_req_dirs }}"
         satellite_install_data_disk: "{{ capsule_install_data_disk }}"
+
+    - name: Install Packages
+      ansible.builtin.include_tasks: install_packages.yml
+
+    - name: Configure Firewall
+      ansible.builtin.include_tasks: configure_firewall.yml
+
+    - name: Configure DNS
+      ansible.builtin.include_tasks: dns_config.yml
+
+    - name: Generate Custom Capsule Certificate
+      ansible.builtin.include_tasks: generate_cap_custom_cert.yml
+
+    - name: Install Capsule
+      ansible.builtin.include_tasks: install_capsule.yml
+
+    - name: Post Config
+      ansible.builtin.include_tasks: post_config.yml
+
+    - name: Sync Capsule
+      ansible.builtin.include_tasks: sync_capsule.yml
+
+    - name: HAProxy
+      ansible.builtin.include_tasks: haproxy.yml
+      when: capsule_install_satellite_haproxy | bool

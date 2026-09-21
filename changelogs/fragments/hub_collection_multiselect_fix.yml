@@ -1,4 +1,0 @@
----
-bugfixes:
-  - bootstrap_controller - Empty Hub preflight collection name list publishes
-    none (not every candidate).

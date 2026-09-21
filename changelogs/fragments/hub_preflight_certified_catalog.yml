@@ -1,7 +1,0 @@
----
-minor_changes:
-  - bootstrap_generate_playbook_repo - Expand Hub preflight publish catalog with
-    RH certified (``redhat.satellite``, ``redhat.rhel_idm``,
-    ``redhat.rhel_system_roles``) and runtime deps (``infra.aap_utilities``,
-    ``infra.rhacs_configuration``, ``ansible.utils``, ``community.kubernetes``)
-    so Private Hub can be seeded when remotes are empty.

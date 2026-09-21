@@ -1,7 +1,0 @@
----
-bugfixes:
-  - >-
-    Preflight bootstrap (ado-preflight-ui) — Superseded by git.overrides
-    (see git-overrides-preflight fragment). Incremental mode reuses the pod
-    clone, preserves existing files unless a Git override scope is selected,
-    and passes generate_env_vars_force=false by default.

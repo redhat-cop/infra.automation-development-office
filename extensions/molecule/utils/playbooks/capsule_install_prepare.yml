@@ -1,0 +1,10 @@
+---
+- name: Prepare integration_capsule_install scenario
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Prepare step placeholder
+      ansible.builtin.debug:
+        msg: integration_capsule_install prepare complete

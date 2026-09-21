@@ -1,4 +1,0 @@
----
-bugfixes:
-  - bootstrap_controller - Fix pulp repository lookup URL for preflight Hub
-    publish (YAML ``>-`` inserted a space before ``?name=``).

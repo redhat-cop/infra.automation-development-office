@@ -1,0 +1,13 @@
+---
+- name: Converge integration_capsule_install scenario
+  hosts: localhost
+  gather_facts: true
+  become: false
+
+  tasks:
+    - name: Explain offline converge mode
+      ansible.builtin.debug:
+        msg: >-
+          capsule_install Molecule converge is offline-only. Live Capsule
+          installation requires Satellite credentials and is not exercised here;
+          verify checks task wiring and README format.

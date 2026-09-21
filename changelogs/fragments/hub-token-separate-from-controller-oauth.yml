@@ -1,3 +1,0 @@
-bugfixes:
-  - bootstrap_controller - Stop falling back to Controller OAuth for Hub publish; require ``vault_galaxy_hub_token``.
-  - bootstrap_generate_env_vars - Write ``vault_galaxy_hub_token`` from preflight only; Galaxy creds no longer default to Controller OAuth/password.

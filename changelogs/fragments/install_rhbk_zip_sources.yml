@@ -1,8 +1,0 @@
----
-minor_changes:
-  - install_rhbk - Standalone RHBK zip may come from HTTP/Satellite URL,
-    git repo (cloned on the Keycloak host), or bootstrap ``files/`` upload;
-    unpack always runs on the host.
-bugfixes:
-  - bootstrap_generate_env_vars - Stop mapping unused RHN org/activation key
-    into standalone RHBK vars; prefer explicit ``standalone_zip_source``.

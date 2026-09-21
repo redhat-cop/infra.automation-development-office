@@ -1,5 +1,0 @@
----
-minor_changes:
-  - bootstrap_generate_playbook_repo - Add ``amazon.aws`` to Hub preflight publish
-    catalog (``infra.ado`` declares it in ``galaxy.yml``; Contoller sync fails without
-    it on Hub).

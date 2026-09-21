@@ -1,0 +1,26 @@
+---
+platforms:
+  - name: na
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: >-
+      ${MOLECULE_SCENARIO_DIRECTORY}/../../../roles:${ANSIBLE_ROLES_PATH}
+  playbooks:
+    prepare: ../utils/playbooks/capsule_install_prepare.yml
+    converge: ../utils/playbooks/capsule_install_converge.yml
+    verify: ../utils/playbooks/capsule_install_verify.yml
+    destroy: ../utils/playbooks/capsule_install_destroy.yml
+  config_options:
+    defaults:
+      collections_path: "${ANSIBLE_COLLECTIONS_PATH}"
+
+scenario:
+  test_sequence:
+    - prepare
+    - converge
+    - idempotence
+    - verify
+  destroy_sequence:
+    - destroy

@@ -1,8 +1,0 @@
----
-minor_changes:
-  - ado-preflight-ui - Hub Collections multi-select for additional playbook
-    collections; Galaxy credentials shown as tabs.
-bugfixes:
-  - bootstrap_controller - Skip ``infra.ado`` Hub publish when the version already
-    exists in validated unless force is set; never force additional preflight
-    collections; tolerate pulp promote 500 when version is already validated.

@@ -11,7 +11,7 @@ Automation Development Office
 
 Playbooks in `bootstrap_generate_playbook_repo_generated_playbooks` set
 `target_platform` to `openshift` or `linux`. See the collection
-[Bootstrap coverage](../../README.md#bootstrap-coverage-openshift-vs-rhel)
+[Bootstrap coverage](https://github.com/redhat-cop/infra.automation-development-office/blob/main/README.md#bootstrap-coverage-openshift-vs-rhel)
 tables for a simple OpenShift vs RHEL install/configure checklist.
 
 ## ✅ Role Requirements

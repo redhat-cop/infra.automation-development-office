@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    capsule_install - Renamed numbered task files to install_capsule,
+    post_config, sync_capsule, and haproxy; wired full install flow in
+    main.yml.
+  - >-
+    capsule_install - Added HAProxy template and
+    integration_capsule_install Molecule scenario.

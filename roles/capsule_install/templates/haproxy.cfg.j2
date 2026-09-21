@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# {{ ansible_managed }}
+global
+    log /dev/log local0
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/stats mode 660 level admin
+    stats timeout 30s
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout client 1m
+    timeout server 1m
+
+frontend capsule_http
+    bind *:80
+    default_backend capsule_http_back
+
+backend capsule_http_back
+    server capsule1 {{ ansible_fqdn }}:80 check
+
+frontend capsule_https
+    bind *:443
+    default_backend capsule_https_back
+
+backend capsule_https_back
+    server capsule1 {{ ansible_fqdn }}:443 check
+
+frontend capsule_pulp
+    bind *:8000
+    default_backend capsule_pulp_back
+
+backend capsule_pulp_back
+    server capsule1 {{ ansible_fqdn }}:8000 check
+
+frontend capsule_api
+    bind *:9090
+    default_backend capsule_api_back
+
+backend capsule_api_back
+    server capsule1 {{ ansible_fqdn }}:9090 check

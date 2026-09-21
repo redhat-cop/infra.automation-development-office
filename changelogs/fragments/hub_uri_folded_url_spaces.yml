@@ -1,6 +1,0 @@
----
-bugfixes:
-  - bootstrap_controller - Put Hub pulp/content lookup URLs on one line so YAML
-    ``>-`` does not insert spaces before ``?``/``&`` (breaks every preflight
-    collection publish, not just repo lookup).
-  - rhbk_setup_mapper - Same folded-URL fix for Keycloak components query URLs.

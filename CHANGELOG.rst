@@ -4,6 +4,72 @@ Infra Ado Collection Release Notes
 
 .. contents:: Topics
 
+v1.4.0
+======
+
+Minor Changes
+-------------
+
+- Preflight bootstrap (ado-preflight-ui) — Replace the single git overwrite checkbox with a Git overrides section: optional ``group_vars/all/<env>``, job/workflow templates, or full re-clone wipe. Default (all unchecked) keeps the pod clone and only commits incremental bootstrap changes.
+- ado-preflight-ui - Hub Collections multi-select for additional playbook collections; Galaxy credentials shown as tabs.
+- ado-preflight-ui / bootstrap_controller - Restored Hub checkbox ``Install additional collections that are requirements for playbooks`` (``aap.hub_publish_preflight_collections``). Publishes baked preflight tarballs other than ``infra.ado`` into Hub validated content (kubernetes.core, redhat.openshift, community.general, community.grafana, grafana.grafana, ansible.controller, awx.awx, infra.controller_configuration, infra.aap_configuration, ansible.platform, ansible.hub, and containers.podman when present).
+- bootstrap_generate_env_vars / bootstrap_generate_playbook_repo - ``ansible_dispatch_ignore_galaxy_cert`` defaults to false; preflight Galaxy tab checkbox opts in to ``GALAXY_IGNORE_CERTS`` and ``[galaxy] ignore_certs`` for lab self-signed Hub TLS.
+- bootstrap_generate_playbook_repo - Add ``amazon.aws`` to Hub preflight publish catalog (``infra.ado`` declares it in ``galaxy.yml``; Contoller sync fails without it on Hub).
+- bootstrap_generate_playbook_repo - Add ``ansible.posix``, ``community.hashi_vault``, and ``freeipa.ansible_freeipa`` to Hub publish manifest (preflight tarball + Contoller requirements when selected).
+- bootstrap_generate_playbook_repo - Expand Hub preflight publish catalog with RH certified (``redhat.satellite``, ``redhat.rhel_idm``, ``redhat.rhel_system_roles``) and runtime deps (``infra.aap_utilities``, ``infra.rhacs_configuration``, ``ansible.utils``, ``community.kubernetes``) so Private Hub can be seeded when remotes are empty.
+- galaxy.yml - Declare public Galaxy runtime collection dependencies (kubernetes.core, community.general, and others) with PEP 440 version ranges; document Automation Hub-only collections (including ``ansible.controller`` and ``hashicorp.vault``) excluded from ``dependencies`` per Red Hat collection publishing practice.
+- install_rhbk - Standalone RHBK zip may come from HTTP/Satellite URL, git repo (cloned on the Keycloak host), or bootstrap ``files/`` upload; unpack always runs on the host.
+
+Bugfixes
+--------
+
+- Accept HTTP 401 or 403 from the unauthenticated Automation Hub published-API probe in verify-automation-hub.sh. Red Hat Hub normally returns 401 without a token (auth required); 403 is tolerated because upstream proxies or API gateways sometimes classify missing credentials as Forbidden instead of Unauthorized. Either status still confirms the URL is reachable and not anonymously open, while 200 would indicate a misconfiguration and 5xx still fails the check. Galaxy remains 200-only; authenticated ansible.platform install remains the definitive Hub token test.
+- Add ansible-galaxy install retries and a shared Molecule collections cache job to reduce Galaxy 504/resolver flakes in CI (matrix runs fully parallel; cache replaces throttling via max-parallel).
+- Fix bindep platform profiles and always install libsystemd-dev and libkrb5-dev before ade pip requirements (avoids empty bindep match skipping the apt fallback; gssapi from ansible.eda needs krb5-config).
+- Forward Automation Hub Galaxy server env vars through tox-ansible so sanity and unit jobs resolve certified collection dependencies from console.redhat.com.
+- Install native build dependencies before tox ade install so sanity and unit jobs can resolve Hub collection Python requirements such as systemd-python.
+- Preflight bootstrap (ado-preflight-ui) — Superseded by git.overrides (see git-overrides-preflight fragment). Incremental mode reuses the pod clone, preserves existing files unless a Git override scope is selected, and passes generate_env_vars_force=false by default.
+- Remove unused variable from verify-automation-hub.sh so ansible-test shellcheck sanity passes.
+- Retry ade install up to three times in tox commands_pre to absorb transient Galaxy dependency resolution failures under parallel CI matrix load.
+- Use POSIX sh for ansible-galaxy-with-retry.sh so the ansible-lint container job can run collection install (Alpine image has no bash).
+- ado-preflight-ui - Git Configuration collects Bitbucket username and validates it before bootstrap when Controller apply is enabled.
+- bootstrap_controller - After ansible.hub staging upload succeeds, Pulp URI calls now use ``Authorization: Token`` with the same Hub/OAuth token that authenticated ``ah_namespace``/``ah_collection`` (or admin basic). Bearer Contoller OAuth was ignored on some gateways (``Authentication credentials were not provided``) when resolving pulp hrefs after upload.
+- bootstrap_controller - Always force a Controller project sync during full bootstrap so preflight picks up git changes; only treat sync as fatal when the project had no prior successful update and git revision did not advance.
+- bootstrap_controller - Empty Hub preflight collection name list publishes none (not every candidate).
+- bootstrap_controller - Fix ``NameError: name 'false' is not defined`` when generating job templates. The force-overwrite flag is now emitted as Python ``True``/``False`` instead of JSON ``true``/``false``.
+- bootstrap_controller - Fix project sync failure collection when loop results omit the ``skipped`` attribute.
+- bootstrap_controller - Fix project sync failure collection when loop results omit the ``skipped`` attribute.
+- bootstrap_controller - Fix pulp repository lookup URL for preflight Hub publish (YAML ``>-`` inserted a space before ``?name=``).
+- bootstrap_controller - Fix undefined ``bootstrap_controller_hub_uri_oauth`` when publishing Hub collections (``set_fact``/block ``vars`` cannot reference sibling keys in the same task).
+- bootstrap_controller - Hub Pulp ``ansible.builtin.uri`` calls use ``Authorization: Token`` (matching ``ansible.hub`` ``ah_token``) instead of ``Bearer``, and omit admin user/password when a Hub API token is set.
+- bootstrap_controller - Hub namespace/publish now probes ansible.hub auth modes in order (Hub / Galaxy API token, Contoller OAuth, admin basic). ansible.hub hardcodes ``Authorization: Token``, so Contoller Gateway OAuth that only works as Bearer no longer hard-fails ``ah_namespace`` on AAP 2.6 gateways. Raw Pulp URI calls continue to use Contoller OAuth Bearer (or basic).
+- bootstrap_controller - Hub publish/namespaces on gateway AAP now use Contoller OAuth (falling back to Hub API token only when OAuth is unset). The Hub User Access / Galaxy API token cannot authorize ``/api/galaxy/v3/namespaces/`` or collection upload on unified Gateway, which caused HTTP 401 during hub-only runs.
+- bootstrap_controller - On hub-only runs, ensure the General Controller organization exists before Hub publish when Galaxy credentials or Hub EE Controller objects are enabled.
+- bootstrap_controller - Project sync failure message no longer references hardcoded ``CKTEST-project``; uses the actual failing project name(s).
+- bootstrap_controller - Put Hub pulp/content lookup URLs on one line so YAML ``>-`` does not insert spaces before ``?``/``&`` (breaks every preflight collection publish, not just repo lookup).
+- bootstrap_controller - Skip Galaxy credential create/attach when Hub token is missing.
+- bootstrap_controller - Skip ``infra.ado`` Hub publish when the version already exists in validated unless force is set; never force additional preflight collections; tolerate pulp promote 500 when version is already validated.
+- bootstrap_controller - Split project sync tasks out of ``apply_aap_25_plus.yml`` to satisfy ansible-lint max-tasks and fix Hub publish URL line-length failures.
+- bootstrap_controller - Stop falling back to Controller OAuth for Hub publish; require ``vault_galaxy_hub_token``.
+- bootstrap_controller - Wait for collection versions to appear in Hub staging before pulp move; retry move and fall back to copy when Hub returns HTTP 500 (e.g. ``community.grafana`` promote race).
+- bootstrap_controller — Honor ``bootstrap_controller_generate_aap_configs_force_job_workflows`` when generating ``configs/job_templates`` and ``configs/workflows`` (skip overwrite, prune, and in-place workflow rewrites when false).
+- bootstrap_generate_env_vars - Admin HTPasswd preflight values now also land in ``vault_htpass_admin.yml`` / ``vars_htpass_admin.yml``, not only ``vault_openshift.yml``.
+- bootstrap_generate_env_vars - Controller Source Control credentials for Bitbucket use ``git.username`` plus ``git.token`` instead of hardcoded ``oauth2``, which Bitbucket Server rejects during project sync.
+- bootstrap_generate_env_vars - Galaxy credential URLs use Hub hostname; container registry credential can be created for EE push without enabling full Galaxy setup.
+- bootstrap_generate_env_vars - Galaxy/Hub API credentials and org attachments are emitted only when ``galaxy_setup_enabled`` is true and ``galaxy_hub_token`` is non-empty; hub-only publish no longer pushes lab Galaxy creds.
+- bootstrap_generate_env_vars - Stop mapping unused RHN org/activation key into standalone RHBK vars; prefer explicit ``standalone_zip_source``.
+- bootstrap_generate_env_vars - Write ``vault_galaxy_hub_token`` from preflight only; Galaxy creds no longer default to Controller OAuth/password.
+- bootstrap_generate_playbook_repo - HTPasswd bootstrap playbook loads OpenShift vault/vars so ``htpasswd_users`` and ``htpasswd_action`` are available to the JT.
+- bootstrap_generate_playbook_repo - Stop listing ``infra.aap_utilities`` and ``infra.rhacs_configuration`` in Contoller ``collections/requirements.yml`` (Private Hub cannot resolve them and project sync fails). Bundle on the EE or publish to Hub when those JTs need them.
+- bootstrap_generate_playbook_repo — Default ``bootstrap_generate_playbook_repo_force`` to false; preflight passes true only when Git override (all) is selected.
+- ocp_htpasswd_admin - Fail fast when ``htpasswd_users`` is empty instead of skipping secret/OAuth creation and reporting success.
+- rhbk_setup_mapper - Same folded-URL fix for Keycloak components query URLs.
+
+Documentation Changes
+---------------------
+
+- ado-preflight-ui - Clarify that Contoller OAuth publishes to Hub on gateway AAP; Hub / Galaxy API token is for org Galaxy credentials and registry pulls.
+
 v1.3.0
 ======
 

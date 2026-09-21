@@ -1,0 +1,13 @@
+---
+- name: post_config | Set capsule org and location
+  redhat.satellite.smart_proxy:
+    username: "{{ capsule_install_admin_username }}"
+    password: "{{ capsule_install_admin_password }}"
+    server_url: "https://{{ capsule_install_satellite_fqdn }}"
+    name: "{{ ansible_fqdn }}"
+    url: "https://{{ ansible_fqdn }}:9090"
+    organizations: "{{ capsule_install_org_id }}"
+    locations: "{{ capsule_install_location }}"
+    lifecycle_environments: "{{ capsule_install_lifecycle_environments }}"
+    validate_certs: false
+  delegate_to: "{{ capsule_install_satellite_fqdn }}"

@@ -1,0 +1,37 @@
+---
+- name: dns_config | Ensure that there's a line for the short host name and full hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "{{ ansible_fqdn }}"
+    line: "{{ ansible_default_ipv4.address }} {{ ansible_fqdn }} {{ ansible_hostname }}"
+    state: present
+
+- name: dns_config | Update NetworkManager DNS
+  community.general.nmcli:
+    conn_name: "{{ capsule_install_dns_device }}"
+    type: ethernet
+    dns4:
+      - "{{ item }}"
+    state: present
+  loop: "{{ capsule_install_dns_servers }}"
+  when: capsule_install_dns_servers is defined
+
+- name: dns_config | Update NetworkManager DNS search
+  community.general.nmcli:
+    conn_name: "{{ capsule_install_dns_device }}"
+    type: ethernet
+    dns4_search:
+      - "{{ item }}"
+    state: present
+  loop: "{{ capsule_install_dns_search }}"
+  when: capsule_install_dns_search is defined
+
+- name: dns_config | Update /etc/resolv.conf if defined
+  ansible.builtin.template:
+    dest: /etc/resolv.conf
+    src: resolv.conf.j2
+    mode: '0644'
+    owner: root
+    group: root
+  when: capsule_install_dns_servers is defined
+...

@@ -1,5 +1,0 @@
----
-bugfixes:
-  - bootstrap_controller - Wait for collection versions to appear in Hub staging
-    before pulp move; retry move and fall back to copy when Hub returns HTTP 500
-    (e.g. ``community.grafana`` promote race).

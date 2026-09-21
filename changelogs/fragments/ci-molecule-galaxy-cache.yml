@@ -1,9 +1,0 @@
----
-bugfixes:
-  - >-
-    Add ansible-galaxy install retries and a shared Molecule collections cache
-    job to reduce Galaxy 504/resolver flakes in CI (matrix runs fully parallel;
-    cache replaces throttling via max-parallel).
-  - >-
-    Use POSIX sh for ansible-galaxy-with-retry.sh so the ansible-lint container
-    job can run collection install (Alpine image has no bash).

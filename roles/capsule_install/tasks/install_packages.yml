@@ -1,0 +1,10 @@
+---
+- name: install_packages | Get host package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: install_packages | Install packages
+  ansible.builtin.dnf:
+    name: "{{ capsule_install_packages }}"
+    state: present
+  when: "'satellite-capsule' not in ansible_facts['packages']"

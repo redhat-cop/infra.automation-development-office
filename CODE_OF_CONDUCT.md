@@ -21,13 +21,13 @@ This file does not replace the Ansible Community Code of Conduct. It adds
 
 The following expectations apply in addition to the Ansible Community Code of
 Conduct when contributing to
-[Automation-Development-Office/ado](https://github.com/Automation-Development-Office/ado).
+[Automation-Development-Office/ado](https://github.com/redhat-cop/infra.automation-development-office).
 
 ### Pull requests and issues
 
 - Open **focused** changes with a clear summary, linked issues when applicable
   (for example `Fixes #123`), and an accurate test plan as described in the
-  [pull request template](.github/pull_request_template.md).
+  [pull request template](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/pull_request_template.md).
 - Give and accept review feedback on the **merits of the change**. Maintainers
   may request more tests or documentation; that is normal review, not a
   personal rejection.
@@ -67,7 +67,7 @@ For behavior related to **this repository** that you do not wish to raise
 through Ansible's community channels, contact:
 
 - **Email:** [automation-development-office@redhat.com](mailto:automation-development-office@redhat.com)
-- **GitHub:** [open an issue](https://github.com/Automation-Development-Office/ado/issues)
+- **GitHub:** [open an issue](https://github.com/redhat-cop/infra.automation-development-office/issues)
   for general concerns, or contact repository administrators directly for
   sensitive matters
 
@@ -77,6 +77,6 @@ use the reporting paths described in the
 
 ## Related guidance
 
-- [CONTRIBUTING](CONTRIBUTING)
-- [Pull request template](.github/pull_request_template.md)
+- [CONTRIBUTING](https://github.com/redhat-cop/infra.automation-development-office/blob/main/CONTRIBUTING)
+- [Pull request template](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/pull_request_template.md)
 - [Ansible Community Code of Conduct](https://docs.ansible.com/projects/ansible/devel/community/code_of_conduct.html)

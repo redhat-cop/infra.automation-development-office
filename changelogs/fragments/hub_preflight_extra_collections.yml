@@ -1,5 +1,0 @@
----
-minor_changes:
-  - bootstrap_generate_playbook_repo - Add ``ansible.posix``,
-    ``community.hashi_vault``, and ``freeipa.ansible_freeipa`` to Hub publish
-    manifest (preflight tarball + Contoller requirements when selected).
