@@ -1500,11 +1500,11 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["rhbk"]["rhbk_platform"] = "rhel"
                 vars_data_changed = True
             else:
+                purge_standalone_install_vars(vars_data, "rhbk")
                 vars_data["install_rhbk_platform"] = "openshift"
                 vars_data["rhbk_platform"] = "openshift"
                 vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "openshift"
                 vars_data["components_env"]["rhbk"]["rhbk_platform"] = "openshift"
-                purge_standalone_install_vars(vars_data, "rhbk")
                 vars_data_changed = True
             env_suffix = env_label_suffix(preflight.get("environment"))
             apps_domain = str(
