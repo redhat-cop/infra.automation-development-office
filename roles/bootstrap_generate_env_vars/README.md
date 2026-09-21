@@ -84,6 +84,32 @@ Automation Development Office
 | `bootstrap_generate_env_vars_satellite_inventory_update_on_launch` | Update the Satellite inventory source when launched. Default `true`. |
 | `bootstrap_generate_env_vars_satellite_inventory_update_cache_timeout` | Cache timeout for the Satellite inventory source. Default `0`. |
 | `bootstrap_generate_env_vars_satellite_inventory_host_filter` | Optional Satellite inventory source host filter. |
+| `bootstrap_generate_env_vars_capsule_hostname` | Capsule host FQDN seeded into the dedicated Capsule AAP inventory. |
+| `bootstrap_generate_env_vars_capsule_satellite_fqdn` | Upstream Satellite FQDN for Capsule install; defaults from `bootstrap_generate_env_vars_satellite_server_url` when unset. |
+| `bootstrap_generate_env_vars_capsule_deployment_version` | Capsule version written to `capsule_install_deployment_version`. Default `6.19`. |
+| `bootstrap_generate_env_vars_capsule_location` | Capsule location written to `capsule_install_location`; defaults to Satellite location when unset. |
+| `bootstrap_generate_env_vars_capsule_org_id` | Organization for Capsule registration written to `capsule_install_org_id`. |
+| `bootstrap_generate_env_vars_capsule_activation_key` | Capsule activation key written to `vault_capsule_activation_key` / `capsule_install_activation_key`. |
+| `bootstrap_generate_env_vars_capsule_min_memory_size` | Minimum Capsule memory in MB (`capsule_install_min_memory_size`). Default `12288`. |
+| `bootstrap_generate_env_vars_capsule_min_cpu_count` | Minimum Capsule vCPU count (`capsule_install_min_cpu_count`). Default `4`. |
+| `bootstrap_generate_env_vars_capsule_min_pulp_size` | Minimum Pulp storage in GB (`capsule_install_min_pulp_size`). Default `300`. |
+| `bootstrap_generate_env_vars_capsule_min_pgsql_size` | Minimum PostgreSQL storage in GB (`capsule_install_min_pgsql_size`). Default `20`. |
+| `bootstrap_generate_env_vars_capsule_data_disk_min_size` | Minimum Capsule data disk size in GB (`capsule_install_data_disk_min_size`). Default `500`. |
+| `bootstrap_generate_env_vars_capsule_selinux_state` | SELinux state for the Capsule patch path (`capsule_install_selinux_state`). Default `enforcing`. |
+| `bootstrap_generate_env_vars_capsule_scenario` | ``satellite-installer`` scenario name (`capsule_install_scenario`). Default `capsule`. |
+| `bootstrap_generate_env_vars_capsule_admin_username` | Satellite admin user for Capsule registration (`capsule_install_admin_username`). Default `admin`. |
+| `bootstrap_generate_env_vars_capsule_pulp_size` | Pulp LV size (`capsule_install_pulp_size`). Default `1500g`. |
+| `bootstrap_generate_env_vars_capsule_pgsql_size` | PostgreSQL LV size (`capsule_install_pgsql_size`). Default `150g`. |
+| `bootstrap_generate_env_vars_capsule_vg_name` | Capsule LVM volume group (`capsule_install_vg_name`). Default `capsule`. |
+| `bootstrap_generate_env_vars_capsule_req_dirs` | Capsule storage mount definitions (`capsule_install_req_dirs`). |
+| `bootstrap_generate_env_vars_capsule_data_device` | Capsule data disk path prefix. Default `/dev`. |
+| `bootstrap_generate_env_vars_capsule_data_device_name` | Optional Capsule data disk basename. |
+| `bootstrap_generate_env_vars_capsule_lifecycle_environments` | Lifecycle environments for Capsule post-config. |
+| `bootstrap_generate_env_vars_capsule_sync_wait_time` | Capsule content sync wait timeout in seconds. Default `86400`. |
+| `bootstrap_generate_env_vars_capsule_setup_insights` | Register Capsule with Insights during RHSM subscribe. Default `false`. |
+| `bootstrap_generate_env_vars_capsule_satellite_haproxy` | Enable load-balanced Capsule install path. Default `false`. |
+| `bootstrap_generate_env_vars_capsule_loadbalancer_fqdn` | Load balancer FQDN when HAProxy Capsule install is enabled. |
+| `bootstrap_generate_env_vars_capsule_loadbalancer_activation_key` | Activation key for load balancer registration. |
 
 OpenShift preflight JSON can include `component_options.openshift` to opt into
 optional OpenShift configuration. `admin_htpasswd` writes HTPasswd admin user

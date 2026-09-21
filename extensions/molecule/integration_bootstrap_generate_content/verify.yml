@@ -66,6 +66,28 @@
         file_type: file
       register: generated_workflows
 
+    - name: Verify Satellite Capsule bootstrap playbook exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/playbooks/satellite/ado-install-capsule-bootstrap.yml
+      register: capsule_install_playbook
+
+    - name: Verify Satellite Capsule bootstrap job template exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/configs/job_templates/ado-satellite-capsule-install-bootstrap.jt.yml
+      register: capsule_install_job_template
+
+    - name: Assert Satellite Capsule bootstrap artifacts exist
+      ansible.builtin.assert:
+        that:
+          - capsule_install_playbook.stat.exists
+          - capsule_install_playbook.stat.isreg
+          - capsule_install_job_template.stat.exists
+          - capsule_install_job_template.stat.isreg
+        fail_msg: >-
+          Missing Capsule bootstrap playbook or job template under the generated repo.
+
     - name: Assert generated file counts
       ansible.builtin.assert:
         that:

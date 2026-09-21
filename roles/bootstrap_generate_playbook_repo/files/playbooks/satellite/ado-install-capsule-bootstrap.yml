@@ -1,0 +1,10 @@
+---
+- name: ADO | Install Satellite Capsule
+  hosts: all
+  gather_facts: true
+  become: true
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_satellite.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_satellite.yml"
+  roles:
+    - role: infra.ado.capsule_install

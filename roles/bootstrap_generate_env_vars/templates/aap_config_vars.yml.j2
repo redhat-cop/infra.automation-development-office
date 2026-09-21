@@ -267,6 +267,11 @@
 %}
 {% set bootstrap_generate_env_vars_idm_inventory = bootstrap_generate_env_vars_aap_org ~ '-IDM-Inventory' %}
 {% set bootstrap_generate_env_vars_satellite_inventory = bootstrap_generate_env_vars_aap_org ~ '-Satellite-Server-Inventory' %}
+{% set bootstrap_generate_env_vars_capsule_inventory = bootstrap_generate_env_vars_aap_org ~ '-Satellite-Capsule-Inventory' %}
+{% set bootstrap_generate_env_vars_capsule_hostname_effective =
+    preflight_satellite_config.capsule_hostname
+    | default(bootstrap_generate_env_vars_capsule_hostname | default('', true), true)
+%}
 {% set bootstrap_generate_env_vars_aap_project_raw = preflight_aap.project | default(bootstrap_generate_env_vars_aap_org ~ '-project', true) if bootstrap_generate_env_vars_preflight is defined else (bootstrap_generate_env_vars_prompt_aap_project.user_input | default(bootstrap_generate_env_vars_aap_org ~ '-project', true)) %}
 {% set bootstrap_generate_env_vars_aap_project =
     bootstrap_generate_env_vars_aap_project_raw | replace(' ', '-')
@@ -485,6 +490,7 @@ bootstrap_controller_local_inventory_name: "{{ bootstrap_generate_env_vars_aap_i
 bootstrap_controller_rhel_inventory_name: "{{ bootstrap_generate_env_vars_rhel_inventory }}"
 bootstrap_controller_idm_inventory_name: "{{ bootstrap_generate_env_vars_idm_inventory }}"
 bootstrap_controller_satellite_inventory_name: "{{ bootstrap_generate_env_vars_satellite_inventory }}"
+bootstrap_controller_capsule_inventory_name: "{{ bootstrap_generate_env_vars_capsule_inventory }}"
 bootstrap_controller_cert_manager_mode: "{{ preflight_cert_manager_config.mode | default('cert', true) }}"
 bootstrap_controller_update_default_ingress: {{ preflight_cert_manager_config.update_default_ingress | default(false) | bool | lower }}
 {% set bootstrap_generate_env_vars_project_sync_timeout =
@@ -835,14 +841,24 @@ controller_bootstrap_controller_inventories:
 {% set satellite_server_inventory_needed =
     preflight_satellite_options_for_inv | length == 0
     or 'satellite_server_install' in preflight_satellite_options_for_inv
-    or 'satellite_capsule_install' in preflight_satellite_options_for_inv
     or 'satellite_oidc' in preflight_satellite_options_for_inv
+%}
+{% set satellite_capsule_inventory_needed =
+    preflight_satellite_options_for_inv | length == 0
+    or 'satellite_capsule_install' in preflight_satellite_options_for_inv
 %}
 {% if satellite_server_inventory_needed %}
 
   - name: "{{ bootstrap_generate_env_vars_satellite_inventory }}"
     organization: "{{ bootstrap_generate_env_vars_aap_org }}"
     description: "Generated Satellite server inventory"
+    variables: {}
+{% endif %}
+{% if satellite_capsule_inventory_needed %}
+
+  - name: "{{ bootstrap_generate_env_vars_capsule_inventory }}"
+    organization: "{{ bootstrap_generate_env_vars_aap_org }}"
+    description: "Generated Satellite Capsule inventory"
     variables: {}
 {% endif %}
 {% endif %}
@@ -877,14 +893,27 @@ bootstrap_controller_controller_hosts:
     and (
       preflight_satellite_options | length == 0
       or 'satellite_server_install' in preflight_satellite_options
-      or 'satellite_capsule_install' in preflight_satellite_options
       or 'satellite_oidc' in preflight_satellite_options
+    )
+%}
+{% set satellite_capsule_inventory_selected =
+    satellite_component_selected
+    and (
+      preflight_satellite_options | length == 0
+      or 'satellite_capsule_install' in preflight_satellite_options
     )
 %}
 {% if satellite_server_inventory_selected and bootstrap_generate_env_vars_satellite_inventory_host | length > 0 %}
   - name: "{{ bootstrap_generate_env_vars_satellite_inventory_host }}"
     inventory: "{{ bootstrap_generate_env_vars_satellite_inventory }}"
     description: "Satellite host"
+    enabled: true
+    variables: {}
+{% endif %}
+{% if satellite_capsule_inventory_selected and bootstrap_generate_env_vars_capsule_hostname_effective | length > 0 %}
+  - name: "{{ bootstrap_generate_env_vars_capsule_hostname_effective }}"
+    inventory: "{{ bootstrap_generate_env_vars_capsule_inventory }}"
+    description: "Satellite Capsule host"
     enabled: true
     variables: {}
 {% endif %}

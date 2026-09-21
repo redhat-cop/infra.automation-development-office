@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - bootstrap_generate_playbook_repo - Generate ``playbooks/satellite/ado-install-capsule-bootstrap.yml`` for the ``satellite_capsule_install`` app.
+  - bootstrap_generate_env_vars - Write ``capsule_install_*`` variables into ``vars_satellite.yml`` / ``vault_satellite.yml`` and seed a dedicated Capsule AAP inventory.
+  - bootstrap_controller - Add ``ADO | Satellite Capsule Install`` job template wired to ``infra.ado.capsule_install``.

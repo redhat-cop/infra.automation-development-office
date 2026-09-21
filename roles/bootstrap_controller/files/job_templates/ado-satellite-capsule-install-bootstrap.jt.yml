@@ -1,0 +1,37 @@
+---
+controller_templates:
+  - name: ADO | Satellite Capsule Install
+    organization: '{{ bootstrap_controller_organization }}'
+    description: Bootstrap - ADO | Satellite Capsule Install
+    playbook: playbooks/satellite/ado-install-capsule-bootstrap.yml
+    inventory: '{{ bootstrap_controller_capsule_inventory_name }}'
+    project: '{{ bootstrap_controller_project_name }}'
+    execution_environment: '{{ bootstrap_controller_execution_environment_name }}'  # yamllint disable-line rule:line-length
+    become_enabled: true
+    credentials:
+      - '{{ bootstrap_controller_creds }}'
+      # ADO_MACHINE_CREDENTIAL
+    labels:
+      - name: ADO | bootstrap
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | satellite
+        organization: '{{ bootstrap_controller_organization }}'
+    survey_enabled: true
+    survey_spec:
+      name: ADO | Satellite Capsule Install Survey
+      description: Satellite Capsule install inputs
+      spec:
+        - question_name: ADO | Do you want to install or remove?
+          question_description: Install (present) or Remove (absent)
+          required: true
+          type: multiplechoice
+          variable: state
+          choices: '{{ bootstrap_controller_state_choices }}'
+          default: '{{ bootstrap_controller_default_state }}'
+        - question_name: ADO | Environment
+          question_description: Environment name
+          required: true
+          type: multiplechoice
+          variable: env
+          choices: '{{ bootstrap_controller_environment_choices }}'
+          default: '{{ bootstrap_controller_default_environment }}'

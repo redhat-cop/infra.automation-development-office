@@ -162,6 +162,39 @@ bootstrap_generate_env_vars_satellite_req_dirs:
     lv_name: lv_pgsql
     lv_size: 20g
 
+bootstrap_generate_env_vars_capsule_hostname: ""
+bootstrap_generate_env_vars_capsule_satellite_fqdn: ""
+bootstrap_generate_env_vars_capsule_deployment_version: "6.19"
+bootstrap_generate_env_vars_capsule_location: ""
+bootstrap_generate_env_vars_capsule_org_id: ""
+bootstrap_generate_env_vars_capsule_activation_key: ""
+bootstrap_generate_env_vars_capsule_min_memory_size: 12288
+bootstrap_generate_env_vars_capsule_min_cpu_count: 4
+bootstrap_generate_env_vars_capsule_min_pulp_size: 300
+bootstrap_generate_env_vars_capsule_min_pgsql_size: 20
+bootstrap_generate_env_vars_capsule_data_disk_min_size: 500
+bootstrap_generate_env_vars_capsule_selinux_state: enforcing
+bootstrap_generate_env_vars_capsule_scenario: capsule
+bootstrap_generate_env_vars_capsule_admin_username: admin
+bootstrap_generate_env_vars_capsule_pulp_size: 1500g
+bootstrap_generate_env_vars_capsule_pgsql_size: 150g
+bootstrap_generate_env_vars_capsule_data_device: /dev
+bootstrap_generate_env_vars_capsule_data_device_name: ""
+bootstrap_generate_env_vars_capsule_vg_name: capsule
+bootstrap_generate_env_vars_capsule_req_dirs:
+  - mount_point: /var/lib/pulp
+    lv_name: pulp
+    lv_size: 1500g
+  - mount_point: /var/lib/pgsql
+    lv_name: pgsql
+    lv_size: 150g
+bootstrap_generate_env_vars_capsule_lifecycle_environments: []
+bootstrap_generate_env_vars_capsule_sync_wait_time: 86400
+bootstrap_generate_env_vars_capsule_setup_insights: false
+bootstrap_generate_env_vars_capsule_satellite_haproxy: false
+bootstrap_generate_env_vars_capsule_loadbalancer_fqdn: ""
+bootstrap_generate_env_vars_capsule_loadbalancer_activation_key: ""
+
 # OpenShift Virtualization provisioning defaults
 bootstrap_generate_env_vars_openshift_virt_api_host: ""
 bootstrap_generate_env_vars_openshift_virt_api_token: ""

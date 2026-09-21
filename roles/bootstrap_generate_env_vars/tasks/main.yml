@@ -1627,6 +1627,29 @@
     - bootstrap_generate_env_vars_use_aap | bool
     - bootstrap_generate_env_vars_preflight is not defined
 
+- name: Load satellite vars after preflight overlay for AAP capsule inventory
+  ansible.builtin.include_vars:
+    file: "{{ bootstrap_generate_env_vars_env_dir }}/vars_satellite.yml"
+    name: bootstrap_generate_env_vars_satellite_generated
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - "'satellite' in bootstrap_generate_env_vars_components"
+
+- name: Apply generated capsule hostname for AAP config rendering
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_capsule_hostname: >-
+      {{
+        bootstrap_generate_env_vars_satellite_generated.capsule_hostname
+        | default(
+            bootstrap_generate_env_vars_satellite_generated.bootstrap_generate_env_vars_capsule_hostname
+            | default(bootstrap_generate_env_vars_capsule_hostname | default('', true), true),
+            true
+          )
+      }}
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - "'satellite' in bootstrap_generate_env_vars_components"
+
 - name: Write AAP config vars
   ansible.builtin.template:
     src: aap_config_vars.yml.j2

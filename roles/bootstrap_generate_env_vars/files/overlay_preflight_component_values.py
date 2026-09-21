@@ -551,6 +551,40 @@ def merge_component(component, cfg):
             "oidc_issuer",
             "keycloak_url",
             "keycloak_admin_user",
+            "capsule_hostname",
+            "capsule_install_deployment_version",
+            "capsule_install_location",
+            "capsule_install_org_id",
+            "capsule_install_activation_key",
+            "capsule_install_satellite_fqdn",
+            "capsule_install_min_memory_size",
+            "capsule_install_min_cpu_count",
+            "capsule_install_data_disk_min_size",
+            "capsule_install_pulp_size",
+            "capsule_install_pgsql_size",
+            "capsule_install_data_device",
+            "capsule_install_data_device_name",
+            "capsule_install_vg_name",
+            "capsule_install_req_dirs",
+            "capsule_install_lifecycle_environments",
+            "capsule_install_sync_wait_time",
+            "capsule_install_setup_insights",
+            "capsule_install_satellite_haproxy",
+            "capsule_install_loadbalancer_fqdn",
+            "capsule_install_loadbalancer_activation_key",
+            "capsule_activation_key",
+            "capsule_org_id",
+            "capsule_location",
+            "capsule_vg_name",
+            "capsule_data_device",
+            "capsule_data_device_name",
+            "capsule_data_disk_min_size",
+            "capsule_pulp_size",
+            "capsule_pgsql_size",
+            "loadbalancer_fqdn",
+            "loadbalancer_activation_key",
+            "satellite_haproxy",
+            "lifecycle_environments",
         }
         satellite_stale_raw_keys = {
             "activation_key",
@@ -609,6 +643,40 @@ def merge_component(component, cfg):
             "oidc_issuer",
             "keycloak_url",
             "keycloak_admin_user",
+            "capsule_hostname",
+            "capsule_install_deployment_version",
+            "capsule_install_location",
+            "capsule_install_org_id",
+            "capsule_install_activation_key",
+            "capsule_install_satellite_fqdn",
+            "capsule_install_min_memory_size",
+            "capsule_install_min_cpu_count",
+            "capsule_install_data_disk_min_size",
+            "capsule_install_pulp_size",
+            "capsule_install_pgsql_size",
+            "capsule_install_data_device",
+            "capsule_install_data_device_name",
+            "capsule_install_vg_name",
+            "capsule_install_req_dirs",
+            "capsule_install_lifecycle_environments",
+            "capsule_install_sync_wait_time",
+            "capsule_install_setup_insights",
+            "capsule_install_satellite_haproxy",
+            "capsule_install_loadbalancer_fqdn",
+            "capsule_install_loadbalancer_activation_key",
+            "capsule_activation_key",
+            "capsule_org_id",
+            "capsule_location",
+            "capsule_vg_name",
+            "capsule_data_device",
+            "capsule_data_device_name",
+            "capsule_data_disk_min_size",
+            "capsule_pulp_size",
+            "capsule_pgsql_size",
+            "loadbalancer_fqdn",
+            "loadbalancer_activation_key",
+            "satellite_haproxy",
+            "lifecycle_environments",
         }
         for satellite_key in satellite_role_only_keys:
             passthrough_public_values.pop(satellite_key, None)
@@ -1432,11 +1500,11 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["rhbk"]["rhbk_platform"] = "rhel"
                 vars_data_changed = True
             else:
+                purge_standalone_install_vars(vars_data, "rhbk")
                 vars_data["install_rhbk_platform"] = "openshift"
                 vars_data["rhbk_platform"] = "openshift"
                 vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "openshift"
                 vars_data["components_env"]["rhbk"]["rhbk_platform"] = "openshift"
-                purge_standalone_install_vars(vars_data, "rhbk")
                 vars_data_changed = True
             env_suffix = env_label_suffix(preflight.get("environment"))
             apps_domain = str(
@@ -2811,6 +2879,153 @@ def merge_component(component, cfg):
                     str(oidc_client_secret)
                 )
                 vault_data_changed = True
+            capsule_hostname = first_present(
+                public_values.get("capsule_hostname"),
+                public_values.get("capsule_host"),
+            )
+            if capsule_hostname is not None:
+                vars_data["capsule_hostname"] = str(capsule_hostname)
+                vars_data_changed = True
+            if public_values.get("capsule_install_deployment_version") or public_values.get(
+                "capsule_deployment_version"
+            ):
+                vars_data["capsule_install_deployment_version"] = str(
+                    first_present(
+                        public_values.get("capsule_install_deployment_version"),
+                        public_values.get("capsule_deployment_version"),
+                        public_values.get("deployment_version"),
+                    )
+                )
+                vars_data_changed = True
+            capsule_location = first_present(
+                public_values.get("capsule_install_location"),
+                public_values.get("capsule_location"),
+                public_values.get("location"),
+            )
+            if capsule_location is not None:
+                vars_data["capsule_install_location"] = str(capsule_location)
+                vars_data_changed = True
+            capsule_org_id = first_present(
+                public_values.get("capsule_install_org_id"),
+                public_values.get("capsule_org_id"),
+                public_values.get("organization"),
+            )
+            if capsule_org_id is not None:
+                vars_data["capsule_install_org_id"] = str(capsule_org_id)
+                vars_data_changed = True
+            capsule_satellite_fqdn = first_present(
+                public_values.get("capsule_install_satellite_fqdn"),
+                public_values.get("capsule_satellite_fqdn"),
+            )
+            if capsule_satellite_fqdn is not None:
+                vars_data["capsule_install_satellite_fqdn"] = str(capsule_satellite_fqdn)
+                vars_data_changed = True
+            capsule_activation_key = first_present(
+                public_values.get("capsule_install_activation_key"),
+                public_values.get("capsule_activation_key"),
+                secret_values.get("capsule_activation_key"),
+                secret_values.get("capsule_install_activation_key"),
+            )
+            if capsule_activation_key is not None:
+                vault_data["vault_capsule_activation_key"] = QuotedString(
+                    str(capsule_activation_key)
+                )
+                vars_data["capsule_install_activation_key"] = vault_ref(
+                    "vault_capsule_activation_key"
+                )
+                vault_data_changed = True
+                vars_data_changed = True
+            loadbalancer_activation_key = first_present(
+                public_values.get("capsule_install_loadbalancer_activation_key"),
+                public_values.get("loadbalancer_activation_key"),
+                secret_values.get("loadbalancer_activation_key"),
+            )
+            if loadbalancer_activation_key is not None:
+                vault_data["vault_capsule_loadbalancer_activation_key"] = QuotedString(
+                    str(loadbalancer_activation_key)
+                )
+                vars_data["capsule_install_loadbalancer_activation_key"] = vault_ref(
+                    "vault_capsule_loadbalancer_activation_key"
+                )
+                vault_data_changed = True
+                vars_data_changed = True
+            vg_name = first_present(
+                public_values.get("capsule_install_vg_name"),
+                public_values.get("capsule_vg_name"),
+            )
+            if vg_name is not None:
+                vars_data["capsule_install_vg_name"] = str(vg_name)
+                vars_data_changed = True
+            for size_key, var_key in (
+                ("capsule_pulp_size", "capsule_install_pulp_size"),
+                ("capsule_pgsql_size", "capsule_install_pgsql_size"),
+            ):
+                size_value = first_present(
+                    public_values.get(var_key),
+                    public_values.get(size_key),
+                )
+                if size_value is not None:
+                    vars_data[var_key] = QuotedString(str(size_value))
+                    vars_data_changed = True
+            data_disk_min_size = first_present(
+                public_values.get("capsule_install_data_disk_min_size"),
+                public_values.get("capsule_data_disk_min_size"),
+            )
+            if data_disk_min_size is not None:
+                vars_data["capsule_install_data_disk_min_size"] = int(data_disk_min_size)
+                vars_data_changed = True
+            data_device_name = first_present(
+                public_values.get("capsule_install_data_device_name"),
+                public_values.get("capsule_data_device_name"),
+            )
+            if data_device_name is not None:
+                vars_data["capsule_install_data_device_name"] = str(data_device_name)
+                vars_data_changed = True
+            data_device = first_present(
+                public_values.get("capsule_install_data_device"),
+                public_values.get("capsule_data_device"),
+            )
+            if data_device is not None:
+                vars_data["capsule_install_data_device"] = str(data_device)
+                vars_data_changed = True
+            req_dirs = first_present(
+                public_values.get("capsule_install_req_dirs"),
+                public_values.get("capsule_req_dirs"),
+            )
+            if req_dirs:
+                vars_data["capsule_install_req_dirs"] = copy.deepcopy(req_dirs)
+                vars_data_changed = True
+            if public_values.get("lifecycle_environments") is not None:
+                vars_data["capsule_install_lifecycle_environments"] = copy.deepcopy(
+                    public_values["lifecycle_environments"]
+                )
+                vars_data_changed = True
+            if public_values.get("capsule_install_sync_wait_time") is not None:
+                vars_data["capsule_install_sync_wait_time"] = int(
+                    public_values["capsule_install_sync_wait_time"]
+                )
+                vars_data_changed = True
+            if "capsule_install_setup_insights" in public_values:
+                vars_data["capsule_install_setup_insights"] = as_bool(
+                    public_values["capsule_install_setup_insights"], False
+                )
+                vars_data_changed = True
+            if "satellite_haproxy" in public_values or "capsule_install_satellite_haproxy" in public_values:
+                vars_data["capsule_install_satellite_haproxy"] = as_bool(
+                    first_present(
+                        public_values.get("capsule_install_satellite_haproxy"),
+                        public_values.get("satellite_haproxy"),
+                    ),
+                    False,
+                )
+                vars_data_changed = True
+            loadbalancer_fqdn = first_present(
+                public_values.get("capsule_install_loadbalancer_fqdn"),
+                public_values.get("loadbalancer_fqdn"),
+            )
+            if loadbalancer_fqdn is not None:
+                vars_data["capsule_install_loadbalancer_fqdn"] = str(loadbalancer_fqdn)
+                vars_data_changed = True
             vars_data.pop("oidc", None)
 
         if component == "cert_manager":
@@ -3708,6 +3923,26 @@ if "oauth_rhbk" in openshift_options:
             oidc_auth["issuer"] = f"https://{keycloak_host}/realms/{realm}"
         rhbk_vars["openshift_oidc_auth"] = oidc_auth
         write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+
+        rhbk_vault_path = env_dir / "vault_rhbk.yml"
+        if rhbk_vault_path.exists():
+            rhbk_vault = load_yaml(rhbk_vault_path)
+            rhbk_vault_changed = False
+            for stale_key in (
+                "openshift_oidc_idp_name",
+                "rhbk_client",
+                "openshift_oidc_client_id",
+                "rhbk_realm",
+                "ocp_rhbk_realm",
+                "ocp_rhbk_hostname",
+                "rhbk_hostname",
+                "openshift_oidc_auth",
+            ):
+                if stale_key in rhbk_vault:
+                    rhbk_vault.pop(stale_key, None)
+                    rhbk_vault_changed = True
+            if rhbk_vault_changed:
+                write_yaml(rhbk_vault_path, rhbk_vault, "0600")
 
 route_options = {
     opt

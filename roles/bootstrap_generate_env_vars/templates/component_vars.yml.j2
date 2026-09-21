@@ -153,6 +153,48 @@ satellite_install_req_dirs:
 satellite_install_data_disk_min_size: "{{ bootstrap_generate_env_vars_satellite_data_disk_min_size | default('10G', true) }}"
 satellite_install_data_device_name: "{{ bootstrap_generate_env_vars_satellite_data_device_name | default('', true) }}"
 satellite_install_data_device: "{{ bootstrap_generate_env_vars_satellite_data_device | default('/dev', true) }}"
+capsule_install_deployment_version: "{{ bootstrap_generate_env_vars_capsule_deployment_version | default(bootstrap_generate_env_vars_satellite_deployment_version | default('6.19', true), true) }}"
+capsule_install_location: "{{ bootstrap_generate_env_vars_capsule_location | default(bootstrap_generate_env_vars_satellite_location | default(''), true) }}"
+capsule_install_org_id: "{{ bootstrap_generate_env_vars_capsule_org_id | default(bootstrap_generate_env_vars_satellite_organization | default(''), true) }}"
+capsule_install_satellite_fqdn: >-
+  {{
+    bootstrap_generate_env_vars_capsule_satellite_fqdn | default('', true)
+    if (bootstrap_generate_env_vars_capsule_satellite_fqdn | default('', true) | length) > 0
+    else (
+      bootstrap_generate_env_vars_satellite_server_url | default('')
+      | regex_replace('^https?://', '')
+      | regex_replace('/.*$', '')
+    )
+  }}
+capsule_install_min_memory_size: {{ bootstrap_generate_env_vars_capsule_min_memory_size | default(12288) | int }}
+capsule_install_min_cpu_count: {{ bootstrap_generate_env_vars_capsule_min_cpu_count | default(4) | int }}
+capsule_install_min_pulp_size: {{ bootstrap_generate_env_vars_capsule_min_pulp_size | default(300) | int }}
+capsule_install_min_pgsql_size: {{ bootstrap_generate_env_vars_capsule_min_pgsql_size | default(20) | int }}
+capsule_install_data_disk_min_size: {{ bootstrap_generate_env_vars_capsule_data_disk_min_size | default(500) | int }}
+capsule_install_pulp_size: "{{ bootstrap_generate_env_vars_capsule_pulp_size | default('1500g', true) }}"
+capsule_install_pgsql_size: "{{ bootstrap_generate_env_vars_capsule_pgsql_size | default('150g', true) }}"
+capsule_install_data_device: "{{ bootstrap_generate_env_vars_capsule_data_device | default('/dev', true) }}"
+capsule_install_data_device_name: "{{ bootstrap_generate_env_vars_capsule_data_device_name | default('', true) }}"
+capsule_install_vg_name: "{{ bootstrap_generate_env_vars_capsule_vg_name | default('capsule', true) }}"
+capsule_install_req_dirs:
+  - mount_point: /var/lib/pulp
+    lv_name: pulp
+    lv_size: "{{ capsule_install_pulp_size }}"
+  - mount_point: /var/lib/pgsql
+    lv_name: pgsql
+    lv_size: "{{ capsule_install_pgsql_size }}"
+capsule_install_lifecycle_environments:
+{{ bootstrap_generate_env_vars_capsule_lifecycle_environments | to_nice_yaml(indent=2) | indent(2, true) }}
+capsule_install_sync_wait_time: {{ bootstrap_generate_env_vars_capsule_sync_wait_time | default(86400) | int }}
+capsule_install_setup_insights: {{ bootstrap_generate_env_vars_capsule_setup_insights | default(false) | bool | lower }}
+capsule_install_selinux_state: "{{ bootstrap_generate_env_vars_capsule_selinux_state | default('enforcing', true) }}"
+capsule_install_scenario: "{{ bootstrap_generate_env_vars_capsule_scenario | default('capsule', true) }}"
+capsule_install_admin_username: "{{ bootstrap_generate_env_vars_capsule_admin_username | default('admin', true) }}"
+capsule_install_satellite_haproxy: {{ bootstrap_generate_env_vars_capsule_satellite_haproxy | default(false) | bool | lower }}
+capsule_install_loadbalancer_fqdn: "{{ bootstrap_generate_env_vars_capsule_loadbalancer_fqdn | default('', true) }}"
+capsule_install_loadbalancer_activation_key: "{% raw %}{{ vault_capsule_loadbalancer_activation_key | default(omit) }}{% endraw %}"
+capsule_install_activation_key: "{% raw %}{{ vault_capsule_activation_key | default(omit) }}{% endraw %}"
+capsule_hostname: "{{ bootstrap_generate_env_vars_capsule_hostname | default('', true) }}"
 # Client host registration (infra.ado.rhel_sat_reg)
 satellite_activation_key: "{{ bootstrap_generate_env_vars_satellite_activation_key | default('') }}"
 rhel_sat_reg_satellite_host: "{{ bootstrap_generate_env_vars_satellite_server_url | default('') }}"

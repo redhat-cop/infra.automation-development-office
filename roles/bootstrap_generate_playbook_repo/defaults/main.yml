@@ -713,6 +713,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: satellite
     app: satellite_server_install
 
+  - src: satellite/ado-install-capsule-bootstrap.yml
+    dest: playbooks/satellite/ado-install-capsule-bootstrap.yml
+    target_platform: linux
+    category: satellite
+    app: satellite_capsule_install
+
   - src: satellite/ado-configure-satellite-bootstrap.yml
     dest: playbooks/satellite/ado-configure-satellite-bootstrap.yml
     target_platform: linux

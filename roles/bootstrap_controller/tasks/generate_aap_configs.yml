@@ -362,7 +362,8 @@
       satellite_client_tools:
         - ado-satellite-register-host-bootstrap.jt.yml
 
-      satellite_capsule_install: []
+      satellite_capsule_install:
+        - ado-satellite-capsule-install-bootstrap.jt.yml
 
       satellite_oidc:
         - ado-satellite-oidc-bootstrap.jt.yml
