@@ -1,0 +1,137 @@
+---
+- name: Ensure datasource import temp dir
+  ansible.builtin.file:
+    path: /tmp/grafana-datasources
+    state: directory
+    mode: "0755"
+
+- name: Render datasource Jinja template
+  ansible.builtin.template:
+    src: "{{ grafana_ds_file_item.path }}"
+    dest: "/tmp/grafana-datasources/{{ grafana_ds_file_item.name }}.json"
+    mode: "0644"
+  when: grafana_ds_file_item.template | default(false) | bool
+
+- name: Copy plain datasource JSON
+  ansible.builtin.copy:
+    src: "{{ grafana_ds_file_item.path }}"
+    dest: "/tmp/grafana-datasources/{{ grafana_ds_file_item.name }}.json"
+    mode: "0644"
+    remote_src: true
+  when: not (grafana_ds_file_item.template | default(false) | bool)
+
+- name: Load datasource JSON body
+  ansible.builtin.set_fact:
+    grafana_create_datasource_import_body: >-
+      {{
+        lookup(
+          'ansible.builtin.file',
+          '/tmp/grafana-datasources/' ~ grafana_ds_file_item.name ~ '.json'
+        ) | from_json
+      }}
+
+- name: POST datasource JSON to Grafana API
+  ansible.builtin.uri:
+    url: "https://{{ grafana_create_datasource_hostname }}/api/datasources"
+    method: POST
+    body_format: json
+    body: "{{ grafana_create_datasource_import_body }}"
+    url_username: >-
+      {{
+        grafana_create_datasource_admin_user
+        if (grafana_api_key | default('') | length) == 0
+        else omit
+      }}
+    url_password: >-
+      {{
+        grafana_create_datasource_admin_password
+        if (grafana_api_key | default('') | length) == 0
+        else omit
+      }}
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
+    status_code: [200, 201, 409]
+    validate_certs: "{{ grafana_create_datasource_validate_certs }}"
+  register: grafana_create_datasource_import_result
+  failed_when: false
+
+- name: Update existing datasource when POST conflicts (409)
+  when: (grafana_create_datasource_import_result.status | default(0) | int) == 409
+  block:
+    - name: Look up existing datasource by name
+      ansible.builtin.uri:
+        url: >-
+          https://{{ grafana_create_datasource_hostname }}/api/datasources/name/{{
+            grafana_create_datasource_import_body.name
+            | default(grafana_ds_file_item.name)
+            | urlencode
+          }}
+        method: GET
+        url_username: >-
+          {{
+            grafana_create_datasource_admin_user
+            if (grafana_api_key | default('') | length) == 0
+            else omit
+          }}
+        url_password: >-
+          {{
+            grafana_create_datasource_admin_password
+            if (grafana_api_key | default('') | length) == 0
+            else omit
+          }}
+        force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+        headers: >-
+          {{
+            {'Authorization': 'Bearer ' ~ grafana_api_key}
+            if (grafana_api_key | default('') | length) > 0
+            else {}
+          }}
+        status_code: [200]
+        validate_certs: "{{ grafana_create_datasource_validate_certs }}"
+      register: grafana_create_datasource_existing
+
+    - name: PUT datasource JSON update
+      ansible.builtin.uri:
+        url: >-
+          https://{{ grafana_create_datasource_hostname }}/api/datasources/{{
+            grafana_create_datasource_existing.json.id
+          }}
+        method: PUT
+        body_format: json
+        body: >-
+          {{
+            grafana_create_datasource_import_body
+            | combine({'id': grafana_create_datasource_existing.json.id}, recursive=True)
+          }}
+        url_username: >-
+          {{
+            grafana_create_datasource_admin_user
+            if (grafana_api_key | default('') | length) == 0
+            else omit
+          }}
+        url_password: >-
+          {{
+            grafana_create_datasource_admin_password
+            if (grafana_api_key | default('') | length) == 0
+            else omit
+          }}
+        force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+        headers: >-
+          {{
+            {
+              'Authorization': 'Bearer ' ~ grafana_api_key,
+              'Content-Type': 'application/json'
+            }
+            if (grafana_api_key | default('') | length) > 0
+            else {'Content-Type': 'application/json'}
+          }}
+        status_code: [200]
+        validate_certs: "{{ grafana_create_datasource_validate_certs }}"

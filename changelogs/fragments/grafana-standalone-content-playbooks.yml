@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - grafana - Added standalone content playbooks under
+    ``playbooks/grafana/`` (datasources, folders, dashboards, alerts,
+    combined) for manual Contoller JT wiring without bootstrap install.

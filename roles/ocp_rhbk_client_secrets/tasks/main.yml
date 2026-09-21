@@ -243,19 +243,19 @@
       ansible.builtin.set_fact:
         ocp_rhbk_client_secrets_admin_user_resolved: >-
           {{
-            ocp_rhbk_secret_admin_secret.resources[0].data.username | b64decode
+            ocp_rhbk_client_secrets_admin_secret.resources[0].data.username | b64decode
             if (
-              ocp_rhbk_secret_admin_secret.resources | default([]) | length > 0
-              and ocp_rhbk_secret_admin_secret.resources[0].data.username is defined
+              ocp_rhbk_client_secrets_admin_secret.resources | default([]) | length > 0
+              and ocp_rhbk_client_secrets_admin_secret.resources[0].data.username is defined
             )
             else ocp_rhbk_client_secrets_admin_user_resolved
           }}
         ocp_rhbk_client_secrets_admin_password_resolved: >-
           {{
-            ocp_rhbk_secret_admin_secret.resources[0].data.password | b64decode
+            ocp_rhbk_client_secrets_admin_secret.resources[0].data.password | b64decode
             if (
-              ocp_rhbk_secret_admin_secret.resources | default([]) | length > 0
-              and ocp_rhbk_secret_admin_secret.resources[0].data.password is defined
+              ocp_rhbk_client_secrets_admin_secret.resources | default([]) | length > 0
+              and ocp_rhbk_client_secrets_admin_secret.resources[0].data.password is defined
             )
             else ocp_rhbk_client_secrets_admin_password_resolved
           }}

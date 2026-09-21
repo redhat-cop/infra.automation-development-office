@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - ocp_devspaces - Status exporter can scrape VS Code extensions from
+    Running workspace pods (``devworkspace_vscode_extension`` metric;
+    needs pods/exec RBAC).

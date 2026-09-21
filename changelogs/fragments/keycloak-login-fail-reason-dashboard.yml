@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - grafana - Keycloak metrics dashboard adds login success/fail panels and
+    failed-login table/rate by Keycloak ``error`` (bad password / unknown user).
+doc_changes:
+  - install_rhbk - Document that login fail reason is the built-in ``error``
+    label on ``keycloak_user_events_total``.

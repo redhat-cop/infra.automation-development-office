@@ -1,0 +1,197 @@
+---
+# Upload one materialized dashboard (classic /api/dashboards/db or Grafana v2 API).
+
+- name: Load materialized dashboard JSON
+  ansible.builtin.set_fact:
+    grafana_upload_dashboards_one_json: >-
+      {{
+        lookup(
+          'ansible.builtin.file',
+          '/tmp/grafana-dashboards/' ~ grafana_dashboard_item.name ~ '.json'
+        ) | from_json
+      }}
+
+- name: Detect Grafana schema v2 dashboard
+  ansible.builtin.set_fact:
+    grafana_upload_dashboards_one_is_v2: >-
+      {{
+        (grafana_upload_dashboards_one_json.elements is defined)
+        and (grafana_upload_dashboards_one_json.panels is not defined)
+      }}
+
+- name: Resolve target folder uid for upload
+  ansible.builtin.set_fact:
+    grafana_upload_dashboards_one_is_root: >-
+      {{
+        (grafana_dashboard_item.use_general_folder | default(false) | bool)
+        or (
+          (grafana_dashboard_item.folder | default('') | string | trim | length) == 0
+        )
+        or (
+          (grafana_dashboard_item.folder | default('') | string | trim | lower)
+          in ['general', 'main', 'root']
+        )
+      }}
+    grafana_upload_dashboards_one_folder_uid: >-
+      {{
+        ''
+        if (
+          (grafana_dashboard_item.use_general_folder | default(false) | bool)
+          or (
+            (grafana_dashboard_item.folder | default('') | string | trim | length) == 0
+          )
+          or (
+            (grafana_dashboard_item.folder | default('') | string | trim | lower)
+            in ['general', 'main', 'root']
+          )
+        )
+        else (
+          (
+            grafana_dashboard_item.folder
+            | default(grafana_folder | default('Openshift'))
+          )
+          ~ '-folder'
+        )
+      }}
+    # Grafana dashboard uid / k8s metadata.name max is 40 chars.
+    # Work-item names can include folder suffixes and leftover .json
+    # (e.g. rhacs-vulnerability-dashboard.json__Security).
+    # Use regex slice — Jinja truncate() defaults to leeway=5 and would
+    # leave 41–45 char names alone, which Grafana still rejects.
+    grafana_upload_dashboards_one_uid: >-
+      {{
+        (
+          (
+            grafana_upload_dashboards_one_json.uid
+            | default(grafana_dashboard_item.name, true)
+            | default('ado-dashboard', true)
+          )
+          | string
+          | trim
+          | regex_replace('\\.json\\.j2', '')
+          | regex_replace('\\.json', '')
+          | regex_replace('[^A-Za-z0-9_-]', '-')
+          | lower
+          | regex_replace('^(.{0,40}).*$', '\1')
+        )
+      }}
+
+- name: Import classic Grafana dashboard (/api/dashboards/db)
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_dashboards_url }}/api/dashboards/db"
+    method: POST
+    url_username: "{{ grafana_upload_dashboards_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_dashboards_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {'Authorization': 'Bearer ' ~ grafana_api_key, 'Content-Type': 'application/json'}
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
+    body_format: json
+    body: >-
+      {{
+        {
+          'dashboard': grafana_upload_dashboards_one_json,
+          'overwrite': true,
+          'message': 'Updated by ADO grafana_upload_dashboards'
+        }
+        if (grafana_upload_dashboards_one_is_root | bool)
+        else {
+          'dashboard': grafana_upload_dashboards_one_json,
+          'overwrite': true,
+          'message': 'Updated by ADO grafana_upload_dashboards',
+          'folderUid': grafana_upload_dashboards_one_folder_uid
+        }
+      }}
+    status_code: [200]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when: not (grafana_upload_dashboards_one_is_v2 | bool)
+
+- name: Import Grafana schema-v2 dashboard (dashboard.grafana.app/v2)
+  ansible.builtin.uri:
+    url: >-
+      {{ grafana_upload_dashboards_url }}/apis/dashboard.grafana.app/v2/namespaces/default/dashboards/{{
+        grafana_upload_dashboards_one_uid
+      }}
+    method: PUT
+    url_username: "{{ grafana_upload_dashboards_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_dashboards_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {'Authorization': 'Bearer ' ~ grafana_api_key, 'Content-Type': 'application/json'}
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
+    body_format: json
+    body:
+      kind: Dashboard
+      apiVersion: dashboard.grafana.app/v2
+      metadata:
+        name: "{{ grafana_upload_dashboards_one_uid }}"
+        annotations: >-
+          {{
+            {'grafana.app/folder': grafana_upload_dashboards_one_folder_uid}
+            if (
+              (not (grafana_upload_dashboards_one_is_root | bool))
+              and (grafana_upload_dashboards_one_folder_uid | length) > 0
+            )
+            else {}
+          }}
+      spec: >-
+        {{
+          grafana_upload_dashboards_one_json
+          | dict2items
+          | rejectattr('key', 'equalto', 'id')
+          | items2dict
+        }}
+    status_code: [200, 201]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  register: grafana_upload_dashboards_one_v2_put
+  failed_when: false
+  when: grafana_upload_dashboards_one_is_v2 | bool
+
+- name: Create Grafana schema-v2 dashboard when PUT missed
+  ansible.builtin.uri:
+    url: >-
+      {{ grafana_upload_dashboards_url }}/apis/dashboard.grafana.app/v2/namespaces/default/dashboards
+    method: POST
+    url_username: "{{ grafana_upload_dashboards_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_dashboards_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {'Authorization': 'Bearer ' ~ grafana_api_key, 'Content-Type': 'application/json'}
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
+    body_format: json
+    body:
+      kind: Dashboard
+      apiVersion: dashboard.grafana.app/v2
+      metadata:
+        name: "{{ grafana_upload_dashboards_one_uid }}"
+        annotations: >-
+          {{
+            {'grafana.app/folder': grafana_upload_dashboards_one_folder_uid}
+            if (
+              (not (grafana_upload_dashboards_one_is_root | bool))
+              and (grafana_upload_dashboards_one_folder_uid | length) > 0
+            )
+            else {}
+          }}
+      spec: >-
+        {{
+          grafana_upload_dashboards_one_json
+          | dict2items
+          | rejectattr('key', 'equalto', 'id')
+          | items2dict
+        }}
+    status_code: [200, 201]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when:
+    - grafana_upload_dashboards_one_is_v2 | bool
+    - grafana_upload_dashboards_one_v2_put is defined
+    - (grafana_upload_dashboards_one_v2_put.status | default(0) | int) not in [200, 201]

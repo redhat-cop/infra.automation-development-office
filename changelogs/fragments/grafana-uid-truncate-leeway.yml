@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    grafana_upload_dashboards - Enforce Grafana's 40-character UID limit with a
+    hard regex slice. Jinja ``truncate(40)`` keeps a 5-character leeway, so
+    names like ``rhacs-vulnerability-dashboard.json__Security`` (44 chars)
+    were left unchanged and schema-v2 upload still returned
+    ``uid too long, max 40 characters``.

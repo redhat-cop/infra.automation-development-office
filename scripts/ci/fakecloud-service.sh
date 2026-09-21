@@ -5,13 +5,16 @@ set -euo pipefail
 
 FAKECLOUD_PORT="${FAKECLOUD_PORT:-4566}"
 FAKECLOUD_URL="http://127.0.0.1:${FAKECLOUD_PORT}"
+# Pin the installer so CI does not query GitHub's unauthenticated
+# /releases/latest API, which 403s under parallel Molecule jobs.
+FAKECLOUD_VERSION="${FAKECLOUD_VERSION:-v0.44.10}"
 RUNNER_DIR="${RUNNER_TEMP:-/tmp}"
 PIDFILE="${RUNNER_DIR}/fakecloud.pid"
 LOGFILE="${RUNNER_DIR}/fakecloud.log"
 
 start_fakecloud() {
   if ! command -v fakecloud >/dev/null 2>&1; then
-    curl -fsSL https://fakecloud.dev/install.sh | bash
+    curl -fsSL https://fakecloud.dev/install.sh | bash -s -- --version "${FAKECLOUD_VERSION}"
   fi
 
   if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then

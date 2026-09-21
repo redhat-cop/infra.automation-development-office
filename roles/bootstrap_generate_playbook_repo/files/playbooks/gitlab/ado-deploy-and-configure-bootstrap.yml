@@ -18,11 +18,28 @@
         name: infra.ado.bootstrap_resolve_component
     - name: ADO | Normalize GitLab OpenShift install vars
       ansible.builtin.set_fact:
+        # Prefer OpenShift route hostname over any poisoned standalone VM hostname.
         gitlab_install_hostname: >-
           {{
-            gitlab_install_hostname
-            | default(hostname)
-            | default('gitlab.' ~ (apps_domain | default(app_domain | default('apps.example.com'))))
+            (
+              hostname
+              | default(gitlab_install_hostname, true)
+              | default(gitlab_hostname, true)
+              | default('')
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+          }}
+        gitlab_hostname: >-
+          {{
+            (
+              hostname
+              | default(gitlab_hostname, true)
+              | default(gitlab_install_hostname, true)
+              | default('')
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
           }}
         gitlab_install_chart_version: >-
           {{ gitlab_install_chart_version | default(chart_version) | default('10.3.1') }}

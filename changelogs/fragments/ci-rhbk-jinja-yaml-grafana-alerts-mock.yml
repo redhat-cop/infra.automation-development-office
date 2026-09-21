@@ -1,0 +1,6 @@
+bugfixes:
+  - install_rhbk - Indent Jinja conditionals inside the standalone systemd unit
+    ``content`` block so YAML parsers (sanity/ansible-lint) no longer treat
+    ``{%`` as invalid tokens.
+  - ci - Add ``infra.ado.grafana_upload_alerts`` to ``.ansible-lint``
+    ``mock_roles`` so standalone Grafana alert playbooks pass syntax-check.

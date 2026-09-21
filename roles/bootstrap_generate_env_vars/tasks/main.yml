@@ -937,6 +937,7 @@
             | reject('equalto', 'idm')
             | reject('equalto', 'aws')
             | reject('equalto', 'rhel_system_roles')
+            | reject('equalto', 'grafana')
             | list
           )
           +
@@ -1054,17 +1055,58 @@
           )
           +
           (
-            ['grafana_oidc']
+            ['grafana']
             if (
               'grafana' in bootstrap_generate_env_vars_components
               and bootstrap_generate_env_vars_preflight is defined
               and 'standalone' not in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
+              and (
+                (
+                  bootstrap_generate_env_vars_preflight.component_options.grafana
+                  | default([])
+                  | length
+                ) == 0
+                or 'install' in (
+                  bootstrap_generate_env_vars_preflight.component_options.grafana
+                  | default([])
+                  | map('lower')
+                  | list
+                )
+              )
+            )
+            else []
+          )
+          +
+          (
+            ['grafana_standalone']
+            if (
+              'grafana' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and 'standalone' in (
+                bootstrap_generate_env_vars_preflight.component_options.grafana
+                | default([])
+                | map('lower')
+                | list
+              )
+            )
+            else []
+          )
+          +
+          (
+            ['grafana_oidc']
+            if (
+              'grafana' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
               and 'oidc' in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
             )
             else []
@@ -1075,13 +1117,11 @@
             if (
               'grafana' in bootstrap_generate_env_vars_components
               and bootstrap_generate_env_vars_preflight is defined
-              and 'standalone' not in (
-                bootstrap_generate_env_vars_preflight.component_options.grafana
-                | default([])
-              )
               and 'email' in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
             )
             else []
@@ -1092,13 +1132,11 @@
             if (
               'grafana' in bootstrap_generate_env_vars_components
               and bootstrap_generate_env_vars_preflight is defined
-              and 'standalone' not in (
-                bootstrap_generate_env_vars_preflight.component_options.grafana
-                | default([])
-              )
               and 'datasources' in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
             )
             else []
@@ -1109,13 +1147,11 @@
             if (
               'grafana' in bootstrap_generate_env_vars_components
               and bootstrap_generate_env_vars_preflight is defined
-              and 'standalone' not in (
-                bootstrap_generate_env_vars_preflight.component_options.grafana
-                | default([])
-              )
               and 'folders' in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
             )
             else []
@@ -1126,34 +1162,51 @@
             if (
               'grafana' in bootstrap_generate_env_vars_components
               and bootstrap_generate_env_vars_preflight is defined
-              and 'standalone' not in (
-                bootstrap_generate_env_vars_preflight.component_options.grafana
-                | default([])
-              )
               and 'dashboards' in (
                 bootstrap_generate_env_vars_preflight.component_options.grafana
                 | default([])
+                | map('lower')
+                | list
               )
             )
             else []
           )
           +
-            (
-              ['grafana_alternate_route']
-              if (
-                'grafana' in bootstrap_generate_env_vars_components
-                and bootstrap_generate_env_vars_preflight is defined
-                and 'standalone' not in (
-                  bootstrap_generate_env_vars_preflight.component_options.grafana
-                  | default([])
-                )
-                and 'alternate_route' in (
-                  bootstrap_generate_env_vars_preflight.component_options.grafana
-                  | default([])
-                )
+          (
+            ['grafana_alerts']
+            if (
+              'grafana' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and 'alerts' in (
+                bootstrap_generate_env_vars_preflight.component_options.grafana
+                | default([])
+                | map('lower')
+                | list
               )
-              else []
             )
+            else []
+          )
+          +
+          (
+            ['grafana_alternate_route']
+            if (
+              'grafana' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and 'alternate_route' in (
+                bootstrap_generate_env_vars_preflight.component_options.grafana
+                | default([])
+                | map('lower')
+                | list
+              )
+              and 'standalone' not in (
+                bootstrap_generate_env_vars_preflight.component_options.grafana
+                | default([])
+                | map('lower')
+                | list
+              )
+            )
+            else []
+          )
           +
           (
             ['quay_oidc']

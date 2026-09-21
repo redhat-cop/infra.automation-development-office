@@ -26,3 +26,12 @@ grafana_create_datasource_serviceaccount_token_secret_name: grafana-prometheus-s
 #   bearer_token_secret: optional {name, namespace, key} to read token from K8s Secret
 #   prometheus_route_name / prometheus_route_namespace / serviceaccount_* : optional overrides
 grafana_datasources: []
+
+# Optional git/path sources of datasource JSON (.json / .json.j2), same shape as
+# grafana_folders entries but with datasources_path instead of dashboards_path.
+# Example:
+#   - name: team-datasources
+#     source_type: git
+#     source: https://gitlab.example.com/project/datasources.git
+#     datasources_path: datasources
+grafana_datasource_sources: []

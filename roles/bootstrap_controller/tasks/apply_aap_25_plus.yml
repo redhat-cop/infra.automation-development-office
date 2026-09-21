@@ -83,10 +83,17 @@
     bootstrap_controller_hub_ah_token: ""
     bootstrap_controller_hub_ah_auth_mode: ""
     bootstrap_controller_hub_ah_use_basic: false
+    # Prefer a prebuilt infra-ado-*.tar.gz (exact bytes from preflight collections)
+    # over rebuilding /workspace/ado-source. Look in workspace + /opt/ado-collections
+    # (preflight container install path).
     bootstrap_controller_hub_tarball_src: >-
       {{
         (
-          lookup('ansible.builtin.fileglob', '/workspace/infra-ado-*.tar.gz', wantlist=True)
+          (
+            lookup('ansible.builtin.fileglob', '/workspace/infra-ado-*.tar.gz', wantlist=True)
+            + lookup('ansible.builtin.fileglob', '/opt/ado-collections/infra-ado-*.tar.gz', wantlist=True)
+          )
+          | unique
           | sort
           | last
           | default(
@@ -99,7 +106,10 @@
     bootstrap_controller_hub_use_tarball: >-
       {{
         (
-          lookup('ansible.builtin.fileglob', '/workspace/infra-ado-*.tar.gz', wantlist=True)
+          (
+            lookup('ansible.builtin.fileglob', '/workspace/infra-ado-*.tar.gz', wantlist=True)
+            + lookup('ansible.builtin.fileglob', '/opt/ado-collections/infra-ado-*.tar.gz', wantlist=True)
+          )
           | length > 0
         )
         or (
@@ -120,8 +130,9 @@
       - bootstrap_controller_hub_tarball_src | default('') | length > 0
       - bootstrap_controller_hub_tarball_src | basename is match('^infra-ado-.*\\.tar\\.gz$')
     fail_msg: >-
-      Expected /workspace/infra-ado-*.tar.gz for Hub publish (galaxy-compatible
-      filename). Found: {{ bootstrap_controller_hub_tarball_src | default('missing') }}
+      Expected infra-ado-*.tar.gz under /workspace or /opt/ado-collections for Hub
+      publish (galaxy-compatible filename). Found:
+      {{ bootstrap_controller_hub_tarball_src | default('missing') }}
   when:
     - bootstrap_controller_hub_publish_ado_collection | default(false) | bool
     - hub_collections | default([]) | length > 0
@@ -333,16 +344,8 @@
     - hub_collections | default([]) | length > 0
     - bootstrap_controller_hub_collection_artifacts | default([]) | length > 0
   ansible.builtin.set_fact:
-    bootstrap_controller_hub_uri_headers: >-
-      {{
-        {'Authorization': 'Token ' ~ bootstrap_controller_hub_uri_token}
-        if (bootstrap_controller_hub_uri_token | default('') | length > 0)
-        else (
-          {'Authorization': 'Token ' ~ bootstrap_controller_hub_uri_oauth}
-          if (bootstrap_controller_hub_uri_oauth | default('') | length > 0)
-          else omit
-        )
-      }}
+    # Never set headers to omit — uri: headers undefined crashes the play.
+    # Basic auth: empty headers + force_basic. Token auth: Authorization header.
     bootstrap_controller_hub_uri_force_basic: >-
       {{
         (
@@ -353,11 +356,27 @@
           and (bootstrap_controller_hub_uri_oauth | default('') | length) == 0
         )
       }}
+    bootstrap_controller_hub_uri_headers: >-
+      {{
+        {}
+        if (
+          bootstrap_controller_hub_ah_use_basic | default(false) | bool
+          or (
+            (bootstrap_controller_hub_uri_token | default('') | length) == 0
+            and (bootstrap_controller_hub_uri_oauth | default('') | length) == 0
+          )
+        )
+        else (
+          {'Authorization': 'Token ' ~ bootstrap_controller_hub_uri_token}
+          if (bootstrap_controller_hub_uri_token | default('') | length > 0)
+          else {'Authorization': 'Token ' ~ bootstrap_controller_hub_uri_oauth}
+        )
+      }}
     bootstrap_controller_hub_uri_user: >-
       {{
         (
           controller_username
-          | default(vault_controller_username | default(omit))
+          | default(vault_controller_username | default(''))
         )
         if (
           (
@@ -368,13 +387,13 @@
             and (bootstrap_controller_hub_uri_oauth | default('') | length) == 0
           )
         )
-        else omit
+        else ''
       }}
     bootstrap_controller_hub_uri_password: >-
       {{
         (
           controller_password
-          | default(vault_controller_password | default(omit))
+          | default(vault_controller_password | default(''))
         )
         if (
           (
@@ -385,7 +404,7 @@
             and (bootstrap_controller_hub_uri_oauth | default('') | length) == 0
           )
         )
-        else omit
+        else ''
       }}
 
 - name: AAP 2.5+ | Check whether infra.ado already exists in validated (skip unless force)
@@ -400,7 +419,7 @@
     validate_certs: "{{ controller_validate_certs | default(false) }}"
     status_code: [200, 404]
     return_content: true
-    headers: "{{ bootstrap_controller_hub_uri_headers }}"
+    headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
     user: "{{ bootstrap_controller_hub_uri_user }}"
     password: "{{ bootstrap_controller_hub_uri_password }}"
     force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -465,8 +484,8 @@
         auto_approve: false
         overwrite_existing: "{{ bootstrap_controller_hub_force_ado_collection_update | default(false) | bool }}"
         wait: true
-        timeout: "{{ bootstrap_controller_hub_publish_timeout | default(300) | int }}"
-        request_timeout: "{{ bootstrap_controller_hub_publish_request_timeout | default(60) | int }}"
+        timeout: "{{ bootstrap_controller_hub_publish_timeout | default(900) | int }}"
+        request_timeout: "{{ bootstrap_controller_hub_publish_request_timeout | default(120) | int }}"
         ah_host: "{{ bootstrap_controller_hub_api_host }}"
         ah_username: >-
           {{
@@ -526,7 +545,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -540,8 +559,8 @@
         label: "infra.ado:{{ bootstrap_controller_hub_artifact_coords.version }}"
       register: bootstrap_controller_hub_cv_lookup
       until: (bootstrap_controller_hub_cv_lookup.json.count | default(0) | int) >= 1
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(30) | int }}"
-      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(5) | int }}"
+      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(60) | int }}"
+      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(10) | int }}"
 
     - name: AAP 2.5+ | Resolve Hub staging repository pulp href
       ansible.builtin.uri:
@@ -550,7 +569,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -563,7 +582,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -591,7 +610,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200, 202]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -607,7 +626,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -617,8 +636,8 @@
       when: item.json.task is defined
       register: bootstrap_controller_hub_promote_task
       until: (bootstrap_controller_hub_promote_task.json.state | default('')) in ['completed', 'failed']
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(30) | int }}"
-      delay: 5
+      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(60) | int }}"
+      delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(10) | int }}"
       failed_when: (bootstrap_controller_hub_promote_task.json.state | default('')) == 'failed'
 
     - name: AAP 2.5+ | Verify infra.ado is in validated Hub repository
@@ -628,7 +647,7 @@
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]
         return_content: true
-        headers: "{{ bootstrap_controller_hub_uri_headers }}"
+        headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
         user: "{{ bootstrap_controller_hub_uri_user }}"
         password: "{{ bootstrap_controller_hub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
@@ -642,7 +661,7 @@
         label: "infra.ado:{{ bootstrap_controller_hub_artifact_coords.version }} in validated"
       register: bootstrap_controller_hub_publish_verify
       until: (bootstrap_controller_hub_publish_verify.status | default(0) | int) == 200
-      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(30) | int }}"
+      retries: "{{ bootstrap_controller_hub_publish_verify_retries | default(60) | int }}"
       delay: "{{ bootstrap_controller_hub_publish_verify_delay | default(10) | int }}"
 
     - name: AAP 2.5+ | Confirm infra.ado publish landed in validated

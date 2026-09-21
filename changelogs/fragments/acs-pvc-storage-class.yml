@@ -1,0 +1,4 @@
+---
+bugfixes:
+  - bootstrap_generate_env_vars - Do not drop an explicit preflight StorageClass on ocp-dev (including synology-nfs-csi). Emptying storage left ACS/Quay/MinIO with no storage in group_vars.
+  - ocp_acs - When storage is unset, omit storageClassName on PVC ensure instead of patching empty string onto bound claims. Do not invent a cluster default StorageClass.

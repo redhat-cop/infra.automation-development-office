@@ -22,13 +22,22 @@
 
 - name: POST alert rule group to Grafana API
   ansible.builtin.uri:
-    url: "https://{{ grafana_hostname }}/api/v1/provisioning/alert-rules"
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/alert-rules"
     method: POST
     body_format: json
     body: "{{ lookup('ansible.builtin.file', '/tmp/grafana-alerts/' ~ grafana_alert_item.name ~ '.json') | from_json }}"
-    headers:
-      Authorization: "Bearer {{ grafana_api_key }}"
-      Content-Type: application/json
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
     status_code: [200, 201, 202, 409]
-    validate_certs: false
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
   failed_when: false

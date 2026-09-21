@@ -38,6 +38,12 @@
             )
           }}
 
+    - name: Apply resolved Quay storage class
+      ansible.builtin.set_fact:
+        # Shared inventory/preflight var name used across OCP app roles.
+        storage: "{{ ocp_quay_storage }}"  # noqa: var-naming[no-role-prefix]
+      when: (ocp_quay_storage | default('') | string | trim | length) > 0
+
 - name: Assert Quay storage class is set
   ansible.builtin.assert:
     that:

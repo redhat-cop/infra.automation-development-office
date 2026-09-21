@@ -1,0 +1,62 @@
+---
+# Standalone — create Grafana folders from grafana_folders (git or path).
+# Use folder name General / empty / use_general_folder for root folder.
+#
+# Minimal extra vars:
+#   grafana_hostname, grafana_admin_password (or grafana_api_key)
+#   grafana_folders:
+#     - name: Openshift
+#       source_type: git
+#       source: https://gitlab.example.com/org/dashboards.git
+
+- name: ADO | Grafana folders (standalone)
+  hosts: localhost
+  gather_facts: false
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ (verify_ssl | default(false) | bool) | ternary('yes', 'no') }}"
+
+  pre_tasks:
+    - name: Load optional bootstrap group_vars when env is set
+      when:
+        - env is defined
+        - (env | string | length) > 0
+        - not (grafana_skip_group_vars | default(false) | bool)
+      block:
+        - name: Load infra_config_vars
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+          failed_when: false
+
+        - name: Load vault_grafana
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_grafana.yml"
+          failed_when: false
+
+        - name: Load vars_grafana
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_grafana.yml"
+          failed_when: false
+
+    - name: Resolve component defaults when available
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+      vars:
+        component: grafana
+      when: grafana_resolve_component | default(true) | bool
+
+    - name: Assert Grafana target and auth for folders
+      ansible.builtin.assert:
+        that:
+          - (grafana_hostname | default('') | length) > 0
+          - >-
+            (grafana_api_key | default('') | length) > 0
+            or (grafana_admin_password | default('') | length) > 0
+          - (grafana_folders | default([]) | length) > 0
+            or (grafana_folder | default('') | length) > 0
+        fail_msg: >-
+          Set grafana_hostname, auth, and grafana_folders (or grafana_folder).
+
+  roles:
+    - role: infra.ado.grafana_manage_folders

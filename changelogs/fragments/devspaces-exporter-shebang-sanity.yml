@@ -1,0 +1,4 @@
+bugfixes:
+  - ocp_devspaces - Drop ``#!/usr/bin/env python3`` shebang and executable bit
+    from ``devworkspace_status_exporter.py`` so ansible-test sanity shebang
+    checks pass (container runs ``python3 /app/exporter.py``).

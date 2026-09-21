@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - bootstrap_controller - Lengthen Hub pulp import/promote waits (default ~10m;
+    ~20m for tarballs >= 30MB such as ``redhat.rhel_system_roles``) so large
+    collection publishes finish before Hub EE push.
+  - bootstrap_controller - Retry Hub EE ``skopeo copy`` on registry 502/gateway
+    flakes (skopeo ``--retry-times``/``--retry-delay`` plus Ansible retries).

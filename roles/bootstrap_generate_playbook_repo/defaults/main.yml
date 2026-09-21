@@ -363,6 +363,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: platform
     app: grafana_dashboards
 
+  - src: grafana/ado-deploy-alerts-bootstrap.yml
+    dest: playbooks/grafana/ado-deploy-alerts-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: grafana_alerts
+
   - src: grafana/ado-deploy-oidc-bootstrap.yml
     dest: playbooks/grafana/ado-deploy-oidc-bootstrap.yml
     target_platform: openshift
@@ -639,6 +645,14 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: platform
     app: rhbk_client
 
+  # Shared by realm/client/mapper/scopes/IdP playbooks (import_tasks). Must be
+  # seeded or Contoller fails with "Unable to retrieve file contents".
+  - src: rhbk/ado-rhbk-api-pre_tasks.yml
+    dest: playbooks/rhbk/ado-rhbk-api-pre_tasks.yml
+    target_platform: openshift
+    category: platform
+    app: rhbk
+
   - src: rhbk/ado-manage-entraid-idp.yml
     dest: playbooks/rhbk/ado-manage-entraid-idp.yml
     target_platform: openshift
@@ -650,6 +664,18 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: rhbk_realm
+
+  - src: rhbk/ado-enable-realm-bootstrap.yml
+    dest: playbooks/rhbk/ado-enable-realm-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: rhbk_realm
+
+  - src: rhbk/ado-manage-client-scope-bootstrap.yml
+    dest: playbooks/rhbk/ado-manage-client-scope-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: rhbk_client
 
   - src: rhbk/ado-realm-bootstrap.yml
     dest: playbooks/rhbk/ado-realm-bootstrap.yml

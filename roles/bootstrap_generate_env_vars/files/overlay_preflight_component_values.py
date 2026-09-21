@@ -72,6 +72,7 @@ def is_secret_key(key):
         for x in [
             "password",
             "token",
+            "api_key",
             "secret",
             "vault",
             "credential",
@@ -146,6 +147,88 @@ def strip_host(value):
     )
 
 
+# Standalone / RHEL-install-only keys that must never land in OpenShift group_vars.
+_STANDALONE_DERIVED_KEYS = {
+    "grafana": (
+        "install_grafana_hostname",
+        "install_grafana_standalone_hostname",
+        "install_grafana_rpm_path",
+        "install_grafana_rpm_url",
+        "install_grafana_rhn_org_id",
+        "install_grafana_rhn_activation_key",
+        "grafana_rpm_path",
+        "grafana_rpm_url",
+    ),
+    "gitlab": (
+        "install_gitlab_hostname",
+        "install_gitlab_standalone_hostname",
+        "install_gitlab_external_url",
+        "gitlab_external_url",
+        "install_gitlab_edition",
+        "gitlab_edition",
+        "install_gitlab_rpm_path",
+        "gitlab_rpm_path",
+        "install_gitlab_rpm_url",
+        "gitlab_rpm_url",
+        "install_gitlab_rhn_org_id",
+        "gitlab_rhn_org_id",
+        "install_gitlab_rhn_activation_key",
+        "gitlab_tls_crt",
+        "gitlab_tls_key",
+    ),
+    "rhbk": (
+        "rhbk_standalone_hostname",
+        "install_rhbk_standalone_hostname",
+        "rhbk_standalone_zip",
+        "rhbk_standalone_zip_url",
+        "rhbk_standalone_zip_source",
+        "rhbk_standalone_zip_git_repo",
+        "rhbk_standalone_zip_git_path",
+        "rhbk_standalone_zip_git_branch",
+        "install_rhbk_standalone_zip_source",
+        "install_rhbk_standalone_zip_git_repo",
+        "install_rhbk_standalone_zip_git_path",
+        "install_rhbk_standalone_zip_git_branch",
+        "rhbk_standalone_tls_crt",
+        "rhbk_standalone_tls_key",
+        "rhbk_standalone_https_enabled",
+        "install_rhbk_standalone_https_enabled",
+        "install_rhbk_standalone_http_port",
+        "install_rhbk_standalone_https_port",
+        "install_rhbk_standalone_http_enabled",
+    ),
+}
+
+
+def pop_all_standalone_keys(mapping):
+    """Remove every standalone_* key from a dict (in place)."""
+    if not isinstance(mapping, dict):
+        return
+    for key in list(mapping.keys()):
+        if str(key).startswith("standalone_"):
+            mapping.pop(key, None)
+
+
+def purge_standalone_install_vars(vars_data, component):
+    """
+    OpenShift installs must not carry RHEL/standalone install fields.
+    Purge top-level, components_env, and component_config.
+    """
+    pop_all_standalone_keys(vars_data)
+    for key in _STANDALONE_DERIVED_KEYS.get(component, ()):
+        vars_data.pop(key, None)
+    env_block = (vars_data.get("components_env") or {}).get(component)
+    if isinstance(env_block, dict):
+        pop_all_standalone_keys(env_block)
+        for key in _STANDALONE_DERIVED_KEYS.get(component, ()):
+            env_block.pop(key, None)
+    cfg_block = (vars_data.get("component_config") or {}).get(component)
+    if isinstance(cfg_block, dict):
+        pop_all_standalone_keys(cfg_block)
+        for key in _STANDALONE_DERIVED_KEYS.get(component, ()):
+            cfg_block.pop(key, None)
+
+
 def openshift_cluster_hint(preflight):
     openshift = preflight.get("openshift") or {}
     return " ".join(
@@ -160,18 +243,14 @@ def is_dev_openshift_cluster(preflight):
 
 
 def effective_storage_class(preflight, storage_value):
-    """Avoid pinning prod-only CSI names on dev clusters without that driver."""
-    storage = str(storage_value or "").strip()
-    if not storage:
-        return ""
-    prod_only = {"synology-nfs-csi", "synology-iscsi-csi"}
-    if storage not in prod_only or not is_dev_openshift_cluster(preflight):
-        return storage
-    openshift = preflight.get("openshift") or {}
-    dev_default = str(openshift.get("default_storage_class") or "").strip()
-    if dev_default and dev_default not in prod_only:
-        return dev_default
-    return ""
+    """Return the StorageClass the user set in preflight (trimmed).
+
+    Do not remap or drop values based on cluster name or CSI brand — customers
+    set the class that exists in *their* cluster. Returning empty here used to
+    wipe ``storage`` from group_vars and break ACS/Quay PVC applies.
+    """
+    del preflight  # API kept for call sites; unused on purpose.
+    return str(storage_value or "").strip()
 
 
 def rhbk_selected_in_preflight(preflight):
@@ -665,6 +744,31 @@ def merge_component(component, cfg):
         ):
             passthrough_public_values.pop(rhbk_key, None)
             vars_data.pop(rhbk_key, None)
+        _rhbk_opts = [
+            str(x).strip().lower()
+            for x in ((preflight.get("component_options") or {}).get("rhbk") or [])
+        ]
+        if "standalone" not in _rhbk_opts:
+            pop_all_standalone_keys(passthrough_public_values)
+            pop_all_standalone_keys(vars_data)
+        existing_satellite_config = {}
+    elif component == "grafana":
+        _grafana_opts = [
+            str(x).strip().lower()
+            for x in ((preflight.get("component_options") or {}).get("grafana") or [])
+        ]
+        if "standalone" not in _grafana_opts:
+            pop_all_standalone_keys(passthrough_public_values)
+            pop_all_standalone_keys(vars_data)
+        existing_satellite_config = {}
+    elif component == "gitlab":
+        _gitlab_opts = [
+            str(x).strip().lower()
+            for x in ((preflight.get("component_options") or {}).get("gitlab") or [])
+        ]
+        if "standalone" not in _gitlab_opts:
+            pop_all_standalone_keys(passthrough_public_values)
+            pop_all_standalone_keys(vars_data)
         existing_satellite_config = {}
     elif component == "ec2_ami_copy":
         for ec2_key in (
@@ -736,6 +840,40 @@ def merge_component(component, cfg):
             if isinstance(folders, list):
                 vars_data["grafana_folders"] = copy.deepcopy(folders)
                 vars_data["components_env"]["grafana"]["grafana_folders"] = copy.deepcopy(folders)
+            datasources = public_values.get("datasources")
+            if isinstance(datasources, list):
+                normalized_ds = []
+                for idx, ds_item in enumerate(datasources):
+                    if not isinstance(ds_item, dict):
+                        continue
+                    ds_copy = copy.deepcopy(ds_item)
+                    bearer = ds_copy.pop("bearer_token", None)
+                    if not bearer:
+                        secret_ds = secret_values.get("datasources")
+                        if (
+                            isinstance(secret_ds, list)
+                            and idx < len(secret_ds)
+                            and isinstance(secret_ds[idx], dict)
+                        ):
+                            bearer = secret_ds[idx].get("bearer_token")
+                    if bearer:
+                        vault_key = f"vault_grafana_ds_{idx}_bearer_token"
+                        vault_data[vault_key] = QuotedString(str(bearer))
+                        ds_copy["bearer_token"] = vault_ref(vault_key)
+                        vault_data_changed = True
+                    normalized_ds.append(ds_copy)
+                vars_data["grafana_datasources"] = copy.deepcopy(normalized_ds)
+                vars_data["components_env"]["grafana"]["grafana_datasources"] = (
+                    copy.deepcopy(normalized_ds)
+                )
+            datasource_sources = public_values.get("datasource_sources")
+            if isinstance(datasource_sources, list):
+                vars_data["grafana_datasource_sources"] = copy.deepcopy(
+                    datasource_sources
+                )
+                vars_data["components_env"]["grafana"][
+                    "grafana_datasource_sources"
+                ] = copy.deepcopy(datasource_sources)
             email = public_values.get("email") or public_values.get("grafana_email")
             if isinstance(email, dict):
                 normalized_email = {
@@ -798,6 +936,17 @@ def merge_component(component, cfg):
             if "alerts_enabled" in public_values:
                 vars_data["grafana_alerts_enabled"] = as_bool(public_values.get("alerts_enabled"), False)
                 vars_data["components_env"]["grafana"]["grafana_alerts_enabled"] = vars_data["grafana_alerts_enabled"]
+            elif "alerts" in grafana_opts_lower:
+                vars_data["grafana_alerts_enabled"] = True
+                vars_data["components_env"]["grafana"]["grafana_alerts_enabled"] = True
+            grafana_api_key = first_present(
+                secret_values.get("api_key"),
+                secret_values.get("grafana_api_key"),
+            )
+            if grafana_api_key:
+                vars_data["grafana_api_key"] = vault_ref("vault_grafana_api_key")
+                vault_data["vault_grafana_api_key"] = QuotedString(str(grafana_api_key))
+                vault_data_changed = True
             if "group_cluster_dashboards" in public_values:
                 vars_data["grafana_group_cluster_dashboards"] = as_bool(
                     public_values.get("group_cluster_dashboards"), True
@@ -805,9 +954,7 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["grafana"]["grafana_group_cluster_dashboards"] = (
                     vars_data["grafana_group_cluster_dashboards"]
                 )
-            # OpenShift route hostname wins for health/API/route.
-            # UI always ships standalone_hostname defaults — ignore them unless
-            # component_options.grafana includes "standalone".
+            # OpenShift route hostname wins. Standalone VM hostname only when option selected.
             ocp_grafana_host = first_present(public_values.get("hostname"))
             if ocp_grafana_host:
                 host_clean = re.sub(
@@ -816,26 +963,22 @@ def merge_component(component, cfg):
                 if host_clean:
                     vars_data["grafana_hostname"] = host_clean
                     vars_data["grafana_install_hostname"] = host_clean
-                    vars_data["install_grafana_hostname"] = host_clean
                     vars_data["components_env"]["grafana"]["hostname"] = host_clean
                     vars_data["hostname"] = host_clean
-            standalone_hostname = first_present(public_values.get("standalone_hostname"))
-            if grafana_standalone and standalone_hostname:
-                vars_data["install_grafana_hostname"] = str(standalone_hostname)
-                # Only seed grafana_hostname from standalone when no OCP hostname exists.
-                if not vars_data.get("grafana_hostname"):
-                    vars_data["grafana_hostname"] = str(standalone_hostname)
-            elif standalone_hostname and not vars_data.get("grafana_hostname"):
-                # Standalone option off: never let default VM hostname drive OCP.
-                pass
-            rpm_path = first_present(public_values.get("standalone_rpm_path"))
-            if rpm_path:
-                vars_data["grafana_rpm_path"] = str(rpm_path)
-                vars_data["install_grafana_rpm_path"] = str(rpm_path)
-            rpm_url = first_present(public_values.get("standalone_rpm_url"))
-            if rpm_url:
-                vars_data["grafana_rpm_url"] = str(rpm_url)
-                vars_data["install_grafana_rpm_url"] = str(rpm_url)
+            if grafana_standalone:
+                standalone_hostname = first_present(public_values.get("standalone_hostname"))
+                if standalone_hostname:
+                    vars_data["install_grafana_hostname"] = str(standalone_hostname)
+                    if not vars_data.get("grafana_hostname"):
+                        vars_data["grafana_hostname"] = str(standalone_hostname)
+                rpm_path = first_present(public_values.get("standalone_rpm_path"))
+                if rpm_path:
+                    vars_data["grafana_rpm_path"] = str(rpm_path)
+                    vars_data["install_grafana_rpm_path"] = str(rpm_path)
+                rpm_url = first_present(public_values.get("standalone_rpm_url"))
+                if rpm_url:
+                    vars_data["grafana_rpm_url"] = str(rpm_url)
+                    vars_data["install_grafana_rpm_url"] = str(rpm_url)
             # Community catalog channel is "v5" — version strings like 5.20.0 never resolve.
             vars_data["operator_channel"] = "v5"
             vars_data["operator_name"] = "grafana-operator"
@@ -848,20 +991,21 @@ def merge_component(component, cfg):
             vars_data.setdefault("component_config", {}).setdefault("grafana", {})
             vars_data["component_config"]["grafana"]["operator_channel"] = "v5"
             vars_data_changed = True
-            rhn_org = first_present(public_values.get("standalone_rhn_org_id"))
-            if rhn_org:
-                vars_data["install_grafana_rhn_org_id"] = str(rhn_org)
-            rhn_key = first_present(secret_values.get("standalone_rhn_activation_key"))
-            if rhn_key:
-                vars_data["install_grafana_rhn_activation_key"] = vault_ref(
-                    "vault_grafana_rhn_activation_key"
-                )
-                vault_data["vault_grafana_rhn_activation_key"] = QuotedString(str(rhn_key))
-                vault_data_changed = True
-            # OCP Grafana admin (UI admin_password / standalone_admin_password / lab default).
+            if grafana_standalone:
+                rhn_org = first_present(public_values.get("standalone_rhn_org_id"))
+                if rhn_org:
+                    vars_data["install_grafana_rhn_org_id"] = str(rhn_org)
+                rhn_key = first_present(secret_values.get("standalone_rhn_activation_key"))
+                if rhn_key:
+                    vars_data["install_grafana_rhn_activation_key"] = vault_ref(
+                        "vault_grafana_rhn_activation_key"
+                    )
+                    vault_data["vault_grafana_rhn_activation_key"] = QuotedString(str(rhn_key))
+                    vault_data_changed = True
+            # OCP Grafana admin (UI admin_password; standalone_admin_password only if standalone).
             grafana_admin_user = first_present(
                 public_values.get("admin_user"),
-                public_values.get("standalone_admin_user"),
+                public_values.get("standalone_admin_user") if grafana_standalone else None,
                 "admin",
             )
             if grafana_admin_user:
@@ -869,7 +1013,8 @@ def merge_component(component, cfg):
                 vars_data["grafana_install_admin_user"] = str(grafana_admin_user)
             grafana_admin_password = first_present(
                 secret_values.get("admin_password"),
-                secret_values.get("standalone_admin_password"),
+                secret_values.get("grafana_admin_password"),
+                secret_values.get("standalone_admin_password") if grafana_standalone else None,
             )
             if grafana_admin_password:
                 vars_data["grafana_admin_password"] = vault_ref(
@@ -894,6 +1039,9 @@ def merge_component(component, cfg):
                 vars_data["grafana_admin_password"] = "redhat123"
                 vars_data["grafana_install_admin_password"] = "redhat123"
                 vars_data_changed = True
+            if not grafana_standalone:
+                purge_standalone_install_vars(vars_data, "grafana")
+                vars_data_changed = True
 
         if component == "gitlab":
             gitlab_opts = (
@@ -906,6 +1054,7 @@ def merge_component(component, cfg):
             if ocp_gitlab_host:
                 host_clean = strip_host(ocp_gitlab_host)
                 if host_clean:
+                    vars_data["gitlab_hostname"] = host_clean
                     vars_data["gitlab_install_hostname"] = host_clean
                     vars_data["hostname"] = host_clean
                     vars_data.setdefault("components_env", {}).setdefault("gitlab", {})
@@ -924,23 +1073,31 @@ def merge_component(component, cfg):
             if gitlab_standalone and standalone_hostname:
                 vars_data["gitlab_hostname"] = str(standalone_hostname)
                 vars_data["install_gitlab_hostname"] = str(standalone_hostname)
-            external_url = first_present(public_values.get("standalone_external_url"))
+            external_url = (
+                first_present(public_values.get("standalone_external_url"))
+                if gitlab_standalone
+                else None
+            )
             if external_url:
                 vars_data["gitlab_external_url"] = str(external_url)
                 vars_data["install_gitlab_external_url"] = str(external_url)
-            edition = first_present(public_values.get("standalone_edition"))
+            edition = (
+                first_present(public_values.get("standalone_edition"))
+                if gitlab_standalone
+                else None
+            )
             if edition:
                 vars_data["gitlab_edition"] = str(edition)
                 vars_data["install_gitlab_edition"] = str(edition)
-            rpm_path = first_present(public_values.get("standalone_rpm_path"))
+            rpm_path = first_present(public_values.get("standalone_rpm_path")) if gitlab_standalone else None
             if rpm_path:
                 vars_data["gitlab_rpm_path"] = str(rpm_path)
                 vars_data["install_gitlab_rpm_path"] = str(rpm_path)
-            rpm_url = first_present(public_values.get("standalone_rpm_url"))
+            rpm_url = first_present(public_values.get("standalone_rpm_url")) if gitlab_standalone else None
             if rpm_url:
                 vars_data["gitlab_rpm_url"] = str(rpm_url)
                 vars_data["install_gitlab_rpm_url"] = str(rpm_url)
-            if secret_values.get("standalone_root_password"):
+            if gitlab_standalone and secret_values.get("standalone_root_password"):
                 vars_data["gitlab_root_password"] = vault_ref("vault_gitlab_root_password")
                 vault_data["vault_gitlab_root_password"] = QuotedString(
                     str(secret_values.get("standalone_root_password"))
@@ -949,11 +1106,19 @@ def merge_component(component, cfg):
                     str(secret_values.get("standalone_root_password"))
                 )
                 vault_data_changed = True
-            tls_crt = first_present(
-                secret_values.get("standalone_tls_crt"),
-                public_values.get("standalone_tls_crt"),
+            tls_crt = (
+                first_present(
+                    secret_values.get("standalone_tls_crt"),
+                    public_values.get("standalone_tls_crt"),
+                )
+                if gitlab_standalone
+                else None
             )
-            tls_key = first_present(secret_values.get("standalone_tls_key"))
+            tls_key = (
+                first_present(secret_values.get("standalone_tls_key"))
+                if gitlab_standalone
+                else None
+            )
             if tls_crt:
                 vars_data["gitlab_tls_crt"] = vault_ref("vault_gitlab_tls_crt")
                 vault_data["vault_gitlab_tls_crt"] = QuotedString(str(tls_crt))
@@ -964,17 +1129,25 @@ def merge_component(component, cfg):
                 vault_data["vault_gitlab_tls_key"] = QuotedString(str(tls_key))
                 vault_data["gitlab_tls_key"] = QuotedString(str(tls_key))
                 vault_data_changed = True
-            rhn_org = first_present(public_values.get("standalone_rhn_org_id"))
+            rhn_org = first_present(public_values.get("standalone_rhn_org_id")) if gitlab_standalone else None
             if rhn_org:
                 vars_data["install_gitlab_rhn_org_id"] = str(rhn_org)
                 vars_data["gitlab_rhn_org_id"] = str(rhn_org)
-            rhn_key = first_present(secret_values.get("standalone_rhn_activation_key"))
+            rhn_key = (
+                first_present(secret_values.get("standalone_rhn_activation_key"))
+                if gitlab_standalone
+                else None
+            )
             if rhn_key:
                 vars_data["install_gitlab_rhn_activation_key"] = vault_ref(
                     "vault_gitlab_rhn_activation_key"
                 )
                 vault_data["vault_gitlab_rhn_activation_key"] = QuotedString(str(rhn_key))
                 vault_data_changed = True
+
+            if not gitlab_standalone:
+                purge_standalone_install_vars(vars_data, "gitlab")
+                vars_data_changed = True
 
         if component == "zabbix":
             ocp_host = first_present(public_values.get("hostname"))
@@ -1116,6 +1289,29 @@ def merge_component(component, cfg):
                     vars_data.setdefault("components_env", {}).setdefault("quay", {})
                     vars_data["components_env"]["quay"]["hostname"] = host_clean
                     vars_data_changed = True
+            if public_values.get("oidc_enabled") is not None:
+                vars_data["quay_oidc_enabled"] = as_bool(
+                    public_values.get("oidc_enabled"), True
+                )
+                vars_data_changed = True
+            if public_values.get("oidc_client_id"):
+                vars_data["quay_oidc_client_id"] = str(public_values.get("oidc_client_id"))
+                vars_data_changed = True
+            if public_values.get("keycloak_realm"):
+                vars_data["quay_keycloak_realm"] = str(public_values.get("keycloak_realm"))
+                vars_data_changed = True
+            oidc_secret = first_present(
+                secret_values.get("oidc_client_secret"),
+                public_values.get("oidc_client_secret"),
+            )
+            if oidc_secret and not as_bool(
+                public_values.get("fetch_oidc_secret_from_rhbk"), True
+            ):
+                vars_data["quay_oidc_client_secret"] = vault_ref(
+                    "vault_quay_oidc_client_secret"
+                )
+                vault_data["vault_quay_oidc_client_secret"] = QuotedString(str(oidc_secret))
+                vault_data_changed = True
             quay_issuer, quay_realm = rhbk_oidc_issuer_url(preflight, vars_data)
             if quay_issuer:
                 vars_data["quay_oidc_issuer_url"] = quay_issuer
@@ -1293,12 +1489,22 @@ def merge_component(component, cfg):
         if component == "rhbk":
             vars_data.setdefault("components_env", {}).setdefault("rhbk", {})
             rhbk_options = (preflight.get("component_options") or {}).get("rhbk", [])
-            rhbk_standalone_selected = "standalone" in rhbk_options
+            rhbk_opts_lower = [str(x).strip().lower() for x in (rhbk_options or [])]
+            # UI always ships standalone_* form defaults — only honor them when
+            # the standalone option is explicitly selected (same as Grafana/GitLab).
+            rhbk_standalone_selected = "standalone" in rhbk_opts_lower
             if rhbk_standalone_selected:
                 vars_data["install_rhbk_platform"] = "rhel"
                 vars_data["rhbk_platform"] = "rhel"
                 vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "rhel"
                 vars_data["components_env"]["rhbk"]["rhbk_platform"] = "rhel"
+                vars_data_changed = True
+            else:
+                vars_data["install_rhbk_platform"] = "openshift"
+                vars_data["rhbk_platform"] = "openshift"
+                vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "openshift"
+                vars_data["components_env"]["rhbk"]["rhbk_platform"] = "openshift"
+                purge_standalone_install_vars(vars_data, "rhbk")
                 vars_data_changed = True
             env_suffix = env_label_suffix(preflight.get("environment"))
             apps_domain = str(
@@ -1351,6 +1557,27 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["rhbk"]["rhbk_host"] = _rhbk_host
                 vars_data["components_env"]["rhbk"]["ocp_rhbk_hostname"] = _rhbk_host
                 vars_data_changed = True
+            # Native RHBK user-event metrics (keycloak_user_events_total).
+            _event_metrics = as_bool(
+                first_present(
+                    public_values.get("event_metrics_user_enabled"),
+                    public_values.get("rhbk_event_metrics_user_enabled"),
+                    False,
+                ),
+                False,
+            )
+            vars_data["install_rhbk_event_metrics_user_enabled"] = _event_metrics
+            vars_data["rhbk_event_metrics_user_enabled"] = _event_metrics
+            vars_data["event_metrics_user_enabled"] = _event_metrics
+            vars_data["components_env"]["rhbk"][
+                "event_metrics_user_enabled"
+            ] = _event_metrics
+            vars_data["components_env"]["rhbk"][
+                "rhbk_event_metrics_user_enabled"
+            ] = _event_metrics
+            vars_data["install_rhbk_metrics_enabled"] = True
+            vars_data["rhbk_metrics_enabled"] = True
+            vars_data_changed = True
             _admin_user = str(
                 first_present(
                     public_values.get("admin_user"),
@@ -1366,50 +1593,82 @@ def merge_component(component, cfg):
             _admin_password = first_present(
                 secret_values.get("admin_password"),
                 secret_values.get("standalone_admin_password"),
-                "redhat123",
             )
-            if _admin_password is not None:
+            if _admin_password is not None and str(_admin_password).strip():
                 vars_data["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
                 vars_data["ocp_rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
                 vault_data["vault_rhbk_admin_password"] = QuotedString(str(_admin_password))
                 vault_data["rhbk_admin_password"] = QuotedString(str(_admin_password))
                 vault_data["ocp_rhbk_admin_password"] = QuotedString(str(_admin_password))
                 vault_data_changed = True
-            # TLS mode from preflight (edge default; cert-manager opt-in).
+            # TLS mode from preflight (edge default; cert-manager or manual PEM opt-in).
             tls_mode = str(
                 first_present(public_values.get("tls_mode"), "edge")
             ).strip().lower()
-            if tls_mode not in ("edge", "cert_manager", "ingress_copy"):
+            if tls_mode not in ("edge", "cert_manager", "ingress_copy", "manual"):
                 tls_mode = "edge"
             use_cm = as_bool(public_values.get("cert_manager"), tls_mode == "cert_manager")
             use_ingress = as_bool(
                 public_values.get("ocp_rhbk_use_default_ingress_cert"),
                 tls_mode == "ingress_copy",
             )
+            _ocp_tls_crt = first_present(
+                secret_values.get("tls_crt"),
+                public_values.get("tls_crt"),
+            )
+            _ocp_tls_key = first_present(
+                secret_values.get("tls_key"),
+                public_values.get("tls_key"),
+            )
+            use_manual = tls_mode == "manual" or (
+                not use_cm
+                and not use_ingress
+                and _ocp_tls_crt
+                and _ocp_tls_key
+                and str(_ocp_tls_crt).strip()
+                and str(_ocp_tls_key).strip()
+            )
             use_edge = as_bool(
                 public_values.get("ocp_rhbk_http_edge"),
-                tls_mode == "edge" or (not use_cm and not use_ingress),
+                tls_mode == "edge" or (not use_cm and not use_ingress and not use_manual),
             )
             if use_cm:
                 tls_mode = "cert_manager"
                 use_ingress = False
                 use_edge = False
+                use_manual = False
             elif use_ingress:
                 tls_mode = "ingress_copy"
                 use_cm = False
+                use_edge = False
+                use_manual = False
+            elif use_manual:
+                tls_mode = "manual"
+                use_cm = False
+                use_ingress = False
                 use_edge = False
             else:
                 tls_mode = "edge"
                 use_cm = False
                 use_ingress = False
+                use_manual = False
                 use_edge = True
             vars_data["tls_mode"] = tls_mode
             vars_data["cert_manager"] = use_cm
             vars_data["ocp_rhbk_http_edge"] = use_edge
             vars_data["ocp_rhbk_use_default_ingress_cert"] = use_ingress
+            vars_data["components_env"]["rhbk"]["tls_mode"] = tls_mode
             vars_data["components_env"]["rhbk"]["cert_manager"] = use_cm
             vars_data["components_env"]["rhbk"]["ocp_rhbk_http_edge"] = use_edge
             vars_data["components_env"]["rhbk"]["ocp_rhbk_use_default_ingress_cert"] = use_ingress
+            if use_manual and _ocp_tls_crt and _ocp_tls_key:
+                vars_data["tls_crt"] = vault_ref("vault_rhbk_tls_crt")
+                vars_data["tls_key"] = vault_ref("vault_rhbk_tls_key")
+                vault_data["vault_rhbk_tls_crt"] = QuotedString(str(_ocp_tls_crt))
+                vault_data["vault_rhbk_tls_key"] = QuotedString(str(_ocp_tls_key))
+                vault_data["tls_crt"] = QuotedString(str(_ocp_tls_crt))
+                vault_data["tls_key"] = QuotedString(str(_ocp_tls_key))
+                vault_data_changed = True
             issuer_kind = first_present(
                 public_values.get("ocp_rhbk_issuer_kind"),
                 public_values.get("issuer_kind"),
@@ -1502,123 +1761,127 @@ def merge_component(component, cfg):
                 vars_data["openshift_oidc_auth"] = oidc_auth
                 vars_data["components_env"]["rhbk"]["openshift_oidc_auth"] = copy.deepcopy(oidc_auth)
                 vars_data_changed = True
-            standalone_hostname = first_present(public_values.get("standalone_hostname"))
-            if standalone_hostname:
-                _standalone_host = str(standalone_hostname)
-                vars_data["rhbk_standalone_hostname"] = _standalone_host
-                vars_data["install_rhbk_standalone_hostname"] = _standalone_host
-                vars_data["rhbk_hostname"] = _standalone_host
-                vars_data["rhbk_host"] = _standalone_host
-                vars_data["install_rhbk_platform"] = "rhel"
-                vars_data["rhbk_platform"] = "rhel"
-                vars_data.setdefault("components_env", {}).setdefault("rhbk", {})
-                vars_data["components_env"]["rhbk"]["rhbk_hostname"] = _standalone_host
-                vars_data["components_env"]["rhbk"]["rhbk_host"] = _standalone_host
-                vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "rhel"
-                vars_data_changed = True
-            zip_url = first_present(public_values.get("standalone_zip_url"))
-            zip_filename = first_present(
-                public_values.get("standalone_zip_file"),
-                Path(str(public_values.get("standalone_zip") or "")).name
-                if public_values.get("standalone_zip")
-                else None,
-            )
-            zip_upload = first_present(public_values.get("standalone_zip_upload_path"))
-            zip_content = first_present(secret_values.get("standalone_zip_content_base64"))
-            zip_git_repo = first_present(public_values.get("standalone_zip_git_repo"))
-            zip_git_path = first_present(public_values.get("standalone_zip_git_path"))
-            zip_git_branch = first_present(public_values.get("standalone_zip_git_branch"))
-            zip_source = str(
-                first_present(public_values.get("standalone_zip_source")) or ""
-            ).strip().lower()
-            if zip_source not in ("url", "git", "upload"):
-                if zip_git_repo:
-                    zip_source = "git"
-                elif zip_url:
-                    zip_source = "url"
-                elif zip_content or zip_upload or zip_filename:
-                    zip_source = "upload"
-                else:
-                    zip_source = ""
-            if zip_source:
-                vars_data["rhbk_standalone_zip_source"] = zip_source
-                vars_data["install_rhbk_standalone_zip_source"] = zip_source
-                vars_data_changed = True
-            if zip_source in ("", "url") and zip_url:
-                vars_data["rhbk_standalone_zip_url"] = str(zip_url)
-                vars_data_changed = True
-            if zip_source == "git":
-                if zip_git_repo:
-                    vars_data["rhbk_standalone_zip_git_repo"] = str(zip_git_repo)
-                    vars_data["install_rhbk_standalone_zip_git_repo"] = str(zip_git_repo)
+            # Standalone ZIP / hostname / TLS only when option is selected.
+            # Do not let UI default standalone_hostname force platform=rhel on OCP.
+            if rhbk_standalone_selected:
+                standalone_hostname = first_present(public_values.get("standalone_hostname"))
+                if standalone_hostname:
+                    _standalone_host = str(standalone_hostname)
+                    vars_data["rhbk_standalone_hostname"] = _standalone_host
+                    vars_data["install_rhbk_standalone_hostname"] = _standalone_host
+                    vars_data["rhbk_hostname"] = _standalone_host
+                    vars_data["rhbk_host"] = _standalone_host
+                    vars_data["install_rhbk_platform"] = "rhel"
+                    vars_data["rhbk_platform"] = "rhel"
+                    vars_data.setdefault("components_env", {}).setdefault("rhbk", {})
+                    vars_data["components_env"]["rhbk"]["rhbk_hostname"] = _standalone_host
+                    vars_data["components_env"]["rhbk"]["rhbk_host"] = _standalone_host
+                    vars_data["components_env"]["rhbk"]["install_rhbk_platform"] = "rhel"
+                    vars_data["components_env"]["rhbk"]["rhbk_platform"] = "rhel"
                     vars_data_changed = True
-                if zip_git_path:
-                    vars_data["rhbk_standalone_zip_git_path"] = str(zip_git_path)
-                    vars_data["install_rhbk_standalone_zip_git_path"] = str(zip_git_path)
-                    vars_data_changed = True
-                if zip_git_branch:
-                    vars_data["rhbk_standalone_zip_git_branch"] = str(zip_git_branch)
-                    vars_data["install_rhbk_standalone_zip_git_branch"] = str(
-                        zip_git_branch
-                    )
-                    vars_data_changed = True
-            if zip_source in ("", "upload"):
-                if zip_content:
-                    zip_target = write_repo_file_from_preflight(
-                        zip_filename,
-                        zip_content,
-                        "rhbk.zip",
-                        "base64",
-                    )
-                    vars_data["rhbk_standalone_zip"] = QuotedString(
-                        playbook_file_ref(zip_target.name)
-                    )
-                    vars_data_changed = True
-                elif zip_upload and Path(str(zip_upload)).is_file():
-                    zip_target = copy_repo_file_from_path(
-                        zip_upload,
-                        zip_filename,
-                        "rhbk.zip",
-                    )
-                    vars_data["rhbk_standalone_zip"] = QuotedString(
-                        playbook_file_ref(zip_target.name)
-                    )
-                    vars_data_changed = True
-                elif zip_filename and str(zip_filename).lower().endswith(".zip"):
-                    typed_zip = str(public_values.get("standalone_zip") or "")
-                    if typed_zip.startswith("/"):
-                        vars_data["rhbk_standalone_zip"] = typed_zip
-                    else:
-                        vars_data["rhbk_standalone_zip"] = QuotedString(
-                            playbook_file_ref(Path(str(zip_filename)).name)
-                        )
-                    vars_data_changed = True
-            if public_values.get("standalone_admin_user"):
-                vars_data["rhbk_admin_user"] = str(public_values.get("standalone_admin_user"))
-            if secret_values.get("standalone_admin_password"):
-                vars_data["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
-                vault_data["vault_rhbk_admin_password"] = QuotedString(
-                    str(secret_values.get("standalone_admin_password"))
+                zip_url = first_present(public_values.get("standalone_zip_url"))
+                zip_filename = first_present(
+                    public_values.get("standalone_zip_file"),
+                    Path(str(public_values.get("standalone_zip") or "")).name
+                    if public_values.get("standalone_zip")
+                    else None,
                 )
-                vault_data_changed = True
-            tls_crt = first_present(
-                secret_values.get("standalone_tls_crt"),
-                public_values.get("standalone_tls_crt"),
-            )
-            tls_key = first_present(secret_values.get("standalone_tls_key"))
-            if tls_crt:
-                vars_data["rhbk_standalone_tls_crt"] = vault_ref("vault_rhbk_standalone_tls_crt")
-                vars_data["tls_crt"] = vault_ref("vault_rhbk_standalone_tls_crt")
-                vault_data["vault_rhbk_standalone_tls_crt"] = QuotedString(str(tls_crt))
-                vault_data_changed = True
-            if tls_key:
-                vars_data["rhbk_standalone_tls_key"] = vault_ref("vault_rhbk_standalone_tls_key")
-                vars_data["tls_key"] = vault_ref("vault_rhbk_standalone_tls_key")
-                vault_data["vault_rhbk_standalone_tls_key"] = QuotedString(str(tls_key))
-                vault_data_changed = True
-            if tls_crt and tls_key:
-                vars_data["rhbk_standalone_https_enabled"] = True
-                vars_data["install_rhbk_standalone_https_enabled"] = True
+                zip_upload = first_present(public_values.get("standalone_zip_upload_path"))
+                zip_content = first_present(secret_values.get("standalone_zip_content_base64"))
+                zip_git_repo = first_present(public_values.get("standalone_zip_git_repo"))
+                zip_git_path = first_present(public_values.get("standalone_zip_git_path"))
+                zip_git_branch = first_present(public_values.get("standalone_zip_git_branch"))
+                zip_source = str(
+                    first_present(public_values.get("standalone_zip_source")) or ""
+                ).strip().lower()
+                if zip_source not in ("url", "git", "upload"):
+                    if zip_git_repo:
+                        zip_source = "git"
+                    elif zip_url:
+                        zip_source = "url"
+                    elif zip_content or zip_upload or zip_filename:
+                        zip_source = "upload"
+                    else:
+                        zip_source = ""
+                if zip_source:
+                    vars_data["rhbk_standalone_zip_source"] = zip_source
+                    vars_data["install_rhbk_standalone_zip_source"] = zip_source
+                    vars_data_changed = True
+                if zip_source in ("", "url") and zip_url:
+                    vars_data["rhbk_standalone_zip_url"] = str(zip_url)
+                    vars_data_changed = True
+                if zip_source == "git":
+                    if zip_git_repo:
+                        vars_data["rhbk_standalone_zip_git_repo"] = str(zip_git_repo)
+                        vars_data["install_rhbk_standalone_zip_git_repo"] = str(zip_git_repo)
+                        vars_data_changed = True
+                    if zip_git_path:
+                        vars_data["rhbk_standalone_zip_git_path"] = str(zip_git_path)
+                        vars_data["install_rhbk_standalone_zip_git_path"] = str(zip_git_path)
+                        vars_data_changed = True
+                    if zip_git_branch:
+                        vars_data["rhbk_standalone_zip_git_branch"] = str(zip_git_branch)
+                        vars_data["install_rhbk_standalone_zip_git_branch"] = str(
+                            zip_git_branch
+                        )
+                        vars_data_changed = True
+                if zip_source in ("", "upload"):
+                    if zip_content:
+                        zip_target = write_repo_file_from_preflight(
+                            zip_filename,
+                            zip_content,
+                            "rhbk.zip",
+                            "base64",
+                        )
+                        vars_data["rhbk_standalone_zip"] = QuotedString(
+                            playbook_file_ref(zip_target.name)
+                        )
+                        vars_data_changed = True
+                    elif zip_upload and Path(str(zip_upload)).is_file():
+                        zip_target = copy_repo_file_from_path(
+                            zip_upload,
+                            zip_filename,
+                            "rhbk.zip",
+                        )
+                        vars_data["rhbk_standalone_zip"] = QuotedString(
+                            playbook_file_ref(zip_target.name)
+                        )
+                        vars_data_changed = True
+                    elif zip_filename and str(zip_filename).lower().endswith(".zip"):
+                        typed_zip = str(public_values.get("standalone_zip") or "")
+                        if typed_zip.startswith("/"):
+                            vars_data["rhbk_standalone_zip"] = typed_zip
+                        else:
+                            vars_data["rhbk_standalone_zip"] = QuotedString(
+                                playbook_file_ref(Path(str(zip_filename)).name)
+                            )
+                        vars_data_changed = True
+                if public_values.get("standalone_admin_user"):
+                    vars_data["rhbk_admin_user"] = str(public_values.get("standalone_admin_user"))
+                if secret_values.get("standalone_admin_password"):
+                    vars_data["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
+                    vault_data["vault_rhbk_admin_password"] = QuotedString(
+                        str(secret_values.get("standalone_admin_password"))
+                    )
+                    vault_data_changed = True
+                tls_crt = first_present(
+                    secret_values.get("standalone_tls_crt"),
+                    public_values.get("standalone_tls_crt"),
+                )
+                tls_key = first_present(secret_values.get("standalone_tls_key"))
+                if tls_crt:
+                    vars_data["rhbk_standalone_tls_crt"] = vault_ref("vault_rhbk_standalone_tls_crt")
+                    vars_data["tls_crt"] = vault_ref("vault_rhbk_standalone_tls_crt")
+                    vault_data["vault_rhbk_standalone_tls_crt"] = QuotedString(str(tls_crt))
+                    vault_data_changed = True
+                if tls_key:
+                    vars_data["rhbk_standalone_tls_key"] = vault_ref("vault_rhbk_standalone_tls_key")
+                    vars_data["tls_key"] = vault_ref("vault_rhbk_standalone_tls_key")
+                    vault_data["vault_rhbk_standalone_tls_key"] = QuotedString(str(tls_key))
+                    vault_data_changed = True
+                if tls_crt and tls_key:
+                    vars_data["rhbk_standalone_https_enabled"] = True
+                    vars_data["install_rhbk_standalone_https_enabled"] = True
             for mapper_key in (
                 "group_mapper_name",
                 "group_mapper_claim",
@@ -1671,6 +1934,10 @@ def merge_component(component, cfg):
                 vars_data["rhbk_federation_name"] = default_fed
                 vault_data["rhbk_federation_name"] = default_fed
                 vault_data_changed = True
+
+            if not rhbk_standalone_selected:
+                purge_standalone_install_vars(vars_data, "rhbk")
+                vars_data_changed = True
 
         if component == "aap":
             preflight_aap = preflight.get("aap") or {}
@@ -1856,52 +2123,45 @@ def merge_component(component, cfg):
             vars_data["aap_ocp_install_lightspeed"] = {
                 "install": install_lightspeed
             }
-            vars_data["aap_install_during_bootstrap"] = as_bool(
-                public_values.get("install_during_bootstrap"),
-                False,
-            )
             vars_data["aap_minimal_footprint"] = minimal_footprint
             pre_installs = preflight.get("pre_installs") or {}
-            if isinstance(pre_installs, dict) and as_bool(pre_installs.get("install_aap"), False):
-                vars_data["aap_install_during_bootstrap"] = True
-                public_values["install_during_bootstrap"] = True
+            if not isinstance(pre_installs, dict):
+                pre_installs = {}
             pre_aap = pre_installs.get("aap") if isinstance(pre_installs, dict) else {}
             if not isinstance(pre_aap, dict):
                 pre_aap = {}
+            # Preflight is SSOT for install/attach — never keep stale group_vars
+            # license_only / install_during_bootstrap from a prior attach run.
+            want_install = as_bool(pre_installs.get("install_aap"), False)
+            want_attach = as_bool(pre_installs.get("attach_aap_license"), False) or as_bool(
+                pre_aap.get("license_only"), False
+            )
+            if want_install:
+                vars_data["aap_install_during_bootstrap"] = True
+                public_values["install_during_bootstrap"] = True
+            elif want_attach:
+                vars_data["aap_install_during_bootstrap"] = True
+                public_values["install_during_bootstrap"] = True
+            else:
+                vars_data["aap_install_during_bootstrap"] = False
+                public_values["install_during_bootstrap"] = False
             license_mode = str(
                 first_present(
-                    public_values.get("license_mode"),
                     pre_aap.get("license_mode"),
+                    public_values.get("license_mode"),
                     "none",
                 )
                 or "none"
             ).lower()
+            if not want_install and not want_attach:
+                license_mode = str(pre_aap.get("license_mode") or "none").lower()
             vars_data["aap_ocp_install_license_mode"] = license_mode
-            license_only = as_bool(
-                first_present(
-                    public_values.get("license_only"),
-                    pre_aap.get("license_only"),
-                    pre_installs.get("attach_aap_license")
-                    if (
-                        isinstance(pre_installs, dict)
-                        and not as_bool(pre_installs.get("install_aap"), False)
-                        and as_bool(pre_installs.get("attach_aap_license"), False)
-                    )
-                    else False,
-                ),
-                False,
-            )
-            # Attach-only: run install path for license attach, skip operator.
-            if (
-                isinstance(pre_installs, dict)
-                and as_bool(pre_installs.get("attach_aap_license"), False)
-                and not as_bool(pre_installs.get("install_aap"), False)
-            ):
-                license_only = True
-                vars_data["aap_install_during_bootstrap"] = True
-                public_values["install_during_bootstrap"] = True
+            license_only = bool(want_attach and not want_install)
             vars_data["aap_ocp_install_license_only"] = license_only
             public_values["license_only"] = license_only
+            public_values["install_during_bootstrap"] = bool(
+                vars_data.get("aap_install_during_bootstrap")
+            )
             manifest_file = first_present(
                 public_values.get("subscription_manifest_file"),
                 pre_aap.get("subscription_manifest_file"),
@@ -2034,6 +2294,82 @@ def merge_component(component, cfg):
             if public_values.get("dashboard_image"):
                 vars_data["ocp_devspaces_dashboard_image"] = public_values.get("dashboard_image")
 
+            # Optional DevWorkspace status metrics exporter (Grafana).
+            status_exporter_enabled = as_bool(
+                public_values.get("status_exporter_enabled"), False
+            )
+            vars_data["ocp_devspaces_status_exporter_enabled"] = status_exporter_enabled
+            vars_data["components_env"]["devspaces"][
+                "status_exporter_enabled"
+            ] = status_exporter_enabled
+            vars_data["status_exporter_enabled"] = status_exporter_enabled
+            if status_exporter_enabled:
+                vars_data_changed = True
+
+            # Custom getting-started sample (display name + git URL + icon).
+            custom_enabled = as_bool(public_values.get("custom_sample_enabled"), False)
+            vars_data["ocp_devspaces_custom_sample_enabled"] = custom_enabled
+            vars_data["components_env"]["devspaces"]["custom_sample_enabled"] = custom_enabled
+            if custom_enabled:
+                display_name = str(
+                    public_values.get("custom_sample_display_name") or "ADO"
+                ).strip() or "ADO"
+                description = str(
+                    public_values.get("custom_sample_description")
+                    or "ADO default Dev Spaces workspace"
+                ).strip()
+                tags_raw = public_values.get("custom_sample_tags") or "ado"
+                if isinstance(tags_raw, list):
+                    tags = [str(t).strip() for t in tags_raw if str(t).strip()]
+                else:
+                    tags = [
+                        t.strip()
+                        for t in str(tags_raw).split(",")
+                        if t.strip()
+                    ] or ["ado"]
+                sample_url = str(public_values.get("custom_sample_url") or "").strip()
+                # Fall back to default_devfile_url when sample URL blank.
+                if not sample_url:
+                    sample_url = str(
+                        public_values.get("default_devfile_url") or ""
+                    ).strip()
+                icon_source = str(
+                    public_values.get("custom_sample_icon_source") or "bundled"
+                ).strip().lower()
+                icon_b64 = str(
+                    public_values.get("custom_sample_icon_base64") or ""
+                ).strip()
+                icon_media = str(
+                    public_values.get("custom_sample_icon_mediatype") or "image/png"
+                ).strip() or "image/png"
+                sample = {
+                    "displayName": display_name,
+                    "description": description,
+                    "tags": tags,
+                    "url": sample_url,
+                }
+                if icon_source == "upload" and icon_b64:
+                    sample["icon"] = {
+                        "base64data": icon_b64,
+                        "mediatype": icon_media,
+                    }
+                    vars_data["ocp_devspaces_custom_sample_icon_source"] = "upload"
+                else:
+                    # Role loads roles/ocp_devspaces/files/ado-sample-icon.png
+                    vars_data["ocp_devspaces_custom_sample_icon_source"] = "bundled"
+                    sample["icon_source"] = "bundled"
+                vars_data["ocp_devspaces_custom_samples"] = [sample]
+                vars_data["components_env"]["devspaces"]["custom_samples"] = [sample]
+                vars_data_changed = True
+            elif isinstance(public_values.get("custom_samples"), list) and public_values.get(
+                "custom_samples"
+            ):
+                vars_data["ocp_devspaces_custom_samples"] = public_values.get("custom_samples")
+                vars_data["components_env"]["devspaces"]["custom_samples"] = public_values.get(
+                    "custom_samples"
+                )
+                vars_data_changed = True
+
         if component == "acs":
             for src_key in (
                 "policies_source_type",
@@ -2047,7 +2383,19 @@ def merge_component(component, cfg):
                 vars_data["acs_namespace"] = public_values.get("namespace")
                 vars_data["ocp_acs_namespace"] = public_values.get("namespace")
             if public_values.get("storage"):
-                vars_data["storage"] = public_values.get("storage")
+                if apply_storage_var(
+                    vars_data,
+                    "acs",
+                    preflight,
+                    public_values["storage"],
+                    vars_data_changed,
+                ):
+                    vars_data_changed = True
+                    vars_data["ocp_acs_storage_class"] = vars_data.get("storage")
+                    vars_data.setdefault("components_env", {}).setdefault("acs", {})
+                    vars_data["components_env"]["acs"]["storage"] = vars_data.get(
+                        "storage"
+                    )
             acs_host = first_present(public_values.get("hostname"))
             apps_domain = str(
                 ((preflight.get("openshift") or {}).get("apps_domain")) or ""
@@ -2448,7 +2796,6 @@ def merge_component(component, cfg):
                 oidc_cfg.get("keycloak_url"),
                 public_values.get("keycloak_url"),
                 public_values.get("satellite_oidc_keycloak_url"),
-                "https://keycloak.apps.ocp.prod.rhlab",
             )
             oidc_issuer = first_present(
                 oidc_cfg.get("issuer"),
@@ -3284,18 +3631,31 @@ if openshift:
                 name = str(user.get("name") or "").strip()
                 if not name:
                     continue
+                password = str(user.get("password") or "").strip()
+                if not password:
+                    raise SystemExit(
+                        f"Admin HTPasswd user '{name}' has an empty password. "
+                        "Set a password in preflight (OpenShift → Admin HTPasswd); "
+                        "there is no silent redhat123 default."
+                    )
                 normalized_users.append(
                     {
                         "name": name,
-                        "password": user.get("password") or "",
+                        "password": password,
                         "role": user.get("role") or "cluster-admin",
                     }
                 )
         if not normalized_users and (
             openshift.get("admin_username") or openshift.get("admin_password")
         ):
-            admin_username = openshift.get("admin_username") or "admin"
-            admin_password = openshift.get("admin_password") or ""
+            admin_username = str(openshift.get("admin_username") or "admin").strip() or "admin"
+            admin_password = str(openshift.get("admin_password") or "").strip()
+            if not admin_password:
+                raise SystemExit(
+                    "Admin HTPasswd password is empty. "
+                    "Set a password in preflight (OpenShift → Admin HTPasswd); "
+                    "there is no silent redhat123 default."
+                )
             normalized_users = [
                 {
                     "name": admin_username,
@@ -3303,96 +3663,266 @@ if openshift:
                     "role": openshift.get("admin_role") or "cluster-admin",
                 }
             ]
+        # Contoller JT uses component htpass_admin; env gen also creates admin_htpasswd stubs.
+        htpass_vault_paths = [
+            env_dir / "vault_htpass_admin.yml",
+            env_dir / "vault_admin_htpasswd.yml",
+        ]
+        htpass_vars_paths = [
+            env_dir / "vars_htpass_admin.yml",
+            env_dir / "vars_admin_htpasswd.yml",
+        ]
         if normalized_users:
             vault_data["htpasswd_users"] = normalized_users
             vault_data["htpasswd_pass"] = normalized_users[0].get("password") or ""
-            htpass_admin_vault_path = env_dir / "vault_htpass_admin.yml"
-            htpass_admin_vars_path = env_dir / "vars_htpass_admin.yml"
-            htpass_admin_vault = load_yaml(htpass_admin_vault_path)
-            htpass_admin_vars = load_yaml(htpass_admin_vars_path)
-            htpass_admin_vault["htpasswd_users"] = normalized_users
-            htpass_admin_vault["htpasswd_pass"] = normalized_users[0].get("password") or ""
-            htpass_admin_vars["htpasswd_action"] = action
-            write_yaml(htpass_admin_vault_path, htpass_admin_vault, "0600")
-            write_yaml(htpass_admin_vars_path, htpass_admin_vars, "0644")
-        else:
-            vault_data.pop("htpasswd_users", None)
-            vault_data.pop("htpasswd_pass", None)
-            htpass_admin_vault_path = env_dir / "vault_htpass_admin.yml"
-            htpass_admin_vars_path = env_dir / "vars_htpass_admin.yml"
-            if htpass_admin_vault_path.exists():
+            for htpass_admin_vault_path in htpass_vault_paths:
                 htpass_admin_vault = load_yaml(htpass_admin_vault_path)
-                htpass_admin_vault.pop("htpasswd_users", None)
-                htpass_admin_vault.pop("htpasswd_pass", None)
+                # Drop bogus stub keys (e.g. admin_htpasswd: redhat123 from old templates).
+                htpass_admin_vault.pop("admin_htpasswd", None)
+                htpass_admin_vault.pop("htpass_admin", None)
+                htpass_admin_vault["htpasswd_users"] = copy.deepcopy(normalized_users)
+                htpass_admin_vault["htpasswd_pass"] = normalized_users[0].get("password") or ""
                 write_yaml(htpass_admin_vault_path, htpass_admin_vault, "0600")
-            if htpass_admin_vars_path.exists():
+            for htpass_admin_vars_path in htpass_vars_paths:
                 htpass_admin_vars = load_yaml(htpass_admin_vars_path)
-                htpass_admin_vars.pop("htpasswd_action", None)
-                write_yaml(htpass_admin_vars_path, htpass_admin_vars, "0644")
+                htpass_admin_vars["htpasswd_action"] = action
+                # Keep only role-relevant keys in the dedicated vars files.
+                write_yaml(htpass_admin_vars_path, {"htpasswd_action": action}, "0644")
+        else:
+            raise SystemExit(
+                "Admin HTPasswd is selected but no users with name+password were provided. "
+                "Add at least one user under OpenShift → Admin HTPasswd."
+            )
     else:
         vars_data.pop("htpasswd_action", None)
         vault_data.pop("htpasswd_users", None)
         vault_data.pop("htpasswd_pass", None)
 
-    if "console_banner" in openshift_options and openshift.get("banner_text"):
-        vars_data["ocp_console_banner_text"] = openshift.get("banner_text")
-        vars_data["console_banner_text"] = openshift.get("banner_text")
-        if openshift.get("banner_location"):
-            vars_data["ocp_console_banner_location"] = openshift.get("banner_location")
-        if openshift.get("banner_background_color"):
-            vars_data["ocp_console_banner_background_color"] = openshift.get("banner_background_color")
-        if openshift.get("banner_text_color"):
-            vars_data["ocp_console_banner_text_color"] = openshift.get("banner_text_color")
+    if "console_banner" in openshift_options and (
+        openshift.get("banner_text")
+        or str(openshift.get("banner_state") or "").lower() in ("delete", "absent")
+    ):
+        banner_state = str(openshift.get("banner_state") or "add").strip().lower()
+        if banner_state in ("present",):
+            banner_state = "add"
+        if banner_state in ("new",):
+            banner_state = "update"
+        if banner_state in ("absent",):
+            banner_state = "delete"
+        if banner_state not in ("add", "update", "delete"):
+            banner_state = "add"
+        vars_data["state"] = banner_state
+        vars_data["console_banner_state"] = banner_state
+        vars_data["ocp_console_banner_state"] = banner_state
+        if banner_state != "delete":
+            if openshift.get("banner_text"):
+                vars_data["ocp_console_banner_text"] = openshift.get("banner_text")
+                vars_data["console_banner_text"] = openshift.get("banner_text")
+            if openshift.get("banner_location"):
+                vars_data["ocp_console_banner_location"] = openshift.get("banner_location")
+            if openshift.get("banner_background_color"):
+                vars_data["ocp_console_banner_background_color"] = openshift.get(
+                    "banner_background_color"
+                )
+            if openshift.get("banner_text_color"):
+                vars_data["ocp_console_banner_text_color"] = openshift.get(
+                    "banner_text_color"
+                )
     else:
         vars_data.pop("ocp_console_banner_text", None)
         vars_data.pop("console_banner_text", None)
         vars_data.pop("ocp_console_banner_location", None)
         vars_data.pop("ocp_console_banner_background_color", None)
         vars_data.pop("ocp_console_banner_text_color", None)
+        vars_data.pop("state", None)
+        vars_data.pop("console_banner_state", None)
+        vars_data.pop("ocp_console_banner_state", None)
 
     write_yaml(vars_path, vars_data, "0644")
     write_yaml(vault_path, vault_data, "0600")
 
 if "ldap_auth" in openshift_options:
-    ldap_vars_path = env_dir / "vars_ldap_auth_openshift.yml"
-    ldap_vars = load_yaml(ldap_vars_path)
+    ldap_cfg = openshift.get("ldap_auth") or {}
     idp_name = str(
         first_present(
-            (openshift.get("ldap_auth") or {}).get("idp_name"),
+            ldap_cfg.get("idp_name"),
             "LDAP_IDM",
         )
     ).strip()
-    if idp_name:
-        ldap_vars.setdefault("openshift_ldap_auth", {})
-        if isinstance(ldap_vars["openshift_ldap_auth"], dict):
-            ldap_vars["openshift_ldap_auth"]["idp_name"] = idp_name
-        ldap_vars.setdefault("components_env", {}).setdefault(
-            "ldap_auth_openshift", {}
-        )
-        ldap_vars["components_env"]["ldap_auth_openshift"].setdefault(
-            "openshift_ldap_auth", {}
-        )
-        ldap_vars["components_env"]["ldap_auth_openshift"]["openshift_ldap_auth"][
-            "idp_name"
-        ] = idp_name
+    ldap_config = {
+        "enabled": "true",
+        "vendor": "rhds",
+        "connectionUrl": str(
+            first_present(
+                ldap_cfg.get("connection_url"),
+                ldap_cfg.get("connectionUrl"),
+                "ldap://idm.server.lab",
+            )
+            or "ldap://idm.server.lab"
+        ),
+        "bindDn": str(
+            first_present(
+                ldap_cfg.get("bind_dn"),
+                ldap_cfg.get("bindDn"),
+                "cn=Directory Manager",
+            )
+            or "cn=Directory Manager"
+        ),
+        "bindCredential": str(
+            first_present(
+                ldap_cfg.get("bind_credential"),
+                ldap_cfg.get("bindCredential"),
+                "",
+            )
+            or ""
+        ),
+        "usersDn": str(
+            first_present(
+                ldap_cfg.get("users_dn"),
+                ldap_cfg.get("usersDn"),
+                "cn=users,cn=accounts,dc=server,dc=lab",
+            )
+            or "cn=users,cn=accounts,dc=server,dc=lab"
+        ),
+        "authType": "simple",
+        "usernameLDAPAttribute": str(
+            first_present(
+                ldap_cfg.get("username_ldap_attribute"),
+                ldap_cfg.get("usernameLDAPAttribute"),
+                "uid",
+            )
+            or "uid"
+        ),
+        "rdnLDAPAttribute": "uid",
+        "uuidLDAPAttribute": "nsuniqueid",
+        "userObjectClasses": "inetOrgPerson",
+    }
+    for ldap_vars_name in (
+        "vars_ldap_auth_openshift.yml",
+        "vars_openshift_ldap_auth.yml",
+    ):
+        ldap_vars_path = env_dir / ldap_vars_name
+        ldap_vars = load_yaml(ldap_vars_path) if ldap_vars_path.exists() else {}
+        if idp_name:
+            ldap_vars.setdefault("openshift_ldap_auth", {})
+            if isinstance(ldap_vars["openshift_ldap_auth"], dict):
+                ldap_vars["openshift_ldap_auth"]["idp_name"] = idp_name
+                if ldap_cfg.get("mapping_method"):
+                    ldap_vars["openshift_ldap_auth"]["mapping_method"] = str(
+                        ldap_cfg.get("mapping_method")
+                    )
+            ldap_vars.setdefault("components_env", {}).setdefault(
+                "ldap_auth_openshift", {}
+            )
+            ldap_vars["components_env"]["ldap_auth_openshift"].setdefault(
+                "openshift_ldap_auth", {}
+            )
+            ldap_vars["components_env"]["ldap_auth_openshift"]["openshift_ldap_auth"][
+                "idp_name"
+            ] = idp_name
+            ldap_vars.setdefault("ocp_ldap_auth_config", {})
+            if isinstance(ldap_vars["ocp_ldap_auth_config"], dict):
+                ldap_vars["ocp_ldap_auth_config"]["idp_name"] = idp_name
         write_yaml(ldap_vars_path, ldap_vars, "0644")
+    for ldap_vault_name in (
+        "vault_ldap_auth_openshift.yml",
+        "vault_openshift_ldap_auth.yml",
+    ):
+        ldap_vault_path = env_dir / ldap_vault_name
+        ldap_vault = load_yaml(ldap_vault_path) if ldap_vault_path.exists() else {}
+        existing = ldap_vault.get("ldap_config")
+        if isinstance(existing, dict):
+            merged = dict(existing)
+            merged.update({k: v for k, v in ldap_config.items() if v not in (None, "")})
+            # Keep existing bindCredential when form left password blank.
+            if not str(ldap_config.get("bindCredential") or "").strip() and existing.get(
+                "bindCredential"
+            ):
+                merged["bindCredential"] = existing.get("bindCredential")
+            ldap_vault["ldap_config"] = merged
+        else:
+            ldap_vault["ldap_config"] = ldap_config
+        write_yaml(ldap_vault_path, ldap_vault, "0600")
 
 if "oauth_rhbk" in openshift_options:
     rhbk_vars_path = env_dir / "vars_rhbk.yml"
+    oauth_cfg = openshift.get("oauth_rhbk") or {}
     if rhbk_vars_path.exists():
         rhbk_vars = load_yaml(rhbk_vars_path)
         idp_name = str(
             first_present(
-                (openshift.get("oauth_rhbk") or {}).get("idp_name"),
+                oauth_cfg.get("idp_name"),
                 "Keycloak",
             )
         ).strip()
+        client_id = str(
+            first_present(
+                oauth_cfg.get("client_id"),
+                oauth_cfg.get("keycloak_client_id"),
+                rhbk_vars.get("rhbk_client"),
+            )
+            or ""
+        ).strip()
+        realm = str(
+            first_present(
+                oauth_cfg.get("realm"),
+                rhbk_vars.get("rhbk_realm"),
+                rhbk_vars.get("ocp_rhbk_realm"),
+                "rhlab",
+            )
+            or "rhlab"
+        ).strip()
+        keycloak_host = str(
+            first_present(
+                oauth_cfg.get("keycloak_hostname"),
+                rhbk_vars.get("ocp_rhbk_hostname"),
+                rhbk_vars.get("rhbk_hostname"),
+            )
+            or ""
+        ).strip()
+        keycloak_host = re.sub(r"^https?://", "", keycloak_host)
+        keycloak_host = re.sub(r"/.*$", "", keycloak_host)
+        scopes_raw = first_present(oauth_cfg.get("extra_scopes"), "groups")
+        if isinstance(scopes_raw, list):
+            extra_scopes = [str(s).strip() for s in scopes_raw if str(s).strip()]
+        else:
+            extra_scopes = [
+                part.strip()
+                for part in str(scopes_raw or "groups").replace("\n", ",").split(",")
+                if part.strip()
+            ]
+        if not extra_scopes:
+            extra_scopes = ["groups"]
+        mapping_method = str(
+            first_present(oauth_cfg.get("mapping_method"), "claim") or "claim"
+        )
         if idp_name:
             rhbk_vars["openshift_oidc_idp_name"] = idp_name
-            rhbk_vars.setdefault("openshift_oidc_auth", {})
-            if isinstance(rhbk_vars["openshift_oidc_auth"], dict):
-                rhbk_vars["openshift_oidc_auth"]["openshift_oidc_idp_name"] = idp_name
-            write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+        if client_id:
+            rhbk_vars["rhbk_client"] = client_id
+            rhbk_vars["openshift_oidc_client_id"] = client_id
+        if realm:
+            rhbk_vars["rhbk_realm"] = realm
+            rhbk_vars["ocp_rhbk_realm"] = realm
+        if keycloak_host:
+            rhbk_vars["ocp_rhbk_hostname"] = keycloak_host
+            rhbk_vars["rhbk_hostname"] = keycloak_host
+        oidc_auth = rhbk_vars.get("openshift_oidc_auth")
+        if not isinstance(oidc_auth, dict):
+            oidc_auth = {}
+        oidc_auth = {
+            **oidc_auth,
+            "enabled": True,
+            "openshift_oidc_idp_name": idp_name or oidc_auth.get("openshift_oidc_idp_name") or "Keycloak",
+            "keycloak_client_id": client_id or oidc_auth.get("keycloak_client_id") or "",
+            "openshift_oidc_mapping_method": mapping_method,
+            "openshift_oauth_resource_name": "cluster",
+            "extra_scopes": extra_scopes,
+        }
+        if keycloak_host and realm:
+            oidc_auth["issuer"] = f"https://{keycloak_host}/realms/{realm}"
+        rhbk_vars["openshift_oidc_auth"] = oidc_auth
+        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
 
 route_options = {
     opt

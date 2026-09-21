@@ -137,7 +137,7 @@ jobs:
       !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: "${{ github.event.pull_request.head.sha }}"
           fetch-depth: 0
@@ -158,7 +158,7 @@ jobs:
       image: registry.gitlab.com/pipeline-components/ansible-lint:latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Ansible collections
         run: |
@@ -183,7 +183,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ansible-lint-report
           path: ansible-lint.xml
@@ -198,10 +198,10 @@ jobs:
        github.event.inputs.run_readme_verification == 'true')
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -231,7 +231,7 @@ jobs:
 
       - name: Upload README verification report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: readme-verification-report
           path: readme-verification.txt
@@ -247,10 +247,10 @@ jobs:
       github.event.inputs.run_security_checks == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -306,7 +306,7 @@ jobs:
 
       - name: Upload security check reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-check-report
           path: |
@@ -328,7 +328,7 @@ jobs:
       scenarios: ${{ steps.discover.outputs.scenarios }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Discover scenario directories
         id: discover
@@ -426,10 +426,10 @@ jobs:
       needs.discover-molecule-scenarios.outputs.scenarios != '[]'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -442,7 +442,7 @@ jobs:
           ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}/ansible-collections
 
       - name: Upload collections cache
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: molecule-collections-cache
           path: ${{ runner.temp }}/ansible-collections
@@ -464,10 +464,10 @@ jobs:
         scenario_dir: ${{ fromJson(needs.discover-molecule-scenarios.outputs.scenarios) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -479,7 +479,7 @@ jobs:
           pip install ansible-core 'molecule-plugins[docker,podman]' docker
 
       - name: Restore Molecule collections cache
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: molecule-collections-cache
           path: ~/.ansible/collections
@@ -520,6 +520,8 @@ jobs:
 
       - name: Start fakecloud
         if: steps.fakecloud.outputs.needed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: scripts/ci/fakecloud-service.sh start
 
       - name: Install AWS SDK for fakecloud scenarios
@@ -561,7 +563,7 @@ jobs:
 
       - name: Upload Molecule report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: molecule-report-${{ steps.scenario_meta.outputs.scenario_name }}
           path: molecule-reports/
@@ -604,7 +606,7 @@ jobs:
       namespace: ${{ steps.vars.outputs.namespace }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Extract variables from galaxy.yml
         id: vars
@@ -626,10 +628,10 @@ jobs:
       startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -653,7 +655,7 @@ jobs:
           COLLECTION_DIR: ${{ github.workspace }}
 
       - name: Upload collection artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: collection-build
           path: ${{ needs.prepare.outputs.namespace }}-${{ needs.prepare.outputs.name }}-*.tar.gz
@@ -667,7 +669,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

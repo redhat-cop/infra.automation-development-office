@@ -353,6 +353,19 @@
       Environment=KC_HTTP_ENABLED={{ (install_rhbk_standalone_http_enabled | bool) | ternary('true', 'false') }}
       Environment=KC_HOSTNAME_STRICT=false
       Environment=KC_HEALTH_ENABLED=true
+      {% if install_rhbk_metrics_enabled | bool %}
+      Environment=KC_METRICS_ENABLED=true
+      {% if install_rhbk_event_metrics_user_enabled | bool %}
+      Environment=KC_EVENT_METRICS_USER_ENABLED=true
+      Environment=KC_EVENT_METRICS_USER_EVENTS={{ install_rhbk_event_metrics_user_events }}
+      Environment=KC_EVENT_METRICS_USER_TAGS={{ install_rhbk_event_metrics_user_tags }}
+      {% if install_rhbk_user_event_metrics_feature | default(false) | bool %}
+      Environment=KC_FEATURES=user-event-metrics
+      {% endif %}
+      {% endif %}
+      {% else %}
+      Environment=KC_METRICS_ENABLED=false
+      {% endif %}
       Environment=KC_BOOTSTRAP_ADMIN_USERNAME={{ install_rhbk_standalone_admin_user }}
       Environment=KC_BOOTSTRAP_ADMIN_PASSWORD={{ install_rhbk_standalone_admin_password }}
       Environment=KEYCLOAK_ADMIN={{ install_rhbk_standalone_admin_user }}

@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - grafana_upload_dashboards - Upload Grafana schema-v2 dashboards
+    (``elements`` / no ``panels``) via
+    ``/apis/dashboard.grafana.app/v2`` into the target folder
+    (e.g. Security / RHACS boards).

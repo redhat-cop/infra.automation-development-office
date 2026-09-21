@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - bootstrap_generate_env_vars - Stop wiping synology-nfs-csi storage on ocp-dev when that is also the cluster default (Quay/ACS/MinIO lost storage and ACS tried to patch PVCs to empty storageClassName).
+  - ocp_rhbk_client_secrets - Fix cluster admin Secret decode after rename so OIDC JTs can fall back when vault password is unset.
+  - bootstrap_generate_playbook_repo - Load vault_rhbk.yml in NetBox/Grafana/BookStack/Quay/MinIO/Dev Hub OIDC (and related) playbooks so rhbk_admin_password resolves.
+  - bookstack_openshift - OIDC-only scope reads existing bookstack-app Secret for APP_KEY before redeploy (fixes undefined bookstack_openshift_app_key_effective).
+  - ocp_quay / ocp_minio - Apply cluster-resolved StorageClass into storage before assert.
+  - ocp_acs - Omit empty storageClassName on PVC ensure so bound claims are not invalidated.
+  - ocp_minio - Create Service with native YAML and flat selector (fix empty-name patch / nested matchLabels).
+  - ocp_devspaces - Longer CSV wait and assert that reports only Dev Spaces CSV phases (not unrelated CSVs in openshift-operators).

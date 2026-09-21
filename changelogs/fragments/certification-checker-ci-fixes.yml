@@ -1,0 +1,19 @@
+---
+minor_changes:
+  - >-
+    galaxy.yml - Add the ``infrastructure`` tag required by Automation Hub
+    import checks.
+bugfixes:
+  - >-
+    ci - Pin fakecloud to ``v0.44.10`` so Molecule jobs download the
+    tagged release asset instead of querying GitHub's latest-release API.
+  - >-
+    ci - Run ansible-lint offline so the certification checker does not try
+    to install Automation Hub-only dependencies such as ``ansible.platform``.
+  - >-
+    ci - Skip recursive include_role Jinja during production ansible-lint so
+    the certification checker can complete.
+  - >-
+    ci - Run the partner certification checker on pushes to ``main``
+    (including merges), on a daily schedule, or manually, instead of on
+    every pull-request push.

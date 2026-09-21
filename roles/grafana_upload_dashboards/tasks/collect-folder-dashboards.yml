@@ -1,14 +1,32 @@
 ---
 - name: Ensure workspace directory exists
   ansible.builtin.file:
-    path: /tmp/grafana-folder-src-{{ grafana_folder_item.name | regex_replace('[^A-Za-z0-9_-]', '_') }}
+    path: >-
+      /tmp/grafana-folder-src-{{
+        (
+          grafana_folder_item.name
+          | default('general')
+          | regex_replace('[^A-Za-z0-9_-]', '_')
+        )
+        if (grafana_folder_item.name | default('') | string | trim | length) > 0
+        else 'general'
+      }}
     state: directory
     mode: "0755"
 
 - name: Clone git dashboard source
   ansible.builtin.git:
     repo: "{{ grafana_folder_item.source }}"
-    dest: /tmp/grafana-folder-src-{{ grafana_folder_item.name | regex_replace('[^A-Za-z0-9_-]', '_') }}
+    dest: >-
+      /tmp/grafana-folder-src-{{
+        (
+          grafana_folder_item.name
+          | default('general')
+          | regex_replace('[^A-Za-z0-9_-]', '_')
+        )
+        if (grafana_folder_item.name | default('') | string | trim | length) > 0
+        else 'general'
+      }}
     version: "{{ grafana_folder_item.version | default('HEAD') }}"
     force: true
   when:
@@ -21,7 +39,15 @@
       {{
         (
           '/tmp/grafana-folder-src-'
-          ~ (grafana_folder_item.name | regex_replace('[^A-Za-z0-9_-]', '_'))
+          ~ (
+            (
+              grafana_folder_item.name
+              | default('general')
+              | regex_replace('[^A-Za-z0-9_-]', '_')
+            )
+            if (grafana_folder_item.name | default('') | string | trim | length) > 0
+            else 'general'
+          )
           ~ '/'
           ~ (grafana_folder_item.dashboards_path | default('dashboards'))
         )
@@ -50,7 +76,9 @@
     patterns:
       - "*.json"
       - "*.json.j2"
-    recurse: true
+    # recurse false = only files in this directory (e.g. dashboards/ root
+    # without Applications/, Infrastucture/, Security/).
+    recurse: "{{ grafana_folder_item.recurse | default(true) | bool }}"
   register: grafana_upload_dashboards_found
   when: grafana_upload_dashboards_folder_root | length > 0
   failed_when: false
@@ -63,12 +91,34 @@
         + [
           {
             'name': (
-              (item.path | basename | regex_replace('\\.json(\\.j2)?$', ''))
+              (
+                item.path
+                | basename
+                | regex_replace('(\\.json\\.j2|\\.json)$', '')
+              )
               ~ '__'
-              ~ (grafana_folder_item.name | regex_replace('[^A-Za-z0-9_-]', '_'))
+              ~ (
+                (
+                  grafana_folder_item.name
+                  | default('general')
+                  | regex_replace('[^A-Za-z0-9_-]', '_')
+                )
+                if (grafana_folder_item.name | default('') | string | trim | length) > 0
+                else 'general'
+              )
             ),
             'path': item.path,
-            'folder': grafana_folder_item.name,
+            'folder': grafana_folder_item.name | default(''),
+            'use_general_folder': (
+              grafana_folder_item.use_general_folder | default(false) | bool
+              or (
+                (grafana_folder_item.name | default('') | string | trim | length) == 0
+              )
+              or (
+                (grafana_folder_item.name | default('') | string | trim | lower)
+                in ['general', 'main', 'root']
+              )
+            ),
             'template': item.path if (item.path | basename | regex_search('\\.json\\.j2$')) else omit,
             'datasource_mode': grafana_folder_item.datasource_mode | default('none'),
             'datasource': grafana_folder_item.datasource | default(''),

@@ -18,13 +18,14 @@
         | default(grafana_admin_password, true)
         | default(grafana_install_admin_password, true)
         | default(install_grafana_admin_password, true)
-        | default('redhat123')
+        | default('')
       }}
     grafana_create_datasource_hostname: >-
       {{
         grafana_create_datasource_hostname
         | default(grafana_hostname, true)
         | default(grafana_install_hostname, true)
+        | default(install_grafana_hostname, true)
         | default('')
       }}
     grafana_create_datasource_validate_certs: >-
@@ -40,7 +41,7 @@
     grafana_create_datasource_prometheus_route_name: >-
       {{
         grafana_create_datasource_prometheus_route_name
-        | default(grafana_prometheus_route_name | default('prometheus-k8s'))
+        | default(grafana_prometheus_route_name | default('thanos-querier'))
       }}
     grafana_create_datasource_prometheus_route_namespace: >-
       {{
@@ -57,28 +58,48 @@
         grafana_create_datasource_serviceaccount_token_secret_name
         | default(grafana_prometheus_sa_token_secret_name | default('grafana-prometheus-sa-token'))
       }}
+    grafana_create_datasource_file_work_items: []
 
-- name: Build grafana datasource work list
+- name: Assert Grafana credentials for datasource create
+  ansible.builtin.assert:
+    that:
+      - grafana_create_datasource_hostname | length > 0
+      - >-
+        (grafana_api_key | default('') | length > 0)
+        or (grafana_create_datasource_admin_password | length > 0)
+    fail_msg: >-
+      grafana_create_datasource needs grafana_hostname and either grafana_api_key
+      or grafana_admin_password (vault_grafana.yml / component_config.grafana).
+
+- name: Collect datasource JSON from grafana_datasource_sources
+  ansible.builtin.include_tasks: collect-datasource-files.yml
+  loop: "{{ grafana_datasource_sources | default([]) }}"
+  loop_control:
+    loop_var: grafana_ds_source_item
+  when: (grafana_datasource_sources | default([]) | length) > 0
+
+- name: Import each datasource JSON file into Grafana
+  ansible.builtin.include_tasks: import-datasource-file.yml
+  loop: "{{ grafana_create_datasource_file_work_items }}"
+  loop_control:
+    loop_var: grafana_ds_file_item
+    label: "{{ grafana_ds_file_item.name | default('datasource') }}"
+  when:
+    - grafana_create_datasource_state == "present"
+    - (grafana_create_datasource_file_work_items | length) > 0
+
+- name: Build grafana datasource work list (structured Prometheus entries)
   ansible.builtin.set_fact:
     grafana_create_datasource_work_items: >-
       {{
         grafana_datasources
         if (grafana_datasources | default([]) | length) > 0
-        else [
-          {
-            'name': grafana_create_datasource_name
-          }
-        ]
+        else (
+          []
+          if (grafana_datasource_sources | default([]) | length) > 0
+          else [{'name': grafana_create_datasource_name}]
+        )
       }}
-
-- name: Assert Grafana admin password is present for datasource create
-  ansible.builtin.assert:
-    that:
-      - grafana_create_datasource_admin_password | length > 0
-      - grafana_create_datasource_hostname | length > 0
-    fail_msg: >-
-      grafana_create_datasource needs grafana_hostname and grafana_admin_password
-      (vault_grafana.yml / component_config.grafana).
 
 - name: Create each Grafana Prometheus datasource
   ansible.builtin.include_tasks: grafana-manage-datasource.yml
@@ -86,4 +107,6 @@
   loop_control:
     loop_var: grafana_ds_item
     label: "{{ grafana_ds_item.name | default('datasource') }}"
-  when: grafana_create_datasource_state == "present"
+  when:
+    - grafana_create_datasource_state == "present"
+    - (grafana_create_datasource_work_items | length) > 0

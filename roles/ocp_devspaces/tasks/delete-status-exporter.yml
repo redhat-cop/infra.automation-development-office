@@ -1,0 +1,72 @@
+---
+# Remove optional DevWorkspace status exporter (best-effort).
+
+- name: Resolve status exporter namespace for delete
+  ansible.builtin.set_fact:
+    ocp_devspaces_status_exporter_namespace: >-
+      {{
+        ocp_devspaces_status_exporter_namespace
+        | default(ocp_devspaces_operator_ns)
+        | default(operator_namespace)
+        | default(name_space)
+        | default('openshift-operators')
+      }}
+    ocp_devspaces_status_exporter_name: >-
+      {{
+        ocp_devspaces_status_exporter_name
+        | default('devworkspace-status-exporter')
+      }}
+
+- name: Delete DevWorkspace status exporter Deployment
+  kubernetes.core.k8s:
+    state: absent
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+    namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Delete DevWorkspace status exporter ServiceMonitor
+  kubernetes.core.k8s:
+    state: absent
+    api_version: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+    namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Delete DevWorkspace status exporter Service
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Service
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+    namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Delete DevWorkspace status exporter ConfigMap
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+    namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Delete DevWorkspace status exporter ServiceAccount
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: ServiceAccount
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+    namespace: "{{ ocp_devspaces_status_exporter_namespace }}"
+
+- name: Delete DevWorkspace status exporter ClusterRoleBinding
+  kubernetes.core.k8s:
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    name: "{{ ocp_devspaces_status_exporter_name }}"
+
+- name: Delete DevWorkspace status exporter ClusterRole
+  kubernetes.core.k8s:
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    name: "{{ ocp_devspaces_status_exporter_name }}"

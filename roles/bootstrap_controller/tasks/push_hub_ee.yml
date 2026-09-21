@@ -167,6 +167,8 @@
           SRC_TLS+=(--src-tls-verify={{ (controller_validate_certs | default(false) | bool) | ternary('true', 'false') }})
         fi
         {{ bootstrap_controller_hub_ee_cli }} copy \
+          --retry-times {{ bootstrap_controller_hub_ee_skopeo_retry_times | default(8) | int }} \
+          --retry-delay {{ bootstrap_controller_hub_ee_skopeo_retry_delay | default('15s') }} \
           "${SRC_TLS[@]}" \
           --dest-tls-verify={{ (controller_validate_certs | default(false) | bool) | ternary('true', 'false') }} \
           --dest-creds "$CREDS" \
@@ -179,8 +181,18 @@
       # Keep credentials out of logs; surface skopeo stderr on failure for Hub TLS/auth diagnosis.
       no_log: false
       register: bootstrap_controller_hub_ee_push_result
-      changed_when: true
-      failed_when: bootstrap_controller_hub_ee_push_result.rc | default(1) != 0
+      retries: "{{ bootstrap_controller_hub_ee_push_retries | default(5) | int }}"
+      delay: "{{ bootstrap_controller_hub_ee_push_delay | default(30) | int }}"
+      until: >-
+        (bootstrap_controller_hub_ee_push_result.rc | default(1) | int) == 0
+        or (
+          '401' in (bootstrap_controller_hub_ee_push_result.stderr | default(''))
+          or '403' in (bootstrap_controller_hub_ee_push_result.stderr | default(''))
+          or 'unauthorized' in (bootstrap_controller_hub_ee_push_result.stderr | default('') | lower)
+          or 'authentication required' in (bootstrap_controller_hub_ee_push_result.stderr | default('') | lower)
+        )
+      changed_when: (bootstrap_controller_hub_ee_push_result.rc | default(1) | int) == 0
+      failed_when: (bootstrap_controller_hub_ee_push_result.rc | default(1) | int) != 0
 
     - name: Hub EE | Show skopeo failure detail (no credentials)
       ansible.builtin.fail:

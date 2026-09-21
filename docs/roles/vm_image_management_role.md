@@ -74,4 +74,4 @@ Legacy variable from the earlier workflow. Not used by the current task flow.
 
 ## See Also
 
-See the role [README.md](../../roles/vm_image_management/README.md) for more details.
+See the role [README.md](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/vm_image_management/README.md) for more details.

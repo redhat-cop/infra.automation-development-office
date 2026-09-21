@@ -22,12 +22,16 @@
     grafana_manage_folders_user: "{{ grafana_admin_user | default('admin') }}"
     grafana_manage_folders_password: "{{ grafana_admin_password | default('') }}"
 
-- name: Assert Grafana admin password for folder create
+- name: Assert Grafana credentials for folder create
   ansible.builtin.assert:
     that:
-      - grafana_manage_folders_password | length > 0
+      - grafana_hostname | default('') | length > 0
+      - >-
+        (grafana_api_key | default('') | length > 0)
+        or (grafana_manage_folders_password | length > 0)
     fail_msg: >-
-      grafana_manage_folders needs grafana_hostname and grafana_admin_password.
+      grafana_manage_folders needs grafana_hostname and either grafana_api_key
+      or grafana_admin_password.
   when: (grafana_manage_folders_list | length) > 0
 
 - name: Create each Grafana folder
@@ -38,5 +42,16 @@
     label: "{{ grafana_manage_folders_entry.name | default('folder') }}"
   vars:
     grafana_manage_folders_state: "{{ state | default('present') }}"
-    grafana_manage_folders_name: "{{ grafana_manage_folders_entry.name }}"
+    grafana_manage_folders_name: "{{ grafana_manage_folders_entry.name | default('') }}"
+    grafana_manage_folders_is_general: >-
+      {{
+        (grafana_manage_folders_entry.use_general_folder | default(false) | bool)
+        or (
+          (grafana_manage_folders_entry.name | default('') | string | trim | length) == 0
+        )
+        or (
+          (grafana_manage_folders_entry.name | default('') | string | trim | lower)
+          in ['general', 'main', 'root']
+        )
+      }}
   when: (grafana_manage_folders_list | length) > 0

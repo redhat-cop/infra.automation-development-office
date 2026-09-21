@@ -12,6 +12,7 @@
     ocp_devspaces_default_workspace_image: "{{ ocp_devspaces_default_workspace_image | default(default_workspace_image | default('')) }}"
     ocp_devspaces_che_image_tag: "{{ ocp_devspaces_che_image_tag | default(che_image_tag | default('')) }}"
     ocp_devspaces_dashboard_image: "{{ ocp_devspaces_dashboard_image | default(dashboard_image | default('')) }}"
+    ocp_devspaces_status_exporter_enabled: "{{ ocp_devspaces_status_exporter_enabled | default(status_exporter_enabled | default(true)) | bool }}"
     ocp_devspaces_hostname: >-
       {{
         (
@@ -45,8 +46,8 @@
     kind: ClusterServiceVersion
     namespace: "{{ ocp_devspaces_operator_ns }}"
   register: ocp_devspaces_csvs
-  retries: 18
-  delay: 10
+  retries: "{{ ocp_devspaces_csv_retries | default(36) | int }}"
+  delay: "{{ ocp_devspaces_csv_delay | default(10) | int }}"
   until: >
     (
       ocp_devspaces_csvs.resources
@@ -58,6 +59,40 @@
       | list
       | length
     ) > 0
+  # Avoid dumping every CSV in the shared operator NS (e.g. Confluent) on timeout.
+  failed_when: false
+
+- name: Assert Dev Spaces CSV Succeeded
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          ocp_devspaces_csvs.resources
+          | default([])
+          | selectattr('metadata.name', 'search', 'devspacesoperator')
+          | selectattr('status', 'defined')
+          | selectattr('status.phase', 'defined')
+          | selectattr('status.phase', 'equalto', 'Succeeded')
+          | list
+          | length
+        ) > 0
+    fail_msg: >-
+      Dev Spaces CSV not Succeeded in {{ ocp_devspaces_operator_ns }} after
+      {{ ocp_devspaces_csv_retries | default(36) }} attempts.
+      Matching CSVs: {{
+        ocp_devspaces_csvs.resources
+        | default([])
+        | selectattr('metadata.name', 'search', 'devspacesoperator')
+        | map(attribute='metadata.name')
+        | list
+      }}
+      phases: {{
+        ocp_devspaces_csvs.resources
+        | default([])
+        | selectattr('metadata.name', 'search', 'devspacesoperator')
+        | map(attribute='status.phase')
+        | list
+      }}
 
 # ----------------------------
 # 2) Ensure app namespace exists
@@ -160,6 +195,48 @@
 # ----------------------------
 # 5) Getting-started samples ConfigMap (remove defaults / set custom)
 # ----------------------------
+- name: Resolve bundled ADO sample icon into custom_samples when requested
+  when:
+    - ocp_devspaces_disable_default_samples | default(true) | bool
+    - (ocp_devspaces_custom_samples | default([]) | length) > 0
+    - (ocp_devspaces_custom_sample_icon_source | default('bundled')) == 'bundled'
+      or (
+        (ocp_devspaces_custom_samples | first).icon_source | default('') == 'bundled'
+      )
+  block:
+    - name: Read bundled ado-sample-icon.png from role files
+      ansible.builtin.slurp:
+        src: "{{ role_path }}/files/ado-sample-icon.png"
+      register: ocp_devspaces_bundled_icon
+      failed_when: false
+
+    - name: Inject bundled icon base64 into custom_samples entries missing icon
+      when: (ocp_devspaces_bundled_icon.content | default('') | length) > 0
+      ansible.builtin.set_fact:
+        ocp_devspaces_custom_samples: >-
+          {{
+            ocp_devspaces_custom_samples
+            | map('combine', {
+                'icon': {
+                  'base64data': ocp_devspaces_bundled_icon.content,
+                  'mediatype': 'image/png'
+                }
+              }, recursive=True)
+            | list
+          }}
+      # Always inject when this block runs (bundled path). Upload path skips the block.
+
+    - name: Drop icon_source helper key from samples payload
+      ansible.builtin.set_fact:
+        ocp_devspaces_custom_samples: >-
+          {{
+            ocp_devspaces_custom_samples
+            | map('dict2items')
+            | map('rejectattr', 'key', 'equalto', 'icon_source')
+            | map('items2dict')
+            | list
+          }}
+
 - name: Normalize custom getting-started samples payload
   ansible.builtin.set_fact:
     ocp_devspaces_samples_json: >-
@@ -186,6 +263,7 @@
         my-samples.json: "{{ ocp_devspaces_samples_json | default('[]') }}"
   when: ocp_devspaces_disable_default_samples | bool
 
+# Only when no custom_samples were provided — otherwise custom (with icon) wins.
 - name: Add optional default sample from default_devfile_url
   kubernetes.core.k8s:
     state: present
@@ -213,7 +291,8 @@
   when:
     - ocp_devspaces_disable_default_samples | bool
     - ocp_devspaces_customize_workspace | bool
-    - (ocp_devspaces_default_devfile_url | length) > 0
+    - (ocp_devspaces_default_devfile_url | default('') | length) > 0
+    - (ocp_devspaces_custom_samples | default([]) | length) == 0
 
 # ----------------------------
 # 6) Wait for CheCluster to become usable (cheURL present)
@@ -239,3 +318,11 @@
       - "cheURL: {{ ocp_devspaces_checluster.resources[0].status.cheURL | default('') }}"
       - "disable_default_samples: {{ ocp_devspaces_disable_default_samples }}"
       - "customize_workspace: {{ ocp_devspaces_customize_workspace }}"
+      - "status_exporter_enabled: {{ ocp_devspaces_status_exporter_enabled }}"
+
+# ----------------------------
+# 7) Optional DevWorkspace status metrics (Grafana)
+# ----------------------------
+- name: Deploy DevWorkspace status metrics exporter
+  ansible.builtin.import_tasks: status-exporter.yml
+  when: ocp_devspaces_status_exporter_enabled | default(false) | bool

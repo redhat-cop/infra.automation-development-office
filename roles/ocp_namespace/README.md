@@ -16,7 +16,9 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
-| `ocp_namespace_state` | Desired state used by role tasks when supported. |
+| `name_space` | Namespace to create when ``ocp_namespace_name`` is unset. |
+| `ocp_namespace_name` | Explicit namespace name (wins over host fact ``name_space``). Use when creating a different NS than the component operand. |
+| `state` | ``present`` / ``absent``. Defaults to ``present``. |
 
 ## 🚀 Role Usage
 

@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - >-
+    ci - Add the Red Hat partner certification checker workflow and Dependabot
+    updates for GitHub Actions.

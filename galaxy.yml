@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
 name: "ado"
-version: 1.3.16
+version: 1.4.1
 readme: README.md
 authors:
   - Automation Development Office
@@ -16,6 +16,7 @@ tags:
   - automation
   - bootstrap
   - idm
+  - infrastructure
   - openshift
   - rhel
   - satellite
@@ -45,11 +46,11 @@ dependencies:
   "infra.rhacs_configuration": ">=2.0.0"
   "kubernetes.core": ">=3.0.0"
 
-repository: https://github.com/automation-development-office/ado
+repository: https://github.com/redhat-cop/infra.automation-development-office
 documentation: >-
-  https://github.com/automation-development-office/ado/blob/main/README.md
-homepage: https://github.com/automation-development-office/ado
-issues: https://github.com/automation-development-office/ado/issues
+  https://github.com/redhat-cop/infra.automation-development-office/blob/main/README.md
+homepage: https://github.com/redhat-cop/infra.automation-development-office
+issues: https://github.com/redhat-cop/infra.automation-development-office/issues
 
 # File glob-like patterns to filter from the built collection artifact.
 build_ignore:

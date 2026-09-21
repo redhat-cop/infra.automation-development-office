@@ -3,6 +3,8 @@
 Creates Grafana Prometheus datasources via the Grafana HTTP API
 (`community.grafana.grafana_datasource`), after ensuring an OpenShift
 ServiceAccount token Secret (or using an explicit remote bearer token).
+Also imports datasource JSON from optional `grafana_datasource_sources`
+(git or path), same pattern as dashboard folders.
 
 ## Role Author
 
@@ -10,18 +12,22 @@ Automation Development Office.
 
 ## ✅ Role Requirements
 
-- Kubernetes/OpenShift API access from the Ansible controller.
-- `kubernetes.core` and `community.grafana` collections.
-- Grafana admin credentials (`grafana_admin_user` / `grafana_admin_password`).
+- Kubernetes/OpenShift API access when discovering local Prometheus Routes /
+  creating SA tokens (not required when `prometheus_url` + `bearer_token` are
+  set, or when only importing JSON files).
+- `kubernetes.core` and `community.grafana` collections (structured Prometheus DS).
+- Grafana admin credentials or `grafana_api_key`.
 
 ## 📦 Role Variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `grafana_datasources` | `[]` | List of datasource definitions. When empty, one DS is created from `grafana_datasource`. |
-| `grafana_datasource` | `Openshift-Prod` | Legacy single datasource name. |
+| `grafana_datasources` | `[]` | List of Prometheus datasource definitions. |
+| `grafana_datasource_sources` | `[]` | Git/path sources of datasource `.json` / `.json.j2` files. |
+| `grafana_datasource` | `Openshift-Prod` | Legacy single datasource name when lists are empty. |
 | `grafana_hostname` | `""` | Grafana hostname (no scheme). |
 | `grafana_admin_user` / `grafana_admin_password` | admin / `""` | Grafana basic auth. |
+| `grafana_api_key` | `""` | Optional Grafana API bearer token. |
 
 ### `grafana_datasources` item fields
 
@@ -30,9 +36,18 @@ Automation Development Office.
 | `name` | Grafana datasource name (`Openshift-Prod`, `Openshift-Dev`, …). |
 | `prometheus_url` | Optional absolute Prometheus URL (skips Route discovery). |
 | `bearer_token` | Optional bearer token (skips SA token Secret). |
-| `bearer_token_secret` | Optional `{name, namespace, key}` to read the token from a Kubernetes Secret (e.g. `grafana-openshift-dev-prometheus`). |
-| `prometheus_route_name` / `prometheus_route_namespace` | Route overrides (default `thanos-querier` / `openshift-monitoring` so user-workload metrics are included). |
-| `serviceaccount_name` / `serviceaccount_token_secret_name` | SA / Secret overrides. |
+| `bearer_token_secret` | Optional `{name, namespace, key}` to read the token from a Kubernetes Secret. |
+| `prometheus_route_name` / `prometheus_route_namespace` | Route overrides (default `thanos-querier` / `openshift-monitoring`). |
+
+### `grafana_datasource_sources` item fields
+
+| Field | Description |
+| --- | --- |
+| `name` | Label used for the clone workspace. |
+| `source_type` | `git` or `path`. |
+| `source` | Git URL or local/repo-relative path. |
+| `datasources_path` | Subdirectory containing `.json` / `.json.j2` (default `datasources`). |
+| `version` | Optional git ref (default `HEAD`). |
 
 ## 🚀 Role Usage
 
@@ -47,20 +62,12 @@ Automation Development Office.
         grafana_datasources:
           - name: Openshift-Prod
             prometheus_route_name: thanos-querier
-          - name: Openshift-Dev
-            prometheus_url: https://prometheus-k8s-openshift-monitoring.apps.ocp.dev.example.com
-            bearer_token_secret:
-              name: grafana-openshift-dev-prometheus
-              namespace: grafana
-              key: token
+        grafana_datasource_sources:
+          - name: team-ds
+            source_type: git
+            source: https://gitlab.example.com/project/datasources.git
+            datasources_path: datasources
 ```
-
-Defaults in `components_defaults.yml` create both `Openshift-Prod` (local
-`thanos-querier`) and `Openshift-Dev` (remote URL + token Secret).
-
-Prefer **GrafanaDatasource** CRs (grafana-operator) in live clusters so the
-operator owns reconciliation; this role remains the ADO playbook path for
-API-based create/update.
 
 ## 🧪 Role Molecule Testing
 
@@ -74,5 +81,7 @@ grafana_create_datasource/
 ├── defaults/main.yml
 ├── tasks/main.yml
 ├── tasks/grafana-manage-datasource.yml
+├── tasks/collect-datasource-files.yml
+├── tasks/import-datasource-file.yml
 └── README.md
 ```

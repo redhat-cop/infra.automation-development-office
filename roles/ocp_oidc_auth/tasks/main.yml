@@ -249,6 +249,87 @@
     - ocp_oidc_auth_config is defined
     - (openshift_oidc_auth.extra_scopes | default([]) | length) == 0
 
+# OpenShift oauth-server must trust Keycloak's TLS issuer or the IdP is
+# present in the OAuth CR but never shown on the console
+# (authentication Degraded: x509 unknown authority).
+# Prefer the cluster ingress CA (issuer of *.apps routes), not the leaf
+# server cert — a leaf in ca.crt does not establish trust.
+- name: Resolve cluster ingress CA for OpenShift OIDC trust
+  when: (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
+  block:
+    - name: Read default-ingress-cert CA from openshift-config-managed
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: ConfigMap
+        namespace: openshift-config-managed
+        name: default-ingress-cert
+      register: ocp_oidc_auth_ingress_ca
+      failed_when: false
+
+    - name: Set OIDC CA PEM from default-ingress-cert
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_ingress_ca.resources[0].data['ca-bundle.crt'] }}"
+      when:
+        - ocp_oidc_auth_ingress_ca.resources | default([]) | length > 0
+        - ocp_oidc_auth_ingress_ca.resources[0].data['ca-bundle.crt'] is defined
+      no_log: true
+
+- name: Resolve Keycloak TLS secret when ingress CA unavailable
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ ocp_oidc_auth_keycloak_namespace | default(keycloak_namespace | default(name_space | default('keycloak'))) }}"
+    name: "{{ ocp_oidc_auth_keycloak_tls_secret | default(rhbk_tls_secret_name | default('keycloak-tls-secret')) }}"
+  register: ocp_oidc_auth_keycloak_tls
+  when: (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
+  failed_when: false
+
+- name: Set OIDC CA PEM from Keycloak TLS secret (ca.crt or full tls.crt chain)
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: >-
+      {{
+        (
+          ocp_oidc_auth_keycloak_tls.resources[0].data['ca.crt']
+          | default(ocp_oidc_auth_keycloak_tls.resources[0].data['tls.crt'])
+        )
+        | b64decode
+      }}
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
+    - ocp_oidc_auth_keycloak_tls is defined
+    - ocp_oidc_auth_keycloak_tls.resources | default([]) | length > 0
+    - >-
+      (
+        ocp_oidc_auth_keycloak_tls.resources[0].data['ca.crt'] is defined
+        or ocp_oidc_auth_keycloak_tls.resources[0].data['tls.crt'] is defined
+      )
+  no_log: true
+
+- name: Create OpenShift OIDC CA ConfigMap for oauth-server trust
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ ocp_oidc_auth_ca_configmap | default('keycloak-oidc-ca') }}"
+        namespace: openshift-config
+      data:
+        ca.crt: "{{ ocp_oidc_auth_ca_pem }}"
+  when: (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
+  no_log: true
+
+- name: Assert OpenShift OIDC CA was resolved
+  ansible.builtin.assert:
+    that:
+      - (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
+    fail_msg: >-
+      OpenShift OIDC requires a CA ConfigMap for oauth-server to trust Keycloak.
+      Could not read openshift-config-managed/default-ingress-cert or Keycloak TLS
+      secret. Without openID.ca the IdP is written to the OAuth CR but the
+      authentication operator stays Degraded (x509 unknown authority) and
+      Keycloak never appears on the console login page.
+
 # -----------------------------
 # Define OIDC provider
 # -----------------------------
@@ -258,19 +339,34 @@
       name: "{{ openshift_oidc_auth.openshift_oidc_idp_name }}"
       mappingMethod: "{{ openshift_oidc_auth.openshift_oidc_mapping_method | default('claim') }}"
       type: OpenID
-      openID:
-        issuer: "{{ ocp_oidc_auth_issuer }}"
-        clientID: "{{ openshift_oidc_auth.keycloak_client_id }}"
-        clientSecret:
-          name: "{{ ocp_oidc_auth_idp_secret_name }}"
-        extraScopes: "{{ openshift_oidc_auth.extra_scopes | default(['groups']) }}"
-        claims:
-          preferredUsername:
-            - "{{ openshift_oidc_auth.claims.preferred_username | default('preferred_username') }}"
-          name:
-            - "{{ openshift_oidc_auth.claims.name | default('name') }}"
-          email:
-            - "{{ openshift_oidc_auth.claims.email | default('email') }}"
+      openID: >-
+        {{
+          {
+            'issuer': ocp_oidc_auth_issuer,
+            'clientID': openshift_oidc_auth.keycloak_client_id,
+            'clientSecret': {'name': ocp_oidc_auth_idp_secret_name},
+            'extraScopes': (openshift_oidc_auth.extra_scopes | default(['groups'])),
+            'claims': {
+              'preferredUsername': [
+                openshift_oidc_auth.claims.preferred_username | default('preferred_username')
+              ],
+              'name': [
+                openshift_oidc_auth.claims.name | default('name')
+              ],
+              'email': [
+                openshift_oidc_auth.claims.email | default('email')
+              ]
+            }
+          }
+          | combine(
+              (
+                {'ca': {'name': (ocp_oidc_auth_ca_configmap | default('keycloak-oidc-ca'))}}
+                if (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
+                else {}
+              ),
+              recursive=True
+            )
+        }}
 
 # -----------------------------
 # Build desired provider list:

@@ -1,0 +1,4 @@
+---
+bugfixes:
+  - ocp_oidc_auth - Require a CA for OpenShift Keycloak OIDC (prefer openshift-config-managed default-ingress-cert, then Keycloak TLS ca.crt/tls.crt). Set openID.ca so oauth-server can apply the IdP; fail the JT if no CA is found instead of succeeding with a hidden IdP.
+  - bootstrap_controller - Keep Configure LDAP in OpenShift on the OpenShift workflow when ldap_auth is selected (JT alone is not enough).

@@ -6,7 +6,7 @@ Manual-only scenario for exercising `infra.ado.rhel_repos` with the
 `rhsm_repository` method on a registered RHEL host.
 
 This scenario is excluded from pull request CI. See
-[`extensions/molecule/pr_exclude.txt`](../pr_exclude.txt).
+[`extensions/molecule/pr_exclude.txt`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/extensions/molecule/pr_exclude.txt).
 
 ## Requirements
 

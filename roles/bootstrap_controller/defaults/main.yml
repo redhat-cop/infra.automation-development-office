@@ -35,8 +35,16 @@ bootstrap_controller_aap_smoke_test_poll_retries: 60
 bootstrap_controller_aap_install_during_bootstrap: false
 
 bootstrap_controller_hub_publish_wait: false
-bootstrap_controller_hub_publish_timeout: 300
-bootstrap_controller_hub_publish_request_timeout: 60
+# Upload timeout for ah_collection (large tarballs need more than 5m).
+bootstrap_controller_hub_publish_timeout: 900
+bootstrap_controller_hub_publish_request_timeout: 120
+# Pulp import / promote visibility wait (wait:false upload + URI poll).
+# Default ~10m; large tarballs (e.g. redhat.rhel_system_roles) use the large_* knobs.
+bootstrap_controller_hub_publish_verify_retries: 60
+bootstrap_controller_hub_publish_verify_delay: 10
+bootstrap_controller_hub_publish_large_bytes: 30000000
+bootstrap_controller_hub_publish_large_verify_retries: 120
+bootstrap_controller_hub_publish_large_verify_delay: 10
 bootstrap_controller_hub_staging_repository: staging
 bootstrap_controller_hub_hostname: ""
 bootstrap_controller_hub_push_ee: false
@@ -48,6 +56,11 @@ bootstrap_controller_hub_ee_pull: false
 bootstrap_controller_hub_ee_create_execution_environment: true
 bootstrap_controller_hub_ee_execution_environment_name: ""
 bootstrap_controller_hub_ee_description: ""
+# skopeo copy retries (Hub registry 502 / gateway flakes during layer upload).
+bootstrap_controller_hub_ee_skopeo_retry_times: 8
+bootstrap_controller_hub_ee_skopeo_retry_delay: 15s
+bootstrap_controller_hub_ee_push_retries: 5
+bootstrap_controller_hub_ee_push_delay: 30
 bootstrap_controller_hub_publish_ado_collection: false
 # Opt-in: publish selected preflight tarball collections to Hub validated when missing.
 # Never forced. infra.ado uses hub_force_ado_collection_update only.

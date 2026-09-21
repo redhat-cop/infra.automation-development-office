@@ -403,6 +403,9 @@
 {% set bootstrap_generate_env_vars_hub_push_ee = preflight_aap.hub_push_ee | default(bootstrap_generate_env_vars_hub_push_ee | default(false)) | bool %}
 {% set bootstrap_generate_env_vars_hub_ee_pull = preflight_aap.hub_ee_pull | default(bootstrap_generate_env_vars_hub_ee_pull | default(false)) | bool %}
 {% set bootstrap_generate_env_vars_hub_ee_create_execution_environment = preflight_aap.hub_ee_create_execution_environment | default(bootstrap_generate_env_vars_hub_ee_create_execution_environment | default(true)) | bool %}
+{% set bootstrap_generate_env_vars_hub_hostname_manual =
+    preflight_aap.hub_hostname_manual | default(false) | bool
+%}
 {% set bootstrap_generate_env_vars_hub_hostname_raw =
     preflight_aap.hub_hostname
     | default(preflight_aap.hub_ee_registry | default('', true), true)
@@ -410,7 +413,10 @@
     | string
     | trim
 %}
-{% if bootstrap_generate_env_vars_hub_hostname_raw | length == 0 %}
+{# Auto-discover Hub from Contoller AAP hostname unless the operator set Hub manually.
+   Stale imported hub_hostname (different Contoller) must not win. #}
+{% if (not bootstrap_generate_env_vars_hub_hostname_manual)
+      or (bootstrap_generate_env_vars_hub_hostname_raw | length == 0) %}
 {% set bootstrap_generate_env_vars_hub_hostname_raw =
     preflight_aap.hostname
     | default('', true)

@@ -16,6 +16,44 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.ado.bootstrap_resolve_component
+    - name: ADO | Normalize Grafana OpenShift hostname
+      ansible.builtin.set_fact:
+        # Prefer OpenShift route hostname over any poisoned standalone VM hostname.
+        grafana_hostname: >-
+          {{
+            (
+              hostname
+              | default(grafana_hostname, true)
+              | default(grafana_install_hostname, true)
+              | default(install_grafana_hostname, true)
+              | default('')
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+          }}
+        grafana_install_hostname: >-
+          {{
+            (
+              hostname
+              | default(grafana_install_hostname, true)
+              | default(grafana_hostname, true)
+              | default(install_grafana_hostname, true)
+              | default('')
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+          }}
+        install_grafana_hostname: >-
+          {{
+            (
+              hostname
+              | default(install_grafana_hostname, true)
+              | default(grafana_hostname, true)
+              | default('')
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+          }}
     - name: ADO | Force Grafana OLM channel v5 (catalog has v5, not version pins)
       ansible.builtin.set_fact:
         operator_channel: v5

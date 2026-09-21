@@ -77,6 +77,14 @@
     - ocp_minio_storage_classes is defined
     - (storage | default('') | string | trim | length) == 0
 
+- name: Apply resolved MinIO storage class
+  ansible.builtin.set_fact:
+    # Shared inventory/preflight var name used across OCP app roles.
+    storage: "{{ ocp_minio_storage }}"  # noqa: var-naming[no-role-prefix]
+  when:
+    - (storage | default('') | string | trim | length) == 0
+    - (ocp_minio_storage | default('') | string | trim | length) > 0
+
 - name: Assert MinIO storage class is set
   ansible.builtin.assert:
     that:
@@ -242,33 +250,28 @@
     state: present
     definition: "{{ ocp_minio_deployment_definition }}"
 
-- name: Build MinIO Service definition
-  ansible.builtin.set_fact:
-    ocp_minio_service_definition: >-
-      {{
-        {
-          'apiVersion': 'v1',
-          'kind': 'Service',
-          'metadata': {
-            'name': minio_service_name,
-            'namespace': name_space,
-            'labels': {'app.kubernetes.io/name': 'minio'},
-          },
-          'spec': {
-            'type': 'ClusterIP',
-            'selector': {'matchLabels': {'app': 'minio'}},
-            'ports': [
-              {'name': 'api', 'port': minio_api_port | int, 'targetPort': 'api'},
-              {'name': 'console', 'port': minio_console_port | int, 'targetPort': 'console'},
-            ],
-          },
-        }
-      }}
-
 - name: Create MinIO Service
   kubernetes.core.k8s:
     state: present
-    definition: "{{ ocp_minio_service_definition }}"
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ minio_service_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app.kubernetes.io/name: minio
+      spec:
+        type: ClusterIP
+        selector:
+          app: minio
+        ports:
+          - name: api
+            port: "{{ minio_api_port | int }}"
+            targetPort: api
+          - name: console
+            port: "{{ minio_console_port | int }}"
+            targetPort: console
 
 - name: Wait for MinIO Service endpoints
   kubernetes.core.k8s_info:

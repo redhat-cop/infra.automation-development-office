@@ -48,12 +48,17 @@
 - name: Set client internal ID for scope attachment
   ansible.builtin.set_fact:
     rhbk_client_internal_id: "{{ rhbk_client_lookup.json[0].id }}"
+    rhbk_client_default_scopes_api: >-
+      {{
+        (rhbk_keycloak_base_url | default('https://' ~ rhbk_host))
+        ~ '/admin/realms/' ~ rhbk_realm
+        ~ '/clients/' ~ rhbk_client_lookup.json[0].id
+        ~ '/default-client-scopes'
+      }}
 
 - name: Get current default client scopes for client
   ansible.builtin.uri:
-    url: >-
-      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/clients/{{
-      rhbk_client_internal_id }}/default-client-scopes
+    url: "{{ rhbk_client_default_scopes_api }}"
     method: GET
     headers:
       Authorization: "Bearer {{ rhbk_client_scope_auth.json.access_token }}"
@@ -63,9 +68,7 @@
 
 - name: Attach missing default client scopes
   ansible.builtin.uri:
-    url: >-
-      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/clients/{{
-      rhbk_client_internal_id }}/default-client-scopes/{{ item.id }}
+    url: "{{ rhbk_client_default_scopes_api }}/{{ item.id }}"
     method: PUT
     headers:
       Authorization: "Bearer {{ rhbk_client_scope_auth.json.access_token }}"

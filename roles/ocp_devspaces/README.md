@@ -17,6 +17,13 @@ Automation Development Office
 | Variable | Description |
 |----------|-------------|
 | `ocp_devspaces_state` | Desired state used by role tasks when supported. |
+| `ocp_devspaces_disable_default_samples` | When true, replace stock getting-started samples with ``custom_samples`` (or empty). |
+| `ocp_devspaces_custom_samples` | List of sample objects (``displayName``, ``description``, ``tags``, ``url``, optional ``icon``). |
+| `ocp_devspaces_custom_sample_icon_source` | ``bundled`` (role ``files/ado-sample-icon.png``) or ``upload`` (icon already in sample). |
+| `ocp_devspaces_default_devfile_url` | Optional single sample URL when custom_samples is empty. |
+| `ocp_devspaces_default_workspace_image` | Optional default workspace container image. |
+| `ocp_devspaces_status_exporter_enabled` | When true (default), deploy DevWorkspace phase/reason metrics exporter for Grafana (``dw_*`` labels) and scrape VS Code extensions (``devworkspace_vscode_extension``; needs ``pods`` + ``pods/exec``). |
+| `ocp_devspaces_status_exporter_namespace` | Namespace for the exporter (default: operator namespace). |
 
 ## 🚀 Role Usage
 

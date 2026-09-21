@@ -18,4 +18,3 @@
         name: infra.ado.bootstrap_resolve_component
   roles:
     - role: infra.ado.grafana_upload_dashboards
-    - role: infra.ado.grafana_upload_alerts

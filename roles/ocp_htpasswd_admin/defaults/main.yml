@@ -5,5 +5,8 @@ htpasswd_action: add
 htpasswd_remove_all: false
 htpasswd_users: []
 htpasswd_idp_name: htpasswd-admin
+# Prefer add over claim to avoid \"Could not create user\" when an older
+# Identity (e.g. htpasswd:admin) already owns the OpenShift User name.
+htpasswd_mapping_method: add
 htpasswd_secret: htpasswd-admin-secret
 name_space: openshift-config

@@ -80,7 +80,13 @@
 
 - name: Set fact for client scope ID
   ansible.builtin.set_fact:
-    rhbk_client_scope_groups_scope_id: "{{ rhbk_client_scope_groups_scope_obj.id | default('') }}"
+    rhbk_client_scope_groups_scope_id: >-
+      {{
+        rhbk_client_scope_groups_scope_obj.id
+        | default('')
+        | string
+        | trim
+      }}
 
 - name: Fail if groups_scope_id is not defined
   ansible.builtin.fail:
@@ -88,12 +94,22 @@
   when: rhbk_client_scope_groups_scope_id == ""
 
 # --- Proceed with mapper logic ---
+# Build the API URL with ``~`` (not a folded scalar after a path slash) so
+# Keycloak does not see a space in the path.
+
+- name: Set client-scope protocol-mappers API URL
+  ansible.builtin.set_fact:
+    rhbk_client_scope_mappers_api: >-
+      {{
+        (rhbk_keycloak_base_url | default('https://' ~ rhbk_host))
+        ~ '/admin/realms/' ~ rhbk_realm
+        ~ '/client-scopes/' ~ rhbk_client_scope_groups_scope_id
+        ~ '/protocol-mappers/models'
+      }}
 
 - name: Get existing mappers for client scope
   ansible.builtin.uri:
-    url: >-
-      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/client-scopes/
-      {{ rhbk_client_scope_groups_scope_id }}/protocol-mappers/models
+    url: "{{ rhbk_client_scope_mappers_api }}"
     method: GET
     headers:
       Authorization: "Bearer {{ rhbk_client_scope_auth.json.access_token }}"
@@ -113,9 +129,7 @@
 
 - name: Add groups protocol mapper to client scope
   ansible.builtin.uri:
-    url: >-
-      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/client-scopes/
-      {{ rhbk_client_scope_groups_scope_id }}/protocol-mappers/models
+    url: "{{ rhbk_client_scope_mappers_api }}"
     method: POST
     headers:
       Authorization: "Bearer {{ rhbk_client_scope_auth.json.access_token }}"

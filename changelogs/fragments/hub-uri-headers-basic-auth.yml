@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - bootstrap_controller - Hub Pulp URI auth no longer sets ``headers`` to
+    ``omit`` under basic-auth (empty OAuth/Hub token), which left
+    ``bootstrap_controller_hub_uri_headers`` undefined and crashed
+    collection publish on hub-only / standalone runs.

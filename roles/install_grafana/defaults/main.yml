@@ -6,7 +6,7 @@
 # Set install_grafana_allow_online_repo=true only for connected labs (rpm.grafana.com).
 state: present
 
-install_grafana_hostname: "{{ grafana_hostname | default('grafana-ado.server.lab') }}"
+install_grafana_hostname: "{{ grafana_hostname | default('') }}"
 install_grafana_http_port: 3000
 install_grafana_admin_user: "{{ grafana_admin_user | default('admin') }}"
 install_grafana_admin_password: "{{ grafana_admin_password | default('redhat123') }}"

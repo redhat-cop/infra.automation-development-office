@@ -38,7 +38,7 @@
 
     kc = onboard.get("keycloak") or {}
     auth_url = str(oidc.get("authorization_url") or oidc.get("access_token_url") or "")
-    default_base = base_url_from_url(auth_url) or "https://keycloak.apps.ocp.prod.rhlab"
+    default_base = base_url_from_url(auth_url) or ""
     default_realm = str(kc.get("realm") or realm_from_url(auth_url) or "rhlab").strip() or "rhlab"
 
     groups = []

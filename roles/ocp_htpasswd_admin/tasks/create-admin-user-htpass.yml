@@ -37,9 +37,9 @@
         ) > 0
     fail_msg: >-
       No htpasswd users with name and password were loaded. Preflight should
-      write htpasswd_users to vault_openshift.yml (and vault_htpass_admin.yml)
-      when Admin HTPasswd is selected. Re-run bootstrap or pass htpasswd_users
-      via extra vars before launching this job.
+      write htpasswd_users to vault_openshift.yml, vault_htpass_admin.yml, and
+      vault_admin_htpasswd.yml when Admin HTPasswd is selected. Re-run bootstrap
+      or pass htpasswd_users via extra vars before launching this job.
   when: state | default('present') == 'present'
 
 - name: Fetch existing htpasswd secret when merging or removing
@@ -102,8 +102,10 @@
       {{
         ocp_htpasswd_admin_effective_map
         | combine({
-            item.name: (
+            (item.name | string | trim): (
               item.password
+              | string
+              | trim
               | password_hash('bcrypt', rounds=12)
               | regex_replace('^\$2b\$', '$2y$')
             )
@@ -115,7 +117,9 @@
   when:
     - ocp_htpasswd_admin_action in ['add', 'replace']
     - item.name is defined
+    - (item.name | string | trim | length) > 0
     - item.password is defined
+    - (item.password | string | trim | length) > 0
   no_log: true
 
 - name: Remove requested users from map
@@ -146,10 +150,13 @@
 
 - name: Build htpasswd content from effective map
   ansible.builtin.set_fact:
-    ocp_htpasswd_admin_htpasswd_content: |
-      {% for user_name, user_hash in (ocp_htpasswd_admin_effective_map | dictsort) %}
-      {{ user_name }}:{{ user_hash }}
-      {% endfor %}
+    ocp_htpasswd_admin_htpasswd_content: >-
+      {{
+        ocp_htpasswd_admin_effective_map
+        | dictsort
+        | map('join', ':')
+        | join('\n')
+      }}
   no_log: true
 
 - name: Create or update htpasswd Secret
@@ -163,7 +170,8 @@
         name: "{{ htpasswd_secret }}"
       type: Opaque
       stringData:
-        htpasswd: "{{ ocp_htpasswd_admin_htpasswd_content | trim }}"
+        htpasswd: "{{ ocp_htpasswd_admin_htpasswd_content }}"
+  register: ocp_htpasswd_admin_secret_result
   when: (ocp_htpasswd_admin_effective_map | length) > 0
   no_log: true
 
@@ -241,7 +249,10 @@
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_htpasswd_provider_def:
       name: "{{ htpasswd_idp_name }}"
-      mappingMethod: claim
+      # claim fails with \"Could not create user\" when User admin already
+      # belongs to a different Identity (e.g. old IdP name htpasswd:admin
+      # while this IdP is htpasswd-admin). add attaches/creates cleanly.
+      mappingMethod: "{{ htpasswd_mapping_method | default('add') }}"
       type: HTPasswd
       htpasswd:
         fileData:
@@ -259,6 +270,26 @@
       }}
   no_log: true
 
+# If IdP already exists with mappingMethod claim (or wrong secret), rewrite it
+# in place so Contoller re-runs fix \"Could not create user\" without wiping
+# Keycloak/LDAP providers.
+- name: Refresh existing htpasswd provider definition when present
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_updated_identity_providers: >-
+      {{
+        (
+          ocp_htpasswd_admin_current_providers
+          | rejectattr('name', 'equalto', htpasswd_idp_name)
+          | list
+        )
+        + [ocp_htpasswd_admin_htpasswd_provider_def]
+      }}
+  when:
+    - ocp_htpasswd_admin_htpasswd_exists | bool
+    - ocp_htpasswd_admin_action in ['add', 'replace']
+    - (ocp_htpasswd_admin_effective_map | length) > 0
+  no_log: true
+
 - name: Drop htpasswd provider when no users remain
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_updated_identity_providers: >-
@@ -272,6 +303,36 @@
     - (ocp_htpasswd_admin_effective_map | length) == 0
   no_log: true
 
+- name: Detect whether OAuth IdP list needs apply
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_oauth_needs_update: >-
+      {{
+        (
+          not ocp_htpasswd_admin_htpasswd_exists
+          and (ocp_htpasswd_admin_effective_map | length) > 0
+        )
+        or (
+          ocp_htpasswd_admin_action == 'remove'
+          and (ocp_htpasswd_admin_effective_map | length) == 0
+          and ocp_htpasswd_admin_htpasswd_exists
+        )
+        or (
+          ocp_htpasswd_admin_htpasswd_exists | bool
+          and ocp_htpasswd_admin_action in ['add', 'replace']
+          and (ocp_htpasswd_admin_effective_map | length) > 0
+          and (
+            (
+              ocp_htpasswd_admin_current_providers
+              | selectattr('name', 'equalto', htpasswd_idp_name)
+              | list
+              | first
+              | default({})
+            ).get('mappingMethod', 'claim')
+            != (htpasswd_mapping_method | default('add'))
+          )
+        )
+      }}
+
 - name: Update OAuth config if needed
   kubernetes.core.k8s:
     state: present
@@ -283,9 +344,49 @@
       spec:
         identityProviders: "{{ ocp_htpasswd_admin_updated_identity_providers }}"
   register: ocp_htpasswd_admin_oauth_result
-  when: >
-    (not ocp_htpasswd_admin_htpasswd_exists and (ocp_htpasswd_admin_effective_map | length) > 0)
-    or (ocp_htpasswd_admin_action == 'remove' and (ocp_htpasswd_admin_effective_map | length) == 0 and ocp_htpasswd_admin_htpasswd_exists)
+  when: ocp_htpasswd_admin_oauth_needs_update | bool
+
+# Drop stale Identities from older IdP names (e.g. htpasswd:admin) that block
+# claim/add for the current htpasswd-admin IdP.
+- name: Remove stale htpasswd Identities for configured users
+  kubernetes.core.k8s:
+    state: absent
+    api_version: user.openshift.io/v1
+    kind: Identity
+    name: "{{ item.0 }}:{{ item.1.name | string | trim }}"
+  loop: >-
+    {{
+      (['htpasswd'] if (htpasswd_idp_name | default('htpasswd-admin')) != 'htpasswd' else [])
+      | product(htpasswd_users | default([]))
+      | list
+    }}
+  loop_control:
+    label: "{{ item.0 }}:{{ item.1.name | default('unnamed') }}"
+  when:
+    - ocp_htpasswd_admin_action in ['add', 'replace']
+    - item.1.name is defined
+    - (item.1.name | string | trim | length) > 0
+  failed_when: false
+
+# Secret-only updates used to skip this wait — oauth pods kept serving the
+# previous htpasswd file and console login failed for the new password.
+- name: Force oauth-openshift rollout after htpasswd secret change
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: oauth-openshift
+        namespace: openshift-authentication
+      spec:
+        template:
+          metadata:
+            annotations:
+              infra.ado/htpasswd-synced-at: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+  when:
+    - ocp_htpasswd_admin_secret_result is defined
+    - ocp_htpasswd_admin_secret_result is changed
 
 - name: Wait for authentication operator to finish rollout
   kubernetes.core.k8s_info:
@@ -314,9 +415,13 @@
   retries: "{{ ocp_htpasswd_admin_auth_wait_retries | default(60) | int }}"
   delay: "{{ ocp_htpasswd_admin_auth_wait_delay | default(10) | int }}"
   changed_when: false
-  when: ocp_htpasswd_admin_oauth_result is changed  # noqa: no-handler
+  when: >
+    (ocp_htpasswd_admin_oauth_result is defined and ocp_htpasswd_admin_oauth_result is changed)
+    or (ocp_htpasswd_admin_secret_result is defined and ocp_htpasswd_admin_secret_result is changed)
 
-- name: Give the new identity providers a few seconds to propagate
+- name: Give oauth pods time to load the updated htpasswd secret
   ansible.builtin.pause:
     seconds: 25
-  when: ocp_htpasswd_admin_oauth_result is changed  # noqa: no-handler
+  when: >
+    (ocp_htpasswd_admin_oauth_result is defined and ocp_htpasswd_admin_oauth_result is changed)
+    or (ocp_htpasswd_admin_secret_result is defined and ocp_htpasswd_admin_secret_result is changed)
