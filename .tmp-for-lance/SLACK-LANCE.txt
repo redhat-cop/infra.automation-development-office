@@ -1,5 +1,0 @@
-Hey Lance — OperatorHub shows a broken icon for ADO Pre-Flight Operator.
-
-Please use the attached ado-sample-icon.png as the operator icon, rebuild/push the catalog, and reply with the new image name (like quay.io/rh-ee-lcorder/ado-preflight-operator-catalog:v0.0.3).
-
-I'll update CatalogSource after that.
