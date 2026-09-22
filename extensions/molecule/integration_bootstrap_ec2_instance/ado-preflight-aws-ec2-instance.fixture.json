@@ -1,0 +1,49 @@
+{
+  "scm_tool": "gitlab",
+  "environment": "molecule",
+  "domain": "example.test",
+  "component": "provision",
+  "components": ["provision"],
+  "platform": ["aws"],
+  "component_apps": {
+    "provision": ["aws_instance"]
+  },
+  "component_options": {
+    "provision": ["aws_instance"]
+  },
+  "component_config": {
+    "aws": {
+      "profile": "",
+      "default_region": "us-gov-west-1",
+      "access_key_id": "MOLECULE_AWS_ACCESS_KEY_ID",
+      "secret_access_key": "MOLECULE_AWS_SECRET_ACCESS_KEY"
+    },
+    "aws_instance": {
+      "name": "molecule-ec2",
+      "image_id": "ami-0123456789abcdef0",
+      "instance_type": "m5.large",
+      "region": "us-gov-west-1",
+      "state": "present",
+      "wait": true
+    }
+  },
+  "aap": {
+    "enabled": true,
+    "hostname": "https://aap.example.test",
+    "version": "26",
+    "organization": "ado-lab",
+    "inventory": "ado-inventory",
+    "project": "ado-project",
+    "git_url": "https://git.example.test/sample.git",
+    "git_branch": "main",
+    "execution_environment": "ee-supported-rhel9",
+    "vault_credential_name": "ado-vault",
+    "oauth_token": "MOLECULE_TOKEN",
+    "admin_username": "admin",
+    "admin_password": "redhat123",
+    "vault_password": "redhat123"
+  },
+  "jira": {
+    "enabled": false
+  }
+}

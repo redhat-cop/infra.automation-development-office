@@ -1074,8 +1074,24 @@ components_defaults:
     ec2_ami_copy_tag_equality: false
     ec2_ami_copy_tags: {}
 
+  # AWS GovCloud EC2 instance create/start/stop/terminate
+  # (module: amazon.aws.ec2_instance). Pre-Flight provision app aws_instance
+  # aliases to this component.
+  ec2_instance:
+    component: ec2_instance
+    ec2_instance_name: ""
+    ec2_instance_image_id: ""
+    ec2_instance_instance_type: m5.large
+    ec2_instance_region: us-gov-west-1
+    ec2_instance_vpc_subnet_id: ""
+    ec2_instance_security_group: ""
+    ec2_instance_key_name: ""
+    ec2_instance_state: present
+    ec2_instance_wait: true
+    ec2_instance_wait_timeout: 600
+
   # Shared AWS account credentials for bootstrap consumers (ec2_ami_copy,
-  # cert-manager AWS PCA, and future AWS modules).
+  # ec2_instance, cert-manager AWS PCA, and future AWS modules).
   aws:
     aws_profile: ""
     aws_default_region: us-east-1

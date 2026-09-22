@@ -1,0 +1,19 @@
+---
+- name: Cleanup generated bootstrap ec2_instance molecule content
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Remove generated molecule artifacts
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/{{ item }}"
+        state: absent
+      loop:
+        - playbooks
+        - configs
+        - group_vars
+        - inventory
+        - collections
+        - templates
+        - ado-preflight-ec2-instance.json

@@ -36,6 +36,22 @@ selected_components = set(json.loads(os.environ["ADO_SELECTED_COMPONENTS"]))
 
 preflight = json.loads(preflight_file.read_text())
 
+# Pre-Flight provision app aws_instance aliases to collection app ec2_instance.
+if "aws_instance" in selected_components:
+    selected_components.discard("aws_instance")
+    selected_components.add("ec2_instance")
+
+_preflight_cfg = preflight.setdefault("component_config", {})
+_aws_instance_cfg = _preflight_cfg.get("aws_instance")
+_ec2_instance_cfg = _preflight_cfg.get("ec2_instance")
+if isinstance(_aws_instance_cfg, dict) or isinstance(_ec2_instance_cfg, dict):
+    _merged_ec2 = {}
+    if isinstance(_aws_instance_cfg, dict):
+        _merged_ec2.update(_aws_instance_cfg)
+    if isinstance(_ec2_instance_cfg, dict):
+        _merged_ec2.update(_ec2_instance_cfg)
+    _preflight_cfg["ec2_instance"] = _merged_ec2
+
 APP_ROUTE_NAMESPACES = {
     "grafana": ["grafana"],
     "gitlab": ["gitlab-system"],
@@ -462,8 +478,14 @@ def merge_component(component, cfg):
         return
 
     # Playbooks historically load vault_dirsrv.yml / vars_dirsrv.yml
-    # while the registry component key is "389ds".
-    file_component = "dirsrv" if component in ("389ds", "dirsrv") else component
+    # while the registry component key is "389ds". Pre-Flight provision
+    # aws_instance writes vars_ec2_instance.yml.
+    if component in ("389ds", "dirsrv"):
+        file_component = "dirsrv"
+    elif component == "aws_instance":
+        file_component = "ec2_instance"
+    else:
+        file_component = component
     vars_path = env_dir / f"vars_{file_component}.yml"
     vault_path = env_dir / f"vault_{file_component}.yml"
 
@@ -787,6 +809,21 @@ def merge_component(component, cfg):
         ):
             passthrough_public_values.pop(ec2_key, None)
         existing_satellite_config = {}
+    elif component in ("ec2_instance", "aws_instance"):
+        for ec2_key in (
+            "name",
+            "image_id",
+            "instance_type",
+            "region",
+            "vpc_subnet_id",
+            "security_group",
+            "key_name",
+            "state",
+            "wait",
+            "wait_timeout",
+        ):
+            passthrough_public_values.pop(ec2_key, None)
+        existing_satellite_config = {}
     elif component == "aws":
         for aws_key in (
             "profile",
@@ -813,7 +850,7 @@ def merge_component(component, cfg):
             **existing_component_config,
             **copy.deepcopy(
                 public_values
-                if component in ("aws", "ec2_ami_copy")
+                if component in ("aws", "ec2_ami_copy", "ec2_instance", "aws_instance")
                 else passthrough_public_values
             ),
         }
@@ -2558,6 +2595,35 @@ def merge_component(component, cfg):
                 vars_data["ec2_ami_copy_tags"] = public_values["tags"]
                 vars_data_changed = True
 
+        if component in ("ec2_instance", "aws_instance"):
+            ec2_instance_mapping = {
+                "name": "ec2_instance_name",
+                "image_id": "ec2_instance_image_id",
+                "instance_type": "ec2_instance_instance_type",
+                "region": "ec2_instance_region",
+                "vpc_subnet_id": "ec2_instance_vpc_subnet_id",
+                "security_group": "ec2_instance_security_group",
+                "key_name": "ec2_instance_key_name",
+                "state": "ec2_instance_state",
+            }
+            for source_key, target_key in ec2_instance_mapping.items():
+                if source_key in public_values:
+                    vars_data[target_key] = str(public_values.get(source_key) or "")
+                    vars_data_changed = True
+
+            if "wait" in public_values:
+                vars_data["ec2_instance_wait"] = as_bool(public_values.get("wait"), True)
+                vars_data_changed = True
+
+            if "wait_timeout" in public_values:
+                try:
+                    vars_data["ec2_instance_wait_timeout"] = int(
+                        public_values.get("wait_timeout") or 600
+                    )
+                except (TypeError, ValueError):
+                    vars_data["ec2_instance_wait_timeout"] = 600
+                vars_data_changed = True
+
         if component == "aws":
             if public_values.get("profile") is not None:
                 vars_data["aws_profile"] = str(public_values.get("profile") or "")
@@ -3405,10 +3471,10 @@ def merge_component(component, cfg):
                 vault_data["vault_ad_trust_admin_password"] = secret_values["ad_admin_password"]
                 vault_data["idm_ad_trust_ad_admin_password"] = secret_values["ad_admin_password"]
 
-        if component in ("ec2_ami_copy", "aws", "cert_manager"):
+        if component in ("ec2_ami_copy", "ec2_instance", "aws_instance", "aws", "cert_manager"):
             merge_shared_aws_vault({**public_values, **secret_values})
 
-        if component == "ec2_ami_copy":
+        if component in ("ec2_ami_copy", "ec2_instance", "aws_instance"):
             if vault_path.exists():
                 vault_path.unlink()
         elif component != "aws":

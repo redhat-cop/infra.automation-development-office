@@ -117,6 +117,11 @@ selected. The workflow chain is `Register Host to Satellite` ->
 Compliance and STIG job templates are generated when those components (or the
 matching RHEL options) are selected.
 
+Selecting `ec2_instance` (or Pre-Flight provision `aws_instance`) generates
+`ADO | Manage EC2 instance` plus `ADO | EC2 Instance Workflow`. Job and
+workflow surveys share GovCloud region and instance-type lists from
+`vars/aws_govcloud.yml` (default `us-gov-west-1` / `m5.large`).
+
 Generated RHEL bootstrap workflows are created when the selected component set
 includes RHEL, Satellite, IDM, compliance, and STIG. The workflow chain is
 `Register Host to Satellite` -> `RHEL Patch Host` -> `IdM Manage Client` ->
@@ -158,5 +163,6 @@ roles/bootstrap_controller/
   tasks/
   templates/workflows/
   vars/main.yml
+  vars/aws_govcloud.yml
   README.md
 ```

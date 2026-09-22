@@ -301,6 +301,20 @@ ec2_ami_copy_copy_image_tags: {{ ec2_ami_copy_config.copy_image_tags | default(b
 ec2_ami_copy_tag_equality: {{ ec2_ami_copy_config.tag_equality | default(bootstrap_generate_env_vars_ec2_ami_copy_tag_equality | default(false), true) | bool | lower }}
 ec2_ami_copy_tags: {{ ec2_ami_copy_config.tags | default(bootstrap_generate_env_vars_ec2_ami_copy_tags | default({}), true) | to_json }}
 
+{% elif component_name == 'ec2_instance' %}
+{% set _ec2_cfg = bootstrap_generate_env_vars_preflight.component_config | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+{% set ec2_instance_config = _ec2_cfg.ec2_instance | default(_ec2_cfg.aws_instance | default({})) %}
+ec2_instance_name: {{ ec2_instance_config.name | default(bootstrap_generate_env_vars_ec2_instance_name | default('', true), true) | to_json }}
+ec2_instance_image_id: {{ ec2_instance_config.image_id | default(bootstrap_generate_env_vars_ec2_instance_image_id | default('', true), true) | to_json }}
+ec2_instance_instance_type: {{ ec2_instance_config.instance_type | default(bootstrap_generate_env_vars_ec2_instance_instance_type | default('m5.large', true), true) | to_json }}
+ec2_instance_region: {{ ec2_instance_config.region | default(bootstrap_generate_env_vars_ec2_instance_region | default('us-gov-west-1', true), true) | to_json }}
+ec2_instance_vpc_subnet_id: {{ ec2_instance_config.vpc_subnet_id | default(bootstrap_generate_env_vars_ec2_instance_vpc_subnet_id | default('', true), true) | to_json }}
+ec2_instance_security_group: {{ ec2_instance_config.security_group | default(bootstrap_generate_env_vars_ec2_instance_security_group | default('', true), true) | to_json }}
+ec2_instance_key_name: {{ ec2_instance_config.key_name | default(bootstrap_generate_env_vars_ec2_instance_key_name | default('', true), true) | to_json }}
+ec2_instance_state: {{ ec2_instance_config.state | default(bootstrap_generate_env_vars_ec2_instance_state | default('present', true), true) | to_json }}
+ec2_instance_wait: {{ ec2_instance_config.wait | default(bootstrap_generate_env_vars_ec2_instance_wait | default(true), true) | bool | lower }}
+ec2_instance_wait_timeout: {{ ec2_instance_config.wait_timeout | default(bootstrap_generate_env_vars_ec2_instance_wait_timeout | default(600, true), true) | int }}
+
 {% elif component_name == 'aws' %}
 {% set aws_config = bootstrap_generate_env_vars_preflight.component_config.aws | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
 aws_profile: {{ aws_config.profile | default(bootstrap_generate_env_vars_aws_profile | default('', true), true) | to_json }}

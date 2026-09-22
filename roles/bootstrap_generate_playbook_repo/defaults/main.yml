@@ -92,6 +92,8 @@ bootstrap_generate_playbook_repo_component_map:
 
   provision:
     - openshift_virt
+    - aws_instance
+    - ec2_instance
 
   openshift_virt:
     - openshift_virt
@@ -207,9 +209,16 @@ bootstrap_generate_playbook_repo_component_map:
   ec2_ami_copy:
     - ec2_ami_copy
 
-  # AWS platform umbrella. Add future apps (ec2_instance, etc.) here.
+  ec2_instance:
+    - ec2_instance
+
+  aws_instance:
+    - ec2_instance
+
+  # AWS platform umbrella (ec2_ami_copy, ec2_instance).
   aws:
     - ec2_ami_copy
+    - ec2_instance
 
 bootstrap_generate_playbook_repo_generated_playbooks:
 
@@ -242,6 +251,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: aws
     category: aws
     app: ec2_ami_copy
+
+  - src: aws/ado-manage-ec2-instance-bootstrap.yml
+    dest: playbooks/aws/ado-manage-ec2-instance-bootstrap.yml
+    target_platform: aws
+    category: aws
+    app: ec2_instance
 
   - src: acm/ado-deploy-and-configure-bootstrap.yml
     dest: playbooks/acm/ado-deploy-and-configure-bootstrap.yml

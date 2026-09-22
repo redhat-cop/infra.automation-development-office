@@ -1,0 +1,87 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | Manage EC2 instance
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: ec2_instance
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aws.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
+  tasks:
+    - name: ADO | Resolve vars for component from framework defaults + env overrides
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+
+    - name: ADO | Create, start, stop, or terminate an EC2 instance
+      amazon.aws.ec2_instance:
+        name: >-
+          {{
+            ec2_instance_name
+            if (ec2_instance_name | default('') | string | trim | length > 0)
+            else omit
+          }}
+        image_id: >-
+          {{
+            ec2_instance_image_id
+            if (ec2_instance_image_id | default('') | string | trim | length > 0)
+            else omit
+          }}
+        instance_type: "{{ ec2_instance_instance_type | default('m5.large') }}"
+        region: "{{ ec2_instance_region | default('us-gov-west-1') }}"
+        vpc_subnet_id: >-
+          {{
+            ec2_instance_vpc_subnet_id
+            if (ec2_instance_vpc_subnet_id | default('') | string | trim | length > 0)
+            else omit
+          }}
+        security_group: >-
+          {{
+            ec2_instance_security_group
+            if (ec2_instance_security_group | default('') | string | trim | length > 0)
+            else omit
+          }}
+        key_name: >-
+          {{
+            ec2_instance_key_name
+            if (ec2_instance_key_name | default('') | string | trim | length > 0)
+            else omit
+          }}
+        state: "{{ ec2_instance_state | default('present') }}"
+        wait: "{{ ec2_instance_wait | default(true) | bool }}"
+        wait_timeout: "{{ ec2_instance_wait_timeout | default(600) | int }}"
+        access_key: >-
+          {{
+            vault_aws_access_key_id
+            if (vault_aws_access_key_id | default('') | length > 0)
+            else omit
+          }}
+        secret_key: >-
+          {{
+            vault_aws_secret_access_key
+            if (vault_aws_secret_access_key | default('') | length > 0)
+            else omit
+          }}
+        session_token: >-
+          {{
+            vault_aws_session_token
+            if (vault_aws_session_token | default('') | length > 0)
+            else omit
+          }}
+        profile: >-
+          {{
+            aws_profile
+            if (aws_profile | default('') | string | trim | length > 0)
+            else omit
+          }}
+      register: bootstrap_generate_playbook_repo_ec2_instance
+      when: >-
+        (ec2_instance_name | default('') | string | trim | length > 0)
+        or (ec2_instance_image_id | default('') | string | trim | length > 0)
+
+    - name: ADO | Show EC2 instance result
+      ansible.builtin.debug:
+        var: bootstrap_generate_playbook_repo_ec2_instance
+      when: bootstrap_generate_playbook_repo_ec2_instance is defined
+# yamllint enable rule:line-length

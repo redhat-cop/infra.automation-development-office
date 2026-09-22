@@ -1,4 +1,8 @@
 ---
+- name: AAP configs | Load AWS GovCloud survey choice lists
+  ansible.builtin.include_vars:
+    file: "{{ role_path }}/vars/aws_govcloud.yml"
+
 - name: AAP configs | Load generated AAP config vars
   ansible.builtin.include_vars:
     file: "{{ playbook_dir }}/group_vars/all/{{ env }}/aap_config_vars.yml"
@@ -186,6 +190,11 @@
 
       ec2_ami_copy:
         - ado-copy-ami-bootstrap.jt.yml
+
+      ec2_instance:
+        - ado-aws-ec2-instance-bootstrap.jt.yml
+      aws_instance:
+        - ado-aws-ec2-instance-bootstrap.jt.yml
 
       gitlab:
         - ado-gitlab-deploy-and-configure-bootstrap.jt.yml
@@ -455,6 +464,28 @@
       ) | unique | list | to_json }}
     environment_choices_yaml = "\n".join(environment_choices)
     default_environment = "{{ env | default(bootstrap_controller_default_environment | default(controller_bootstrap_default_environment | default('prod')), true) }}"
+    govcloud_instance_types = {{
+      bootstrap_controller_aws_govcloud_instance_type_choices | default([]) | to_json
+    }}
+    govcloud_regions = {{
+      bootstrap_controller_aws_govcloud_region_choices
+      | default(['us-gov-west-1', 'us-gov-east-1']) | to_json
+    }}
+    ec2_state_choices = {{
+      bootstrap_controller_ec2_instance_state_choices
+      | default(['present', 'running', 'stopped', 'terminated']) | to_json
+    }}
+    govcloud_default_instance_type = {{
+      bootstrap_controller_aws_govcloud_default_instance_type
+      | default('m5.large') | to_json
+    }}
+    govcloud_default_region = {{
+      bootstrap_controller_aws_govcloud_default_region
+      | default('us-gov-west-1') | to_json
+    }}
+    ec2_default_state = {{
+      bootstrap_controller_ec2_instance_default_state | default('present') | to_json
+    }}
 
     selected = {{ bootstrap_controller_job_template_files_selected | default([]) | to_json }}
     if not selected:
@@ -654,6 +685,21 @@
                 question["choices"] = console_banner_state_choices_yaml
             elif variable == "env" and collapsed == " ".join(environment_choices):
                 question["choices"] = environment_choices_yaml
+            elif variable == "ec2_instance_instance_type":
+                question["choices"] = "\n".join(
+                    str(choice) for choice in govcloud_instance_types
+                )
+                question["default"] = govcloud_default_instance_type
+            elif variable == "ec2_instance_region":
+                question["choices"] = "\n".join(
+                    str(choice) for choice in govcloud_regions
+                )
+                question["default"] = govcloud_default_region
+            elif variable == "ec2_instance_state":
+                question["choices"] = "\n".join(
+                    str(choice) for choice in ec2_state_choices
+                )
+                question["default"] = ec2_default_state
 
         for template in data.get("controller_templates", []) or []:
             survey_spec = template.get("survey_spec", {}) or {}
@@ -824,6 +870,21 @@
   when:
     - "'acs_report' in bootstrap_controller_effective_components"
 
+- name: AAP configs | Copy EC2 instance workflow when selected
+  ansible.builtin.copy:
+    src: workflows/ado-aws-ec2-instance-workflow-bootstrap.wf.yml
+    dest: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-aws-ec2-instance-workflow-bootstrap.wf.yml
+    mode: "0644"
+    force: "{{ bootstrap_controller_jt_wf_force | bool }}"
+  when:
+    - >-
+        bootstrap_controller_effective_components
+        | intersect(['ec2_instance', 'aws_instance'])
+        | length > 0
+
 - name: AAP configs | Remove patching workflow when unselected
   ansible.builtin.file:
     path: >-
@@ -959,6 +1020,20 @@
     - bootstrap_controller_jt_wf_force | bool
     - "'acs_report' not in bootstrap_controller_effective_components"
 
+- name: AAP configs | Remove EC2 instance workflow when unselected
+  ansible.builtin.file:
+    path: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-aws-ec2-instance-workflow-bootstrap.wf.yml
+    state: absent
+  when:
+    - bootstrap_controller_jt_wf_force | bool
+    - >-
+        bootstrap_controller_effective_components
+        | intersect(['ec2_instance', 'aws_instance'])
+        | length == 0
+
 - name: AAP configs | Apply organization prefix to workflow templates
   ansible.builtin.replace:
     path: "{{ item }}"
@@ -983,6 +1058,7 @@
     set -euo pipefail
     python3 <<'PYCODE'
     from pathlib import Path
+    import yaml
 
     workflow_dir = Path("{{ playbook_dir }}/configs/workflows")
     organization = "{{ bootstrap_controller_organization | default(controller_bootstrap_organization, true) }}"
@@ -990,6 +1066,35 @@
     rhel_inventory = "{{ bootstrap_controller_rhel_inventory_name | default(bootstrap_controller_inventory_name | default(controller_bootstrap_inventory_name, true), true) }}"
     idm_inventory = "{{ bootstrap_controller_idm_inventory_name | default(bootstrap_controller_inventory_name | default(controller_bootstrap_inventory_name, true), true) }}"
     satellite_inventory = "{{ bootstrap_controller_satellite_inventory_name | default(bootstrap_controller_inventory_name | default(controller_bootstrap_inventory_name, true), true) }}"
+    environment_choices = {{ (
+        bootstrap_controller_environment_choices
+        | default(controller_bootstrap_environment_choices
+        | default([env | default('prod')]))
+        + [env | default('prod')]
+      ) | unique | list | to_json }}
+    default_environment = "{{ env | default(bootstrap_controller_default_environment | default(controller_bootstrap_default_environment | default('prod')), true) }}"
+    govcloud_instance_types = {{
+      bootstrap_controller_aws_govcloud_instance_type_choices | default([]) | to_json
+    }}
+    govcloud_regions = {{
+      bootstrap_controller_aws_govcloud_region_choices
+      | default(['us-gov-west-1', 'us-gov-east-1']) | to_json
+    }}
+    ec2_state_choices = {{
+      bootstrap_controller_ec2_instance_state_choices
+      | default(['present', 'running', 'stopped', 'terminated']) | to_json
+    }}
+    govcloud_default_instance_type = {{
+      bootstrap_controller_aws_govcloud_default_instance_type
+      | default('m5.large') | to_json
+    }}
+    govcloud_default_region = {{
+      bootstrap_controller_aws_govcloud_default_region
+      | default('us-gov-west-1') | to_json
+    }}
+    ec2_default_state = {{
+      bootstrap_controller_ec2_instance_default_state | default('present') | to_json
+    }}
 
     lb = "{" * 2
     rb = "}" * 2
@@ -1006,12 +1111,47 @@
         f"{lb} controller_bootstrap_satellite_inventory_name {rb}": satellite_inventory,
     }
 
+    def normalize_survey_choices(question):
+        variable = question.get("variable")
+        choices = question.get("choices")
+        if isinstance(choices, list):
+            question["choices"] = "\n".join(str(choice) for choice in choices)
+        if variable == "env":
+            question["choices"] = "\n".join(str(choice) for choice in environment_choices)
+            question["default"] = default_environment
+        elif variable == "ec2_instance_instance_type":
+            question["choices"] = "\n".join(
+                str(choice) for choice in govcloud_instance_types
+            )
+            question["default"] = govcloud_default_instance_type
+        elif variable == "ec2_instance_region":
+            question["choices"] = "\n".join(
+                str(choice) for choice in govcloud_regions
+            )
+            question["default"] = govcloud_default_region
+        elif variable == "ec2_instance_state":
+            question["choices"] = "\n".join(
+                str(choice) for choice in ec2_state_choices
+            )
+            question["default"] = ec2_default_state
+
     changed = 0
     for path in sorted(workflow_dir.glob("*.wf.yml")):
         text = path.read_text()
         updated = text
         for old, new in replacements.items():
             updated = updated.replace(old, new)
+        data = yaml.safe_load(updated) or {}
+        survey_changed = False
+        for workflow in data.get("controller_workflow_job_templates", []) or []:
+            survey_spec = workflow.get("survey_spec", {}) or {}
+            for question in survey_spec.get("spec", []) or []:
+                before = dict(question)
+                normalize_survey_choices(question)
+                if question != before:
+                    survey_changed = True
+        if survey_changed:
+            updated = yaml.safe_dump(data, sort_keys=False)
         if updated != text:
             path.write_text(updated)
             changed += 1

@@ -1,0 +1,91 @@
+---
+# yamllint disable rule:line-length
+controller_workflow_job_templates:
+  - name: ADO | EC2 Instance Workflow
+    description: >-
+      AWS GovCloud EC2 instance create/start/stop/terminate. Survey choices
+      match the Manage EC2 instance job template.
+    organization: "{{ bootstrap_controller_organization }}"
+    inventory: "{{ bootstrap_controller_inventory_name }}"
+    state: present
+    destroy_current_nodes: true
+    survey_enabled: true
+    survey_spec:
+      name: ADO | EC2 Instance Workflow Survey
+      description: >-
+        AWS GovCloud EC2 instance options for amazon.aws.ec2_instance.
+        Instance types are limited to GovCloud (US) offerings.
+      spec:
+        - question_name: ADO | What environment?
+          question_description: Target environment (loads vault/vars for ec2_instance)
+          required: true
+          type: multiplechoice
+          variable: env
+          choices: '{{ bootstrap_controller_environment_choices }}'
+          default: '{{ bootstrap_controller_default_environment }}'
+        - question_name: ADO | Instance state
+          question_description: present/running creates or starts; stopped/terminated act on the named instance
+          required: true
+          type: multiplechoice
+          variable: ec2_instance_state
+          choices: '{{ bootstrap_controller_ec2_instance_state_choices }}'
+          default: '{{ bootstrap_controller_ec2_instance_default_state }}'
+        - question_name: ADO | AWS GovCloud region
+          question_description: GovCloud region for the instance
+          required: true
+          type: multiplechoice
+          variable: ec2_instance_region
+          choices: '{{ bootstrap_controller_aws_govcloud_region_choices }}'
+          default: '{{ bootstrap_controller_aws_govcloud_default_region }}'
+        - question_name: ADO | Instance type
+          question_description: Machine type available in AWS GovCloud (US)
+          required: true
+          type: multiplechoice
+          variable: ec2_instance_instance_type
+          choices: '{{ bootstrap_controller_aws_govcloud_instance_type_choices }}'
+          default: '{{ bootstrap_controller_aws_govcloud_default_instance_type }}'
+        - question_name: ADO | Instance name
+          question_description: Name tag used to find or create the instance
+          required: false
+          type: text
+          variable: ec2_instance_name
+          default: ""
+        - question_name: ADO | AMI ID
+          question_description: AMI in the selected GovCloud region (required to create)
+          required: false
+          type: text
+          variable: ec2_instance_image_id
+          default: ""
+        - question_name: ADO | VPC subnet ID
+          question_description: Subnet for a new instance (for example subnet-0123456789abcdef0)
+          required: false
+          type: text
+          variable: ec2_instance_vpc_subnet_id
+          default: ""
+        - question_name: ADO | Security group
+          question_description: Security group name for a new instance
+          required: false
+          type: text
+          variable: ec2_instance_security_group
+          default: ""
+        - question_name: ADO | Key pair name
+          question_description: EC2 key pair name for SSH
+          required: false
+          type: text
+          variable: ec2_instance_key_name
+          default: ""
+        - question_name: ADO | Wait for instance state?
+          question_description: Wait until the instance reaches the requested state
+          required: true
+          type: multiplechoice
+          variable: ec2_instance_wait
+          choices: "true\nfalse"
+          default: "true"
+    labels:
+      - ADO | bootstrap
+      - ADO | aws
+    simplified_workflow_nodes:
+      - identifier: Manage EC2 instance
+        unified_job_template: ADO | Manage EC2 instance
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+# yamllint enable rule:line-length
