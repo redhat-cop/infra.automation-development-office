@@ -1,0 +1,58 @@
+---
+# yamllint disable rule:line-length
+# Safe OpenShift absent cleanup gate. Attach after operator/namespace deletes.
+
+- name: Absent cleanup | Gate and process namespaces
+  tags:
+    - ocp_absent_cleanup
+  block:
+    - name: Absent cleanup | Normalize namespace list
+      ansible.builtin.set_fact:
+        ocp_absent_cleanup_ns_list: >-
+          {{
+            ocp_absent_cleanup_namespaces
+            | default([])
+            | map('string')
+            | map('trim')
+            | select('ne', '')
+            | unique
+            | list
+          }}
+      changed_when: false
+
+    - name: Absent cleanup | Require explicit namespaces
+      ansible.builtin.assert:
+        that:
+          - (ocp_absent_cleanup_ns_list | length) > 0
+        fail_msg: >-
+          ocp_absent_cleanup requires ocp_absent_cleanup_namespaces (non-empty list).
+          Refusing to run without an explicit namespace allowlist.
+
+    - name: Absent cleanup | Refuse blocked platform namespaces
+      ansible.builtin.assert:
+        that:
+          - >-
+            (item | lower)
+            not in (ocp_absent_cleanup_blocked_namespaces | map('lower') | list)
+          - >-
+            not (item | lower is match('^kube-'))
+        fail_msg: >-
+          ocp_absent_cleanup refuses namespace '{{ item }}' (blocked platform
+          namespace). Pass only component operator/operand namespaces.
+      loop: "{{ ocp_absent_cleanup_ns_list }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Absent cleanup | Validate mode
+      ansible.builtin.assert:
+        that:
+          - (ocp_absent_cleanup_mode | string) in ['check', 'cleanup']
+        fail_msg: >-
+          ocp_absent_cleanup_mode must be 'check' or 'cleanup'
+          (got '{{ ocp_absent_cleanup_mode }}').
+
+    - name: Absent cleanup | Process each namespace
+      ansible.builtin.include_tasks: cleanup_one_namespace.yml
+      loop: "{{ ocp_absent_cleanup_ns_list }}"
+      loop_control:
+        loop_var: ocp_absent_cleanup_ns

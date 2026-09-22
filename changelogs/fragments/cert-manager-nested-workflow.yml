@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    bootstrap_controller - Nest cert-manager under ``ADO | Cert Manager
+    Workflow`` (deploy, optional IdM ACME / AWS PCA, optional default ingress),
+    referenced from ``ADO | OpenShift Workflow`` like RHBK and Grafana.

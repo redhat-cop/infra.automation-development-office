@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    install_rhbk - Use ``include_tasks`` (not static ``import_tasks``) for
+    OpenShift vs standalone platform gates so Deploy RHBK on OpenShift no longer
+    fails at playbook load on ``ansible.posix.firewalld`` from the unused
+    standalone task file.

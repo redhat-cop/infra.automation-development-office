@@ -1,0 +1,17 @@
+---
+- name: Delivery | Generate selected Dev Spaces output
+  ansible.builtin.include_tasks: generate_devspaces.yml
+  when:
+    - >-
+      'devspaces' in bootstrap_generate_playbook_repo_selected_apps
+      or 'all' in bootstrap_generate_playbook_repo_selected_apps
+    - >-
+      (playbook_dir ~ '/group_vars/all/' ~ env ~ '/vars_devspaces.yml') is file
+- name: Delivery | Generate selected ACM policy output
+  ansible.builtin.include_tasks: generate_acm_policy.yml
+  when:
+    - >-
+      'acm' in bootstrap_generate_playbook_repo_selected_apps
+      or 'all' in bootstrap_generate_playbook_repo_selected_apps
+    - >-
+      (playbook_dir ~ '/group_vars/all/' ~ env ~ '/vars_acm.yml') is file

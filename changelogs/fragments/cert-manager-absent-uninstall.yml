@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    ocp_operator_subscription - ``state=absent`` now deletes the
+    Subscription and matching ClusterServiceVersions (and related
+    InstallPlans). Previously only the Subscription was removed, so the
+    operator stayed in Installed Operators.
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager Deploy honors
+    ``state=absent``: removes ClusterIssuer ``idm-acme``, unsubscribes
+    CSVs, deletes OperatorGroup and namespaces, and skips wait/configure
+    steps that previously re-verified a still-running operator.

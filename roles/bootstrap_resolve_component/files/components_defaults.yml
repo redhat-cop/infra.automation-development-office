@@ -327,6 +327,12 @@ components_defaults:
     console_banner_background_color: "#1f7a1f"   # green
     console_banner_text_color: "#ffffff"         # white
 
+  integrated_image_registry:
+    ocp_image_registry_enabled: true
+    ocp_image_registry_default_route: true
+    openshift_integrated_registry_enabled: true
+    openshift_integrated_registry_default_route: true
+
   devspaces:
     # operator install (Subscription/CSV)
     operator_namespace: openshift-operators
@@ -466,10 +472,10 @@ components_defaults:
 
     # GitLab chart version used by the operator
     # Must match versions allowed by the installed GitLab operator webhook
-    # (v3.3.x: 10.3.1, 10.2.5, 10.1.7). Chart 10.x requires external Postgres,
+    # (v3.3.x: 10.3.2, 10.2.5, 10.1.7). Chart 10.x requires external Postgres,
     # Redis, and object storage — gitlab_install deploys lab instances.
-    chart_version: "10.3.1"
-    gitlab_install_chart_version: "10.3.1"
+    chart_version: "10.3.2"
+    gitlab_install_chart_version: "10.3.2"
     gitlab_install_enable_postgresql: false
     gitlab_install_create_route: true
     gitlab_install_root_password: redhat123
@@ -554,26 +560,38 @@ components_defaults:
     grafana_install_admin_user: admin
     grafana_install_admin_password: redhat123
     storage_size: 2Gi
+    # Database backend for OpenShift Grafana CR (new installs).
+    # sqlite = default embedded; postgres = ADO-managed or external DB.
+    grafana_database_type: sqlite
+    grafana_database_provision: true
+    grafana_postgres_name: grafana-postgres
+    grafana_postgres_database: grafana
+    grafana_postgres_user: grafana
+    grafana_postgres_storage_size: 5Gi
+    grafana_postgres_storage_class: ""
+    grafana_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
+    grafana_postgres_host: ""
+    grafana_postgres_ssl_mode: disable
     # Prefer thanos-querier so platform + user-workload metrics are visible.
     prometheus_source: thanos-querier-openshift-monitoring.{{ bootstrap_resolve_component_app_domain }}
     # Legacy single-name alias (first entry of grafana_datasources).
-    grafana_datasource: "Openshift-Prod"
-    # Prod: local thanos-querier Route (or in-cluster URL via prometheus_url).
-    # Dev: remote thanos-querier + bearer token Secret (platform + user-workload).
-    # Override grafana_dev_prometheus_url / bearer in vars_grafana.yml or vault.
+    grafana_datasource: "OpenshiftProd"
+    # OpenshiftProd: local thanos-querier Route (or in-cluster URL via prometheus_url).
+    # OpenshiftProdInfra: second-cluster thanos-querier + bearer token Secret.
+    # Override prometheus_url / bearer in vars_grafana.yml or vault.
     grafana_dev_prometheus_url: "https://thanos-querier-openshift-monitoring.{{ bootstrap_resolve_component_app_domain }}"
     grafana_datasources:
-      - name: Openshift-Prod
+      - name: OpenshiftProd
         prometheus_route_name: thanos-querier
-      - name: Openshift-Dev
-        # Remote Dev Thanos (Route). Token from Secret created by ops / vault.
+      - name: OpenshiftProdInfra
+        # Remote infra Thanos (Route). Token from Secret created by ops / vault.
         prometheus_url: "https://thanos-querier-openshift-monitoring.{{ bootstrap_resolve_component_app_domain }}"
         bearer_token_secret:
-          name: grafana-openshift-dev-prometheus
+          name: grafana-openshift-prod-infra-prometheus
           namespace: grafana
           key: token
       # Optional ACM Observability (Observatorium) — fleet metrics with cluster=
-      # labels. Not the same as Openshift-Prod thanos-querier. Enable by setting
+      # labels. Not the same as OpenshiftProd thanos-querier. Enable by setting
       # grafana_acm_observability_enabled: true and providing URL + mTLS/bearer
       # via vault (see grafana_create_datasource README).
       # - name: ACM-Observatorium
@@ -587,12 +605,12 @@ components_defaults:
     grafana_dashboards_type: templates
     grafana_dashboards_source: ""
     # When true (default), also deploy shared "Openshift" folder whose dashboards
-    # use a K8S datasource dropdown (Openshift-Prod / Openshift-Dev).
-    # OpenshiftProd + OpenshiftDev folders are always deployed (pinned per cluster).
+    # use a K8S datasource dropdown (OpenshiftProd / OpenshiftProdInfra).
+    # OpenshiftProd + OpenshiftProdInfra folders are always deployed (pinned).
     grafana_group_cluster_dashboards: true
     # Seeded under playbook_repo_seed/templates/ (copied out with the playbook repo).
     # Same templates/Openshift/dashboards files are uploaded three ways via
-    # datasource_mode (pin Prod, pin Dev, multi dropdown).
+    # datasource_mode (pin Prod, pin ProdInfra, multi dropdown).
     grafana_folders:
       - name: OpenshiftProd
         source_type: path
@@ -600,18 +618,18 @@ components_defaults:
         dashboards_path: dashboards
         alerts_path: alerts
         datasource_mode: pin
-        datasource: Openshift-Prod
+        datasource: OpenshiftProd
         uid_suffix: prod
         title_cluster: Prod
-      - name: OpenshiftDev
+      - name: OpenshiftProdInfra
         source_type: path
         source: templates/Openshift
         dashboards_path: dashboards
         alerts_path: alerts
         datasource_mode: pin
-        datasource: Openshift-Dev
-        uid_suffix: dev
-        title_cluster: Dev
+        datasource: OpenshiftProdInfra
+        uid_suffix: infra
+        title_cluster: Infra
       - name: Openshift
         source_type: path
         source: templates/Openshift
@@ -1022,10 +1040,32 @@ components_defaults:
     operator_source_namespace: openshift-marketplace
     operator_csv_contains: kubevirt-hyperconverged
     operator_name_substring: kubevirt-hyperconverged
+    # CSV package != Deployment name (HCO controller is hco-operator).
+    operator_deployment_pattern: hco-operator
     operator_poll_interval: 10
     operator_install_timeout: 1800
     ocp_virtualization_install_namespace: openshift-cnv
     ocp_virtualization_install_hco_name: kubevirt-hyperconverged
+
+  mtv:
+    name_space: openshift-mtv
+    operator_namespace: openshift-mtv
+    operator_subscription_namespace: openshift-mtv
+    operatorgroup: migration
+    all_namespaces_install: false
+    operator_name: mtv-operator
+    # Default to a current catalog channel; override via component_config.mtv.channel
+    # to match the cluster Software Catalog (and OCP version compatibility).
+    operator_channel: release-v2.12
+    operator_source: redhat-operators
+    operator_source_namespace: openshift-marketplace
+    operator_csv_contains: mtv-operator
+    operator_name_substring: mtv-operator
+    operator_deployment_pattern: forklift-operator
+    operator_poll_interval: 10
+    operator_install_timeout: 1800
+    ocp_mtv_controller_name: forklift-controller
+    ocp_mtv_olm_managed: true
 
   # Kube Descheduler Operator
   ocp_descheduler:

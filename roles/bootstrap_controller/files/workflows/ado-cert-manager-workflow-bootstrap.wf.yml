@@ -1,0 +1,35 @@
+---
+controller_workflow_job_templates:
+  - name: ADO | Cert Manager Workflow
+    description: >-
+      Cert-manager — deploy operator, optional IdM ACME or AWS PCA issuer,
+      and optional default ingress certificate update. Nodes are pruned from
+      preflight mode and Default Ingress Cert selection.
+    organization: "{{ bootstrap_controller_organization }}"
+    inventory: "{{ bootstrap_controller_inventory_name }}"
+    state: present
+    destroy_current_nodes: true
+    labels:
+      - ADO | bootstrap
+      - ADO | cert_manager
+    simplified_workflow_nodes:
+      # Deploy and Update Default Ingress are parallel roots (ingress PEMs do
+      # not require the operator). Issuer JTs hang off Deploy.
+      - identifier: Deploy cert-manager
+        unified_job_template: ADO | Deploy cert-manager
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Configure IDM ACME ClusterIssuer
+          - Deploy AWSPCA Cert Manager
+
+      - identifier: Update Default Ingress Certificate
+        unified_job_template: ADO | Update Default Ingress Certificate
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+
+      - identifier: Configure IDM ACME ClusterIssuer
+        unified_job_template: ADO | Configure IDM ACME ClusterIssuer
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+
+      - identifier: Deploy AWSPCA Cert Manager
+        unified_job_template: ADO | Deploy AWSPCA Cert Manager
+        lookup_organization: "{{ bootstrap_controller_organization }}"

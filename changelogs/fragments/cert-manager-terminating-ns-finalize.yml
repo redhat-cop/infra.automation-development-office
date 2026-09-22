@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    ocp_namespace - On ``present``, wait out and force-finalize a
+    Terminating namespace before create (fixes OperatorGroup Forbidden
+    ``NamespaceTerminating`` after cert-manager absent). On ``absent``,
+    wait for deletion and finalize if stuck.
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager absent removes
+    ``cert-manager-webhook`` Validating/MutatingWebhookConfigurations
+    before deleting namespaces so uninstall does not leave orphans that
+    block the next install.

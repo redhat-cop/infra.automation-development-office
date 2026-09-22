@@ -81,3 +81,5 @@ roles/netbox_oidc/
   tasks/
     main.yml
 ```
+
+This role configures an existing NetBox installation; it does not install NetBox. The namespace defaults to `netbox_namespace`, then `name_space`, then `netbox`; `netbox_oidc_namespace` overrides it. Preflight `component_config.netbox.namespace` is propagated to OIDC. Missing namespaces fail before credential lookup or mutation.

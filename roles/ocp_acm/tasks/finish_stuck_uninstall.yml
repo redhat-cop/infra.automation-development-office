@@ -1,0 +1,89 @@
+---
+# Shared: finish a stuck ACM uninstall (MCH/MCE Uninstalling or deleting).
+- name: OpenShift ACM | Read MultiClusterHub for stuck check
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_stuck_mch
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Read MultiClusterEngine for stuck check
+  kubernetes.core.k8s_info:
+    api_version: multicluster.openshift.io/v1
+    kind: MultiClusterEngine
+    name: "{{ ocp_acm_mce_name }}"
+  register: ocp_acm_stuck_mce
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Detect stuck uninstall
+  ansible.builtin.set_fact:
+    ocp_acm_mch_phase: >-
+      {{
+        ocp_acm_stuck_mch.resources[0].status.phase
+        | default('')
+        | lower
+        if (ocp_acm_stuck_mch.resources | default([]) | length) > 0
+        else ''
+      }}
+    ocp_acm_mce_phase: >-
+      {{
+        ocp_acm_stuck_mce.resources[0].status.phase
+        | default('')
+        | lower
+        if (ocp_acm_stuck_mce.resources | default([]) | length) > 0
+        else ''
+      }}
+    ocp_acm_mch_deleting: >-
+      {{
+        (ocp_acm_stuck_mch.resources | default([]) | length) > 0
+        and (
+          ocp_acm_stuck_mch.resources[0].metadata.deletionTimestamp
+          is defined
+        )
+      }}
+    ocp_acm_mce_deleting: >-
+      {{
+        (ocp_acm_stuck_mce.resources | default([]) | length) > 0
+        and (
+          ocp_acm_stuck_mce.resources[0].metadata.deletionTimestamp
+          is defined
+        )
+      }}
+  changed_when: false
+
+- name: OpenShift ACM | Set stuck uninstall flags
+  ansible.builtin.set_fact:
+    ocp_acm_mch_stuck: >-
+      {{
+        (ocp_acm_mch_deleting | bool)
+        or (ocp_acm_mch_phase == 'uninstalling')
+      }}
+    ocp_acm_mce_stuck: >-
+      {{
+        (ocp_acm_mce_deleting | bool)
+        or (ocp_acm_mce_phase == 'uninstalling')
+      }}
+  changed_when: false
+
+- name: OpenShift ACM | Refuse stuck uninstall without heal
+  ansible.builtin.fail:
+    msg: >-
+      ACM MultiClusterHub and/or MultiClusterEngine is Uninstalling or
+      deleting. Re-run with state=absent to finish cleanup, or set
+      ocp_acm_heal_stuck_uninstall=true (default) so present finishes the
+      prior uninstall before installing.
+  when:
+    - not (ocp_acm_heal_stuck_uninstall | default(true) | bool)
+    - (ocp_acm_mch_stuck | bool) or (ocp_acm_mce_stuck | bool)
+
+- name: OpenShift ACM | Finish stuck uninstall
+  when:
+    - ocp_acm_heal_stuck_uninstall | default(true) | bool
+    - (ocp_acm_mch_stuck | bool) or (ocp_acm_mce_stuck | bool)
+  ansible.builtin.include_tasks: cleanup_hub.yml
+  vars:
+    ocp_acm_cleanup_reason: stuck-uninstall

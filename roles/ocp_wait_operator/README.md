@@ -16,6 +16,7 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
+| `state` | When not ``present`` (e.g. ``absent``), the role exits immediately and does not wait for CSV/Deployment. |
 | `ocp_wait_operator_retries` | Role input variable used to configure automation behavior. |
 | `ocp_wait_operator_delay` | Role input variable used to configure automation behavior. |
 

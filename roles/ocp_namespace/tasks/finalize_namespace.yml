@@ -1,0 +1,43 @@
+---
+# yamllint disable rule:line-length
+# Clear kubernetes namespace finalizer via the finalize subresource.
+# Used when content is gone but ACM/OLM discovery errors leave NS Terminating.
+- name: Build finalize body with empty finalizers
+  ansible.builtin.set_fact:
+    ocp_namespace_finalize_body: >-
+      {{
+        ocp_namespace_finalize_resource
+        | combine({'spec': {'finalizers': []}}, recursive=True)
+        | combine({'metadata': (ocp_namespace_finalize_resource.metadata | default({})) | combine({'finalizers': []})}, recursive=True)
+      }}
+  no_log: true
+
+- name: PUT namespace finalize subresource
+  ansible.builtin.uri:
+    url: >-
+      {{
+        (host | default(api_host | default(lookup('ansible.builtin.env', 'K8S_AUTH_HOST'))))
+        | regex_replace('/$', '')
+      }}/api/v1/namespaces/{{ ocp_namespace_effective }}/finalize
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ token | default(lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY')) }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ ocp_namespace_finalize_body }}"
+    status_code: [200, 201, 409]
+    validate_certs: "{{ (verify_ssl | default(true)) | bool }}"
+  no_log: true
+  register: ocp_namespace_finalize_put
+  failed_when: false
+
+- name: Wait until finalized namespace is gone
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_namespace_effective }}"
+  register: ocp_namespace_finalize_gone
+  until: (ocp_namespace_finalize_gone.resources | default([]) | length) == 0
+  retries: "{{ ocp_namespace_terminating_retries | default(24) | int }}"
+  delay: "{{ ocp_namespace_terminating_delay | default(5) | int }}"
+  failed_when: false

@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Wait for an existing project update and reuse it
+    when its source matches, instead of queuing a duplicate sync. Preserve
+    failures rather than accepting stale successful revisions, and display
+    actual project-update output in failure guidance.

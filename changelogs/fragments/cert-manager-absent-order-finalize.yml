@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager ``state=absent`` now
+    uninstalls in a fixed order: ClusterIssuers and namespaced CRs (strip
+    finalizers), admission webhooks, OLM Subscription/CSV, OperatorGroup,
+    then namespaces with quick force-finalize. Prior deletes left webhooks
+    and Terminating namespaces that broke every reinstall.
+  - >-
+    ocp_namespace - Shorten delete wait and always force-finalize when the
+    namespace remains (common on ACM clusters where content is gone but
+    discovery reports failure).

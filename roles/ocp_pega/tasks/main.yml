@@ -1,0 +1,121 @@
+---
+- name: Pega | Validate required disconnected inputs
+  ansible.builtin.assert:
+    that:
+      - state | default('present') == 'present'
+      - ocp_pega_database_mode in ['new', 'existing']
+      - >-
+        ocp_pega_database_mode != 'new' or ocp_pega_database_chart_path
+        | length > 0
+      - >-
+        ocp_pega_database_mode != 'new' or ocp_pega_database_values_file
+        | length > 0
+      - ocp_pega_chart_path | length > 0
+      - ocp_pega_values_file | length > 0
+      - >-
+        ocp_pega_namespace is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - >-
+        ocp_pega_release_name is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - ocp_pega_allowed_registries is sequence
+      - ocp_pega_allowed_registries is not string
+      - ocp_pega_allowed_registries | length > 0
+    fail_msg: >-
+      Only state=present is supported. Supply local chart/values paths
+      and disconnected registry hosts.
+- name: Pega | Check preinstalled Helm
+  ansible.builtin.command:
+    argv:
+      - '{{ ocp_pega_helm_binary }}'
+      - version
+      - --short
+  changed_when: false
+- name: Pega | Inspect existing Pega release without modifying it
+  kubernetes.core.helm_info:
+    binary_path: '{{ ocp_pega_helm_binary }}'
+    name: '{{ ocp_pega_release_name }}'
+    release_namespace: '{{ ocp_pega_namespace }}'
+  register: ocp_pega_existing
+  no_log: true
+  when: not (ocp_pega_validate_only | bool)
+- name: >-
+    Pega | Refuse automatic retry of a failed or pending database install
+  ansible.builtin.assert:
+    that:
+      - >-
+        ocp_pega_existing.status.status
+        | default('deployed') | lower == 'deployed'
+    fail_msg: >-
+      Inspect the existing non-deployed Pega release and database before
+      retrying; initialization is not repeated automatically.
+  when: not (ocp_pega_validate_only | bool)
+- name: Pega | Choose initial installation or repeatable deployment
+  ansible.builtin.set_fact:
+    ocp_pega_action: >-
+      {{ 'install-deploy' if ocp_pega_database_mode == 'new'
+         and ocp_pega_existing.status is not defined else 'deploy' }}
+
+- name: Pega | Plan releases in dependency order
+  ansible.builtin.set_fact:
+    ocp_pega_release_candidates:
+      - name: '{{ ocp_pega_release_name }}-database'
+        chart: >-
+          {{ ocp_pega_database_chart_path
+             if ocp_pega_database_mode == 'new' else '' }}
+        values_path: '{{ ocp_pega_database_values_file }}'
+      - name: '{{ ocp_pega_release_name }}-opensearch'
+        chart: '{{ ocp_pega_opensearch_chart_path }}'
+        values_path: '{{ ocp_pega_opensearch_values_file }}'
+      - name: '{{ ocp_pega_release_name }}-backingservices'
+        chart: '{{ ocp_pega_backingservices_chart_path }}'
+        values_path: '{{ ocp_pega_backingservices_values_file }}'
+      - name: '{{ ocp_pega_release_name }}'
+        chart: '{{ ocp_pega_chart_path }}'
+        values_path: '{{ ocp_pega_values_file }}'
+
+- name: Pega | Select configured releases
+  ansible.builtin.set_fact:
+    ocp_pega_releases: >-
+      {{ ocp_pega_release_candidates | rejectattr('chart', 'equalto', '')
+         | list }}
+
+- name: Pega | Create private validation directory
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: ado-pega-
+  register: ocp_pega_tmp
+  changed_when: false
+- name: Pega | Validate all releases before changing the cluster
+  block:
+    - name: Pega | Validate local charts and rendered images
+      ansible.builtin.include_tasks: validate_release.yml
+      loop: '{{ ocp_pega_releases }}'
+      loop_control:
+        loop_var: ocp_pega_release
+        label: '{{ ocp_pega_release.name }}'
+    - name: Pega | Apply releases in dependency order
+      kubernetes.core.helm:
+        binary_path: '{{ ocp_pega_helm_binary }}'
+        release_name: '{{ item.name }}'
+        chart_ref: '{{ item.chart }}'
+        release_namespace: '{{ ocp_pega_namespace }}'
+        create_namespace: true
+        values_files:
+          - '{{ item.values_path }}'
+        release_values: >-
+          {{ {'global': {'actions': {'execute': ocp_pega_action}},
+              'action': ocp_pega_action}
+             if item.name == ocp_pega_release_name else {} }}
+        update_repo_cache: false
+        wait: true
+        timeout: '{{ ocp_pega_timeout }}'
+      loop: '{{ ocp_pega_releases }}'
+      loop_control:
+        label: '{{ item.name }}'
+      no_log: true
+      when: not (ocp_pega_validate_only | bool)
+  always:
+    - name: Pega | Remove private rendered manifests
+      ansible.builtin.file:
+        path: '{{ ocp_pega_tmp.path }}'
+        state: absent
+      changed_when: false

@@ -1,0 +1,16 @@
+---
+# yamllint disable rule:line-length
+- name: Converge - ocp_image_registry packaging
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Confirm role directory exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../../../roles/ocp_image_registry/tasks/main.yml"
+      register: ocp_image_registry_tasks
+
+    - name: Assert role tasks exist
+      ansible.builtin.assert:
+        that:
+          - ocp_image_registry_tasks.stat.exists
+        fail_msg: roles/ocp_image_registry/tasks/main.yml is missing

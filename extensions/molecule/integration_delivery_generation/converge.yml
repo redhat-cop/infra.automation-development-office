@@ -1,0 +1,22 @@
+---
+- name: Generate delivery artifacts without cluster credentials
+  hosts: localhost
+  gather_facts: false
+  vars:
+    env: molecule
+    ocp_devspaces_delivery_mode: generate
+    ocp_devspaces_gitops_repo_url: https://git.example.test/platform.git
+    ocp_devspaces_gitops_output_dir: /tmp/ado-molecule-delivery
+    ocp_devspaces_hostname: devspaces.apps.example.test
+    ocp_devspaces_dashboard_image: registry.example.test/dashboard:1
+    app_namespace: workspace-platform
+    ocp_acm_policy_output_dir: /tmp/ado-molecule-delivery/policies
+    ocp_acm_policy_target_namespace: team-a
+    ocp_acm_policy_label_key: owner
+    ocp_acm_policy_label_value: platform
+    ocp_acm_policy_cluster_set: production
+    ocp_acm_policy_selector_key: environment
+    ocp_acm_policy_selector_value: production
+  roles:
+    - infra.ado.ocp_devspaces
+    - infra.ado.ocp_acm_policy

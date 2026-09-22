@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_virtualization - Set ``operator_deployment_pattern`` to ``hco-operator``
+    in component defaults and the deploy playbook seed so ``ocp_wait_operator``
+    matches the real HCO Deployment (CSV package ``kubevirt-hyperconverged``
+    is not a Deployment name).

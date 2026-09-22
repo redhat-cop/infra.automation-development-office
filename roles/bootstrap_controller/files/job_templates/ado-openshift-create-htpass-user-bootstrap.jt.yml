@@ -21,15 +21,30 @@ controller_templates:
       name: ADO | Create Admin HTPasswd User
       description: Configuration options for Create Admin htpasswd User
       spec:
-        - question_name: ADO | HTPasswd action
-          question_description: add merges users, replace rewrites the secret, remove deletes named users
+        - question_name: ADO | User change (while Login button stays)
+          question_description: >-
+            Only used when state=present. add=merge users into the secret,
+            replace=rewrite the secret from vault users only, remove=drop the
+            named users from the secret (IdP/login button remains).
           required: true
           type: multiplechoice
           variable: htpasswd_action
           choices: "add\nreplace\nremove"
           default: add
-        - question_name: ADO | Do you want to install or remove?
-          question_description: Install (present) or Remove (absent)
+        - question_name: ADO | Login button name (IdP)
+          question_description: >-
+            OpenShift console login button label
+            (OAuth identityProviders[].name). Secret defaults to
+            name-secret from generated vars. Required for state=absent.
+          required: true
+          type: text
+          variable: htpasswd_idp_name
+          default: htpasswd-admin
+        - question_name: ADO | Keep or delete the Login button?
+          question_description: >-
+            present=create/update the HTPasswd IdP and users (see User change).
+            absent=delete the entire Login button (IdP) and its secret —
+            ignores User change (add/replace/remove).
           required: true
           type: multiplechoice
           variable: state

@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - ocp_pega - Add local-chart Helm deployment with offline image validation and optional OpenSearch and Backing Services.
+  - bootstrap_generate_env_vars - Map Pega disconnected inputs and remove obsolete lab-specific generated defaults.
+  - bootstrap_generate_playbook_repo - Replace the Pega failure placeholder with the ocp_pega role.
+  - bootstrap_controller - Include selected Pega playbooks and job templates in generated bootstrap output.

@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - >-
+    bootstrap_generate_playbook_repo - Generate a local component execution plan
+    and CLI runner from selected playbooks and existing workflow ordering.
+    Validate selections and required survey inputs, preview commands, and stop
+    execution on the first failed playbook without requiring Controller.

@@ -1,0 +1,50 @@
+---
+- name: Delivery | Read generated Dev Spaces variables
+  ansible.builtin.include_vars:
+    file: '{{ playbook_dir }}/group_vars/all/{{ env }}/vars_devspaces.yml'
+    name: bootstrap_devspaces_delivery
+- name: Delivery | Render Dev Spaces GitOps files
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_devspaces
+  when: >-
+    bootstrap_devspaces_delivery.ocp_devspaces_delivery_mode
+    | default('direct') == 'generate'
+  vars:
+    state: present
+    ocp_devspaces_delivery_mode: generate
+    ocp_devspaces_gitops_output_dir: >-
+      {{ bootstrap_generate_playbook_repo_dest_resolved }}
+    ocp_devspaces_gitops_repo_url: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_repo_url
+         | default('') }}
+    ocp_devspaces_gitops_revision: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_revision
+         | default('main') }}
+    ocp_devspaces_gitops_path: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_path
+         | default('gitops/' ~ env ~ '/devspaces/resources', true) }}
+    ocp_devspaces_gitops_namespace: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_namespace
+         | default('openshift-gitops') }}
+    ocp_devspaces_gitops_project: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_project
+         | default('default') }}
+    ocp_devspaces_gitops_destination: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_gitops_destination
+         | default('https://kubernetes.default.svc') }}
+    ocp_devspaces_hostname: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_hostname
+         | default('') }}
+    ocp_devspaces_dashboard_image: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_dashboard_image
+         | default('') }}
+    ocp_devspaces_customize_workspace: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_customize_workspace
+         | default(false) }}
+    ocp_devspaces_default_workspace_image: >-
+      {{ bootstrap_devspaces_delivery.ocp_devspaces_default_workspace_image
+         | default('') }}
+    app_namespace: >-
+      {{ bootstrap_devspaces_delivery.app_namespace
+         | default(bootstrap_devspaces_delivery.namespace
+         | default('openshift-devspaces')) }}

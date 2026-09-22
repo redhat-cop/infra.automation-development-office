@@ -1,7 +1,10 @@
 ---
 controller_templates:
   - name: ADO | Deploy cert-manager
-    description: Bootstrap - Deploy and configure cert-manager
+    description: >-
+      Bootstrap - Deploy cert-manager; when mode is idm_acme also creates
+      ClusterIssuer idm-acme (IdM ACME JT still runs after Deploy in the
+      OpenShift workflow).
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/cert-manager/ado-deploy-and-configure-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'

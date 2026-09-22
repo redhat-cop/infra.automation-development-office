@@ -1,0 +1,97 @@
+---
+- name: ACM policy | Validate explicit target and placement
+  ansible.builtin.assert:
+    that:
+      - ocp_acm_policy_name is match('^[a-z0-9][a-z0-9-]*$')
+      - ocp_acm_policy_namespace | length > 0
+      - ocp_acm_policy_target_namespace | length > 0
+      - ocp_acm_policy_label_key | length > 0
+      - ocp_acm_policy_cluster_set | length > 0
+      - ocp_acm_policy_selector_key | length > 0
+      - ocp_acm_policy_selector_value | length > 0
+      - ocp_acm_policy_remediation in ['inform', 'enforce']
+    fail_msg: >-
+      Specify the namespace label and explicit cluster-set/label placement.
+- name: ACM policy | Build configuration policy and placement
+  ansible.builtin.set_fact:
+    ocp_acm_policy_documents:
+      - apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: '{{ ocp_acm_policy_namespace }}'
+      - apiVersion: cluster.open-cluster-management.io/v1beta2
+        kind: ManagedClusterSetBinding
+        metadata:
+          name: '{{ ocp_acm_policy_cluster_set }}'
+          namespace: '{{ ocp_acm_policy_namespace }}'
+        spec:
+          clusterSet: '{{ ocp_acm_policy_cluster_set }}'
+      - apiVersion: cluster.open-cluster-management.io/v1beta1
+        kind: Placement
+        metadata:
+          name: '{{ ocp_acm_policy_name }}'
+          namespace: '{{ ocp_acm_policy_namespace }}'
+        spec:
+          clusterSets: ['{{ ocp_acm_policy_cluster_set }}']
+          predicates:
+            - requiredClusterSelector:
+                labelSelector:
+                  matchLabels: >-
+                    {{ {ocp_acm_policy_selector_key:
+                        ocp_acm_policy_selector_value | string} }}
+      - apiVersion: policy.open-cluster-management.io/v1
+        kind: Policy
+        metadata:
+          name: '{{ ocp_acm_policy_name }}'
+          namespace: '{{ ocp_acm_policy_namespace }}'
+        spec:
+          disabled: false
+          remediationAction: '{{ ocp_acm_policy_remediation }}'
+          policy-templates:
+            - objectDefinition:
+                apiVersion: policy.open-cluster-management.io/v1
+                kind: ConfigurationPolicy
+                metadata:
+                  name: '{{ ocp_acm_policy_name }}'
+                spec:
+                  remediationAction: '{{ ocp_acm_policy_remediation }}'
+                  severity: low
+                  object-templates:
+                    - complianceType: musthave
+                      objectDefinition:
+                        apiVersion: v1
+                        kind: Namespace
+                        metadata:
+                          name: '{{ ocp_acm_policy_target_namespace }}'
+                          labels: >-
+                            {{ {ocp_acm_policy_label_key:
+                                ocp_acm_policy_label_value | string} }}
+      - apiVersion: policy.open-cluster-management.io/v1
+        kind: PlacementBinding
+        metadata:
+          name: '{{ ocp_acm_policy_name }}'
+          namespace: '{{ ocp_acm_policy_namespace }}'
+        placementRef:
+          name: '{{ ocp_acm_policy_name }}'
+          apiGroup: cluster.open-cluster-management.io
+          kind: Placement
+        subjects:
+          - name: '{{ ocp_acm_policy_name }}'
+            apiGroup: policy.open-cluster-management.io
+            kind: Policy
+- name: ACM policy | Create output directory
+  ansible.builtin.file:
+    path: '{{ ocp_acm_policy_output_dir }}'
+    state: directory
+    mode: '0755'
+- name: ACM policy | Write policy bundle without applying it
+  ansible.builtin.copy:
+    content: |
+      {% for resource in ocp_acm_policy_documents %}
+      {{ resource | to_nice_yaml }}
+      {% if not loop.last %}
+      ---
+      {% endif %}
+      {% endfor %}
+    dest: '{{ ocp_acm_policy_output_dir }}/{{ ocp_acm_policy_name }}.yml'
+    mode: '0644'

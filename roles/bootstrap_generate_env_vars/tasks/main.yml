@@ -103,6 +103,16 @@
               (
                 bootstrap_generate_env_vars_preflight.component_apps.openshift
                 | default([])
+                | intersect(
+                    bootstrap_generate_env_vars_preflight_ui_openshift_apps
+                    | default([
+                      'aap', 'acs', 'acm', 'bookstack', 'cert_manager', 'console',
+                      'devspaces', 'dev_hub', 'dirsrv', 'eck', 'gitops', 'gitlab',
+                      'grafana', 'kafka', 'minio', 'netbox', 'oadp',
+                      'ocp_virtualization', 'openshift', 'pega', 'quay', 'rhbk',
+                      'zabbix'
+                    ])
+                  )
               )
               if 'openshift' in bootstrap_generate_env_vars_preflight_components
               else []
@@ -153,14 +163,18 @@
                     bootstrap_generate_env_vars_preflight.component_options.openshift
                     | default([])
                   )
-                  or (
-                    bootstrap_generate_env_vars_preflight_openshift.admin_username
-                    is defined
-                  )
-                  or (
-                    bootstrap_generate_env_vars_preflight_openshift.admin_password
-                    is defined
-                  )
+                )
+              )
+              else []
+            )
+            +
+            (
+              ['integrated_image_registry']
+              if (
+                'openshift' in bootstrap_generate_env_vars_preflight_components
+                and 'integrated_image_registry' in (
+                  bootstrap_generate_env_vars_preflight.component_options.openshift
+                  | default([])
                 )
               )
               else []
@@ -198,10 +212,6 @@
                   'console_banner' in (
                     bootstrap_generate_env_vars_preflight.component_options.openshift
                     | default([])
-                  )
-                  or (
-                    bootstrap_generate_env_vars_preflight_openshift.banner_text
-                    is defined
                   )
                 )
               )
@@ -450,6 +460,14 @@
             (
               bootstrap_generate_env_vars_preflight_components
               | difference(['openshift', 'rhel', 'patching', 'provision', 'aws'])
+              | difference(
+                  bootstrap_generate_env_vars_preflight_ui_openshift_apps
+                  | default([])
+                )
+              | difference(
+                  bootstrap_generate_env_vars_non_ui_openshift_playbook_apps
+                  | default([])
+                )
               | list
             )
           )

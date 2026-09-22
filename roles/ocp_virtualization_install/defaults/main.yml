@@ -1,8 +1,12 @@
 ---
-# Install OpenShift Virtualization (CNV / HyperConverged) after OLM subscription.
+# Install OpenShift Virtualization (CNV / HyperConverged)
+# after OLM subscription.
 ocp_virtualization_install_namespace: openshift-cnv
 ocp_virtualization_install_hco_name: kubevirt-hyperconverged
 ocp_virtualization_install_csv_retries: 90
 ocp_virtualization_install_csv_delay: 10
 ocp_virtualization_install_hco_retries: 90
 ocp_virtualization_install_hco_delay: 10
+# When true, set HyperConverged
+# featureGates.deployKubeSecondaryDNS (fleet VM DNS).
+ocp_virtualization_install_enable_kube_secondary_dns: false

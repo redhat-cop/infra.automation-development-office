@@ -18,3 +18,75 @@
       metadata:
         name: grafana
         namespace: "{{ name_space }}"
+
+- name: Delete Grafana PostgreSQL Deployment
+  kubernetes.core.k8s:
+    state: absent
+    api_version: apps/v1
+    kind: Deployment
+    name: >-
+      {{
+        grafana_install_postgres_name
+        | default(grafana_postgres_name)
+        | default('grafana-postgres')
+      }}
+    namespace: "{{ name_space }}"
+  failed_when: false
+
+- name: Delete Grafana PostgreSQL Service
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Service
+    name: >-
+      {{
+        grafana_install_postgres_name
+        | default(grafana_postgres_name)
+        | default('grafana-postgres')
+      }}
+    namespace: "{{ name_space }}"
+  failed_when: false
+
+- name: Delete Grafana PostgreSQL PVC
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: >-
+      {{
+        grafana_install_postgres_name
+        | default(grafana_postgres_name)
+        | default('grafana-postgres')
+      }}
+    namespace: "{{ name_space }}"
+  failed_when: false
+
+- name: Delete Grafana PostgreSQL Secret
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Secret
+    name: >-
+      {{
+        grafana_install_postgres_name
+        | default(grafana_postgres_name)
+        | default('grafana-postgres')
+      }}
+    namespace: "{{ name_space }}"
+  failed_when: false
+
+- name: Delete Grafana PostgreSQL anyuid RoleBinding
+  kubernetes.core.k8s:
+    state: absent
+    api_version: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    name: >-
+      {{
+        (
+          grafana_install_postgres_name
+          | default(grafana_postgres_name)
+          | default('grafana-postgres')
+        ) ~ '-anyuid'
+      }}
+    namespace: "{{ name_space }}"
+  failed_when: false

@@ -222,27 +222,56 @@
           else false
         ) | bool
       }}
+    bootstrap_controller_image_registry_during_bootstrap: >-
+      {{
+        (
+          (
+            'integrated_image_registry' in (
+              bootstrap_generate_env_vars_preflight.component_options.openshift
+              | default([])
+            )
+            and (
+              bootstrap_generate_env_vars_preflight.openshift.install_image_registry_during_bootstrap
+              | default(true)
+            ) | bool
+          )
+          if bootstrap_generate_env_vars_preflight is defined
+          else false
+        )
+      }}
     bootstrap_controller_nfs_during_bootstrap: >-
       {{
         (
           (
-            bootstrap_generate_env_vars_preflight.openshift.install_nfs_during_bootstrap
-            | default(false)
+            'nfs_csi' in (
+              bootstrap_generate_env_vars_preflight.component_options.openshift
+              | default([])
+            )
+            and (
+              bootstrap_generate_env_vars_preflight.openshift.install_nfs_during_bootstrap
+              | default(true)
+            ) | bool
           )
           if bootstrap_generate_env_vars_preflight is defined
           else false
-        ) | bool
+        )
       }}
     bootstrap_controller_iscsi_during_bootstrap: >-
       {{
         (
           (
-            bootstrap_generate_env_vars_preflight.openshift.install_iscsi_during_bootstrap
-            | default(false)
+            'iscsi_csi' in (
+              bootstrap_generate_env_vars_preflight.component_options.openshift
+              | default([])
+            )
+            and (
+              bootstrap_generate_env_vars_preflight.openshift.install_iscsi_during_bootstrap
+              | default(true)
+            ) | bool
           )
           if bootstrap_generate_env_vars_preflight is defined
           else false
-        ) | bool
+        )
       }}
   when: bootstrap_controller_generate_env_vars | default(false) | bool
 
@@ -271,6 +300,9 @@
       bootstrap_controller_htpasswd_during_bootstrap | default(false) | bool
     )
     or (
+      bootstrap_controller_image_registry_during_bootstrap | default(false) | bool
+    )
+    or (
       bootstrap_controller_nfs_during_bootstrap | default(false) | bool
     )
     or (
@@ -291,6 +323,20 @@
     - bootstrap_controller_htpasswd_during_bootstrap | default(false) | bool
     - >-
       'admin_htpasswd' in (
+        (
+          bootstrap_generate_env_vars_preflight.component_options.openshift
+          | default([])
+        )
+        if bootstrap_generate_env_vars_preflight is defined
+        else []
+      )
+
+- name: Optionally enable OpenShift integrated image registry during bootstrap
+  ansible.builtin.include_tasks: install_image_registry.yml
+  when:
+    - bootstrap_controller_image_registry_during_bootstrap | default(false) | bool
+    - >-
+      'integrated_image_registry' in (
         (
           bootstrap_generate_env_vars_preflight.component_options.openshift
           | default([])

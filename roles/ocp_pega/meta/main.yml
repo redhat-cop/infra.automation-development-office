@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: Automation Development Office
+  description: >-
+    Deploy Pega from local Helm charts and disconnected registry images.
+  license: GPL-3.0-or-later
+  min_ansible_version: '2.17'
+  galaxy_tags:
+    - openshift
+    - pega
+    - helm
+dependencies: []

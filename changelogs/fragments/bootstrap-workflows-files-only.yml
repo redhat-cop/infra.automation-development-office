@@ -1,0 +1,5 @@
+---
+trivial:
+  - bootstrap_controller - Remove unused duplicate ``templates/workflows/``
+    tree; Contoller workflow seeds are maintained only under
+    ``files/workflows/`` (what bootstrap copies).

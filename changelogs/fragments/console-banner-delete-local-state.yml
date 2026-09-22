@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Local no-AAP runner no longer forces
+    ``-e state=present``, which overrode ``vars_openshift.yml`` and made
+    Console Banner delete run as add.
+  - >-
+    bootstrap_generate_env_vars - Console Banner delete clears leftover banner
+    text/color keys from prior adds in ``vars_openshift.yml``.
+  - >-
+    bootstrap_generate_env_vars - Ignore stale top-level ``components[]``
+    leftovers for non-UI OpenShift playbook apps (for example
+    ``gitlab_runner``) so option-only selections do not generate those
+    playbooks.

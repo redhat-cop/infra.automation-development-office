@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Generate playbook repo | Resolve destination
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_dest_resolved: >-
@@ -156,6 +157,98 @@
         | list
       }}
 
+# Match Contoller workflow/JT gates: cert_manager app covers four playbooks, but
+# Default Ingress alone must not pull IdM ACME / AWSPCA; those follow mode.
+# Skip when dumping the full catalog (component=all, no selected_components).
+- name: Generate playbook repo | Resolve cert_manager mode and ingress flag
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_cert_manager_mode: >-
+      {{
+        bootstrap_controller_cert_manager_mode
+        | default(ocp_cert_manager_mode | default('cert', true), true)
+      }}
+    bootstrap_generate_playbook_repo_update_default_ingress: >-
+      {{
+        bootstrap_controller_update_default_ingress
+        | default(update_default_ingress | default(false), true)
+        | bool
+      }}
+    bootstrap_generate_playbook_repo_cert_manager_gate: >-
+      {{
+        not (
+          bootstrap_generate_playbook_repo_component_effective == 'all'
+          and (
+            bootstrap_generate_playbook_repo_selected_components is not defined
+            or (
+              bootstrap_generate_playbook_repo_selected_components
+              | length == 0
+            )
+          )
+        )
+      }}
+
+- name: Generate playbook repo | Drop IdM ACME unless mode is idm_acme
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | rejectattr(
+            'dest',
+            'equalto',
+            'playbooks/cert-manager/ado-configure-idm-acme-clusterissuer.yml'
+          )
+        | rejectattr(
+            'dest',
+            'equalto',
+            'playbooks/cert-manager/configure-idm-acme-clusterissuer-tasks.yml'
+          )
+        | list
+      }}
+  when:
+    - bootstrap_generate_playbook_repo_cert_manager_gate | bool
+    - >-
+      bootstrap_generate_playbook_repo_cert_manager_mode | default('cert')
+      != 'idm_acme'
+
+- name: Generate playbook repo | Drop AWSPCA unless mode is aws_pca
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | rejectattr(
+            'dest',
+            'equalto',
+            'playbooks/cert-manager/ado-install-and-configure-awspca-bootstrap.yml'
+          )
+        | list
+      }}
+  when:
+    - bootstrap_generate_playbook_repo_cert_manager_gate | bool
+    - >-
+      bootstrap_generate_playbook_repo_cert_manager_mode | default('cert')
+      != 'aws_pca'
+
+- name: Generate playbook repo | Drop default ingress unless enabled
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | rejectattr(
+            'dest',
+            'equalto',
+            'playbooks/cert-manager/ado-update-default-ingress-cert-bootstrap.yml'
+          )
+        | list
+      }}
+  when:
+    - bootstrap_generate_playbook_repo_cert_manager_gate | bool
+    - >-
+      not (
+        bootstrap_generate_playbook_repo_update_default_ingress
+        | default(false)
+        | bool
+      )
+
 - name: Generate playbook repo | Build selected playbook directories
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_selected_dirs: >-
@@ -187,6 +280,41 @@
   when:
     - item.path | basename not in bootstrap_generate_playbook_repo_selected_dirs
 
+- name: Generate playbook repo | Find existing playbook files
+  ansible.builtin.find:
+    paths: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/playbooks"
+    file_type: file
+    patterns: "*.yml"
+    recurse: true
+  register: bootstrap_generate_playbook_repo_existing_files
+
+- name: Generate playbook repo | Remove playbooks dropped by mode or selection
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: >-
+    {{
+      bootstrap_generate_playbook_repo_existing_files.files
+      | default([])
+    }}
+  vars:
+    bootstrap_generate_playbook_repo_selected_dests: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | map(attribute='dest')
+        | list
+      }}
+    bootstrap_generate_playbook_repo_existing_rel: >-
+      {{
+        item.path
+        | regex_replace('^.*/playbooks/', 'playbooks/')
+      }}
+  when:
+    - item.path is search('/playbooks/')
+    - >-
+      bootstrap_generate_playbook_repo_existing_rel
+      not in bootstrap_generate_playbook_repo_selected_dests
+
 - name: Generate playbook repo | Ensure playbook component directories exist
   ansible.builtin.file:
     path: >-
@@ -210,6 +338,34 @@
     force: >-
       {{ bootstrap_generate_playbook_repo_force | default(false) | bool }}
   loop: "{{ bootstrap_generate_playbook_repo_selected_playbooks }}"
+
+- name: Generate playbook repo | Write local execution catalog
+  ansible.builtin.copy:
+    content: "{{ bootstrap_generate_playbook_repo_selected_playbooks | to_nice_json }}"
+    dest: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/.component-catalog.json"
+    mode: "0644"
+
+- name: Generate playbook repo | Copy local component runner
+  ansible.builtin.copy:
+    src: local_components.py
+    dest: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/local_components.py"
+    mode: "0644"
+
+- name: Generate playbook repo | Build local component execution plan
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/local_components.py"
+      - --repo
+      - "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+      - --build
+      - "{{ bootstrap_generate_playbook_repo_dest_resolved }}/.component-catalog.json"
+      - --controller-role
+      - "{{ role_path }}/../bootstrap_controller"
+      - --environment
+      - "{{ env }}"
+  register: bootstrap_generate_playbook_repo_local_plan
+  changed_when: "bootstrap_generate_playbook_repo_local_plan.stdout == 'updated'"
 
 - name: >-
     Generate playbook repo | Render controller project config from
@@ -342,6 +498,40 @@
   when:
     - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
     - bootstrap_generate_playbook_repo_git_url | default('') | length > 0
+
+- name: Generate playbook repo | Generate optional delivery artifacts
+  ansible.builtin.include_tasks: generate_delivery.yml
+  when: env is defined
+
+- name: Generate playbook repo | Ignore plaintext preflight secrets
+  ansible.builtin.blockinfile:
+    path: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/.gitignore"
+    create: true
+    mode: "0644"
+    marker: "# {mark} ADO preflight secrets"
+    block: |
+      ado-preflight-*.json
+      !ado-preflight-*.json.vault.yml
+      ado-extra-vars.json
+      .vault_pass
+      .vault_pass.*
+  when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+
+- name: Generate playbook repo | Untrack plaintext preflight JSON if previously committed
+  ansible.builtin.shell: |
+    set -euo pipefail
+    git ls-files -z -- 'ado-preflight-*.json' 'ado-extra-vars.json' '.vault_pass' 2>/dev/null \
+      | while IFS= read -r -d '' f; do
+          case "$f" in
+            *.json.vault.yml) continue ;;
+          esac
+          git rm -f --cached -- "$f" || true
+        done
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+    executable: /bin/bash
+  changed_when: true
+  when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
 
 - name: Generate playbook repo | Commit generated files
   ansible.builtin.shell: |

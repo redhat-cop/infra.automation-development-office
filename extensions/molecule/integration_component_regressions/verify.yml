@@ -1,0 +1,8 @@
+---
+- name: Confirm local regression completed
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Confirm regression assertions passed in converge
+      ansible.builtin.debug:
+        msg: Execution assertions ran in converge without external services.

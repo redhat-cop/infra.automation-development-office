@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Exclude disabled Galaxy credentials from
+    generated organization attachments so disabling public Galaxy is respected
+    by bootstrap.

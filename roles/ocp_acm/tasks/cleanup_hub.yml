@@ -1,0 +1,334 @@
+---
+# yamllint disable rule:line-length
+# Thorough ACM hub cleanup used by absent and by present heal.
+# Scope: MultiClusterHub, MultiClusterEngine, ClusterManager,
+# local-cluster ManagedCluster, and known stale validating webhooks.
+#
+# Safeguards for half-finished uninstalls (seen in lab):
+# 1) Recreate hub Namespace if MultiClusterHub is orphaned (NS already gone).
+# 2) Remove stale / MCH validating webhooks BEFORE delete — otherwise admission
+#    rejects DELETE when the webhook Service is missing and the wait loop never
+#    sees deletionTimestamp.
+# 3) Clear finalizers (recreating NS again if needed) when delete sticks.
+
+- name: OpenShift ACM | Cleanup note
+  ansible.builtin.debug:
+    msg: >-
+      ACM cleanup ({{ ocp_acm_cleanup_reason | default('absent') }}):
+      remove MultiClusterHub, wait/clear stuck finalizers, then MCE /
+      ClusterManager / local-cluster as configured.
+
+- name: OpenShift ACM | Delete MultiClusterObservability if present
+  kubernetes.core.k8s:
+    state: absent
+    api_version: observability.open-cluster-management.io/v1beta2
+    kind: MultiClusterObservability
+    name: "{{ ocp_acm_observability_mco_name | default('observability') }}"
+    wait: false
+  failed_when: false
+
+- name: OpenShift ACM | Lookup hub namespace before MCH cleanup
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_cleanup_ns
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Lookup MultiClusterHub before cleanup
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_cleanup_mch
+  failed_when: false
+  changed_when: false
+
+# Orphan case: prior absent deleted the Namespace while MCH finalizers kept the
+# CR. Recreate an empty NS so DELETE / finalizer PATCH can succeed.
+- name: OpenShift ACM | Recreate hub namespace for orphaned MultiClusterHub
+  when:
+    - (ocp_acm_cleanup_mch.resources | default([]) | length) > 0
+    - (ocp_acm_cleanup_ns.resources | default([]) | length) == 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ ocp_acm_namespace }}"
+  failed_when: false
+
+# Must run before MCH delete: when the operator webhook Service is already
+# gone, admission rejects DELETE/UPDATE and this wait never sees
+# deletionTimestamp (full retry budget with no progress).
+- name: OpenShift ACM | Remove stale validating webhooks before MCH delete
+  ansible.builtin.include_tasks: cleanup_stale_webhooks.yml
+
+# Belt-and-suspenders: always drop the MCH validating webhook during hub
+# cleanup (absent / stuck-uninstall heal). Matches live recovery when the
+# Service-missing heuristic did not run early enough.
+- name: OpenShift ACM | Force-remove MultiClusterHub validating webhook
+  when: ocp_acm_force_remove_mch_webhook | default(true) | bool
+  kubernetes.core.k8s:
+    state: absent
+    api_version: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    name: "{{ ocp_acm_mch_validating_webhook }}"
+  failed_when: false
+
+- name: OpenShift ACM | Request MultiClusterHub delete
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  failed_when: false
+
+- name: OpenShift ACM | Wait for MultiClusterHub gone or stuck
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_mch_wait_gone
+  until: >-
+    (ocp_acm_mch_wait_gone.resources | default([]) | length) == 0
+    or
+    (
+      ocp_acm_mch_wait_gone.resources[0].metadata.deletionTimestamp is defined
+    )
+  retries: "{{ ocp_acm_uninstall_retries | default(36) | int }}"
+  delay: "{{ ocp_acm_uninstall_delay | default(5) | int }}"
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Clear MultiClusterHub finalizers if stuck
+  when: (ocp_acm_mch_wait_gone.resources | default([]) | length) > 0
+  block:
+    - name: OpenShift ACM | Re-check stale webhooks before MCH finalizer patch
+      ansible.builtin.include_tasks: cleanup_stale_webhooks.yml
+
+    - name: OpenShift ACM | Force-remove MultiClusterHub validating webhook again
+      when: ocp_acm_force_remove_mch_webhook | default(true) | bool
+      kubernetes.core.k8s:
+        state: absent
+        api_version: admissionregistration.k8s.io/v1
+        kind: ValidatingWebhookConfiguration
+        name: "{{ ocp_acm_mch_validating_webhook }}"
+      failed_when: false
+
+    # Prior absent runs can delete the namespace while MCH finalizers remain;
+    # PATCH then fails with Namespace NotFound. Recreate an empty NS first.
+    - name: OpenShift ACM | Ensure namespace exists for MCH finalizer clear
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ ocp_acm_namespace }}"
+      failed_when: false
+
+    - name: OpenShift ACM | Patch MultiClusterHub finalizers empty
+      kubernetes.core.k8s:
+        state: present
+        force: true
+        definition:
+          apiVersion: operator.open-cluster-management.io/v1
+          kind: MultiClusterHub
+          metadata:
+            name: "{{ ocp_acm_mch_name }}"
+            namespace: "{{ ocp_acm_namespace }}"
+            finalizers: []
+      failed_when: false
+
+    - name: OpenShift ACM | Re-request MultiClusterHub delete after finalizer clear
+      kubernetes.core.k8s:
+        state: absent
+        api_version: operator.open-cluster-management.io/v1
+        kind: MultiClusterHub
+        name: "{{ ocp_acm_mch_name }}"
+        namespace: "{{ ocp_acm_namespace }}"
+      failed_when: false
+
+# Soft until + hard fail with actionable message (do not continue present-heal
+# while MCH is still Terminating).
+- name: OpenShift ACM | Confirm MultiClusterHub removed
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_mch_after_fin
+  until: (ocp_acm_mch_after_fin.resources | default([]) | length) == 0
+  retries: "{{ ocp_acm_mch_gone_retries | default(60) | int }}"
+  delay: "{{ ocp_acm_mch_gone_delay | default(5) | int }}"
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Fail if MultiClusterHub still present after cleanup
+  when: (ocp_acm_mch_after_fin.resources | default([]) | length) > 0
+  ansible.builtin.fail:
+    msg: >-
+      MultiClusterHub {{ ocp_acm_namespace }}/{{ ocp_acm_mch_name }} still
+      exists after cleanup
+      (phase={{ ocp_acm_mch_after_fin.resources[0].status.phase | default('?') }},
+      deleting={{ ocp_acm_mch_after_fin.resources[0].metadata.deletionTimestamp is defined }},
+      finalizers={{ ocp_acm_mch_after_fin.resources[0].metadata.finalizers | default([]) }}).
+      Clear finalizers / fix admission webhooks, then re-run state=absent
+      before present.
+
+- name: OpenShift ACM | Request MultiClusterEngine delete
+  when: ocp_acm_absent_cleanup_mce | default(true) | bool
+  kubernetes.core.k8s:
+    state: absent
+    api_version: multicluster.openshift.io/v1
+    kind: MultiClusterEngine
+    name: "{{ ocp_acm_mce_name }}"
+  failed_when: false
+
+- name: OpenShift ACM | Wait for MultiClusterEngine gone or stuck
+  when: ocp_acm_absent_cleanup_mce | default(true) | bool
+  kubernetes.core.k8s_info:
+    api_version: multicluster.openshift.io/v1
+    kind: MultiClusterEngine
+    name: "{{ ocp_acm_mce_name }}"
+  register: ocp_acm_mce_wait_gone
+  until: >-
+    (ocp_acm_mce_wait_gone.resources | default([]) | length) == 0
+    or
+    (
+      ocp_acm_mce_wait_gone.resources[0].metadata.deletionTimestamp is defined
+    )
+  retries: "{{ ocp_acm_uninstall_retries | default(36) | int }}"
+  delay: "{{ ocp_acm_uninstall_delay | default(5) | int }}"
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Clear MultiClusterEngine finalizers if stuck
+  when:
+    - ocp_acm_absent_cleanup_mce | default(true) | bool
+    - (ocp_acm_mce_wait_gone.resources | default([]) | length) > 0
+  block:
+    - name: OpenShift ACM | Remove MCE validating webhook if Service missing
+      ansible.builtin.include_tasks: cleanup_stale_webhooks.yml
+
+    - name: OpenShift ACM | Patch MultiClusterEngine finalizers empty
+      kubernetes.core.k8s:
+        state: present
+        force: true
+        definition:
+          apiVersion: multicluster.openshift.io/v1
+          kind: MultiClusterEngine
+          metadata:
+            name: "{{ ocp_acm_mce_name }}"
+            finalizers: []
+      failed_when: false
+
+- name: OpenShift ACM | Confirm MultiClusterEngine removed
+  when: ocp_acm_absent_cleanup_mce | default(true) | bool
+  kubernetes.core.k8s_info:
+    api_version: multicluster.openshift.io/v1
+    kind: MultiClusterEngine
+    name: "{{ ocp_acm_mce_name }}"
+  register: ocp_acm_mce_after_fin
+  until: (ocp_acm_mce_after_fin.resources | default([]) | length) == 0
+  retries: "{{ ocp_acm_mch_gone_retries | default(60) | int }}"
+  delay: "{{ ocp_acm_mch_gone_delay | default(5) | int }}"
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Fail if MultiClusterEngine still present after cleanup
+  when:
+    - ocp_acm_absent_cleanup_mce | default(true) | bool
+    - (ocp_acm_mce_after_fin.resources | default([]) | length) > 0
+  ansible.builtin.fail:
+    msg: >-
+      MultiClusterEngine {{ ocp_acm_mce_name }} still exists after cleanup
+      (phase={{ ocp_acm_mce_after_fin.resources[0].status.phase | default('?') }},
+      deleting={{ ocp_acm_mce_after_fin.resources[0].metadata.deletionTimestamp is defined }},
+      finalizers={{ ocp_acm_mce_after_fin.resources[0].metadata.finalizers | default([]) }}).
+      Finish MCE uninstall before present.
+
+- name: OpenShift ACM | Remove ClusterManager
+  when: ocp_acm_absent_cleanup_clustermanager | default(true) | bool
+  block:
+    - name: OpenShift ACM | Request ClusterManager delete
+      kubernetes.core.k8s:
+        state: absent
+        api_version: operator.open-cluster-management.io/v1
+        kind: ClusterManager
+        name: "{{ ocp_acm_clustermanager_name }}"
+      failed_when: false
+
+    - name: OpenShift ACM | Read ClusterManager after delete
+      kubernetes.core.k8s_info:
+        api_version: operator.open-cluster-management.io/v1
+        kind: ClusterManager
+        name: "{{ ocp_acm_clustermanager_name }}"
+      register: ocp_acm_cm_info
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Clear ClusterManager finalizers if stuck
+      when: (ocp_acm_cm_info.resources | default([]) | length) > 0
+      kubernetes.core.k8s:
+        state: present
+        force: true
+        definition:
+          apiVersion: operator.open-cluster-management.io/v1
+          kind: ClusterManager
+          metadata:
+            name: "{{ ocp_acm_clustermanager_name }}"
+            finalizers: []
+      failed_when: false
+
+- name: OpenShift ACM | Remove local-cluster ManagedCluster
+  when: ocp_acm_absent_cleanup_local_cluster | default(true) | bool
+  block:
+    - name: OpenShift ACM | Request local-cluster ManagedCluster delete
+      kubernetes.core.k8s:
+        state: absent
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ ocp_acm_local_cluster_name }}"
+      failed_when: false
+
+    - name: OpenShift ACM | Read local-cluster ManagedCluster
+      kubernetes.core.k8s_info:
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ ocp_acm_local_cluster_name }}"
+      register: ocp_acm_mc_info
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Clear local-cluster ManagedCluster finalizers
+      when: (ocp_acm_mc_info.resources | default([]) | length) > 0
+      kubernetes.core.k8s:
+        state: present
+        force: true
+        definition:
+          apiVersion: cluster.open-cluster-management.io/v1
+          kind: ManagedCluster
+          metadata:
+            name: "{{ ocp_acm_local_cluster_name }}"
+            finalizers: []
+      failed_when: false
+
+- name: OpenShift ACM | Cleanup stale ACM validating webhooks
+  when: ocp_acm_cleanup_stale_webhooks | default(true) | bool
+  ansible.builtin.include_tasks: cleanup_stale_webhooks.yml
+
+- name: OpenShift ACM | Cleanup complete
+  ansible.builtin.debug:
+    msg: >-
+      ACM hub cleanup finished
+      ({{ ocp_acm_cleanup_reason | default('absent') }}).
+      Operator Subscription/CSV cleanup is owned by
+      ocp_operator_subscription when state=absent on the
+      deploy playbook.

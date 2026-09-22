@@ -1,0 +1,37 @@
+---
+# yamllint disable rule:line-length
+- name: MTV | Normalize namespace and state
+  ansible.builtin.set_fact:
+    ocp_mtv_namespace: >-
+      {{
+        name_space
+        | default(operator_namespace)
+        | default(operator_subscription_namespace)
+        | default('openshift-mtv')
+      }}
+    ocp_mtv_desired_state: "{{ state | default('present') }}"
+  changed_when: false
+
+- name: MTV | Delete ForkliftController
+  when: ocp_mtv_desired_state == 'absent'
+  kubernetes.core.k8s:
+    state: absent
+    api_version: forklift.konveyor.io/v1beta1
+    kind: ForkliftController
+    name: "{{ ocp_mtv_controller_name }}"
+    namespace: "{{ ocp_mtv_namespace }}"
+    wait: true
+    wait_timeout: 300
+
+- name: MTV | Create ForkliftController
+  when: ocp_mtv_desired_state == 'present'
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: forklift.konveyor.io/v1beta1
+      kind: ForkliftController
+      metadata:
+        name: "{{ ocp_mtv_controller_name }}"
+        namespace: "{{ ocp_mtv_namespace }}"
+      spec:
+        olm_managed: "{{ ocp_mtv_olm_managed | default(true) | bool }}"

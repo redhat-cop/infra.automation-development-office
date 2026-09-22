@@ -1,8 +1,8 @@
 ---
 - name: Create admin user with htpass
   ansible.builtin.import_tasks: create-admin-user-htpass.yml
-  when: state == "present"
+  when: (state | default('present')) == 'present'
 
 - name: Remove admin user htpass provider and secret
   ansible.builtin.import_tasks: delete-admin-user-htpass.yml
-  when: state | default('present') == 'absent'
+  when: (state | default('present')) == 'absent'

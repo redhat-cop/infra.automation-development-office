@@ -169,3 +169,5 @@ gitlab_install/
 └── vars/
     └── main.yml
 ```
+
+The default chart is 10.3.2. Match `gitlab_install_chart_version` to a version supported by the installed GitLab Operator; existing explicit chart selections remain authoritative.

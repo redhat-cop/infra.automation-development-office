@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - ocp_quay - Handle an omitted OIDC issuer during fallback evaluation.
+  - ocp_minio - Render Service ports as YAML integers
+    with non-native templating.
+  - ocp_devspaces - Use the v2 networking hostname and share desired
+    identity with readiness lookup.
+  - gitlab_install - Align bootstrap chart defaults with GitLab chart 10.3.2.
+  - netbox_oidc - Propagate the configured namespace and validate
+    the existing installation prerequisite.

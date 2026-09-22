@@ -1,0 +1,9 @@
+---
+galaxy_info:
+  author: Automation Development Office
+  description: Install Migration Toolkit for Virtualization (ForkliftController).
+  company: Automation Development Office
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16.0"
+  galaxy_tags: []
+dependencies: []

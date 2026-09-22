@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager Deploy creates
+    ClusterIssuer ``idm-acme`` when ``ocp_cert_manager_mode`` /
+    ``mode`` is ``idm_acme`` (preflight IdM ACME tab). Selecting that
+    mode and running Deploy alone previously installed only the
+    operator; the issuer stayed on a separate playbook/JT. Contoller
+    Deploy JT uses the same playbook; the OpenShift workflow still
+    runs ``ADO | Configure IDM ACME ClusterIssuer`` after Deploy when
+    mode is ``idm_acme``.

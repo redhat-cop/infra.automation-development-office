@@ -73,7 +73,7 @@ README. ✅ = JT / playbook generated when selected. ❌ = not generated.
 | Component | OpenShift | RHEL / Linux |
 |-----------|:---------:|:------------:|
 | AAP Controller objects (org, project, inventories, JTs, workflows) | ✅ | ❌ |
-| OpenShift prep (htpasswd, banner, LDAP, OAuth, routes, pull secret, CSI) | ✅ | ❌ |
+| OpenShift prep (htpasswd, banner, LDAP, OAuth, routes, pull secret, CSI, image registry) | ✅ | ❌ |
 | Platform apps above (deploy+configure / options) | ✅ | ❌ |
 | Satellite configure / content view / client registration | ❌ | ✅ |
 | IdM client / DNS / AD trust / settings / sudo / topology | ❌ | ✅ |
@@ -133,10 +133,11 @@ See `roles/idm_ad_trust/README.md` for trust prerequisites (AD conditional
 forwarder for two-way trust) and client SSSD notes.
 
 Generated OpenShift workflows are created when OpenShift is selected. The
-workflow starts with generated OpenShift prep jobs, runs selected cert-manager
-and console banner jobs, and fans out to selected platform services such as
-RHBK, Grafana, GitLab, Pega, Kafka, AAP, ECK, GitOps, 389ds, OADP, Quay, ACS,
-and ACM. The console banner job uses
+workflow starts with generated OpenShift prep jobs, runs the nested
+**Cert Manager Workflow** (deploy plus optional IdM ACME / AWS PCA / default
+ingress nodes, pruned by mode), then fans out through **RHBK Workflow** and
+selected platform services such as Grafana, GitLab, Pega, Kafka, AAP, ECK,
+GitOps, 389ds, OADP, Quay, ACS, and ACM. The console banner job uses
 `playbooks/openshift/ado-configure-console-banner-bootstrap.yml` and its survey
 offers `add`, `update`, and `delete`; `update` removes ADO-managed banners and
 creates one replacement banner. Workflow nodes are pruned when their job
@@ -156,7 +157,18 @@ roles/bootstrap_controller/
   files/job_templates/
   files/workflows/
   tasks/
-  templates/workflows/
+  templates/
   vars/main.yml
   README.md
 ```
+
+Workflow seeds live only under ``files/workflows/`` (copied into the bootstrap
+repo). Do not keep a parallel ``templates/workflows/`` tree.
+
+Project synchronization waits for an existing update after source configuration
+changes. It reuses that update only when its SCM URL and branch match the desired
+project. A differing-source update must finish before a new update is launched.
+Timeouts and failed dependency installation stop bootstrap; an older successful
+revision does not override the failure. The local
+`integration_project_sync` Molecule scenario covers active, failed, pending,
+different-branch and idle updates without contacting a Controller.

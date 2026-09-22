@@ -1,8 +1,8 @@
 ---
 - name: Create openshift_tools_operator_groups
   ansible.builtin.import_tasks: create_operatorgroup.yml
-  when: state == "present"
+  when: (state | default('present')) == "present"
 
 - name: Deleting openshift_tools_operator_groups
   ansible.builtin.import_tasks: delete_operatorgroup.yml
-  when: state == "absent"
+  when: (state | default('present')) == "absent"

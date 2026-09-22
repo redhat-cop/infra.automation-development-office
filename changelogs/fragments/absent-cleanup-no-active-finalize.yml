@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    ocp_absent_cleanup - Only finalize namespaces that are already
+    ``Terminating`` (``ocp_absent_cleanup_finalize_only_terminating``, default
+    true). Finalizing Active namespaces during every cleanup pass caused
+    repeated ``Wait until finalized namespace is gone`` retry spam on absent.
+  - >-
+    ocp_operator_subscription - On ``state=absent``, run the absent-cleanup
+    gate with ``ocp_absent_cleanup_finalize=false`` so subscription uninstall
+    sweeps OLM leftovers without deleting the namespace (``ocp_namespace`` owns
+    that step).

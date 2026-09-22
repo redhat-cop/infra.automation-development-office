@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    ocp_nfs_storage - Bundle ``csi-driver-nfs`` Helm chart
+    ``files/charts/csi-driver-nfs-4.11.0.tgz`` (~12 KiB) and install from that
+    path by default so bootstrap / Contoller runs do not need GitHub
+    ``helm repo add``. Set ``ocp_nfs_storage_use_bundled_chart=false`` to use
+    the upstream charts URL, or ``ocp_nfs_storage_chart_path`` for a custom
+    archive. Container images referenced by the chart are unchanged.

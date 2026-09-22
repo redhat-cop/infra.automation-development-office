@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_namespace - On ``state=present``, sweep a Terminating namespace with
+    ``ocp_absent_cleanup`` before create and fail if the namespace remains
+    Terminating (avoids OperatorGroup Forbidden after reinstall).

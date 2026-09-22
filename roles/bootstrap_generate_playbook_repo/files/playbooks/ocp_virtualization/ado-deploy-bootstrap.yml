@@ -1,9 +1,14 @@
 ---
+# yamllint disable rule:line-length
+# Reorder virt uninstall similarly when HyperConverged absent is added.
+# For now mirror ACM: subscription/OG before namespace on absent; present unchanged.
 - name: ADO | Deploy OpenShift Virtualization Operator
   hosts: localhost
   gather_facts: false
   vars:
     component: ocp_virtualization
+    # CSV package name is kubevirt-hyperconverged; HCO Deployment is hco-operator.
+    operator_deployment_pattern: hco-operator
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
@@ -16,9 +21,51 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.ado.bootstrap_resolve_component
-  roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_operatorgroups
-    - role: infra.ado.ocp_operator_subscription
-    - role: infra.ado.ocp_wait_operator
-    - role: infra.ado.ocp_virtualization_install
+
+  tasks:
+    # ----- present -----
+    - name: ADO | Ensure OpenShift Virtualization namespace exists
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Create OpenShift Virtualization OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Subscribe OpenShift Virtualization operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for OpenShift Virtualization operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_wait_operator
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Install HyperConverged
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_virtualization_install
+      when: (state | default('present')) == 'present'
+
+    # ----- absent: HCO → subscription → OG → namespace -----
+    - name: ADO | Remove HyperConverged
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_virtualization_install
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Unsubscribe OpenShift Virtualization operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete OpenShift Virtualization OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete OpenShift Virtualization namespace
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'absent'
