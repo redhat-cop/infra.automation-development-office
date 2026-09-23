@@ -67,3 +67,17 @@ def test_components_defaults_include_ec2_instance():
     assert ec2["ec2_instance_instance_type"] == "m5.large"
     assert ec2["ec2_instance_region"] == "us-gov-west-1"
     assert ec2["ec2_instance_state"] == "present"
+
+
+def test_component_map_homes_ec2_instance_under_aws_not_provision():
+    defaults = _load_yaml(
+        ROOT / "roles/bootstrap_generate_playbook_repo/defaults/main.yml"
+    )
+    component_map = defaults["bootstrap_generate_playbook_repo_component_map"]
+    assert "ec2_instance" in component_map["aws"]
+    assert "ec2_ami_copy" in component_map["aws"]
+    assert component_map["provision"] == ["openshift_virt"]
+    assert "aws_instance" not in component_map["provision"]
+    assert "ec2_instance" not in component_map["provision"]
+    # Legacy alias remains for old preflight JSON.
+    assert component_map["aws_instance"] == ["ec2_instance"]

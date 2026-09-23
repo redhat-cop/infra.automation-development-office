@@ -3,8 +3,9 @@
 Generate-and-verify bootstrap for GovCloud EC2 instance management. Does **not**
 call AWS. Modeled on `integration_bootstrap_ec2_ami_copy`.
 
-The fixture uses Pre-Flight provision app `aws_instance`, which bootstrap aliases
-to collection app `ec2_instance`.
+The fixture selects the AWS platform umbrella with app `ec2_instance` (primary
+path). Legacy Pre-Flight `provision` / `aws_instance` JSON remains supported via
+bootstrap aliasing but is not the scenario under test.
 
 ```bash
 ansible-galaxy collection install . --force --no-deps -p ~/.ansible/collections

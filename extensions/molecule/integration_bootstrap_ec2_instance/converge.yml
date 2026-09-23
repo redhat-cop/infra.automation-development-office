@@ -40,7 +40,7 @@
         - templates
         - ado-preflight-ec2-instance.json
 
-    - name: Write provision aws_instance preflight JSON for ec2_instance alias
+    - name: Write AWS platform preflight JSON for ec2_instance
       ansible.builtin.copy:
         src: ado-preflight-aws-ec2-instance.fixture.json
         dest: "{{ preflight_json }}"

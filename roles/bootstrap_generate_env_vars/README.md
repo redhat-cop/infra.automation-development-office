@@ -180,11 +180,15 @@ under `group_vars/all/<env>/`:
 | `vars_aws.yml` | `aws_profile`, `aws_default_region` |
 
 Consumers include ``infra.ado.ec2_ami_copy`` (``ado-copy-ami-bootstrap``),
-``amazon.aws.ec2_instance`` (``ado-manage-ec2-instance-bootstrap``; Pre-Flight
-``aws_instance`` aliases to ``ec2_instance``), cert-manager AWS PCA
+``amazon.aws.ec2_instance`` (``ado-manage-ec2-instance-bootstrap`` under the
+AWS platform umbrella), cert-manager AWS PCA
 (``ado-install-and-configure-awspca-bootstrap``), and future AWS bootstrap
 apps. Set credentials in preflight ``component_config.aws`` (or legacy
 per-component keys that overlay into ``vault_aws.yml`` during generation).
+Select EC2 instance management via ``components: ["aws"]`` with
+``component_apps.aws`` / ``component_options.aws`` including ``ec2_instance``
+and ``component_config.ec2_instance``. Legacy Pre-Flight ``provision`` /
+``aws_instance`` JSON is still aliased to ``ec2_instance`` for compatibility.
 EC2 instance jobs seed ``vars_ec2_instance.yml`` only; they do not write
 ``vault_ec2_instance.yml``.
 

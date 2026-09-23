@@ -90,10 +90,10 @@ bootstrap_generate_playbook_repo_component_map:
     - idm_client_tools
     - idm_dns_install
 
+  # OpenShift Virtualization VM provisioning only. AWS EC2 instance management
+  # lives under the aws umbrella (ec2_instance), not provision.
   provision:
     - openshift_virt
-    - aws_instance
-    - ec2_instance
 
   openshift_virt:
     - openshift_virt
@@ -212,6 +212,7 @@ bootstrap_generate_playbook_repo_component_map:
   ec2_instance:
     - ec2_instance
 
+  # Legacy Pre-Flight provision app name; maps to collection app ec2_instance.
   aws_instance:
     - ec2_instance
 

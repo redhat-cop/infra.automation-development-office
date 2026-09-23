@@ -845,6 +845,7 @@
       }}
   when: bootstrap_generate_env_vars_preflight is defined
 
+# Legacy Pre-Flight used provision/aws_instance; primary path is aws/ec2_instance.
 - name: Alias preflight aws_instance app to ec2_instance
   ansible.builtin.set_fact:
     bootstrap_generate_env_vars_components: >-

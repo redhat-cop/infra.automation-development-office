@@ -2,14 +2,14 @@
   "scm_tool": "gitlab",
   "environment": "molecule",
   "domain": "example.test",
-  "component": "provision",
-  "components": ["provision"],
+  "component": "aws",
+  "components": ["aws"],
   "platform": ["aws"],
   "component_apps": {
-    "provision": ["aws_instance"]
+    "aws": ["ec2_instance"]
   },
   "component_options": {
-    "provision": ["aws_instance"]
+    "aws": ["ec2_instance"]
   },
   "component_config": {
     "aws": {
@@ -18,7 +18,7 @@
       "access_key_id": "MOLECULE_AWS_ACCESS_KEY_ID",
       "secret_access_key": "MOLECULE_AWS_SECRET_ACCESS_KEY"
     },
-    "aws_instance": {
+    "ec2_instance": {
       "name": "molecule-ec2",
       "image_id": "ami-0123456789abcdef0",
       "instance_type": "m5.large",

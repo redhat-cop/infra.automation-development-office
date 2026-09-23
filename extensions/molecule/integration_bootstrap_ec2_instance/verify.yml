@@ -21,7 +21,7 @@
           - ec2_instance_playbook.stat.isreg
         fail_msg: >-
           Expected playbooks/aws/ado-manage-ec2-instance-bootstrap.yml
-          to be generated from provision aws_instance
+          to be generated from AWS ec2_instance
 
     - name: Verify generated job template exists
       ansible.builtin.stat:
@@ -101,19 +101,18 @@
         fail_msg: >-
           vault_ec2_instance.yml should not be generated; use vault_aws.yml
 
-    - name: Verify unused aws_instance vars file was not generated
+    - name: Verify unused legacy aws_instance vars file was not generated
       ansible.builtin.stat:
         path: >-
           {{ playbook_dir }}/group_vars/all/{{ env }}/vars_aws_instance.yml
       register: aws_instance_vars_file
 
-    - name: Assert aws_instance aliases to vars_ec2_instance.yml
+    - name: Assert AWS path writes vars_ec2_instance.yml only
       ansible.builtin.assert:
         that:
           - not aws_instance_vars_file.stat.exists
         fail_msg: >-
-          vars_aws_instance.yml should not be generated; aws_instance aliases
-          to ec2_instance
+          vars_aws_instance.yml should not be generated; use vars_ec2_instance.yml
 
     - name: Load generated vars for ec2_instance
       ansible.builtin.slurp:
@@ -125,7 +124,7 @@
         ec2_instance_generated_vars: >-
           {{ ec2_instance_vars_raw.content | b64decode | from_yaml }}
 
-    - name: Assert generated vars overlay aws_instance preflight config
+    - name: Assert generated vars overlay ec2_instance preflight config
       ansible.builtin.assert:
         that:
           - ec2_instance_generated_vars.ec2_instance_name == 'molecule-ec2'
@@ -159,7 +158,7 @@
           - >-
             aws_vault_data.vault_aws_secret_access_key
             == 'MOLECULE_AWS_SECRET_ACCESS_KEY'
-        fail_msg: vault_aws.yml must receive provision aws_instance AWS creds
+        fail_msg: vault_aws.yml must receive AWS platform shared credentials
 
     - name: Validate job template, workflow surveys, and playbook wiring
       ansible.builtin.shell: |

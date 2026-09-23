@@ -36,7 +36,8 @@ selected_components = set(json.loads(os.environ["ADO_SELECTED_COMPONENTS"]))
 
 preflight = json.loads(preflight_file.read_text())
 
-# Pre-Flight provision app aws_instance aliases to collection app ec2_instance.
+# Legacy Pre-Flight provision/aws_instance aliases to aws/ec2_instance.
+# Primary path is components=["aws"] with app ec2_instance.
 if "aws_instance" in selected_components:
     selected_components.discard("aws_instance")
     selected_components.add("ec2_instance")

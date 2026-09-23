@@ -1075,8 +1075,8 @@ components_defaults:
     ec2_ami_copy_tags: {}
 
   # AWS GovCloud EC2 instance create/start/stop/terminate
-  # (module: amazon.aws.ec2_instance). Pre-Flight provision app aws_instance
-  # aliases to this component.
+  # (module: amazon.aws.ec2_instance). Selected under the aws platform umbrella.
+  # Legacy Pre-Flight provision app aws_instance aliases to this component.
   ec2_instance:
     component: ec2_instance
     ec2_instance_name: ""
