@@ -845,6 +845,30 @@
       }}
   when: bootstrap_generate_env_vars_preflight is defined
 
+# Legacy Pre-Flight used provision/aws_instance; primary path is aws/ec2_instance.
+- name: Alias preflight aws_instance app to ec2_instance
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_components: >-
+      {{
+        (
+          (
+            bootstrap_generate_env_vars_components
+            | reject('equalto', 'aws_instance')
+            | list
+          )
+          + (
+              ['ec2_instance']
+              if (
+                'aws_instance' in bootstrap_generate_env_vars_components
+                or 'ec2_instance' in bootstrap_generate_env_vars_components
+              )
+              else []
+            )
+        )
+        | unique
+        | list
+      }}
+
 - name: Normalize patching selection to RHEL component vars
   ansible.builtin.set_fact:
     bootstrap_generate_env_vars_components: >-
@@ -872,7 +896,7 @@
               ['aws']
               if (
                 bootstrap_generate_env_vars_components
-                | intersect(['ec2_ami_copy', 'openshift', 'cert_manager'])
+                | intersect(['ec2_ami_copy', 'ec2_instance', 'openshift', 'cert_manager'])
                 | length > 0
               )
               else []
@@ -1358,6 +1382,7 @@
     - item.path | basename not in (
         bootstrap_generate_env_vars_components
         | reject('equalto', 'ec2_ami_copy')
+        | reject('equalto', 'ec2_instance')
         | map('regex_replace', '^(389ds|dirsrv)$', 'dirsrv')
         | map('regex_replace', '^(.*)$', 'vault_\\1.yml')
         | list
@@ -1395,7 +1420,7 @@
   loop: "{{ bootstrap_generate_env_vars_components }}"
   loop_control:
     loop_var: component_name
-  when: component_name != 'ec2_ami_copy'
+  when: component_name not in ['ec2_ami_copy', 'ec2_instance']
 
 - name: Remove legacy per-component ec2_ami_copy vault file after template pass
   ansible.builtin.file:
@@ -1403,6 +1428,13 @@
       {{ bootstrap_generate_env_vars_env_dir }}/vault_ec2_ami_copy.yml
     state: absent
   when: "'ec2_ami_copy' in bootstrap_generate_env_vars_components"
+
+- name: Remove unused per-component ec2_instance vault file after template pass
+  ansible.builtin.file:
+    path: >-
+      {{ bootstrap_generate_env_vars_env_dir }}/vault_ec2_instance.yml
+    state: absent
+  when: "'ec2_instance' in bootstrap_generate_env_vars_components"
 
 - name: Overlay preflight component values into generated vars/vault files
   ansible.builtin.command:
@@ -1427,6 +1459,13 @@
       {{ bootstrap_generate_env_vars_env_dir }}/vault_ec2_ami_copy.yml
     state: absent
   when: "'ec2_ami_copy' in bootstrap_generate_env_vars_components"
+
+- name: Remove unused per-component ec2_instance vault file
+  ansible.builtin.file:
+    path: >-
+      {{ bootstrap_generate_env_vars_env_dir }}/vault_ec2_instance.yml
+    state: absent
+  when: "'ec2_instance' in bootstrap_generate_env_vars_components"
 
 - name: Ask if using AAP
   ansible.builtin.pause:

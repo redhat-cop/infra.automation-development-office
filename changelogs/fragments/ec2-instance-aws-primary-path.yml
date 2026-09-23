@@ -1,0 +1,11 @@
+---
+doc_changes:
+  - |
+    bootstrap - Document AWS platform as the primary home for
+    ``ec2_instance`` (with legacy ``provision`` / ``aws_instance`` alias kept
+    for older preflight JSON).
+minor_changes:
+  - |
+    bootstrap - Keep ``ec2_instance`` under the ``aws`` component map only;
+    ``provision`` now maps to OpenShift Virt. Molecule
+    ``integration_bootstrap_ec2_instance`` uses the AWS preflight path.

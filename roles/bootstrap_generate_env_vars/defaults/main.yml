@@ -27,6 +27,7 @@ generate_env_vars_components:  # noqa: var-naming[no-role-prefix]
   - ocp_virtualization
   - openshift_virt
   - ec2_ami_copy
+  - ec2_instance
   - pega
   - quay
   - minio
@@ -240,6 +241,17 @@ bootstrap_generate_env_vars_ec2_ami_copy_kms_key_id: ""
 bootstrap_generate_env_vars_ec2_ami_copy_copy_image_tags: false
 bootstrap_generate_env_vars_ec2_ami_copy_tag_equality: false
 bootstrap_generate_env_vars_ec2_ami_copy_tags: {}
+
+bootstrap_generate_env_vars_ec2_instance_name: ""
+bootstrap_generate_env_vars_ec2_instance_image_id: ""
+bootstrap_generate_env_vars_ec2_instance_instance_type: m5.large
+bootstrap_generate_env_vars_ec2_instance_region: us-gov-west-1
+bootstrap_generate_env_vars_ec2_instance_vpc_subnet_id: ""
+bootstrap_generate_env_vars_ec2_instance_security_group: ""
+bootstrap_generate_env_vars_ec2_instance_key_name: ""
+bootstrap_generate_env_vars_ec2_instance_state: present
+bootstrap_generate_env_vars_ec2_instance_wait: true
+bootstrap_generate_env_vars_ec2_instance_wait_timeout: 600
 
 bootstrap_generate_env_vars_aws_profile: ""
 bootstrap_generate_env_vars_aws_default_region: us-east-1

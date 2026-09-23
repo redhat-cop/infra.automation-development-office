@@ -1,0 +1,271 @@
+---
+- name: Verify ec2_instance bootstrap content
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    env: molecule
+
+  tasks:
+    - name: Verify generated playbook exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/playbooks/aws/ado-manage-ec2-instance-bootstrap.yml
+      register: ec2_instance_playbook
+
+    - name: Assert ec2_instance playbook was generated
+      ansible.builtin.assert:
+        that:
+          - ec2_instance_playbook.stat.exists
+          - ec2_instance_playbook.stat.isreg
+        fail_msg: >-
+          Expected playbooks/aws/ado-manage-ec2-instance-bootstrap.yml
+          to be generated from AWS ec2_instance
+
+    - name: Verify generated job template exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/configs/job_templates/ado-aws-ec2-instance-bootstrap.jt.yml
+      register: ec2_instance_job_template
+
+    - name: Assert ec2_instance job template was generated
+      ansible.builtin.assert:
+        that:
+          - ec2_instance_job_template.stat.exists
+          - ec2_instance_job_template.stat.isreg
+        fail_msg: >-
+          Expected configs/job_templates/ado-aws-ec2-instance-bootstrap.jt.yml
+
+    - name: Verify generated workflow exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/configs/workflows/ado-aws-ec2-instance-workflow-bootstrap.wf.yml
+      register: ec2_instance_workflow
+
+    - name: Assert ec2_instance workflow was generated
+      ansible.builtin.assert:
+        that:
+          - ec2_instance_workflow.stat.exists
+          - ec2_instance_workflow.stat.isreg
+        fail_msg: >-
+          Expected configs/workflows/ado-aws-ec2-instance-workflow-bootstrap.wf.yml
+
+    - name: Verify generated component vars file exists
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/group_vars/all/{{ env }}/vars_ec2_instance.yml
+      register: ec2_instance_vars_file
+
+    - name: Assert ec2_instance vars file was generated
+      ansible.builtin.assert:
+        that:
+          - ec2_instance_vars_file.stat.exists
+          - ec2_instance_vars_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vars_ec2_instance.yml
+
+    - name: Verify generated shared AWS vars file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/group_vars/all/{{ env }}/vars_aws.yml"
+      register: aws_vars_file
+
+    - name: Assert shared AWS vars file was generated
+      ansible.builtin.assert:
+        that:
+          - aws_vars_file.stat.exists
+          - aws_vars_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vars_aws.yml
+
+    - name: Verify generated shared AWS vault file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/group_vars/all/{{ env }}/vault_aws.yml"
+      register: aws_vault_file
+
+    - name: Assert shared AWS vault file was generated
+      ansible.builtin.assert:
+        that:
+          - aws_vault_file.stat.exists
+          - aws_vault_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vault_aws.yml
+
+    - name: Verify ec2_instance component vault file was not generated
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/group_vars/all/{{ env }}/vault_ec2_instance.yml
+      register: ec2_instance_vault_file
+
+    - name: Assert ec2_instance uses shared AWS vault only
+      ansible.builtin.assert:
+        that:
+          - not ec2_instance_vault_file.stat.exists
+        fail_msg: >-
+          vault_ec2_instance.yml should not be generated; use vault_aws.yml
+
+    - name: Verify unused legacy aws_instance vars file was not generated
+      ansible.builtin.stat:
+        path: >-
+          {{ playbook_dir }}/group_vars/all/{{ env }}/vars_aws_instance.yml
+      register: aws_instance_vars_file
+
+    - name: Assert AWS path writes vars_ec2_instance.yml only
+      ansible.builtin.assert:
+        that:
+          - not aws_instance_vars_file.stat.exists
+        fail_msg: >-
+          vars_aws_instance.yml should not be generated; use vars_ec2_instance.yml
+
+    - name: Load generated vars for ec2_instance
+      ansible.builtin.slurp:
+        src: "{{ ec2_instance_vars_file.stat.path }}"
+      register: ec2_instance_vars_raw
+
+    - name: Parse generated vars for ec2_instance
+      ansible.builtin.set_fact:
+        ec2_instance_generated_vars: >-
+          {{ ec2_instance_vars_raw.content | b64decode | from_yaml }}
+
+    - name: Assert generated vars overlay ec2_instance preflight config
+      ansible.builtin.assert:
+        that:
+          - ec2_instance_generated_vars.ec2_instance_name == 'molecule-ec2'
+          - >-
+            ec2_instance_generated_vars.ec2_instance_image_id
+            == 'ami-0123456789abcdef0'
+          - >-
+            ec2_instance_generated_vars.ec2_instance_instance_type
+            == 'm5.large'
+          - >-
+            ec2_instance_generated_vars.ec2_instance_region
+            == 'us-gov-west-1'
+          - ec2_instance_generated_vars.ec2_instance_state == 'present'
+        fail_msg: Generated vars_ec2_instance.yml did not match preflight config
+
+    - name: Load generated shared AWS vault
+      ansible.builtin.slurp:
+        src: "{{ aws_vault_file.stat.path }}"
+      register: aws_vault_raw
+
+    - name: Parse generated shared AWS vault
+      ansible.builtin.set_fact:
+        aws_vault_data: "{{ aws_vault_raw.content | b64decode | from_yaml }}"
+
+    - name: Assert vault_aws received preflight AWS credentials
+      ansible.builtin.assert:
+        that:
+          - >-
+            aws_vault_data.vault_aws_access_key_id
+            == 'MOLECULE_AWS_ACCESS_KEY_ID'
+          - >-
+            aws_vault_data.vault_aws_secret_access_key
+            == 'MOLECULE_AWS_SECRET_ACCESS_KEY'
+        fail_msg: vault_aws.yml must receive AWS platform shared credentials
+
+    - name: Validate job template, workflow surveys, and playbook wiring
+      ansible.builtin.shell: |
+        set -euo pipefail
+        python3 - <<'PY'
+        from pathlib import Path
+        import re
+        import sys
+        import yaml
+
+        root = Path("{{ playbook_dir }}")
+        jt_path = (
+            root
+            / "configs"
+            / "job_templates"
+            / "ado-aws-ec2-instance-bootstrap.jt.yml"
+        )
+        wf_path = (
+            root
+            / "configs"
+            / "workflows"
+            / "ado-aws-ec2-instance-workflow-bootstrap.wf.yml"
+        )
+        playbook_path = (
+            root
+            / "playbooks"
+            / "aws"
+            / "ado-manage-ec2-instance-bootstrap.yml"
+        )
+
+        jt = yaml.safe_load(jt_path.read_text()) or {}
+        templates = jt.get("controller_templates") or []
+        if not templates:
+            print("missing controller_templates in job template")
+            sys.exit(1)
+        playbook = str(templates[0].get("playbook") or "").strip()
+        if playbook != "playbooks/aws/ado-manage-ec2-instance-bootstrap.yml":
+            print(f"unexpected JT playbook: {playbook}")
+            sys.exit(1)
+        if not (root / playbook).exists():
+            print(f"missing playbook referenced by JT: {playbook}")
+            sys.exit(1)
+
+        playbook_text = playbook_path.read_text()
+        if "amazon.aws.ec2_instance:" not in playbook_text:
+            print("generated playbook does not call amazon.aws.ec2_instance")
+            sys.exit(1)
+        if re.search(r"infra\.ado\.ec2_instance", playbook_text):
+            print("generated playbook must not call a custom infra.ado EC2 role")
+            sys.exit(1)
+
+        def survey_by_var(doc, root_key):
+            items = doc.get(root_key) or []
+            if not items:
+                return {}
+            spec = ((items[0].get("survey_spec") or {}).get("spec")) or []
+            return {item.get("variable"): item for item in spec}
+
+        jt_survey = survey_by_var(jt, "controller_templates")
+        wf = yaml.safe_load(wf_path.read_text()) or {}
+        wf_survey = survey_by_var(wf, "controller_workflow_job_templates")
+
+        for label, survey in (("JT", jt_survey), ("workflow", wf_survey)):
+            type_q = survey.get("ec2_instance_instance_type") or {}
+            region_q = survey.get("ec2_instance_region") or {}
+            state_q = survey.get("ec2_instance_state") or {}
+            type_choices = str(type_q.get("choices") or "")
+            region_choices = str(region_q.get("choices") or "")
+            state_choices = str(state_q.get("choices") or "")
+            if type_q.get("type") != "multiplechoice":
+                print(f"{label} instance type is not a dropdown")
+                sys.exit(1)
+            if "m5.large" not in type_choices.splitlines():
+                print(f"{label} instance-type survey missing m5.large")
+                sys.exit(1)
+            if str(type_q.get("default") or "") != "m5.large":
+                print(f"{label} instance-type default is not m5.large")
+                sys.exit(1)
+            if "us-gov-west-1" not in region_choices.splitlines():
+                print(f"{label} region survey missing us-gov-west-1")
+                sys.exit(1)
+            if "us-east-1" in region_choices.splitlines():
+                print(f"{label} region survey must be GovCloud-only")
+                sys.exit(1)
+            for state in ("present", "running", "stopped", "terminated"):
+                if state not in state_choices.splitlines():
+                    print(f"{label} state survey missing {state}")
+                    sys.exit(1)
+            jinja_open = "{" + "{"
+            if jinja_open in type_choices or jinja_open in region_choices:
+                print(f"{label} survey still has unrendered jinja choices")
+                sys.exit(1)
+
+        nodes = (
+            (wf.get("controller_workflow_job_templates") or [{}])[0]
+            .get("simplified_workflow_nodes")
+            or []
+        )
+        if not any(
+            "Manage EC2 instance" in str(node.get("unified_job_template") or "")
+            for node in nodes
+        ):
+            print("workflow is missing Manage EC2 instance node")
+            sys.exit(1)
+
+        print("ec2_instance JT, workflow surveys, and playbook wiring ok")
+        PY
+      args:
+        executable: /bin/bash
+      changed_when: false

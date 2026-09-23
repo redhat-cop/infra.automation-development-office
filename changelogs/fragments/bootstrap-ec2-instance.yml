@@ -1,0 +1,10 @@
+---
+minor_changes:
+  - bootstrap - Add ``ado-manage-ec2-instance-bootstrap`` playbook, job
+    template, and workflow that call ``amazon.aws.ec2_instance`` for GovCloud
+    create/start/stop/terminate. Surveys share GovCloud region and instance-type
+    dropdowns. Pre-Flight ``aws_instance`` aliases to ``ec2_instance``; credentials
+    stay in shared ``vault_aws.yml`` / ``vars_aws.yml``.
+  - bootstrap - Add generate-and-verify molecule scenario
+    ``integration_bootstrap_ec2_instance`` (no live AWS) covering playbook, JT,
+    workflow survey choices, and the ``aws_instance`` alias path.
