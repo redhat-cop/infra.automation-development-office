@@ -163,6 +163,7 @@ Use this index as the starting point for operators and automation users.
 | [`infra.ado.satellite_content_view`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_content_view/README.md) | Manage Red Hat Satellite Content Views with create, publish, and promote actions. |
 | [`infra.ado.satellite_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_install/README.md) | Prepare and install a Red Hat Satellite host on supported RHEL systems. |
 | [`infra.ado.satellite_oidc`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_oidc/README.md) | Wire Satellite login to Keycloak / RHBK OIDC (client `ado-satellite`). |
+| [`infra.ado.terraform`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/terraform/README.md) | Run Terraform or OpenTofu plan/apply/destroy for customer stacks in a generated bootstrap repository. |
 | [`infra.ado.vm_image_management`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/vm_image_management/README.md) | Create a qcow2 virtual machine image from an existing base image. |
 
 ## Using this collection

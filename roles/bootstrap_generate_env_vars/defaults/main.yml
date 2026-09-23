@@ -27,6 +27,7 @@ generate_env_vars_components:  # noqa: var-naming[no-role-prefix]
   - ocp_virtualization
   - openshift_virt
   - ec2_ami_copy
+  - terraform
   - pega
   - quay
   - minio

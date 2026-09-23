@@ -1075,10 +1075,23 @@ components_defaults:
     ec2_ami_copy_tags: {}
 
   # Shared AWS account credentials for bootstrap consumers (ec2_ami_copy,
-  # cert-manager AWS PCA, and future AWS modules).
+  # cert-manager AWS PCA, terraform, and future AWS modules).
   aws:
     aws_profile: ""
     aws_default_region: us-east-1
+
+  # Optional Terraform/OpenTofu runner (role: terraform). Customer stacks live
+  # in the generated repo under terraform/stacks/.
+  terraform:
+    component: terraform
+    terraform_bin: terraform
+    terraform_stack: example
+    terraform_stack_dir: ""
+    terraform_workspace: ""
+    terraform_backend_configured: false
+    terraform_require_remote_backend: true
+    terraform_init_upgrade: false
+    terraform_init_reconfigure: false
 
   # BookStack docs platform on OpenShift (role: bookstack_openshift).
   # OCP API auth comes from vault_openshift.yml / vars_openshift.yml (host + token),

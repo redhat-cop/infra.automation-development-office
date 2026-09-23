@@ -1,0 +1,291 @@
+---
+# SPDX-License-Identifier: GPL-3.0-or-later-0
+# yamllint disable rule:line-length
+- name: Terraform | Normalize action and stack path
+  ansible.builtin.set_fact:
+    terraform_action_effective: >-
+      {{ terraform_action | default('plan') | string | trim | lower }}
+    terraform_stack_dir_effective: >-
+      {{
+        terraform_stack_dir | default('') | string | trim
+        if (terraform_stack_dir | default('') | string | trim | length > 0)
+        else (
+          (
+            playbook_dir | default(ansible_playbook_dir | default('.'))
+          )
+          ~ '/../../terraform/stacks/'
+          ~ (terraform_stack | default('example') | string | trim)
+        )
+      }}
+    terraform_extra_args_effective: >-
+      {{ terraform_extra_args | default([]) | list }}
+    terraform_backend_config_effective: >-
+      {{ terraform_backend_config | default({}) | combine({}) }}
+    terraform_effective_environment: >-
+      {{
+        (terraform_environment | default({}))
+        | combine(
+            {'AWS_ACCESS_KEY_ID': vault_aws_access_key_id}
+            if (vault_aws_access_key_id | default('') | string | length > 0)
+            else {}
+          )
+        | combine(
+            {'AWS_SECRET_ACCESS_KEY': vault_aws_secret_access_key}
+            if (
+              vault_aws_secret_access_key | default('') | string | length > 0
+            )
+            else {}
+          )
+        | combine(
+            {'AWS_SESSION_TOKEN': vault_aws_session_token}
+            if (vault_aws_session_token | default('') | string | length > 0)
+            else {}
+          )
+        | combine(
+            {'AWS_DEFAULT_REGION': aws_default_region}
+            if (aws_default_region | default('') | string | length > 0)
+            else {}
+          )
+        | combine(
+            {'AWS_PROFILE': aws_profile}
+            if (aws_profile | default('') | string | length > 0)
+            else {}
+          )
+        | combine(
+            {
+              'TF_TOKEN_app_terraform_io': vault_terraform_cloud_token
+            }
+            if (
+              vault_terraform_cloud_token | default('') | string | length > 0
+            )
+            else {}
+          )
+        | combine(
+            {'TF_HTTP_USERNAME': vault_terraform_http_username}
+            if (
+              vault_terraform_http_username | default('') | string | length > 0
+            )
+            else {}
+          )
+        | combine(
+            {'TF_HTTP_PASSWORD': vault_terraform_http_password}
+            if (
+              vault_terraform_http_password | default('') | string | length > 0
+            )
+            else {}
+          )
+      }}
+
+- name: Terraform | Assert supported action
+  ansible.builtin.assert:
+    that:
+      - >-
+        terraform_action_effective
+        in ['init', 'validate', 'plan', 'apply', 'destroy']
+    fail_msg: >-
+      terraform_action must be init, validate, plan, apply, or destroy.
+      Got '{{ terraform_action_effective }}'.
+
+- name: Terraform | Build backend-config arguments
+  ansible.builtin.set_fact:
+    terraform_backend_config_args: >-
+      {{
+        terraform_backend_config_args | default([])
+        + [
+            '-backend-config='
+            ~ item.key
+            ~ '='
+            ~ (item.value | string)
+          ]
+      }}
+  loop: "{{ terraform_backend_config_effective | dict2items }}"
+  when: terraform_backend_config_effective | length > 0
+
+- name: Terraform | Default empty backend-config arguments
+  ansible.builtin.set_fact:
+    terraform_backend_config_args: []
+  when: terraform_backend_config_effective | length == 0
+
+- name: Terraform | Assert remote backend for apply and destroy
+  ansible.builtin.assert:
+    that:
+      - >-
+        (terraform_backend_configured | default(false) | bool)
+        or (terraform_backend_config_effective | length > 0)
+    fail_msg: >-
+      terraform apply/destroy from Ansible Automation Platform requires a
+      remote backend. Set terraform_backend_configured when the stack
+      already declares a backend, or pass terraform_backend_config.
+      Local terraform.tfstate does not survive an execution environment job.
+  when:
+    - terraform_require_remote_backend | default(true) | bool
+    - terraform_action_effective in ['apply', 'destroy']
+
+- name: Terraform | Ensure stack directory exists
+  ansible.builtin.stat:
+    path: "{{ terraform_stack_dir_effective }}"
+  register: terraform_stack_dir_stat
+
+- name: Terraform | Assert stack directory is present
+  ansible.builtin.assert:
+    that:
+      - terraform_stack_dir_stat.stat.exists | default(false) | bool
+      - terraform_stack_dir_stat.stat.isdir | default(false) | bool
+    fail_msg: >-
+      Terraform stack directory was not found:
+      {{ terraform_stack_dir_effective }}.
+      Add a root module under terraform/stacks/{{ terraform_stack }}
+      in the generated bootstrap repository.
+
+- name: Terraform | Find Terraform files in the stack
+  ansible.builtin.find:
+    paths: "{{ terraform_stack_dir_effective }}"
+    patterns:
+      - "*.tf"
+      - "*.tf.json"
+    file_type: file
+  register: terraform_stack_tf_files
+
+- name: Terraform | Assert the stack contains Terraform files
+  ansible.builtin.assert:
+    that:
+      - terraform_stack_tf_files.files | default([]) | length > 0
+    fail_msg: >-
+      No *.tf files found in {{ terraform_stack_dir_effective }}.
+
+- name: Terraform | Ensure the Terraform binary is on PATH
+  ansible.builtin.command:
+    argv:
+      - "{{ terraform_bin }}"
+      - version
+  register: terraform_version
+  changed_when: false
+  failed_when: false
+
+- name: Terraform | Fail when the Terraform binary is missing
+  ansible.builtin.assert:
+    that:
+      - terraform_version.rc | default(1) | int == 0
+    fail_msg: >-
+      '{{ terraform_bin }}' was not found on PATH. Install Terraform or
+      OpenTofu in the execution environment (ado-ee) before running this
+      role from Ansible Automation Platform.
+
+- name: Terraform | Build init arguments
+  ansible.builtin.set_fact:
+    terraform_init_argv: >-
+      {{
+        [terraform_bin, 'init', '-input=false', '-no-color']
+        + (
+            ['-upgrade']
+            if terraform_init_upgrade | default(false) | bool
+            else []
+          )
+        + (
+            ['-reconfigure']
+            if terraform_init_reconfigure | default(false) | bool
+            else []
+          )
+        + terraform_backend_config_args
+      }}
+
+- name: Terraform | Initialize the stack
+  ansible.builtin.command:
+    argv: "{{ terraform_init_argv }}"
+    chdir: "{{ terraform_stack_dir_effective }}"
+  environment: "{{ terraform_effective_environment }}"
+  register: terraform_init_result
+  changed_when: false
+
+- name: Terraform | List workspaces
+  ansible.builtin.command:
+    argv:
+      - "{{ terraform_bin }}"
+      - workspace
+      - list
+      - -no-color
+    chdir: "{{ terraform_stack_dir_effective }}"
+  environment: "{{ terraform_effective_environment }}"
+  register: terraform_workspace_list
+  changed_when: false
+  when: terraform_workspace | default('') | string | trim | length > 0
+
+- name: Terraform | Parse workspace names
+  ansible.builtin.set_fact:
+    terraform_workspace_names: >-
+      {{
+        terraform_workspace_list.stdout_lines | default([])
+        | map('regex_replace', '^[* ]+', '')
+        | map('trim')
+        | reject('equalto', '')
+        | list
+      }}
+  when: terraform_workspace | default('') | string | trim | length > 0
+
+- name: Terraform | Select existing workspace
+  ansible.builtin.command:
+    argv:
+      - "{{ terraform_bin }}"
+      - workspace
+      - select
+      - "{{ terraform_workspace | string | trim }}"
+    chdir: "{{ terraform_stack_dir_effective }}"
+  environment: "{{ terraform_effective_environment }}"
+  changed_when: false
+  when:
+    - terraform_workspace | default('') | string | trim | length > 0
+    - >-
+      terraform_workspace | string | trim
+      in (terraform_workspace_names | default([]))
+
+- name: Terraform | Create workspace when missing
+  ansible.builtin.command:
+    argv:
+      - "{{ terraform_bin }}"
+      - workspace
+      - new
+      - "{{ terraform_workspace | string | trim }}"
+    chdir: "{{ terraform_stack_dir_effective }}"
+  environment: "{{ terraform_effective_environment }}"
+  changed_when: true
+  when:
+    - terraform_workspace | default('') | string | trim | length > 0
+    - >-
+      terraform_workspace | string | trim
+      not in (terraform_workspace_names | default([]))
+
+- name: Terraform | Build action arguments
+  ansible.builtin.set_fact:
+    terraform_action_argv: >-
+      {{
+        [terraform_bin, terraform_action_effective, '-no-color', '-input=false']
+        + (
+            ['-auto-approve']
+            if terraform_action_effective in ['apply', 'destroy']
+            else []
+          )
+        + (
+            ['-var-file=' ~ terraform_var_file]
+            if (terraform_var_file | default('') | string | trim | length > 0)
+            else []
+          )
+        + terraform_extra_args_effective
+      }}
+  when: terraform_action_effective != 'init'
+
+- name: Terraform | Run {{ terraform_action_effective }}
+  ansible.builtin.command:
+    argv: "{{ terraform_action_argv }}"
+    chdir: "{{ terraform_stack_dir_effective }}"
+  environment: "{{ terraform_effective_environment }}"
+  register: terraform_result
+  changed_when: terraform_action_effective in ['apply', 'destroy']
+  when: terraform_action_effective != 'init'
+
+- name: Terraform | Show command output
+  ansible.builtin.debug:
+    var: terraform_result.stdout_lines
+  when:
+    - terraform_action_effective != 'init'
+    - terraform_result is defined
+    - terraform_result.stdout_lines is defined

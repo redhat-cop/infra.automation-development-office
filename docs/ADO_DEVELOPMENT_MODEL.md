@@ -5,10 +5,13 @@ It is written so you can hand it to another engineer and keep the dev workflow c
 
 Use it like a checklist every time you touch:
 
-- `infra.ado` roles/modules (Ansible collection code)
-- `ado-preflight-ui` (the containerized web UI)
+- `infra.ado` roles/modules in **this** collection repository
 - shared generated bootstrap repo artifacts
 - any documentation that affects maintainers/operators
+
+The containerized preflight UI (`ado-preflight-ui`) is a **sibling product**,
+not part of this tree. Change questionnaire/payload mapping there; keep CLI
+and UI on the same preflight JSON.
 
 ---
 ## 1) Big Picture: what "ADO" means in this repo
@@ -35,6 +38,10 @@ In practice, there are three layers:
      - `configs/controller/...`
      - `configs/job_templates/...`
      - `configs/workflows/...`
+     - `templates/` (Grafana dashboard seeds)
+     - `terraform/stacks/` (optional Terraform/OpenTofu roots; seed is always
+       copied, playbooks and job templates are emitted when `terraform` is
+       selected in preflight JSON)
 
 ---
 ## 2) System Boundaries (what you should change where)
@@ -45,47 +52,54 @@ In practice, there are three layers:
 - You're changing how the UI's preflight JSON gets turned into a working bootstrap repository.
 - You're changing Molecule scenarios / role behavior.
 
-Typical paths:
+Typical paths in **this** repo:
 
-- `ansible_collections/infra/ado/roles/<role_name>/...`
-- `ansible_collections/infra/ado/plugins/...`
+- `roles/<role_name>/...`
+- `plugins/...`
 - `extensions/molecule/<scenario>/...`
 - `changelogs/fragments/...` (user-visible changes)
 
-### Change `ado-preflight-ui` when…
+### Change `ado-preflight-ui` when… (sibling repository)
 
 - You're changing the questionnaire, payload normalization, JSON download/import, or API endpoints.
 - You're changing how UI state maps into preflight JSON.
 - You're changing UI help text or run-log UX.
 
-Typical paths:
+Those files are **not** in `redhat-cop/infra.automation-development-office`.
+Typical sibling-repo paths:
 
-- `ado-preflight-ui/src/App.jsx`
-- `ado-preflight-ui/server.js`
-- `ado-preflight-ui/docker/*` (overlays applied into the runtime container)
+- `src/App.jsx`
+- `server.js`
+- `docker/*` (overlays applied into the runtime container)
 - `.changeset/*` (UI-visible changes)
 
 ---
 ## 3) Repository Layout (dev view)
 
-This is the "mental model" tree people should keep in mind when developing:
+This repository **is** the `infra.ado` collection (copied from
+`Automation-Development-Office/ado`). Canonical GitHub:
+
+`https://github.com/redhat-cop/infra.automation-development-office`
+
+The Ansible FQCN stays `infra.ado`. Do not look for an `ado/` or
+`ansible_collections/infra/ado/` prefix inside this checkout.
 
 ```text
-github-ado/
-  ado/                              # infra.ado repo content + docs
-    roles/                          # sometimes mirrored role sources
-    docs/                           # dev model docs + templates
-    changelogs/fragments/          # infra.ado user-visible change entries
-    .github/Developers _Guide.md    # CI/molecule dev workflow guide
-    extensions/molecule/           # integration scenarios (molecule)
-    ansible_collections/infra/ado/  # built collection source layout
+infra.automation-development-office/  # this repo (collection infra.ado)
+  roles/                              # bootstrap, terraform, ocp, rhel, ...
+  plugins/                            # collection modules/plugins
+  docs/                               # development model + README templates
+  changelogs/fragments/               # antsibull-changelog entries
+  .github/Developers _Guide.md        # CI/molecule workflow guide
+  extensions/molecule/                # integration scenarios
+  galaxy.yml                          # namespace: infra, name: ado
 
-  ado-preflight-ui/                 # web UI that runs Ansible in a container
-    src/                            # React app
-    server.js                       # API + preflight payload normalization
-    docker/                         # overlays (applied into runtime container)
-    collections/                    # baked collection tarballs used at runtime
-    .changeset/                     # changesets fragments for UI changelog
+ado-preflight-ui/                     # sibling repo, not in this tree
+  src/                                # React app
+  server.js                           # API + preflight payload normalization
+  docker/                             # overlays applied into the runtime container
+  collections/                        # baked collection tarballs used at runtime
+  .changeset/                         # UI changelog fragments
 ```
 
 ---
@@ -95,8 +109,15 @@ Use this flow when explaining ADO to someone new:
 
 ### Step A: preflight JSON is the single source of intent
 
-- UI input → preflight JSON (the UI is **only a form**; see `.cursor/rules/bootstrap-ui-cli-parity.mdc`)
-- CLI uses the **same JSON** via `-e preflight_json=…` on `run-ado-scaffolding.yml` - behavior must match the UI run
+- UI input → preflight JSON (the UI is **only a form**)
+- CLI uses the **same JSON** via `-e preflight_json=…` on
+  `infra.ado.bootstrap_controller` — behavior must match the UI run
+- The UI container historically invoked that role from
+  `run-ado-scaffolding.yml` / `00-controller-bootstrap.yml`; those playbooks
+  live with the UI image, not in this collection
+- New optional components (for example `terraform`) must work from that JSON
+  even before a preflight-ui checkbox exists. Add the UI selection in a follow-up
+  so CLI and UI stay on the same payload.
 
 Core fields typically include:
 
@@ -108,10 +129,8 @@ Core fields typically include:
 
 ### Step B: Ansible generates a repo on disk (in a container workspace)
 
-The container runs the ADO bootstrap scaffolding playbook (one of):
-
-- `run-ado-scaffolding.yml`
-- `00-controller-bootstrap.yml` (controller configs)
+The container (or a local CLI playbook) includes
+`infra.ado.bootstrap_controller`, which drives the generate/apply roles below.
 
 In `infra.ado`, the important roles are:
 
@@ -126,6 +145,7 @@ In `infra.ado`, the important roles are:
      - `configs/controller/...`
      - `configs/job_templates/...`
      - `configs/workflows/...`
+     - seed trees such as `templates/` and `terraform/stacks/`
 
 3. `infra.ado.bootstrap_controller`
    - applies controller objects to AAP when "Using AAP" is enabled
@@ -150,7 +170,7 @@ Implementation notes to remember:
 
 - `server.js` contains preflight payload normalization, including special cases like **Hub-only**.
 - `src/App.jsx` contains payload building and export (download JSON).
-- `ado-preflight-ui/docker/*.yml` overlays into the runtime collection before the Ansible run.
+- The sibling UI repo's `docker/*.yml` overlays into the runtime collection before the Ansible run.
 
 ---
 ## 6) Development Workflow Model (step-by-step)
@@ -162,7 +182,7 @@ Follow this exact sequence for every PR:
 Label what you changed:
 
 - `infra.ado` role/module behavior
-- `ado-preflight-ui` payload normalization or UI state
+- `ado-preflight-ui` payload normalization or UI state (sibling repo)
 - generated bootstrap artifacts expectations
 
 This determines which lint/tests/docs you must run.
@@ -186,17 +206,18 @@ If you changed a role's behavior/variables:
 
 ### 3. Add changelog entry (format matters)
 
-This repo uses **two different changelog systems**, depending on where you changed:
+This collection uses antsibull-changelog fragments. The preflight UI uses
+Changesets in **its** repository.
 
 #### infra.ado changelog: fragments
 
 Add a file under:
 
-`ado/changelogs/fragments/<some-name>.yml`
+`changelogs/fragments/<some-name>.yml`
 
 Use sections defined in:
 
-`ado/changelogs/config.yaml`
+`changelogs/config.yaml`
 
 Example fragment format:
 
@@ -211,9 +232,9 @@ Expected:
 - prefix the entry with the affected component (role name / `ci` / FQCN)
 - use the section keys from `changelogs/config.yaml`
 
-#### ado-preflight-ui changelog: Changesets
+#### ado-preflight-ui changelog: Changesets (sibling repo)
 
-Add a file under:
+Add a file under that repository's:
 
 `.changeset/<name>.md`
 
@@ -248,7 +269,7 @@ Run the relevant "local checklist" below.
 
 Role readmes should follow the structure required by:
 
-`ado/docs/templates/role_readme_format_template.md`
+`docs/templates/role_readme_format_template.md`
 
 This template is intentionally strict so engineers can quickly learn role behavior.
 
@@ -346,7 +367,7 @@ molecule test -s <scenario_name>
 
 When you want "the same tests CI runs", follow:
 
-`ado/.github/Developers _Guide.md` → "Molecule testing"
+`.github/Developers _Guide.md` → "Molecule testing"
 
 ---
 ## 11) Cursor Collaboration Model (how to keep work consistent)
@@ -382,6 +403,6 @@ If someone asks "how does ADO work?", reply with:
 
 - Role docs: `roles/<role_name>/README.md` + template in `docs/templates/role_readme_format_template.md`
 - infra.ado changelog fragments: `changelogs/fragments/*.yml`
-- preflight-ui changesets: `.changeset/*.md`
+- preflight-ui changesets: sibling repo `.changeset/*.md` (not in this tree)
 - Molecule: `extensions/molecule/<scenario>/molecule.yml`
 

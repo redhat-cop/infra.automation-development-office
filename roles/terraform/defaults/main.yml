@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later-0
+---
+# yamllint disable rule:line-length
+# defaults file for terraform
+
+# Binary on PATH: terraform or tofu (OpenTofu).
+terraform_bin: terraform
+
+# init, validate, plan, apply, or destroy
+terraform_action: plan
+
+# Stack name under terraform/stacks/<name> when terraform_stack_dir is empty.
+terraform_stack: example
+
+# Absolute or playbook-relative path to a Terraform root module.
+# Empty uses <playbook_dir>/../../terraform/stacks/{{ terraform_stack }}.
+terraform_stack_dir: ""
+
+# Optional Terraform workspace. Empty keeps the current workspace.
+terraform_workspace: ""
+
+# Extra CLI arguments appended to plan/apply/destroy/validate (argv list).
+terraform_extra_args: []
+
+# Optional -var-file= path relative to the stack directory.
+terraform_var_file: ""
+
+# Remote backend -backend-config=key=value pairs. Do not put secrets here;
+# use environment variables or vault-backed env (AWS_*, TF_TOKEN_*).
+terraform_backend_config: {}
+
+# Set true when the stack already declares a remote backend in *.tf.
+terraform_backend_configured: false
+
+# Fail apply/destroy when no remote backend is configured. Contoller EEs are
+# ephemeral; local terraform.tfstate will not survive the job.
+terraform_require_remote_backend: true
+
+terraform_init_upgrade: false
+terraform_init_reconfigure: false
+
+# Extra environment variables merged into the Terraform process.
+terraform_environment: {}

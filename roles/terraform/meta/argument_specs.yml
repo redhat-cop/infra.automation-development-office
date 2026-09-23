@@ -1,0 +1,80 @@
+---
+# argument spec file for infra.ado.terraform
+
+argument_specs:
+  main:
+    short_description: Run Terraform or OpenTofu against a stack directory.
+    description: |
+      Initializes a Terraform or OpenTofu root module and runs plan, apply,
+      destroy, or validate. Intended for Ansible Automation Platform job
+      templates that execute customer-owned stacks from a generated bootstrap
+      repository. Apply and destroy require a remote backend by default.
+    options:
+      terraform_bin:
+        type: str
+        description: Terraform or OpenTofu executable name or path.
+        default: terraform
+      terraform_action:
+        type: str
+        description: Terraform subcommand to run after init.
+        default: plan
+        choices:
+          - init
+          - validate
+          - plan
+          - apply
+          - destroy
+      terraform_stack:
+        type: str
+        description: >-
+          Stack directory name under terraform/stacks when terraform_stack_dir
+          is empty.
+        default: example
+      terraform_stack_dir:
+        type: str
+        description: >-
+          Path to the Terraform root module. Empty uses
+          playbook_dir/../../terraform/stacks/<terraform_stack>.
+        default: ""
+      terraform_workspace:
+        type: str
+        description: Optional Terraform workspace to select or create.
+        default: ""
+      terraform_extra_args:
+        type: list
+        elements: str
+        description: Extra CLI arguments appended to the selected action.
+        default: []
+      terraform_var_file:
+        type: str
+        description: Optional tfvars file path relative to the stack directory.
+        default: ""
+      terraform_backend_config:
+        type: dict
+        description: >-
+          Backend configuration passed as repeated -backend-config=key=value
+          arguments during terraform init.
+        default: {}
+      terraform_backend_configured:
+        type: bool
+        description: >-
+          Set true when the stack already declares a remote backend in *.tf.
+        default: false
+      terraform_require_remote_backend:
+        type: bool
+        description: >-
+          Fail apply and destroy when no remote backend is configured.
+        default: true
+      terraform_init_upgrade:
+        type: bool
+        description: Pass -upgrade to terraform init.
+        default: false
+      terraform_init_reconfigure:
+        type: bool
+        description: Pass -reconfigure to terraform init.
+        default: false
+      terraform_environment:
+        type: dict
+        description: >-
+          Extra environment variables merged into the Terraform process.
+        default: {}

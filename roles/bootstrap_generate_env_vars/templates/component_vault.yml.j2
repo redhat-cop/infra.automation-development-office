@@ -76,6 +76,11 @@ vault_aws_access_key_id: ""
 vault_aws_secret_access_key: ""
 vault_aws_session_token: ""
 
+{% elif component_name == 'terraform' %}
+vault_terraform_cloud_token: ""
+vault_terraform_http_username: ""
+vault_terraform_http_password: ""
+
 {% elif component_name == 'openshift' %}
 # HTPasswd users come from preflight overlay (openshift.htpasswd_users) — no silent defaults.
 htpasswd_users: []

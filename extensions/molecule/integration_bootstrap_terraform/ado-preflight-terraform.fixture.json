@@ -1,0 +1,49 @@
+{
+  "scm_tool": "gitlab",
+  "environment": "molecule",
+  "domain": "example.test",
+  "component": "terraform",
+  "components": ["terraform"],
+  "platform": ["terraform"],
+  "component_apps": {
+    "terraform": ["terraform"]
+  },
+  "component_options": {
+    "terraform": ["terraform"]
+  },
+  "component_config": {
+    "aws": {
+      "profile": "",
+      "default_region": "us-east-1",
+      "access_key_id": "MOLECULE_AWS_ACCESS_KEY_ID",
+      "secret_access_key": "MOLECULE_AWS_SECRET_ACCESS_KEY"
+    },
+    "terraform": {
+      "bin": "terraform",
+      "stack": "example",
+      "workspace": "molecule",
+      "backend_configured": false,
+      "require_remote_backend": true,
+      "cloud_token": "MOLECULE_TF_CLOUD_TOKEN"
+    }
+  },
+  "aap": {
+    "enabled": true,
+    "hostname": "https://aap.example.test",
+    "version": "26",
+    "organization": "ado-lab",
+    "inventory": "ado-inventory",
+    "project": "ado-project",
+    "git_url": "https://git.example.test/sample.git",
+    "git_branch": "main",
+    "execution_environment": "ee-supported-rhel9",
+    "vault_credential_name": "ado-vault",
+    "oauth_token": "MOLECULE_TOKEN",
+    "admin_username": "admin",
+    "admin_password": "redhat123",
+    "vault_password": "redhat123"
+  },
+  "jira": {
+    "enabled": false
+  }
+}

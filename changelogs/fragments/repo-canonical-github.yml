@@ -1,0 +1,5 @@
+---
+doc_changes:
+  - docs - Describe this repository as the ``infra.ado`` collection root rather
+    than the former ``github-ado/ado`` monorepo layout, and point CLI bootstrap
+    at ``infra.ado.bootstrap_controller``.

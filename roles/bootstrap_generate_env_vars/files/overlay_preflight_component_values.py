@@ -799,6 +799,35 @@ def merge_component(component, cfg):
         ):
             passthrough_public_values.pop(aws_key, None)
         existing_satellite_config = {}
+    elif component == "terraform":
+        for terraform_key in (
+            "bin",
+            "terraform_bin",
+            "stack",
+            "terraform_stack",
+            "stack_dir",
+            "terraform_stack_dir",
+            "workspace",
+            "terraform_workspace",
+            "backend_configured",
+            "terraform_backend_configured",
+            "require_remote_backend",
+            "terraform_require_remote_backend",
+            "init_upgrade",
+            "terraform_init_upgrade",
+            "init_reconfigure",
+            "terraform_init_reconfigure",
+            "backend_config",
+            "terraform_backend_config",
+            "extra_args",
+            "terraform_extra_args",
+            "var_file",
+            "terraform_var_file",
+            "env_vars",
+            "terraform_environment",
+        ):
+            passthrough_public_values.pop(terraform_key, None)
+        existing_satellite_config = {}
     else:
         existing_satellite_config = {}
 
@@ -2568,6 +2597,80 @@ def merge_component(component, cfg):
                 )
                 vars_data_changed = True
 
+        if component == "terraform":
+            terraform_mapping = {
+                "bin": "terraform_bin",
+                "terraform_bin": "terraform_bin",
+                "stack": "terraform_stack",
+                "terraform_stack": "terraform_stack",
+                "stack_dir": "terraform_stack_dir",
+                "terraform_stack_dir": "terraform_stack_dir",
+                "workspace": "terraform_workspace",
+                "terraform_workspace": "terraform_workspace",
+            }
+            for source_key, target_key in terraform_mapping.items():
+                if source_key in public_values:
+                    vars_data[target_key] = str(public_values.get(source_key) or "")
+                    vars_data_changed = True
+
+            for flag_key, target_key, flag_default in (
+                ("backend_configured", "terraform_backend_configured", False),
+                ("terraform_backend_configured", "terraform_backend_configured", False),
+                ("require_remote_backend", "terraform_require_remote_backend", True),
+                (
+                    "terraform_require_remote_backend",
+                    "terraform_require_remote_backend",
+                    True,
+                ),
+                ("init_upgrade", "terraform_init_upgrade", False),
+                ("terraform_init_upgrade", "terraform_init_upgrade", False),
+                ("init_reconfigure", "terraform_init_reconfigure", False),
+                ("terraform_init_reconfigure", "terraform_init_reconfigure", False),
+            ):
+                if flag_key in public_values:
+                    vars_data[target_key] = as_bool(
+                        public_values.get(flag_key), flag_default
+                    )
+                    vars_data_changed = True
+
+            backend_config = public_values.get("backend_config")
+            if backend_config is None:
+                backend_config = public_values.get("terraform_backend_config")
+            if isinstance(backend_config, dict):
+                vars_data["terraform_backend_config"] = copy.deepcopy(backend_config)
+                vars_data_changed = True
+
+            extra_args = public_values.get("extra_args")
+            if extra_args is None:
+                extra_args = public_values.get("terraform_extra_args")
+            if extra_args is not None:
+                if isinstance(extra_args, list):
+                    vars_data["terraform_extra_args"] = [
+                        str(item) for item in extra_args
+                    ]
+                elif isinstance(extra_args, str) and extra_args.strip():
+                    vars_data["terraform_extra_args"] = extra_args.split()
+                else:
+                    vars_data["terraform_extra_args"] = []
+                vars_data_changed = True
+
+            if "var_file" in public_values or "terraform_var_file" in public_values:
+                var_file = first_present(
+                    public_values.get("var_file"),
+                    public_values.get("terraform_var_file"),
+                )
+                vars_data["terraform_var_file"] = str(var_file or "")
+                vars_data_changed = True
+
+            terraform_environment = public_values.get("env_vars")
+            if terraform_environment is None:
+                terraform_environment = public_values.get("terraform_environment")
+            if isinstance(terraform_environment, dict):
+                vars_data["terraform_environment"] = copy.deepcopy(
+                    terraform_environment
+                )
+                vars_data_changed = True
+
         if component == "satellite":
             vars_data.setdefault("components_env", {}).setdefault("satellite", {})
             vars_data["components_env"]["satellite"].pop("storage", None)
@@ -3308,6 +3411,30 @@ def merge_component(component, cfg):
         for k, v in secret_values.items():
             vault_data[k] = v
 
+        if component == "terraform":
+            cloud_token = first_present(
+                secret_values.get("cloud_token"),
+                secret_values.get("terraform_cloud_token"),
+                secret_values.get("vault_terraform_cloud_token"),
+            )
+            if cloud_token is not None:
+                vault_data["vault_terraform_cloud_token"] = str(cloud_token)
+                vault_data_changed = True
+            http_username = first_present(
+                secret_values.get("http_username"),
+                secret_values.get("vault_terraform_http_username"),
+            )
+            if http_username is not None:
+                vault_data["vault_terraform_http_username"] = str(http_username)
+                vault_data_changed = True
+            http_password = first_present(
+                secret_values.get("http_password"),
+                secret_values.get("vault_terraform_http_password"),
+            )
+            if http_password is not None:
+                vault_data["vault_terraform_http_password"] = str(http_password)
+                vault_data_changed = True
+
         if component == "aap":
             if secret_values.get("admin_password") is not None:
                 vault_data["aap_admin_password"] = secret_values["admin_password"]
@@ -3405,7 +3532,7 @@ def merge_component(component, cfg):
                 vault_data["vault_ad_trust_admin_password"] = secret_values["ad_admin_password"]
                 vault_data["idm_ad_trust_ad_admin_password"] = secret_values["ad_admin_password"]
 
-        if component in ("ec2_ami_copy", "aws", "cert_manager"):
+        if component in ("ec2_ami_copy", "aws", "cert_manager", "terraform"):
             merge_shared_aws_vault({**public_values, **secret_values})
 
         if component == "ec2_ami_copy":

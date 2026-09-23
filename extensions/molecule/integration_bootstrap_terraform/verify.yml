@@ -1,0 +1,171 @@
+---
+- name: Verify terraform bootstrap content
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    env: molecule
+
+  tasks:
+    - name: Verify generated plan playbook exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/playbooks/terraform/ado-terraform-plan-bootstrap.yml"
+      register: terraform_plan_playbook
+
+    - name: Assert terraform plan playbook was generated
+      ansible.builtin.assert:
+        that:
+          - terraform_plan_playbook.stat.exists
+          - terraform_plan_playbook.stat.isreg
+        fail_msg: >-
+          Expected playbooks/terraform/ado-terraform-plan-bootstrap.yml
+
+    - name: Verify generated apply playbook exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/playbooks/terraform/ado-terraform-apply-bootstrap.yml"
+      register: terraform_apply_playbook
+
+    - name: Assert terraform apply playbook was generated
+      ansible.builtin.assert:
+        that:
+          - terraform_apply_playbook.stat.exists
+          - terraform_apply_playbook.stat.isreg
+        fail_msg: >-
+          Expected playbooks/terraform/ado-terraform-apply-bootstrap.yml
+
+    - name: Verify example Terraform stack was seeded
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/terraform/stacks/example/main.tf"
+      register: terraform_example_stack
+
+    - name: Assert example Terraform stack was seeded
+      ansible.builtin.assert:
+        that:
+          - terraform_example_stack.stat.exists
+          - terraform_example_stack.stat.isreg
+        fail_msg: Expected terraform/stacks/example/main.tf to be seeded
+
+    - name: Verify generated plan job template exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/configs/job_templates/ado-terraform-plan-bootstrap.jt.yml"
+      register: terraform_plan_jt
+
+    - name: Verify generated apply job template exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/configs/job_templates/ado-terraform-apply-bootstrap.jt.yml"
+      register: terraform_apply_jt
+
+    - name: Assert terraform job templates were generated
+      ansible.builtin.assert:
+        that:
+          - terraform_plan_jt.stat.exists
+          - terraform_plan_jt.stat.isreg
+          - terraform_apply_jt.stat.exists
+          - terraform_apply_jt.stat.isreg
+        fail_msg: Expected terraform plan and apply job templates
+
+    - name: Verify generated terraform vars file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/group_vars/all/{{ env }}/vars_terraform.yml"
+      register: terraform_vars_file
+
+    - name: Assert terraform vars file was generated
+      ansible.builtin.assert:
+        that:
+          - terraform_vars_file.stat.exists
+          - terraform_vars_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vars_terraform.yml
+
+    - name: Verify generated terraform vault file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/group_vars/all/{{ env }}/vault_terraform.yml"
+      register: terraform_vault_file
+
+    - name: Assert terraform vault file was generated
+      ansible.builtin.assert:
+        that:
+          - terraform_vault_file.stat.exists
+          - terraform_vault_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vault_terraform.yml
+
+    - name: Verify generated shared AWS vault file exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/group_vars/all/{{ env }}/vault_aws.yml"
+      register: aws_vault_file
+
+    - name: Assert shared AWS vault file was generated for terraform
+      ansible.builtin.assert:
+        that:
+          - aws_vault_file.stat.exists
+          - aws_vault_file.stat.isreg
+        fail_msg: Expected group_vars/all/{{ env }}/vault_aws.yml
+
+    - name: Load generated terraform vars
+      ansible.builtin.slurp:
+        src: "{{ terraform_vars_file.stat.path }}"
+      register: terraform_vars_raw
+
+    - name: Parse generated terraform vars
+      ansible.builtin.set_fact:
+        terraform_generated_vars: >-
+          {{ terraform_vars_raw.content | b64decode | from_yaml }}
+
+    - name: Assert generated terraform vars match preflight
+      ansible.builtin.assert:
+        that:
+          - terraform_generated_vars.terraform_bin == 'terraform'
+          - terraform_generated_vars.terraform_stack == 'example'
+          - terraform_generated_vars.terraform_workspace == 'molecule'
+          - terraform_generated_vars.terraform_require_remote_backend | bool
+        fail_msg: Generated vars_terraform.yml did not match preflight config
+
+    - name: Load generated terraform vault
+      ansible.builtin.slurp:
+        src: "{{ terraform_vault_file.stat.path }}"
+      register: terraform_vault_raw
+
+    - name: Parse generated terraform vault
+      ansible.builtin.set_fact:
+        terraform_vault_data: >-
+          {{ terraform_vault_raw.content | b64decode | from_yaml }}
+
+    - name: Assert terraform cloud token was overlaid into vault
+      ansible.builtin.assert:
+        that:
+          - >-
+            terraform_vault_data.vault_terraform_cloud_token
+            == 'MOLECULE_TF_CLOUD_TOKEN'
+        fail_msg: Expected vault_terraform_cloud_token from preflight overlay
+
+    - name: Validate job templates reference generated playbooks
+      ansible.builtin.shell: |
+        set -euo pipefail
+        python3 - <<'PY'
+        from pathlib import Path
+        import re
+        import sys
+
+        root = Path("{{ playbook_dir }}")
+        for name in (
+            "ado-terraform-plan-bootstrap.jt.yml",
+            "ado-terraform-apply-bootstrap.jt.yml",
+        ):
+            jt = root / "configs" / "job_templates" / name
+            text = jt.read_text()
+            match = re.search(
+                r'(?m)^\s*playbook:\s*[\'"]?([^\'"\n]+)[\'"]?\s*$',
+                text,
+            )
+            if not match:
+                print(f"missing playbook field in {name}")
+                sys.exit(1)
+            playbook = match.group(1).strip()
+            if not (root / playbook).exists():
+                print(f"missing playbook referenced by {name}: {playbook}")
+                sys.exit(1)
+            print(f"{name} references {playbook}")
+        PY
+      args:
+        executable: /bin/bash
+      changed_when: false

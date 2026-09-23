@@ -1,0 +1,17 @@
+---
+# SPDX-License-Identifier: GPL-3.0-or-later-0
+galaxy_info:
+  author: Automation Development Office
+  description: >-
+    Run Terraform or OpenTofu init, plan, apply, or destroy for a customer
+    stack in an ADO bootstrap playbook repository.
+  company: Red Hat
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16.0"
+  galaxy_tags:
+    - terraform
+    - opentofu
+    - iac
+    - bootstrap
+
+dependencies: []
