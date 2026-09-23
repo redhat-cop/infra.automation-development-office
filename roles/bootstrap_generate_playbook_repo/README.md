@@ -119,7 +119,3 @@ override these defaults. Execution uses subprocess arguments, not shell
 interpolation, and stops at the first nonzero exit. Target access and installed
 collections remain prerequisites. Never commit a request containing secrets.
 Steps with unresolved Controller-templated extra variables are unavailable.
-
-Regression: `molecule test -s integration_local_components` from
-`extensions/molecule` verifies selection, RHBK workflow order, argument quoting,
-unknown-step rejection and fail-fast execution with a local fake executable.
