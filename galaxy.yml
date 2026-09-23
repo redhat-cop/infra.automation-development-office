@@ -20,6 +20,7 @@ tags:
   - openshift
   - rhel
   - satellite
+  - terraform
 # Collection-to-collection dependencies (PEP 440 version ranges). These are
 # installed automatically by `ansible-galaxy collection install infra.ado`.
 #

@@ -76,14 +76,19 @@ those vault variables). Do not pass secrets as `-var` or `-backend-config`.
 
 Bootstrap wiring:
 
-- Playbooks: `playbooks/terraform/ado-terraform-plan-bootstrap.yml` and
-  `ado-terraform-apply-bootstrap.yml`
-- Job templates: `ado-terraform-plan-bootstrap.jt.yml` and
-  `ado-terraform-apply-bootstrap.jt.yml`
+- Playbooks: [ado-terraform-plan-bootstrap.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_generate_playbook_repo/files/playbooks/terraform/ado-terraform-plan-bootstrap.yml)
+  and
+  [ado-terraform-apply-bootstrap.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_generate_playbook_repo/files/playbooks/terraform/ado-terraform-apply-bootstrap.yml)
+- Job templates: [ado-terraform-plan-bootstrap.jt.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_controller/files/job_templates/ado-terraform-plan-bootstrap.jt.yml)
+  and
+  [ado-terraform-apply-bootstrap.jt.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_controller/files/job_templates/ado-terraform-apply-bootstrap.jt.yml)
 - Customer stacks live in the generated repo under `terraform/stacks/`
+  (seed: [terraform/README.md](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/terraform/README.md))
 
 Preflight JSON is the source of intent. Select terraform from CLI with the
-same payload the UI will eventually emit:
+same payload the UI will eventually emit. Put optional CLI extras under
+`component_config.terraform` as `extra_args` (list), `var_file`, and
+`env_vars` (dict; not the top-level bootstrap `environment` name):
 
 ```json
 {
@@ -100,14 +105,15 @@ same payload the UI will eventually emit:
 }
 ```
 
-Pass that file as `-e preflight_json=…` on the scaffolding playbook. Add the
-preflight-ui checkbox in a follow-up so the form writes this JSON.
+Pass that file as `-e preflight_json=…` when running
+`infra.ado.bootstrap_controller`. Add the preflight-ui checkbox in a follow-up
+so the form writes this JSON.
 
 ## 🧪 Role Molecule Testing
 
 There is no live Terraform cloud scenario in this collection. Bootstrap
 generation (playbooks, vars, and job templates) is covered by
-`extensions/molecule/integration_bootstrap_terraform`.
+[integration_bootstrap_terraform](https://github.com/redhat-cop/infra.automation-development-office/tree/main/extensions/molecule/integration_bootstrap_terraform).
 
 ```bash
 cd /path/to/your/git/checkout/infra.ado

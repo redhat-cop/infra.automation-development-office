@@ -802,14 +802,29 @@ def merge_component(component, cfg):
     elif component == "terraform":
         for terraform_key in (
             "bin",
+            "terraform_bin",
             "stack",
+            "terraform_stack",
             "stack_dir",
+            "terraform_stack_dir",
             "workspace",
+            "terraform_workspace",
             "backend_configured",
+            "terraform_backend_configured",
             "require_remote_backend",
+            "terraform_require_remote_backend",
             "init_upgrade",
+            "terraform_init_upgrade",
             "init_reconfigure",
+            "terraform_init_reconfigure",
             "backend_config",
+            "terraform_backend_config",
+            "extra_args",
+            "terraform_extra_args",
+            "var_file",
+            "terraform_var_file",
+            "env_vars",
+            "terraform_environment",
         ):
             passthrough_public_values.pop(terraform_key, None)
         existing_satellite_config = {}
@@ -2623,6 +2638,37 @@ def merge_component(component, cfg):
                 backend_config = public_values.get("terraform_backend_config")
             if isinstance(backend_config, dict):
                 vars_data["terraform_backend_config"] = copy.deepcopy(backend_config)
+                vars_data_changed = True
+
+            extra_args = public_values.get("extra_args")
+            if extra_args is None:
+                extra_args = public_values.get("terraform_extra_args")
+            if extra_args is not None:
+                if isinstance(extra_args, list):
+                    vars_data["terraform_extra_args"] = [
+                        str(item) for item in extra_args
+                    ]
+                elif isinstance(extra_args, str) and extra_args.strip():
+                    vars_data["terraform_extra_args"] = extra_args.split()
+                else:
+                    vars_data["terraform_extra_args"] = []
+                vars_data_changed = True
+
+            if "var_file" in public_values or "terraform_var_file" in public_values:
+                var_file = first_present(
+                    public_values.get("var_file"),
+                    public_values.get("terraform_var_file"),
+                )
+                vars_data["terraform_var_file"] = str(var_file or "")
+                vars_data_changed = True
+
+            terraform_environment = public_values.get("env_vars")
+            if terraform_environment is None:
+                terraform_environment = public_values.get("terraform_environment")
+            if isinstance(terraform_environment, dict):
+                vars_data["terraform_environment"] = copy.deepcopy(
+                    terraform_environment
+                )
                 vars_data_changed = True
 
         if component == "satellite":

@@ -317,6 +317,9 @@ terraform_require_remote_backend: {{ terraform_config.require_remote_backend | d
 terraform_init_upgrade: {{ terraform_config.init_upgrade | default(terraform_config.terraform_init_upgrade | default(false), true) | bool | lower }}
 terraform_init_reconfigure: {{ terraform_config.init_reconfigure | default(terraform_config.terraform_init_reconfigure | default(false), true) | bool | lower }}
 terraform_backend_config: {{ terraform_config.backend_config | default(terraform_config.terraform_backend_config | default({}), true) | to_json }}
+terraform_extra_args: {{ terraform_config.extra_args | default(terraform_config.terraform_extra_args | default([]), true) | to_json }}
+terraform_var_file: {{ terraform_config.var_file | default(terraform_config.terraform_var_file | default('', true), true) | to_json }}
+terraform_environment: {{ terraform_config.env_vars | default(terraform_config.terraform_environment | default({}), true) | to_json }}
 
 {% elif component_name == 'rhbk' %}
 components_env:

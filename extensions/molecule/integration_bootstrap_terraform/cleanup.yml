@@ -18,3 +18,4 @@
         - templates
         - terraform
         - ado-preflight-terraform.json
+        - ansible.cfg

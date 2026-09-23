@@ -79,6 +79,12 @@ README. ✅ = JT / playbook generated when selected. ❌ = not generated.
 | IdM client / DNS / AD trust / settings / sudo / topology | ❌ | ✅ |
 | RHEL patch / compliance / STIG | ❌ | ✅ |
 
+### Optional IaC
+
+| Component | Generated when selected |
+|-----------|-------------------------|
+| Terraform / OpenTofu plan and apply | ✅ localhost job templates ([ado-terraform-plan-bootstrap.jt.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_controller/files/job_templates/ado-terraform-plan-bootstrap.jt.yml), [ado-terraform-apply-bootstrap.jt.yml](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_controller/files/job_templates/ado-terraform-apply-bootstrap.jt.yml)) |
+
 ## 🚀 Role Usage
 
 ```yaml
