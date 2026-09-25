@@ -22,6 +22,10 @@ Automation Development Office
 | `operator_name_substring` | CSV / deployment match string |
 | `ocp_virtualization_install_enable_kube_secondary_dns` | When `true`, set HyperConverged `featureGates.deployKubeSecondaryDNS` (default `false`) |
 
+`state=present` waits until the matching CSV phase is `Succeeded`, creates
+HyperConverged, then waits until that CR reports `Available=True`. A Succeeded
+CSV alone is not treated as ready.
+
 ## 🚀 Role Usage
 
 ```yaml

@@ -24,6 +24,11 @@ Automation Development Office
 | `htpasswd_remove_all` | When true with remove action, remove the provider when no users remain. |
 | `state` | `present` (create/update) or `absent` (delete the IdP named by `htpasswd_idp_name` and its secret). |
 
+On ``state=present`` with ``add``/``replace``, the role rewrites the existing
+OAuth HTPasswd provider when ``mappingMethod`` **or** ``htpasswd.fileData.name``
+(the secret) differs from the desired values. Secret *content* updates still
+patch the Secret even when the OAuth IdP list is unchanged.
+
 ## 🚀 Role Usage
 
 ```yaml

@@ -132,6 +132,12 @@ selected (`idm_ad_trust_install`). That adds the
 See `roles/idm_ad_trust/README.md` for trust prerequisites (AD conditional
 forwarder for two-way trust) and client SSSD notes.
 
+During-bootstrap OpenShift prep (HTPasswd, NFS CSI, iSCSI CSI, integrated
+image registry) runs those roles inside an ``environment`` block that sets
+``KUBECONFIG`` and ``K8S_AUTH_KUBECONFIG`` from
+``bootstrap_controller_openshift_kubeconfig``. Do not put ``environment`` on
+``include_role`` (older ansible-core rejects it).
+
 Generated OpenShift workflows are created when OpenShift is selected. The
 workflow starts with generated OpenShift prep jobs, runs the nested
 **Cert Manager Workflow** (deploy plus optional IdM ACME / AWS PCA / default

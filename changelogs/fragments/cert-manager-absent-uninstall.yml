@@ -7,6 +7,8 @@ bugfixes:
     operator stayed in Installed Operators.
   - >-
     bootstrap_generate_playbook_repo - Cert-manager Deploy honors
-    ``state=absent``: removes ClusterIssuer ``idm-acme``, unsubscribes
-    CSVs, deletes OperatorGroup and namespaces, and skips wait/configure
-    steps that previously re-verified a still-running operator.
+    ``state=absent``: removes ADO ClusterIssuers (``idm-acme``,
+    ``root-ca-issuer``, and optional extras), unsubscribes CSVs, deletes
+    OperatorGroup and namespaces, and skips wait/configure steps that
+    previously re-verified a still-running operator. Other ClusterIssuers
+    on the cluster are left in place.

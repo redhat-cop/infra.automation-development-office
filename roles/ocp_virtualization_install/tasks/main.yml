@@ -24,7 +24,7 @@
       }}
   changed_when: false
 
-- name: OpenShift Virtualization | Wait for CSV
+- name: OpenShift Virtualization | Wait for CSV Succeeded
   kubernetes.core.k8s_info:
     api_version: operators.coreos.com/v1alpha1
     kind: ClusterServiceVersion
@@ -39,6 +39,8 @@
           'search',
           ocp_virtualization_install_csv_substring
         )
+      | selectattr('status.phase', 'defined')
+      | selectattr('status.phase', 'equalto', 'Succeeded')
       | list
       | length
     ) > 0
@@ -93,35 +95,15 @@
     ) > 0
     and
     (
-      (
-        ocp_virtualization_install_hco.resources[0].status.conditions
-        | default([])
-        | selectattr('type', 'defined')
-        | selectattr('type', 'equalto', 'Available')
-        | selectattr('status', 'defined')
-        | selectattr('status', 'equalto', 'True')
-        | list
-        | length
-      ) > 0
-      or
-      (
-        ocp_virtualization_install_csvs.resources
-        | default([])
-        | selectattr(
-            'metadata.name',
-            'search',
-            ocp_virtualization_install_csv_substring
-          )
-        | selectattr('status.phase', 'defined')
-        | selectattr(
-            'status.phase',
-            'equalto',
-            'Succeeded'
-          )
-        | list
-        | length
-      ) > 0
-    )
+      ocp_virtualization_install_hco.resources[0].status.conditions
+      | default([])
+      | selectattr('type', 'defined')
+      | selectattr('type', 'equalto', 'Available')
+      | selectattr('status', 'defined')
+      | selectattr('status', 'equalto', 'True')
+      | list
+      | length
+    ) > 0
   retries: "{{ ocp_virtualization_install_hco_retries | default(90) | int }}"
   delay: "{{ ocp_virtualization_install_hco_delay | default(10) | int }}"
   when: (state | default('present')) == 'present'

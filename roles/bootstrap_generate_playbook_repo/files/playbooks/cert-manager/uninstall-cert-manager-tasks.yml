@@ -8,8 +8,9 @@
 # 5) delete namespaces via ocp_namespace (runs ocp_absent_cleanup gate)
 # 6) clear cert-manager APIServices
 #
-# Safe gate: only touch ADO cert-manager operator/operand namespaces and
-# known cluster-scoped cert-manager webhook/APIService names.
+# Safe gate: only touch ADO cert-manager operator/operand namespaces,
+# ADO ClusterIssuers (idm-acme, root-ca-issuer, extras), and known
+# cluster-scoped cert-manager webhook/APIService names.
 
 - name: ADO | Assert cert-manager uninstall namespace allowlist
   ansible.builtin.assert:
@@ -30,6 +31,25 @@
       must be in allowlist
       {{ bootstrap_cert_manager_safe_namespaces | default(['cert-manager', 'cert-manager-operator']) }}.
 
+- name: ADO | Resolve ADO ClusterIssuer names to delete
+  ansible.builtin.set_fact:
+    bootstrap_cert_manager_clusterissuer_names: >-
+      {{
+        (
+          [
+            cert_issuer_name | default('idm-acme'),
+            ocp_cert_manager_root_ca_issuer_name | default('root-ca-issuer'),
+          ]
+          + (bootstrap_cert_manager_extra_clusterissuers | default([]))
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  changed_when: false
+
 - name: ADO | List ClusterIssuers for uninstall
   kubernetes.core.k8s_info:
     api_version: cert-manager.io/v1
@@ -37,7 +57,7 @@
   register: bootstrap_cert_manager_clusterissuers
   failed_when: false
 
-- name: ADO | Delete all ClusterIssuers
+- name: ADO | Delete ADO ClusterIssuers
   kubernetes.core.k8s:
     state: absent
     api_version: cert-manager.io/v1
@@ -46,7 +66,11 @@
   loop: "{{ bootstrap_cert_manager_clusterissuers.resources | default([]) }}"
   loop_control:
     label: "{{ item.metadata.name | default('unknown') }}"
-  when: item.metadata.name is defined
+  when:
+    - item.metadata.name is defined
+    - >-
+      item.metadata.name
+      in (bootstrap_cert_manager_clusterissuer_names | default(['idm-acme', 'root-ca-issuer']))
   failed_when: false
 
 - name: ADO | List namespaced cert-manager CRs in operand namespace

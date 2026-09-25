@@ -85,7 +85,10 @@ The plan includes only selected executable playbooks, excluding supporting task
 files. When `cert_manager` is selected, IdM ACME and AWSPCA playbooks are
 included only for the matching cert-manager mode, and the default-ingress
 playbook only when `update_default_ingress` is enabled (same gates as
-Contoller). Existing job-template surveys supply step inputs; existing workflow
+Contoller). Cert-manager ``state=absent`` deletes only ADO ClusterIssuers
+(``idm-acme``, ``root-ca-issuer``, and optional
+``bootstrap_cert_manager_extra_clusterissuers``), not every ClusterIssuer
+on the cluster. Existing job-template surveys supply step inputs; existing workflow
 success edges determine execution order (nested workflows such as
 ``ADO | RHBK Workflow`` expand so Deploy RHBK runs before OAuth). Selection
 order is preserved for independent steps and can be adjusted in the preflight

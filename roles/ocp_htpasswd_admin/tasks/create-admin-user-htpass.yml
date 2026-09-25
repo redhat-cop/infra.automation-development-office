@@ -346,6 +346,35 @@
     - (ocp_htpasswd_admin_effective_map | length) == 0
   no_log: true
 
+- name: Capture current htpasswd IdP mapping and secret name
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_current_mapping_method: >-
+      {{
+        (
+          ocp_htpasswd_admin_current_providers
+          | selectattr('name', 'equalto', htpasswd_idp_name)
+          | list
+          | first
+          | default({})
+        ).mappingMethod | default('claim')
+      }}
+    ocp_htpasswd_admin_current_secret_name: >-
+      {{
+        (
+          (
+            (
+              ocp_htpasswd_admin_current_providers
+              | selectattr('name', 'equalto', htpasswd_idp_name)
+              | list
+              | first
+              | default({})
+            ).htpasswd | default({})
+          ).fileData | default({})
+        ).name | default('')
+      }}
+  when: ocp_htpasswd_admin_htpasswd_exists | bool
+  no_log: true
+
 - name: Detect whether OAuth IdP list needs apply
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_oauth_needs_update: >-
@@ -365,13 +394,12 @@
           and (ocp_htpasswd_admin_effective_map | length) > 0
           and (
             (
-              ocp_htpasswd_admin_current_providers
-              | selectattr('name', 'equalto', htpasswd_idp_name)
-              | list
-              | first
-              | default({})
-            ).get('mappingMethod', 'claim')
-            != (htpasswd_mapping_method | default('add'))
+              ocp_htpasswd_admin_current_mapping_method | default('claim')
+            ) != (htpasswd_mapping_method | default('add'))
+            or
+            (
+              ocp_htpasswd_admin_current_secret_name | default('')
+            ) != (htpasswd_secret | default('') | string)
           )
         )
       }}
