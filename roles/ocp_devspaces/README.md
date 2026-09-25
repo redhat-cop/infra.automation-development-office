@@ -63,3 +63,23 @@ roles/ocp_devspaces/
   tests/
   vars/
 ```
+
+## GitOps generation preview
+
+Set `ocp_devspaces_delivery_mode: generate` and `ocp_devspaces_gitops_repo_url` to
+render a Namespace and CheCluster without cluster access. Direct installation
+remains the default. Both paths use `tasks/build-checluster.yml`. Optional
+`ocp_devspaces_gitops_revision`, `ocp_devspaces_gitops_path`,
+`ocp_devspaces_gitops_namespace`, `ocp_devspaces_gitops_project`,
+`ocp_devspaces_gitops_destination`, and `ocp_devspaces_gitops_output_dir` control
+repository/destination settings. Default resource paths include `env` (or
+`default` when absent); Application names are `devspaces-<env>`.
+
+This first export covers the Namespace/CheCluster only. Dashboard sample
+ConfigMaps, status exporter, operator subscription, and additional route handling
+are excluded. Hostname, dashboard-image override, and workspace-image settings
+use the shared CheCluster builder. The operator/CRDs must exist before syncing.
+Do not run direct ADO application reconciliation against an Argo-managed CR.
+Switching delivery modes does not automatically transfer or remove ownership.
+
+Custom hostnames use the CheCluster v2 `spec.networking.hostname` field. Readiness reads the same resource name and namespace as the desired manifest. A missing resource after a successful apply requires investigation of deletion/reconciliation on the target cluster.

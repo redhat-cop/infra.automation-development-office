@@ -1,0 +1,144 @@
+---
+- name: Resolve DevSpaces namespaces and options  # noqa: jinja[invalid]
+  ansible.builtin.set_fact:
+    ocp_devspaces_operator_ns: >-
+      {{ operator_namespace
+      | default(name_space
+      | default('openshift-operators')) }}
+    ocp_devspaces_app_ns: >-
+      {{ app_namespace
+      | default(devspaces_namespace
+      | default(namespace
+      | default('openshift-devspaces'))) }}
+    ocp_devspaces_disable_default_samples: >-
+      {{ ocp_devspaces_disable_default_samples
+      | default(disable_default_samples
+      | default(true))
+      | bool }}
+    ocp_devspaces_customize_workspace: >-
+      {{ ocp_devspaces_customize_workspace
+      | default(customize_workspace
+      | default(false))
+      | bool }}
+    ocp_devspaces_default_devfile_url: >-
+      {{ ocp_devspaces_default_devfile_url
+      | default(default_devfile_url
+      | default('')) }}
+    ocp_devspaces_default_workspace_image: >-
+      {{ ocp_devspaces_default_workspace_image
+      | default(default_workspace_image
+      | default('')) }}
+    ocp_devspaces_che_image_tag: >-
+      {{ ocp_devspaces_che_image_tag
+      | default(che_image_tag
+      | default('')) }}
+    ocp_devspaces_dashboard_image: >-
+      {{ ocp_devspaces_dashboard_image
+      | default(dashboard_image
+      | default('')) }}
+    ocp_devspaces_status_exporter_enabled: >-
+      {{ ocp_devspaces_status_exporter_enabled
+      | default(status_exporter_enabled
+      | default(true))
+      | bool }}
+    ocp_devspaces_hostname: >-
+      {{
+        (
+          ocp_devspaces_hostname
+          | default(hostname, true)
+          | default(devspaces_hostname, true)
+          | default('', true)
+        )
+        | regex_replace('^https?://', '')
+        | regex_replace('/.*$', '')
+      }}
+    ocp_devspaces_ingress_domain: >-
+      {{
+        (
+          ocp_devspaces_hostname
+          | default(hostname, true)
+          | default(devspaces_hostname, true)
+          | default('', true)
+        )
+        | regex_replace('^https?://', '')
+        | regex_replace('/.*$', '')
+        | regex_replace('^[^.]+\\.', '')
+      }}
+
+- name: Build base CheCluster spec
+  ansible.builtin.set_fact:
+    ocp_devspaces_checluster_spec:
+      components:
+        cheServer: {}
+        dashboard: {}
+        devfileRegistry: {}
+        pluginRegistry: {}
+      containerRegistry: {}
+      networking: {}
+      devEnvironments: {}
+
+- name: Apply DevSpaces hostname from preflight when set
+  ansible.builtin.set_fact:
+    ocp_devspaces_checluster_spec: >-
+      {{
+        ocp_devspaces_checluster_spec
+        | combine({
+            'networking': {
+              'domain': ocp_devspaces_ingress_domain,
+              'hostname': ocp_devspaces_hostname
+            }
+          }, recursive=True)
+      }}
+  when: (ocp_devspaces_hostname | default('') | length) > 0
+
+- name: Apply optional dashboard image override
+  ansible.builtin.set_fact:
+    ocp_devspaces_checluster_spec: >-
+      {{
+        ocp_devspaces_checluster_spec
+        | combine({
+            'components': {
+              'dashboard': {
+                'deployment': {
+                  'containers': [
+                    {'name': 'che-dashboard',
+                     'image': ocp_devspaces_dashboard_image}
+                  ]
+                }
+              }
+            }
+          }, recursive=True)
+      }}
+  when: (ocp_devspaces_dashboard_image | length) > 0
+
+- name: Apply default workspace container image when customizing
+  ansible.builtin.set_fact:
+    ocp_devspaces_checluster_spec: >-
+      {{
+        ocp_devspaces_checluster_spec
+        | combine({
+            'devEnvironments': {
+              'defaultComponents': [
+                {
+                  'name': 'dev',
+                  'container': {
+                    'image': ocp_devspaces_default_workspace_image
+                  }
+                }
+              ]
+            }
+          }, recursive=True)
+      }}
+  when:
+    - ocp_devspaces_customize_workspace | bool
+    - (ocp_devspaces_default_workspace_image | length) > 0
+
+- name: Build desired CheCluster resource
+  ansible.builtin.set_fact:
+    ocp_devspaces_checluster_resource:
+      apiVersion: org.eclipse.che/v2
+      kind: CheCluster
+      metadata:
+        name: devspaces
+        namespace: '{{ ocp_devspaces_app_ns }}'
+      spec: '{{ ocp_devspaces_checluster_spec }}'

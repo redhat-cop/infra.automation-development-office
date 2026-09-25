@@ -1,0 +1,74 @@
+---
+# Resolve external PostgreSQL connection (no in-cluster provision).
+
+- name: Grafana Postgres | Assert external connection vars
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          grafana_install_postgres_host
+          | default(grafana_postgres_host)
+          | default('')
+          | string
+          | trim
+          | length
+        ) > 0
+      - >-
+        (
+          grafana_install_postgres_user
+          | default(grafana_postgres_user)
+          | default('grafana')
+          | string
+          | trim
+          | length
+        ) > 0
+      - >-
+        (
+          grafana_install_postgres_database
+          | default(grafana_postgres_database)
+          | default('grafana')
+          | string
+          | trim
+          | length
+        ) > 0
+      - >-
+        (
+          grafana_install_postgres_password
+          | default(grafana_postgres_password)
+          | default('')
+          | string
+          | length
+        ) > 0
+    fail_msg: >-
+      External Grafana PostgreSQL requires grafana_postgres_host,
+      grafana_postgres_user, grafana_postgres_database, and
+      grafana_postgres_password (vault).
+
+- name: Grafana Postgres | Export external connection facts
+  ansible.builtin.set_fact:
+    grafana_install_pg_host: >-
+      {{
+        grafana_install_postgres_host
+        | default(grafana_postgres_host)
+        | string
+        | trim
+      }}
+    grafana_install_pg_user: >-
+      {{
+        grafana_install_postgres_user
+        | default(grafana_postgres_user)
+        | default('grafana')
+      }}
+    grafana_install_pg_database: >-
+      {{
+        grafana_install_postgres_database
+        | default(grafana_postgres_database)
+        | default('grafana')
+      }}
+    grafana_install_pg_password: >-
+      {{
+        grafana_install_postgres_password
+        | default(grafana_postgres_password)
+      }}
+  no_log: true
+  changed_when: false

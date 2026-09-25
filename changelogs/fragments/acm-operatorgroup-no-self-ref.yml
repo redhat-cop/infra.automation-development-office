@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    acm playbook - Stop passing a self-referential
+    ``operatorgroup: "{{ operatorgroup | default(...) }}"`` into
+    ``ocp_operatorgroups``. That recursion aborts absent after hub cleanup
+    already succeeded; use the value from ``bootstrap_resolve_component``.

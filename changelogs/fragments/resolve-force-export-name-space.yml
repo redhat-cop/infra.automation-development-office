@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    bootstrap_resolve_component - Always export ``name_space`` /
+    ``app_namespace`` (and related) from the selected component registry so a
+    flat inventory/group_vars value from another app (e.g. Virt
+    ``openshift-cnv``) cannot make ACM uninstall/create in the wrong
+    namespace.

@@ -1,0 +1,103 @@
+---
+# yamllint disable rule:line-length
+# Absent path: remove Subscription + matching CSVs so Installed Operators clears.
+# Deleting only the Subscription leaves the CSV/operator deployment running.
+
+- name: Subscription | Delete Operator Subscription
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operators.coreos.com/v1alpha1
+    kind: Subscription
+    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
+    name: "{{ ocp_operator_subscription_sub_name }}"
+
+- name: Subscription | List ClusterServiceVersions in subscription namespace
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
+  register: ocp_operator_subscription_csvs
+  failed_when: false
+
+- name: Subscription | Select CSVs matching this operator
+  ansible.builtin.set_fact:
+    ocp_operator_subscription_csvs_to_delete: >-
+      {{
+        (
+          ocp_operator_subscription_csvs.resources
+          | default([])
+          | selectattr('metadata.name', 'defined')
+          | selectattr(
+              'metadata.name',
+              'search',
+              ocp_operator_subscription_csv_match
+                | regex_escape
+            )
+          | list
+        )
+        if (ocp_operator_subscription_csv_match | length) > 0
+        else []
+      }}
+  changed_when: false
+
+- name: Subscription | Delete matching ClusterServiceVersions
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ ocp_operator_subscription_csvs_to_delete }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Subscription | List InstallPlans in subscription namespace
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: InstallPlan
+    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
+  register: ocp_operator_subscription_installplans
+  failed_when: false
+  when: (ocp_operator_subscription_csv_match | length) > 0
+
+- name: Subscription | Delete InstallPlans for this operator
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operators.coreos.com/v1alpha1
+    kind: InstallPlan
+    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ ocp_operator_subscription_installplans.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('unknown') }}"
+  when:
+    - (ocp_operator_subscription_csv_match | length) > 0
+    - item.metadata.name is defined
+    - >-
+      (
+        item.spec.clusterServiceVersionNames
+        | default([])
+        | join(' ')
+      ) is search(ocp_operator_subscription_csv_match | regex_escape)
+  failed_when: false
+
+# Shared absent gate: catch Failed CSVs / Terminating leftovers this operator left.
+- name: Subscription | Run ocp_absent_cleanup gate
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_absent_cleanup
+  vars:
+    ocp_absent_cleanup_namespaces:
+      - "{{ ocp_operator_subscription_sub_namespace }}"
+    ocp_absent_cleanup_mode: cleanup
+    ocp_absent_cleanup_csv_name_match: "{{ ocp_operator_subscription_csv_match }}"
+    ocp_absent_cleanup_sweep_olm: true
+    # Shared NS (openshift-operators): do not wipe unrelated Deployments.
+    ocp_absent_cleanup_sweep_workloads: >-
+      {{
+        ocp_operator_subscription_absent_sweep_workloads
+        | default(false)
+      }}
+    ocp_absent_cleanup_fail_if_present: false
+    # Do not finalize/delete the namespace here — ocp_namespace owns that later.
+    # Finalizing on every subscription absent caused repeated 12x retry spam.
+    ocp_absent_cleanup_finalize: false

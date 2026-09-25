@@ -77,3 +77,48 @@ roles/bootstrap_generate_playbook_repo/
   tasks/main.yml
   README.md
 ```
+
+### Local component execution
+
+Generation also writes `component-run-plan.json` and `local_components.py`.
+The plan includes only selected executable playbooks, excluding supporting task
+files. When `cert_manager` is selected, IdM ACME and AWSPCA playbooks are
+included only for the matching cert-manager mode, and the default-ingress
+playbook only when `update_default_ingress` is enabled (same gates as
+Contoller). Cert-manager ``state=absent`` deletes only ADO ClusterIssuers
+(``idm-acme``, ``root-ca-issuer``, and optional
+``bootstrap_cert_manager_extra_clusterissuers``), not every ClusterIssuer
+on the cluster. Existing job-template surveys supply step inputs; existing workflow
+success edges determine execution order (nested workflows such as
+``ADO | RHBK Workflow`` expand so Deploy RHBK runs before OAuth). Selection
+order is preserved for independent steps and can be adjusted in the preflight
+UI; hard Contoller edges still win. Generation never executes components.
+
+Use a request JSON file outside the Git repository:
+
+```json
+{
+  "steps": [
+    "playbooks/rhbk/ado-deploy-and-configure-bootstrap.yml",
+    "playbooks/rhbk/ado-manage-realm-bootstrap.yml"
+  ],
+  "values": {},
+  "extra_args": "--check"
+}
+```
+
+From the generated repository:
+
+```bash
+python3 local_components.py --request /secure/component-request.json --preview
+python3 local_components.py --request /secure/component-request.json
+```
+
+Select IDs from the generated plan. Required survey inputs belong in
+`values[playbook_id][variable]`. Secret survey inputs are masked in previews.
+The runner uses `inventory`, the generated environment, `state=present`, and
+`.vault_pass` when available. Extra arguments apply to each playbook and may
+override these defaults. Execution uses subprocess arguments, not shell
+interpolation, and stops at the first nonzero exit. Target access and installed
+collections remain prerequisites. Never commit a request containing secrets.
+Steps with unresolved Controller-templated extra variables are unavailable.

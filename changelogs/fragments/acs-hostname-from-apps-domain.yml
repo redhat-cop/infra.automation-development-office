@@ -1,0 +1,2 @@
+bugfixes:
+  - bootstrap_generate_env_vars - Always derive RHACS Central hostname as ``central.<apps_domain>`` when apps domain is set; ignore stale preflight form overrides for ``component_config.acs.hostname``.

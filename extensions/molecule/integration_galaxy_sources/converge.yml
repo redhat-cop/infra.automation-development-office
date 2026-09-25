@@ -1,0 +1,12 @@
+---
+- name: Generate local Hub only organization configuration
+  hosts: localhost
+  gather_facts: false
+  vars:
+    env: molecule
+    preflight_json: '{{ playbook_dir }}/preflight.json'
+    generate_env_vars_base_dir: '{{ molecule_ephemeral_directory }}/group_vars'
+    generate_env_vars_encrypt_vault_files: false
+    bootstrap_generate_env_vars_encrypt_vault_files: false
+  roles:
+    - infra.ado.bootstrap_generate_env_vars

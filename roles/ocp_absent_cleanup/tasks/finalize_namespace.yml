@@ -1,0 +1,50 @@
+---
+# yamllint disable rule:line-length
+# Clear kubernetes namespace finalizer via the finalize subresource.
+
+- name: Absent cleanup | Build finalize body with empty finalizers
+  ansible.builtin.set_fact:
+    ocp_absent_cleanup_finalize_body: >-
+      {{
+        ocp_absent_cleanup_finalize_resource
+        | combine({'spec': {'finalizers': []}}, recursive=True)
+        | combine(
+            {
+              'metadata': (
+                ocp_absent_cleanup_finalize_resource.metadata | default({})
+              ) | combine({'finalizers': []})
+            },
+            recursive=True
+          )
+      }}
+  no_log: true
+
+- name: Absent cleanup | PUT namespace finalize subresource
+  ansible.builtin.uri:
+    url: >-
+      {{
+        (host | default(api_host | default(lookup('ansible.builtin.env', 'K8S_AUTH_HOST'))))
+        | regex_replace('/$', '')
+      }}/api/v1/namespaces/{{ ocp_absent_cleanup_ns }}/finalize
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ token | default(lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY')) }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ ocp_absent_cleanup_finalize_body }}"
+    status_code: [200, 201, 409]
+    validate_certs: "{{ (verify_ssl | default(true)) | bool }}"
+  no_log: true
+  register: ocp_absent_cleanup_finalize_put
+  failed_when: false
+
+- name: Absent cleanup | Wait until finalized namespace is gone
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_finalize_gone
+  until: (ocp_absent_cleanup_finalize_gone.resources | default([]) | length) == 0
+  retries: "{{ ocp_absent_cleanup_terminating_retries | int }}"
+  delay: "{{ ocp_absent_cleanup_terminating_delay | int }}"
+  failed_when: false

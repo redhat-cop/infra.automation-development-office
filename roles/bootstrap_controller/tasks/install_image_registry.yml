@@ -1,0 +1,33 @@
+---
+# Enable OpenShift integrated image registry during bootstrap scaffolding
+# (before NFS CSI when both are selected — avoids circular storage dependency).
+#
+# Do not put ``environment:`` on include_role — older ansible-core rejects it.
+# Put env on a block so kubernetes.core.k8s sees KUBECONFIG.
+
+- name: Bootstrap image registry | Resolve settings from preflight / group_vars
+  ansible.builtin.set_fact:
+    bootstrap_controller_image_registry_default_route: >-
+      {{
+        ocp_image_registry_default_route
+        | default(
+            openshift_integrated_registry_default_route
+            | default(true),
+            true
+          )
+        | bool
+      }}
+
+- name: Bootstrap image registry | Enable and validate
+  environment:
+    KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
+    K8S_AUTH_KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
+  block:
+    - name: Bootstrap image registry | Include ocp_image_registry
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_image_registry
+      vars:
+        ocp_image_registry_state: present
+        ocp_image_registry_enabled: true
+        ocp_image_registry_default_route: >-
+          {{ bootstrap_controller_image_registry_default_route }}

@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Default Ingress Cert no longer
+    generates IdM ACME and AWSPCA local playbooks; those follow
+    cert-manager mode, matching Contoller workflow gates.
+  - >-
+    bootstrap_controller - Skip IdM ACME and AWSPCA job templates unless
+    ``bootstrap_controller_cert_manager_mode`` is ``idm_acme`` or
+    ``aws_pca``.
+  - >-
+    bootstrap_generate_env_vars - Select the console banner playbook only
+    when ``console_banner`` is in OpenShift options (not merely because
+    ``openshift.banner_text`` is present in imported preflight JSON).

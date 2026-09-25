@@ -26,7 +26,6 @@ exclude_paths:
     - roles/bootstrap_controller/files/job_templates/**
     - roles/bootstrap_controller/files/job_templates.disabled/**
     - roles/bootstrap_controller/files/workflows/**
-    - roles/bootstrap_controller/templates/workflows/**
     - roles/bootstrap_generate_playbook_repo/files/playbooks/**
     - roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/**
     # ansible-core 2.18 production lint recurses on include_role vars that
@@ -44,6 +43,8 @@ skip_list:
     - jinja[invalid]
 
 mock_roles:
+    - infra.ado.ocp_gitops_application
+    - infra.ado.ocp_acm_policy
     - infra.ado.install_aap
     - infra.aap_utilities.aap_ocp_install
     - infra.aap_utilities.aap_setup_download
@@ -103,6 +104,7 @@ mock_roles:
     - infra.ado.ocp_loki
     - infra.ado.ocp_namespace
     - infra.ado.ocp_nfs_storage
+    - infra.ado.ocp_pega
     - infra.ado.ocp_oadp
     - infra.ado.ocp_oidc_auth
     - infra.ado.ocp_operator_defaults
@@ -146,6 +148,7 @@ mock_roles:
     - infra.ado.acs_report
     - infra.ado.vm_image_management
 mock_modules:
+    - kubernetes.core.helm_info
     - community.general.keycloak_clientsecret_info
     - community.general.keycloak_clientsecret_regenerate
     - ansible.posix.mount

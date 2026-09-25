@@ -1,0 +1,407 @@
+---
+# yamllint disable rule:line-length
+# Enable (or report) the OpenShift integrated image registry Config and
+# validate operational status. Patches only managementState and defaultRoute.
+
+- name: Resolve image registry desired state
+  ansible.builtin.set_fact:
+    ocp_image_registry_state_effective: >-
+      {{
+        ocp_image_registry_state
+        | default(state | default('present'), true)
+        | string
+        | trim
+        | lower
+      }}
+    ocp_image_registry_want_enabled: >-
+      {{
+        (
+          openshift_integrated_registry_enabled
+          | default(ocp_image_registry_enabled | default(true), true)
+        ) | bool
+      }}
+    ocp_image_registry_want_default_route: >-
+      {{
+        (
+          openshift_integrated_registry_default_route
+          | default(ocp_image_registry_default_route | default(true), true)
+        ) | bool
+      }}
+    ocp_image_registry_report_only_effective: >-
+      {{ ocp_image_registry_report_only | default(false) | bool }}
+
+- name: Assert image registry state is supported
+  ansible.builtin.assert:
+    that:
+      - ocp_image_registry_state_effective in ['present', 'absent', 'report']
+    fail_msg: >-
+      ocp_image_registry_state must be present, absent, or report
+      (got {{ ocp_image_registry_state_effective }})
+
+- name: Force report-only when state=report
+  ansible.builtin.set_fact:
+    ocp_image_registry_report_only_effective: true
+  when: ocp_image_registry_state_effective == 'report'
+
+- name: Read current image registry Config
+  kubernetes.core.k8s_info:
+    api_version: imageregistry.operator.openshift.io/v1
+    kind: Config
+    name: "{{ ocp_image_registry_config_name }}"
+  register: ocp_image_registry_config_info
+
+- name: Assert image registry Config exists
+  ansible.builtin.assert:
+    that:
+      - ocp_image_registry_config_info.resources | default([]) | length > 0
+    fail_msg: >-
+      configs.imageregistry.operator.openshift.io/{{ ocp_image_registry_config_name }}
+      was not found. Is the image-registry operator installed on this cluster?
+
+- name: Capture pre-check image registry fields
+  ansible.builtin.set_fact:
+    ocp_image_registry_pre_management_state: >-
+      {{
+        ocp_image_registry_config_info.resources[0].spec.managementState
+        | default('Unknown')
+      }}
+    ocp_image_registry_pre_default_route: >-
+      {{
+        ocp_image_registry_config_info.resources[0].spec.defaultRoute
+        | default(false)
+        | bool
+      }}
+    ocp_image_registry_pre_storage: >-
+      {{
+        ocp_image_registry_config_info.resources[0].spec.storage
+        | default({})
+      }}
+
+- name: Report pre-check image registry state
+  ansible.builtin.debug:
+    msg: >-
+      Image registry pre-check:
+      managementState={{ ocp_image_registry_pre_management_state }},
+      defaultRoute={{ ocp_image_registry_pre_default_route }},
+      storage_keys={{ ocp_image_registry_pre_storage.keys() | list }}
+
+# absent does not set managementState=Removed (destructive; out of scope).
+- name: Skip enablement when absent or not requested
+  ansible.builtin.debug:
+    msg: >-
+      Image registry enablement skipped
+      (state={{ ocp_image_registry_state_effective }},
+      enabled={{ ocp_image_registry_want_enabled }}).
+  when: >-
+    ocp_image_registry_state_effective == 'absent'
+    or not (ocp_image_registry_want_enabled | bool)
+
+- name: Enable and validate OpenShift integrated image registry
+  when:
+    - ocp_image_registry_state_effective != 'absent'
+    - ocp_image_registry_want_enabled | bool
+  block:
+    - name: Decide whether Config patch is required
+      ansible.builtin.set_fact:
+        ocp_image_registry_need_management_patch: >-
+          {{
+            (ocp_image_registry_pre_management_state | string) != 'Managed'
+            and not (ocp_image_registry_report_only_effective | bool)
+          }}
+        ocp_image_registry_need_route_patch: >-
+          {{
+            not (ocp_image_registry_report_only_effective | bool)
+            and (
+              (ocp_image_registry_pre_default_route | bool)
+              != (ocp_image_registry_want_default_route | bool)
+            )
+          }}
+
+    - name: Patch image registry managementState and/or defaultRoute only
+      kubernetes.core.k8s:
+        state: present
+        merge_type: merge
+        definition:
+          apiVersion: imageregistry.operator.openshift.io/v1
+          kind: Config
+          metadata:
+            name: "{{ ocp_image_registry_config_name }}"
+          spec: >-
+            {{
+              {}
+              | combine(
+                  {'managementState': 'Managed'}
+                  if (ocp_image_registry_need_management_patch | bool)
+                  else {}
+                )
+              | combine(
+                  {'defaultRoute': ocp_image_registry_want_default_route | bool}
+                  if (ocp_image_registry_need_route_patch | bool)
+                  else {}
+                )
+            }}
+      when: >-
+        (ocp_image_registry_need_management_patch | bool)
+        or (ocp_image_registry_need_route_patch | bool)
+      register: ocp_image_registry_patch_result
+
+    - name: Wait for image registry ClusterOperator Available
+      kubernetes.core.k8s_info:
+        api_version: config.openshift.io/v1
+        kind: ClusterOperator
+        name: "{{ ocp_image_registry_cluster_operator }}"
+      register: ocp_image_registry_co
+      until: >-
+        (
+          ocp_image_registry_co.resources | default([]) | length > 0
+        )
+        and (
+          (
+            ocp_image_registry_co.resources[0].status.conditions
+            | default([])
+            | selectattr('type', 'equalto', 'Available')
+            | map(attribute='status')
+            | list
+            | first
+            | default('False')
+          ) == 'True'
+        )
+      retries: "{{ ocp_image_registry_wait_retries | int }}"
+      delay: "{{ ocp_image_registry_wait_delay | int }}"
+      failed_when: false
+
+    - name: Read image registry Config after wait
+      kubernetes.core.k8s_info:
+        api_version: imageregistry.operator.openshift.io/v1
+        kind: Config
+        name: "{{ ocp_image_registry_config_name }}"
+      register: ocp_image_registry_config_after
+
+    - name: Read image-registry Deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ ocp_image_registry_deployment_name }}"
+        namespace: "{{ ocp_image_registry_namespace }}"
+      register: ocp_image_registry_deploy
+      failed_when: false
+
+    - name: Read image-registry Service
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: "{{ ocp_image_registry_service_name }}"
+        namespace: "{{ ocp_image_registry_namespace }}"
+      register: ocp_image_registry_svc
+      failed_when: false
+
+    - name: Read image-registry default Route when requested
+      kubernetes.core.k8s_info:
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: "{{ ocp_image_registry_route_name }}"
+        namespace: "{{ ocp_image_registry_namespace }}"
+      register: ocp_image_registry_route
+      when: ocp_image_registry_want_default_route | bool
+      failed_when: false
+
+    - name: Evaluate ClusterOperator and workload readiness
+      ansible.builtin.set_fact:
+        ocp_image_registry_post_management_state: >-
+          {{
+            (
+              ocp_image_registry_config_after.resources | default([])
+              | first
+              | default({})
+            ).spec.managementState
+            | default(ocp_image_registry_pre_management_state)
+          }}
+        ocp_image_registry_operator_available: >-
+          {{
+            (
+              (
+                (
+                  ocp_image_registry_co.resources | default([])
+                  | first
+                  | default({})
+                ).status.conditions
+                | default([])
+                | selectattr('type', 'equalto', 'Available')
+                | map(attribute='status')
+                | list
+                | first
+                | default('False')
+              ) == 'True'
+            )
+          }}
+        ocp_image_registry_operator_degraded: >-
+          {{
+            (
+              (
+                (
+                  ocp_image_registry_co.resources | default([])
+                  | first
+                  | default({})
+                ).status.conditions
+                | default([])
+                | selectattr('type', 'equalto', 'Degraded')
+                | map(attribute='status')
+                | list
+                | first
+                | default('False')
+              ) == 'True'
+            )
+          }}
+        ocp_image_registry_pod_ready: >-
+          {{
+            (
+              ocp_image_registry_deploy.resources | default([]) | length > 0
+            )
+            and (
+              (
+                ocp_image_registry_deploy.resources[0].status.readyReplicas
+                | default(0)
+                | int
+              ) >= 1
+            )
+          }}
+        ocp_image_registry_service_ready: >-
+          {{
+            (ocp_image_registry_svc.resources | default([]) | length > 0)
+          }}
+        ocp_image_registry_route_ready: >-
+          {{
+            (
+              not (ocp_image_registry_want_default_route | bool)
+            )
+            or (
+              (
+                (ocp_image_registry_route | default({})).resources
+                | default([])
+                | length > 0
+              )
+              and (
+                (
+                  (
+                    (ocp_image_registry_route | default({})).resources
+                    | default([])
+                    | first
+                    | default({})
+                  ).spec.host
+                  | default('')
+                  | string
+                  | length
+                ) > 0
+              )
+            )
+          }}
+        ocp_image_registry_storage_exists: >-
+          {{
+            (
+              (
+                (
+                  ocp_image_registry_config_after.resources | default([])
+                  | first
+                  | default({})
+                ).status.conditions
+                | default([])
+                | selectattr('type', 'equalto', 'StorageExists')
+                | map(attribute='status')
+                | list
+                | first
+                | default('')
+              ) == 'True'
+            )
+          }}
+
+    - name: Evaluate storage readiness from operator and workload
+      ansible.builtin.set_fact:
+        ocp_image_registry_storage_ready: >-
+          {{
+            (ocp_image_registry_storage_exists | bool)
+            or (
+              (ocp_image_registry_operator_available | bool)
+              and (ocp_image_registry_pod_ready | bool)
+              and not (ocp_image_registry_operator_degraded | bool)
+            )
+          }}
+
+    - name: Build image registry pass/fail verdict
+      ansible.builtin.set_fact:
+        ocp_image_registry_pass: >-
+          {{
+            (ocp_image_registry_post_management_state | string) == 'Managed'
+            and (ocp_image_registry_storage_ready | bool)
+            and (ocp_image_registry_operator_available | bool)
+            and (ocp_image_registry_pod_ready | bool)
+            and (ocp_image_registry_service_ready | bool)
+            and (ocp_image_registry_route_ready | bool)
+          }}
+        ocp_image_registry_route_host: >-
+          {{
+            (
+              (
+                (ocp_image_registry_route | default({})).resources
+                | default([])
+                | first
+                | default({})
+              ).spec.host
+              | default('')
+            )
+            if (ocp_image_registry_want_default_route | bool)
+            else 'n/a (defaultRoute not requested)'
+          }}
+        ocp_image_registry_fail_reason: >-
+          {{
+            'Registry enabled but backing storage is not operational.'
+            if (
+              (ocp_image_registry_post_management_state | string) == 'Managed'
+              and not (ocp_image_registry_storage_ready | bool)
+            )
+            else (
+              'Image registry ClusterOperator is not Available.'
+              if not (ocp_image_registry_operator_available | bool)
+              else (
+                'image-registry Deployment has no ready replicas.'
+                if not (ocp_image_registry_pod_ready | bool)
+                else (
+                  'image-registry Service is missing.'
+                  if not (ocp_image_registry_service_ready | bool)
+                  else (
+                    'default-route is missing or has no host.'
+                    if not (ocp_image_registry_route_ready | bool)
+                    else 'Unknown failure.'
+                  )
+                )
+              )
+            )
+          }}
+
+    - name: Print image registry result report
+      ansible.builtin.debug:
+        msg: |
+          OpenShift Integrated Registry
+          -----------------------------
+          Requested:        Yes
+          Management State: {{ ocp_image_registry_post_management_state }}
+          Storage:          {{ 'Ready' if (ocp_image_registry_storage_ready | bool) else 'Not Ready' }}
+          Operator:         {{ 'Available' if (ocp_image_registry_operator_available | bool) else ('Degraded' if (ocp_image_registry_operator_degraded | bool) else 'Not Available') }}
+          Registry Pod:     {{ 'Running' if (ocp_image_registry_pod_ready | bool) else 'Not Running' }}
+          Internal Service: {{ 'Ready' if (ocp_image_registry_service_ready | bool) else 'Not Ready' }}
+          External Route:   {{ ('Ready (' ~ ocp_image_registry_route_host ~ ')') if (ocp_image_registry_route_ready | bool and (ocp_image_registry_want_default_route | bool)) else ('Skipped' if not (ocp_image_registry_want_default_route | bool) else 'Not Ready') }}
+
+          RESULT: {{ 'PASS' if (ocp_image_registry_pass | bool) else 'FAIL' }}
+          {% if not (ocp_image_registry_pass | bool) %}REASON: {{ ocp_image_registry_fail_reason }}
+          NOTE: Enabling the registry does not configure backing storage. Do not
+          point registry storage at nfs-csi while recovering NFS CSI ImagePullBackOff
+          (circular dependency). Configure independent registry storage first.
+          {% endif %}
+
+    - name: Fail when image registry is not operational
+      ansible.builtin.fail:
+        msg: >-
+          OpenShift Integrated Registry RESULT: FAIL —
+          {{ ocp_image_registry_fail_reason }}
+      when:
+        - not (ocp_image_registry_report_only_effective | bool)
+        - not (ocp_image_registry_pass | bool)

@@ -1,225 +1,248 @@
 ---
+# yamllint disable rule:line-length
 # Operator CSV/deployments live in operator_subscription_namespace / operator_namespace,
 # not always the app operand namespace (name_space). GitLab is the common mismatch.
-- name: Resolve operator wait namespace
-  ansible.builtin.set_fact:
-    ocp_wait_operator__namespace: >-
-      {{
-        operator_namespace
-        | default(operator_subscription_namespace)
-        | default(name_space)
-        | string
-        | trim
-      }}
-
-# Resolve CSV/deployment match string once. Callers often only set operator_name
-# (e.g. RHBK); aliases alone do nothing when neither substring nor csv_contains exists.
-- name: Resolve ocp_wait_operator_name_substring
-  ansible.builtin.set_fact:
-    ocp_wait_operator_name_substring: >-
-      {{
-        ocp_wait_operator_name_substring
-        | default(operator_csv_contains)
-        | default(operator_name)
-        | default('')
-        | string
-        | trim
-      }}
-    # OLM CSV names often drop hyphens from the package name
-    # (cluster-kube-descheduler-operator → clusterkubedescheduleroperator.vX).
-    ocp_wait_operator__csv_match_alt: >-
-      {{
-        (
-          ocp_wait_operator_name_substring
-          | default(operator_csv_contains)
-          | default(operator_name)
-          | default('')
-          | string
-          | trim
-          | regex_replace('-', '')
-        )
-      }}
-
-- name: Assert ocp_wait_operator_name_substring is set
-  ansible.builtin.assert:
-    that:
-      - (ocp_wait_operator_name_substring | length) > 0
-    fail_msg: >-
-      ocp_wait_operator_name_substring is undefined/empty. Set ocp_wait_operator_name_substring,
-      operator_csv_contains, or operator_name for component wait in namespace
-      '{{ name_space | default("") }}'.
-
-- name: Wait for Operator CSV to appear
+#
+# Never wait for a CSV when uninstalling. Prefer playbook gates (include_role when
+# present) and this role-level when — do NOT use ``meta: end_role`` (ansible-core
+# 2.18+ only; older EEs fail with ``invalid meta action requested: end_role``).
+- name: Wait for operator CSV and deployment (install only)
+  when: (state | default('present') | string | lower) == 'present'
   block:
-    - name: Wait for Operator CSV to appear
-      kubernetes.core.k8s_info:
-        api_version: operators.coreos.com/v1alpha1
-        kind: ClusterServiceVersion
-        namespace: "{{ ocp_wait_operator__namespace }}"
-      register: ocp_wait_operator__installed_operator_csvs
-      until: >-
-        (
-          ocp_wait_operator__installed_operator_csvs.resources
-          | default([])
-          | selectattr('metadata.name', 'search', ocp_wait_operator_name_substring)
-          | list
-          | length > 0
-        )
-        or (
-          (ocp_wait_operator__csv_match_alt | length) > 0
-          and (
-            ocp_wait_operator__installed_operator_csvs.resources
-            | default([])
-            | selectattr('metadata.name', 'search', ocp_wait_operator__csv_match_alt)
-            | list
-            | length > 0
-          )
-        )
-      retries: "{{ ((operator_install_timeout | default(900) | int) // (operator_poll_interval | default(10) | int)) | int }}"
-      delay: "{{ operator_poll_interval | default(10) | int }}"
-  rescue:
-    - name: Fail with actionable Operator CSV guidance
-      ansible.builtin.fail:
-        msg: >-
-          No ClusterServiceVersion matching '{{ ocp_wait_operator_name_substring }}'
-          (or hyphen-stripped '{{ ocp_wait_operator__csv_match_alt }}') in namespace
-          '{{ ocp_wait_operator__namespace }}'. CSVs present:
+    - name: Resolve operator wait namespace
+      ansible.builtin.set_fact:
+        ocp_wait_operator__namespace: >-
           {{
-            ocp_wait_operator__installed_operator_csvs.resources
-            | default([])
-            | map(attribute='metadata.name')
-            | list
-          }}.
-          Check Subscription package/channel/source and that operator_namespace
-          matches where the Subscription installs the CSV.
+            operator_namespace
+            | default(operator_subscription_namespace)
+            | default(name_space)
+            | string
+            | trim
+          }}
 
-- name: Set fact if Operator CSV is installed
-  ansible.builtin.set_fact:
-    ocp_wait_operator__operator_installed: true
+    # Resolve CSV/deployment match string once. Callers often only set operator_name;
+    # aliases alone do nothing when neither substring nor csv_contains exists.
+    - name: Resolve ocp_wait_operator_name_substring
+      ansible.builtin.set_fact:
+        ocp_wait_operator_name_substring: >-
+          {{
+            ocp_wait_operator_name_substring
+            | default(operator_csv_contains)
+            | default(operator_name)
+            | default('')
+            | string
+            | trim
+          }}
+        # OLM CSV names often drop hyphens from the package name
+        # (cluster-kube-descheduler-operator → clusterkubedescheduleroperator.vX).
+        ocp_wait_operator__csv_match_alt: >-
+          {{
+            (
+              ocp_wait_operator_name_substring
+              | default(operator_csv_contains)
+              | default(operator_name)
+              | default('')
+              | string
+              | trim
+              | regex_replace('-', '')
+            )
+          }}
 
-- name: Debug operator installation status
-  ansible.builtin.debug:
-    msg: >-
-      Operator '{{ ocp_wait_operator_name_substring }}' CSV is installed in '{{ ocp_wait_operator__namespace }}'.
-      Operator installed: {{ ocp_wait_operator__operator_installed }}
+    - name: Assert ocp_wait_operator_name_substring is set
+      ansible.builtin.assert:
+        that:
+          - (ocp_wait_operator_name_substring | length) > 0
+        fail_msg: >-
+          ocp_wait_operator_name_substring is undefined/empty. Set
+          ocp_wait_operator_name_substring, operator_csv_contains, or
+          operator_name for component wait in namespace
+          '{{ name_space | default("") }}'.
 
-- name: Resolve operator deployment name pattern
-  ansible.builtin.set_fact:
-    ocp_wait_operator__operator_deployment_pattern: >-
-      {{
-        operator_deployment_pattern
-        | default(ocp_wait_operator_name_substring)
-        | string
-        | trim
-      }}
-    ocp_wait_operator__operator_deployment_pattern_alt: >-
-      {{
-        (
-          operator_deployment_pattern
-          | default(operator_name | default(ocp_wait_operator_name_substring) | default(''))
-          | string
-          | trim
-          | regex_replace('-', '')
-        )
-      }}
+    - name: Wait for Operator CSV to appear
+      block:
+        - name: Wait for Operator CSV to appear
+          kubernetes.core.k8s_info:
+            api_version: operators.coreos.com/v1alpha1
+            kind: ClusterServiceVersion
+            namespace: "{{ ocp_wait_operator__namespace }}"
+          register: ocp_wait_operator__installed_operator_csvs
+          until: >-
+            (
+              ocp_wait_operator__installed_operator_csvs.resources
+              | default([])
+              | selectattr('metadata.name', 'search', ocp_wait_operator_name_substring)
+              | selectattr('status.phase', 'defined')
+              | selectattr('status.phase', 'equalto', 'Succeeded')
+              | list
+              | length > 0
+            )
+            or (
+              (ocp_wait_operator__csv_match_alt | length) > 0
+              and (
+                ocp_wait_operator__installed_operator_csvs.resources
+                | default([])
+                | selectattr('metadata.name', 'search', ocp_wait_operator__csv_match_alt)
+                | selectattr('status.phase', 'defined')
+                | selectattr('status.phase', 'equalto', 'Succeeded')
+                | list
+                | length > 0
+              )
+            )
+          retries: "{{ ((operator_install_timeout | default(900) | int) // (operator_poll_interval | default(10) | int)) | int }}"
+          delay: "{{ operator_poll_interval | default(10) | int }}"
+      rescue:
+        - name: Fail with actionable Operator CSV guidance
+          ansible.builtin.fail:
+            msg: >-
+              No Succeeded ClusterServiceVersion matching
+              '{{ ocp_wait_operator_name_substring }}'
+              (or hyphen-stripped '{{ ocp_wait_operator__csv_match_alt }}') in
+              namespace '{{ ocp_wait_operator__namespace }}'. CSVs present:
+              {{
+                ocp_wait_operator__installed_operator_csvs.resources
+                | default([])
+                | map(attribute='metadata.name')
+                | list
+              }}
+              (phases:
+              {{
+                ocp_wait_operator__installed_operator_csvs.resources
+                | default([])
+                | map(attribute='status.phase')
+                | list
+              }}).
+              Check Subscription package/channel/source and that
+              operator_namespace matches where the Subscription installs the CSV.
 
-- name: Wait for a matching Operator Deployment to exist
-  block:
+    - name: Set fact if Operator CSV is installed
+      ansible.builtin.set_fact:
+        ocp_wait_operator__operator_installed: true
+
+    - name: Debug operator installation status
+      ansible.builtin.debug:
+        msg: >-
+          Operator '{{ ocp_wait_operator_name_substring }}' CSV is installed in
+          '{{ ocp_wait_operator__namespace }}'.
+          Operator installed: {{ ocp_wait_operator__operator_installed }}
+
+    - name: Resolve operator deployment name pattern
+      ansible.builtin.set_fact:
+        ocp_wait_operator__operator_deployment_pattern: >-
+          {{
+            operator_deployment_pattern
+            | default(ocp_wait_operator_name_substring)
+            | string
+            | trim
+          }}
+        ocp_wait_operator__operator_deployment_pattern_alt: >-
+          {{
+            (
+              operator_deployment_pattern
+              | default(operator_name | default(ocp_wait_operator_name_substring) | default(''))
+              | string
+              | trim
+              | regex_replace('-', '')
+            )
+          }}
+
     - name: Wait for a matching Operator Deployment to exist
+      block:
+        - name: Wait for a matching Operator Deployment to exist
+          kubernetes.core.k8s_info:
+            api_version: apps/v1
+            kind: Deployment
+            namespace: "{{ ocp_wait_operator__namespace }}"
+          register: ocp_wait_operator__all_deployments
+          until: >-
+            (
+              ocp_wait_operator__all_deployments.resources
+              | default([])
+              | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern)
+              | list
+              | length
+            ) > 0
+            or (
+              (ocp_wait_operator__operator_deployment_pattern_alt | length) > 0
+              and (
+                ocp_wait_operator__all_deployments.resources
+                | default([])
+                | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern_alt)
+                | list
+                | length
+              ) > 0
+            )
+          retries: "{{ operator_wait_retries | default(30) | int }}"
+          delay: "{{ operator_wait_delay | default(10) | int }}"
+      rescue:
+        - name: Fail with actionable Operator Deployment guidance
+          ansible.builtin.fail:
+            msg: >-
+              No Deployment matching
+              '{{ ocp_wait_operator__operator_deployment_pattern }}'
+              in namespace '{{ ocp_wait_operator__namespace }}'. Deployments present:
+              {{
+                ocp_wait_operator__all_deployments.resources
+                | default([])
+                | map(attribute='metadata.name')
+                | list
+              }}.
+              Set operator_deployment_pattern to the real Deployment name
+              (e.g. descheduler-operator).
+
+    - name: Select Operator Deployment name
+      ansible.builtin.set_fact:
+        ocp_wait_operator__operator_deployment: >-
+          {{
+            (
+              (
+                ocp_wait_operator__all_deployments.resources
+                | default([])
+                | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern)
+                | map(attribute='metadata.name')
+                | list
+              )
+              + (
+                ocp_wait_operator__all_deployments.resources
+                | default([])
+                | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern_alt)
+                | map(attribute='metadata.name')
+                | list
+              )
+            )
+            | unique
+            | first
+          }}
+
+    - name: Debug discovered operator deployment
+      ansible.builtin.debug:
+        msg: >-
+          Discovered operator deployment: {{ ocp_wait_operator__operator_deployment }}
+          in namespace {{ ocp_wait_operator__namespace }}
+          (pattern={{ ocp_wait_operator__operator_deployment_pattern }})
+
+    - name: Wait for Operator Deployment to be ready
       kubernetes.core.k8s_info:
         api_version: apps/v1
         kind: Deployment
         namespace: "{{ ocp_wait_operator__namespace }}"
-      register: ocp_wait_operator__all_deployments
-      until: >-
-        (
-          ocp_wait_operator__all_deployments.resources
-          | default([])
-          | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern)
-          | list
-          | length
-        ) > 0
-        or (
-          (ocp_wait_operator__operator_deployment_pattern_alt | length) > 0
-          and (
-            ocp_wait_operator__all_deployments.resources
-            | default([])
-            | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern_alt)
-            | list
-            | length
-          ) > 0
-        )
+        name: "{{ ocp_wait_operator__operator_deployment }}"
+      register: ocp_wait_operator__operator_deploy_info
+      until: >
+        ocp_wait_operator__operator_deploy_info.resources | default([]) | length > 0
+        and ocp_wait_operator__operator_deploy_info.resources[0].status is defined
+        and ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas is defined
+        and ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas | int > 0
       retries: "{{ operator_wait_retries | default(30) | int }}"
       delay: "{{ operator_wait_delay | default(10) | int }}"
-  rescue:
-    - name: Fail with actionable Operator Deployment guidance
-      ansible.builtin.fail:
+
+    - name: Debug operator deployment status
+      ansible.builtin.debug:
         msg: >-
-          No Deployment matching '{{ ocp_wait_operator__operator_deployment_pattern }}'
-          in namespace '{{ ocp_wait_operator__namespace }}'. Deployments present:
+          Operator deployment '{{ ocp_wait_operator__operator_deployment }}' ready status:
           {{
-            ocp_wait_operator__all_deployments.resources
-            | default([])
-            | map(attribute='metadata.name')
-            | list
-          }}.
-          Set operator_deployment_pattern to the real Deployment name
-          (e.g. descheduler-operator).
-
-- name: Select Operator Deployment name
-  ansible.builtin.set_fact:
-    ocp_wait_operator__operator_deployment: >-
-      {{
-        (
-          (
-            ocp_wait_operator__all_deployments.resources
-            | default([])
-            | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern)
-            | map(attribute='metadata.name')
-            | list
-          )
-          + (
-            ocp_wait_operator__all_deployments.resources
-            | default([])
-            | selectattr('metadata.name', 'search', ocp_wait_operator__operator_deployment_pattern_alt)
-            | map(attribute='metadata.name')
-            | list
-          )
-        )
-        | unique
-        | first
-      }}
-
-- name: Debug discovered operator deployment
-  ansible.builtin.debug:
-    msg: >-
-      Discovered operator deployment: {{ ocp_wait_operator__operator_deployment }}
-      in namespace {{ ocp_wait_operator__namespace }}
-      (pattern={{ ocp_wait_operator__operator_deployment_pattern }})
-
-- name: Wait for Operator Deployment to be ready
-  kubernetes.core.k8s_info:
-    api_version: apps/v1
-    kind: Deployment
-    namespace: "{{ ocp_wait_operator__namespace }}"
-    name: "{{ ocp_wait_operator__operator_deployment }}"
-  register: ocp_wait_operator__operator_deploy_info
-  until: >
-    ocp_wait_operator__operator_deploy_info.resources | default([]) | length > 0
-    and ocp_wait_operator__operator_deploy_info.resources[0].status is defined
-    and ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas is defined
-    and ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas | int > 0
-  retries: "{{ operator_wait_retries | default(30) | int }}"
-  delay: "{{ operator_wait_delay | default(10) | int }}"
-
-- name: Debug operator deployment status
-  ansible.builtin.debug:
-    msg: >-
-      Operator deployment '{{ ocp_wait_operator__operator_deployment }}' ready status:
-      {{
-        ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas | default('none')
-      }}/
-      {{
-        ocp_wait_operator__operator_deploy_info.resources[0].status.replicas | default('none')
-      }}
-      available in namespace {{ ocp_wait_operator__namespace }}
+            ocp_wait_operator__operator_deploy_info.resources[0].status.availableReplicas | default('none')
+          }}/
+          {{
+            ocp_wait_operator__operator_deploy_info.resources[0].status.replicas | default('none')
+          }}
+          available in namespace {{ ocp_wait_operator__namespace }}

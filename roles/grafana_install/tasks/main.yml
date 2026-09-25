@@ -1,7 +1,9 @@
 ---
-- name: Install Grafana operator
+- name: Install Grafana (operator + CR)
   ansible.builtin.import_tasks: install-grafana-operator.yml
-  when: state == "present"
+  when:
+    - state == "present"
+    - (grafana_install_scope | default('install')) == 'install'
 
 - name: Configure Grafana OIDC
   ansible.builtin.import_tasks: configure-grafana-oidc.yml

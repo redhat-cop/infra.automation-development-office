@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_acm - Skip MultiClusterHub console-component patch when console is
+    already enabled so present/workflow reruns stay idempotent (rewriting
+    ``overrides.components`` without ``configOverrides`` was always
+    ``changed`` and could bounce MCH back to Installing).

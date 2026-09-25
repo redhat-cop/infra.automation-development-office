@@ -27,3 +27,13 @@ ocp_devspaces_status_exporter_enabled: true
 ocp_devspaces_status_exporter_name: devworkspace-status-exporter
 ocp_devspaces_status_exporter_namespace: "{{ ocp_devspaces_operator_ns }}"
 ocp_devspaces_status_exporter_image: registry.redhat.io/ubi9/python-311:latest
+
+# Direct installation remains the default; generation performs no cluster calls.
+ocp_devspaces_delivery_mode: direct
+ocp_devspaces_gitops_repo_url: ''
+ocp_devspaces_gitops_revision: main
+ocp_devspaces_gitops_path: "gitops/{{ env | default('default') }}/devspaces/resources"
+ocp_devspaces_gitops_namespace: openshift-gitops
+ocp_devspaces_gitops_project: default
+ocp_devspaces_gitops_destination: https://kubernetes.default.svc
+ocp_devspaces_gitops_output_dir: '{{ playbook_dir }}'

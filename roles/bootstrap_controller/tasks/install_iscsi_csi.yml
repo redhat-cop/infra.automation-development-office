@@ -1,56 +1,133 @@
 ---
 # yamllint disable rule:line-length
+# Note: do not put ``environment:`` on include_role — older ansible-core
+# rejects it. Put env on a block instead.
+#
+# Do not pass ``ocp_iscsi_storage_*: "{{ ocp_iscsi_storage_* | default(...) }}"``
+# on include_role vars — that self-references and recurses under ansible-core.
+
+- name: Bootstrap iSCSI CSI | Resolve settings from preflight / group_vars
+  ansible.builtin.set_fact:
+    bootstrap_controller_iscsi_csi_dsm_host: >-
+      {{
+        (
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).iscsi_dsm_host
+          | default(
+            (
+              (bootstrap_generate_env_vars_preflight | default({})).openshift
+              | default({})
+            ).ocp_iscsi_storage_dsm_host
+            | default(none),
+            true
+          )
+        )
+        | default(iscsi_dsm_host | default(none), true)
+        | default(ocp_iscsi_storage_dsm_host | default(''), true)
+      }}
+    bootstrap_controller_iscsi_csi_dsm_username: >-
+      {{
+        (
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).iscsi_dsm_username
+          | default(
+            (
+              (bootstrap_generate_env_vars_preflight | default({})).openshift
+              | default({})
+            ).ocp_iscsi_storage_dsm_username
+            | default(none),
+            true
+          )
+        )
+        | default(iscsi_dsm_username | default(none), true)
+        | default(ocp_iscsi_storage_dsm_username | default(''), true)
+      }}
+    bootstrap_controller_iscsi_csi_dsm_password: >-
+      {{
+        (
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).iscsi_dsm_password
+          | default(
+            (
+              (bootstrap_generate_env_vars_preflight | default({})).openshift
+              | default({})
+            ).ocp_iscsi_storage_dsm_password
+            | default(none),
+            true
+          )
+        )
+        | default(iscsi_dsm_password | default(none), true)
+        | default(ocp_iscsi_storage_dsm_password | default(''), true)
+      }}
+    bootstrap_controller_iscsi_csi_dsm_port: >-
+      {{
+        iscsi_dsm_port
+        | default(ocp_iscsi_storage_dsm_port | default(5000), true)
+      }}
+    bootstrap_controller_iscsi_csi_dsm_https: >-
+      {{
+        iscsi_dsm_https
+        | default(ocp_iscsi_storage_dsm_https | default(false), true)
+        | bool
+      }}
+    bootstrap_controller_iscsi_csi_class_name: >-
+      {{
+        iscsi_storage_class_name
+        | default(
+          ocp_iscsi_storage_class_name | default('synology-iscsi-storage'),
+          true
+        )
+      }}
+    bootstrap_controller_iscsi_csi_location: >-
+      {{
+        iscsi_location
+        | default(ocp_iscsi_storage_location | default('/volume1'), true)
+      }}
+    bootstrap_controller_iscsi_csi_is_default: >-
+      {{
+        iscsi_is_default
+        | default(ocp_iscsi_storage_is_default | default(true), true)
+        | bool
+      }}
+    bootstrap_controller_iscsi_csi_install_snapshotter: >-
+      {{
+        iscsi_install_snapshotter
+        | default(ocp_iscsi_storage_install_snapshotter | default(true), true)
+        | bool
+      }}
+
 - name: Bootstrap iSCSI CSI | Assert DSM settings are present
   ansible.builtin.assert:
     that:
-      - ocp_iscsi_storage_dsm_host | default('') | length > 0
-      - ocp_iscsi_storage_dsm_username | default('') | length > 0
-      - ocp_iscsi_storage_dsm_password | default('') | length > 0
+      - bootstrap_controller_iscsi_csi_dsm_host | length > 0
+      - bootstrap_controller_iscsi_csi_dsm_username | length > 0
+      - bootstrap_controller_iscsi_csi_dsm_password | length > 0
     fail_msg: >-
       iscsi_csi bootstrap prep requires openshift.iscsi_dsm_host,
       iscsi_dsm_username, and iscsi_dsm_password (or ocp_iscsi_storage_* vars).
 
 - name: Bootstrap iSCSI CSI | Install Synology CSI driver and StorageClass
-  ansible.builtin.include_role:
-    name: infra.ado.ocp_iscsi_storage
-  vars:
-    ocp_iscsi_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
-    ocp_iscsi_storage_dsm_host: >-
-      {{ ocp_iscsi_storage_dsm_host | default(iscsi_dsm_host) }}
-    ocp_iscsi_storage_dsm_port: >-
-      {{
-        ocp_iscsi_storage_dsm_port
-        | default(iscsi_dsm_port | default(5000))
-      }}
-    ocp_iscsi_storage_dsm_https: >-
-      {{
-        ocp_iscsi_storage_dsm_https
-        | default(iscsi_dsm_https | default(false))
-      }}
-    ocp_iscsi_storage_dsm_username: >-
-      {{ ocp_iscsi_storage_dsm_username | default(iscsi_dsm_username) }}
-    ocp_iscsi_storage_dsm_password: >-
-      {{ ocp_iscsi_storage_dsm_password | default(iscsi_dsm_password) }}
-    ocp_iscsi_storage_class_name: >-
-      {{
-        ocp_iscsi_storage_class_name
-        | default(iscsi_storage_class_name | default('synology-iscsi-storage'))
-      }}
-    ocp_iscsi_storage_location: >-
-      {{
-        ocp_iscsi_storage_location
-        | default(iscsi_location | default('/volume1'))
-      }}
-    ocp_iscsi_storage_is_default: >-
-      {{
-        ocp_iscsi_storage_is_default
-        | default(iscsi_is_default | default(true))
-      }}
-    ocp_iscsi_storage_install_snapshotter: >-
-      {{
-        ocp_iscsi_storage_install_snapshotter
-        | default(iscsi_install_snapshotter | default(true))
-      }}
   environment:
     KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
     K8S_AUTH_KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
+  block:
+    - name: Bootstrap iSCSI CSI | Include ocp_iscsi_storage
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_iscsi_storage
+      vars:
+        ocp_iscsi_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
+        ocp_iscsi_storage_dsm_host: "{{ bootstrap_controller_iscsi_csi_dsm_host }}"
+        ocp_iscsi_storage_dsm_port: "{{ bootstrap_controller_iscsi_csi_dsm_port }}"
+        ocp_iscsi_storage_dsm_https: "{{ bootstrap_controller_iscsi_csi_dsm_https }}"
+        ocp_iscsi_storage_dsm_username: "{{ bootstrap_controller_iscsi_csi_dsm_username }}"
+        ocp_iscsi_storage_dsm_password: "{{ bootstrap_controller_iscsi_csi_dsm_password }}"
+        ocp_iscsi_storage_class_name: "{{ bootstrap_controller_iscsi_csi_class_name }}"
+        ocp_iscsi_storage_location: "{{ bootstrap_controller_iscsi_csi_location }}"
+        ocp_iscsi_storage_is_default: "{{ bootstrap_controller_iscsi_csi_is_default }}"
+        ocp_iscsi_storage_install_snapshotter: "{{ bootstrap_controller_iscsi_csi_install_snapshotter }}"

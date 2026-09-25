@@ -597,6 +597,7 @@ controller_bootstrap_controller_organizations:
    is present — hub-only collection publish must not push lab creds. #}
 {% for galaxy_credential in preflight_galaxy_credentials_ordered
    if preflight_galaxy_setup_enabled
+   and (galaxy_credential.enabled | default(true) | bool)
    and preflight_galaxy_hub_token_present
    and (galaxy_credential.attach_to_org | default(true) | bool)
    and (galaxy_credential.name | default('', true) | length > 0) %}

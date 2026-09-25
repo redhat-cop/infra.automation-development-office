@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    ocp_acm - Hard-fail when MultiClusterHub/MultiClusterEngine remain after
+    hub cleanup (``Confirm … removed`` no longer uses ``failed_when: false``).
+    Present previously continued and waited for Running on a Terminating MCH.
+  - >-
+    ocp_acm - Refuse ``state=present`` install/wait when MultiClusterHub is
+    still Uninstalling/deleting; wait failure message now reports phase and
+    deletionTimestamp.

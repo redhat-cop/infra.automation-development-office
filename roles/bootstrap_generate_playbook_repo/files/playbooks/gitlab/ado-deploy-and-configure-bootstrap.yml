@@ -42,7 +42,7 @@
             | regex_replace('/.*$', '')
           }}
         gitlab_install_chart_version: >-
-          {{ gitlab_install_chart_version | default(chart_version) | default('10.3.1') }}
+          {{ gitlab_install_chart_version | default(chart_version) | default('10.3.2') }}
         gitlab_install_storage_size: >-
           {{ gitlab_install_storage_size | default(storage_size) | default('20Gi') }}
         gitlab_install_storage_class: >-

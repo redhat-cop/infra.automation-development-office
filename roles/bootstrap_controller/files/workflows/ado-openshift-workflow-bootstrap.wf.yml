@@ -13,6 +13,13 @@ controller_workflow_job_templates:
       - ADO | openshift
     simplified_workflow_nodes:
       # --- Early / independent cluster prep (parallel roots) ---
+      - identifier: Enable Integrated Image Registry
+        unified_job_template: ADO | Enable Integrated Image Registry
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
       - identifier: Create Admin HTPasswd User
         unified_job_template: ADO | Create Admin HTPasswd User
         lookup_organization: "{{ bootstrap_controller_organization }}"
@@ -41,6 +48,20 @@ controller_workflow_job_templates:
           - Print ADO Routes
           - Alt Routes Workflow
 
+      - identifier: Deploy OpenShift Virtualization
+        unified_job_template: ADO | Deploy OpenShift Virtualization
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
+      - identifier: Deploy MTV
+        unified_job_template: ADO | Deploy MTV
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
       - identifier: Deploy Web Terminal
         unified_job_template: ADO | Deploy Web Terminal
         lookup_organization: "{{ bootstrap_controller_organization }}"
@@ -55,31 +76,11 @@ controller_workflow_job_templates:
           - Print ADO Routes
           - Alt Routes Workflow
 
-      # --- Cert-manager + default ingress in parallel (same workflow level) ---
-      # RHBK needs cert-manager webhook for Certificates; always hang RHBK off
-      # Deploy cert-manager (plus issuer children when ACME/PCA mode is selected).
-      - identifier: Deploy cert-manager
-        unified_job_template: ADO | Deploy cert-manager
-        lookup_organization: "{{ bootstrap_controller_organization }}"
-        success_nodes:
-          - Configure IDM ACME ClusterIssuer
-          - Deploy AWSPCA Cert Manager
-          - RHBK Workflow
-
-      - identifier: Update Default Ingress Certificate
-        unified_job_template: ADO | Update Default Ingress Certificate
-        lookup_organization: "{{ bootstrap_controller_organization }}"
-        success_nodes:
-          - RHBK Workflow
-
-      - identifier: Configure IDM ACME ClusterIssuer
-        unified_job_template: ADO | Configure IDM ACME ClusterIssuer
-        lookup_organization: "{{ bootstrap_controller_organization }}"
-        success_nodes:
-          - RHBK Workflow
-
-      - identifier: Deploy AWSPCA Cert Manager
-        unified_job_template: ADO | Deploy AWSPCA Cert Manager
+      # --- Cert Manager sub-workflow (deploy + optional issuer/ingress) ---
+      # RHBK needs cert-manager webhook for Certificates; hang RHBK off this
+      # nested workflow (same pattern as Grafana Workflow / RHBK Workflow).
+      - identifier: Cert Manager Workflow
+        unified_job_template: ADO | Cert Manager Workflow
         lookup_organization: "{{ bootstrap_controller_organization }}"
         success_nodes:
           - RHBK Workflow
@@ -88,7 +89,6 @@ controller_workflow_job_templates:
       - identifier: RHBK Workflow
         unified_job_template: ADO | RHBK Workflow
         lookup_organization: "{{ bootstrap_controller_organization }}"
-        all_parents_must_converge: true
         success_nodes:
           - Configure OAuth/RHBK in OpenShift
 
@@ -235,6 +235,11 @@ controller_workflow_job_templates:
           - Alt Routes Workflow
 
       # --- Final: human-readable route summary for selected installs ---
+      - identifier: Alt Routes Workflow
+        unified_job_template: ADO | Alt Routes Workflow
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        all_parents_must_converge: true
+
       - identifier: Print ADO Routes
         unified_job_template: ADO | Deploy Discover Routes and Print
         lookup_organization: "{{ bootstrap_controller_organization }}"

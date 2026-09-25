@@ -1,17 +1,27 @@
 ---
-- name: Deploy MultiClusterHub CR
-  kubernetes.core.k8s:
-    definition:
-      apiVersion: operator.open-cluster-management.io/v1
-      kind: MultiClusterHub
-      metadata:
-        name: multiclusterhub
-        namespace: "{{ name_space }}"
-      spec:
-        availabilityConfig: High
-        # nodeSelector:
-        #   node-role.kubernetes.io/infra: ""
-        # tolerations:
-        #   - key: "node-role.kubernetes.io/infra"
-        #     operator: "Exists"
-        #     effect: "NoSchedule"
+# Create MultiClusterHub (present) or thoroughly remove ACM hub pieces (absent).
+- name: OpenShift ACM | Normalize namespace and names
+  ansible.builtin.set_fact:
+    ocp_acm_namespace: >-
+      {{
+        name_space
+        | default(operator_namespace)
+        | default(operator_subscription_namespace)
+        | default('open-cluster-management')
+      }}
+    ocp_acm_mch_name: "{{ ocp_acm_mch_name | default('multiclusterhub') }}"
+    ocp_acm_mce_name: "{{ ocp_acm_mce_name | default('multiclusterengine') }}"
+    ocp_acm_clustermanager_name: >-
+      {{ ocp_acm_clustermanager_name | default('cluster-manager') }}
+    ocp_acm_local_cluster_name: >-
+      {{ ocp_acm_local_cluster_name | default('local-cluster') }}
+    ocp_acm_desired_state: "{{ state | default('present') }}"
+  changed_when: false
+
+- name: OpenShift ACM | Present path
+  ansible.builtin.include_tasks: present.yml
+  when: ocp_acm_desired_state == 'present'
+
+- name: OpenShift ACM | Absent path
+  ansible.builtin.include_tasks: absent.yml
+  when: ocp_acm_desired_state == 'absent'

@@ -53,6 +53,7 @@ APP_ROUTE_NAMESPACES = {
     "pega": ["pega"],
     "devspaces": ["openshift-devspaces"],
     "acm": ["open-cluster-management"],
+    "mtv": ["openshift-mtv"],
     "389ds": ["dirsrv"],
     "gitops": ["openshift-gitops"],
 }
@@ -821,6 +822,21 @@ def merge_component(component, cfg):
         for k, v in passthrough_public_values.items():
             vars_data[k] = copy.deepcopy(v)
 
+        if component == "pega":
+            for field in (
+                "namespace", "release_name", "chart_path", "values_file",
+                "database_mode", "database_chart_path", "database_values_file",
+                "opensearch_chart_path", "opensearch_values_file",
+                "backingservices_chart_path", "backingservices_values_file",
+                "helm_binary", "timeout",
+            ):
+                if field in public_values:
+                    vars_data["ocp_pega_" + field] = public_values[field]
+            registries = public_values.get("allowed_registries", [])
+            if isinstance(registries, str):
+                registries = [value.strip() for value in registries.split(",") if value.strip()]
+            vars_data["ocp_pega_allowed_registries"] = registries
+
         if component == "grafana":
             vars_data.setdefault("components_env", {}).setdefault("grafana", {})
             if public_values.get("storage"):
@@ -954,6 +970,95 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["grafana"]["grafana_group_cluster_dashboards"] = (
                     vars_data["grafana_group_cluster_dashboards"]
                 )
+            # Database backend: sqlite (default) | postgres (+ provisioned or external).
+            db_type = str(
+                first_present(
+                    public_values.get("database_type"),
+                    public_values.get("grafana_database_type"),
+                    (public_values.get("database") or {}).get("type")
+                    if isinstance(public_values.get("database"), dict)
+                    else None,
+                    "sqlite",
+                )
+                or "sqlite"
+            ).strip().lower()
+            if db_type not in ("sqlite", "postgres"):
+                db_type = "sqlite"
+            vars_data["grafana_database_type"] = db_type
+            vars_data["components_env"]["grafana"]["grafana_database_type"] = db_type
+            db_cfg = public_values.get("database") if isinstance(public_values.get("database"), dict) else {}
+            provision_raw = first_present(
+                public_values.get("database_provision"),
+                public_values.get("grafana_database_provision"),
+                db_cfg.get("provision"),
+                True,
+            )
+            provision = as_bool(provision_raw, True)
+            # Explicit external host implies do not provision in-cluster.
+            ext_host = first_present(
+                public_values.get("postgres_host"),
+                public_values.get("grafana_postgres_host"),
+                db_cfg.get("host"),
+            )
+            if ext_host and str(ext_host).strip():
+                provision = False
+                vars_data["grafana_postgres_host"] = str(ext_host).strip()
+                vars_data["components_env"]["grafana"]["grafana_postgres_host"] = (
+                    vars_data["grafana_postgres_host"]
+                )
+            vars_data["grafana_database_provision"] = provision
+            vars_data["components_env"]["grafana"]["grafana_database_provision"] = provision
+            pg_storage = first_present(
+                public_values.get("postgres_storage"),
+                public_values.get("postgres_storage_class"),
+                public_values.get("grafana_postgres_storage_class"),
+                db_cfg.get("storage_class"),
+            )
+            if pg_storage:
+                vars_data["grafana_postgres_storage_class"] = str(pg_storage)
+                vars_data["components_env"]["grafana"][
+                    "grafana_postgres_storage_class"
+                ] = str(pg_storage)
+            pg_size = first_present(
+                public_values.get("postgres_storage_size"),
+                public_values.get("grafana_postgres_storage_size"),
+                db_cfg.get("storage_size"),
+            )
+            if pg_size:
+                vars_data["grafana_postgres_storage_size"] = str(pg_size)
+                vars_data["components_env"]["grafana"][
+                    "grafana_postgres_storage_size"
+                ] = str(pg_size)
+            for src_key, dest_key in (
+                ("postgres_image", "grafana_postgres_image"),
+                ("postgres_database", "grafana_postgres_database"),
+                ("postgres_user", "grafana_postgres_user"),
+                ("postgres_ssl_mode", "grafana_postgres_ssl_mode"),
+            ):
+                val = first_present(
+                    public_values.get(src_key),
+                    public_values.get(dest_key),
+                    db_cfg.get(src_key.replace("postgres_", "")),
+                )
+                if val is not None and str(val).strip() != "":
+                    vars_data[dest_key] = str(val).strip()
+                    vars_data["components_env"]["grafana"][dest_key] = str(val).strip()
+            pg_password = first_present(
+                secret_values.get("postgres_password"),
+                secret_values.get("grafana_postgres_password"),
+                (secret_values.get("database") or {}).get("password")
+                if isinstance(secret_values.get("database"), dict)
+                else None,
+                public_values.get("postgres_password"),
+            )
+            if pg_password and str(pg_password).strip():
+                vars_data["grafana_postgres_password"] = vault_ref(
+                    "vault_grafana_postgres_password"
+                )
+                vault_data["vault_grafana_postgres_password"] = QuotedString(
+                    str(pg_password)
+                )
+                vault_data_changed = True
             # OpenShift route hostname wins. Standalone VM hostname only when option selected.
             ocp_grafana_host = first_present(public_values.get("hostname"))
             if ocp_grafana_host:
@@ -1452,6 +1557,10 @@ def merge_component(component, cfg):
                 vault_data_changed = True
 
         if component == "netbox":
+            if public_values.get("namespace"):
+                vars_data["netbox_namespace"] = public_values["namespace"]
+                vars_data["netbox_oidc_namespace"] = public_values["namespace"]
+                vars_data_changed = True
             ocp_host = first_present(public_values.get("hostname"))
             if ocp_host:
                 host_clean = re.sub(
@@ -2245,7 +2354,58 @@ def merge_component(component, cfg):
                     "aap_ocp_install_subscription_manifest_content_base64"
                 )
 
+        if component == "acm":
+            for key in ("enabled", "name", "namespace", "target_namespace", "label_key",
+                        "label_value", "cluster_set", "selector_key", "selector_value", "remediation"):
+                source = "policy_" + key
+                if source in public_values:
+                    vars_data["ocp_acm_policy_" + key] = public_values[source]
+
+            obs_enabled = as_bool(public_values.get("observability_enabled"), False)
+            vars_data["ocp_acm_observability_enabled"] = obs_enabled
+            if obs_enabled:
+                storage_class = first_present(
+                    public_values.get("observability_storage_class"),
+                    public_values.get("storage"),
+                    vars_data.get("storage_class"),
+                )
+                if storage_class is not None and str(storage_class).strip():
+                    vars_data["ocp_acm_observability_storage_class"] = str(
+                        storage_class
+                    ).strip()
+                for src, dest in (
+                    ("observability_s3_bucket", "ocp_acm_observability_s3_bucket"),
+                    ("observability_s3_endpoint", "ocp_acm_observability_s3_endpoint"),
+                ):
+                    if public_values.get(src) not in (None, ""):
+                        vars_data[dest] = str(public_values.get(src)).strip()
+                if "observability_s3_insecure" in public_values:
+                    vars_data["ocp_acm_observability_s3_insecure"] = as_bool(
+                        public_values.get("observability_s3_insecure"),
+                        True,
+                    )
+                for src, dest in (
+                    ("observability_s3_access_key", "ocp_acm_observability_s3_access_key"),
+                    ("observability_s3_secret_key", "ocp_acm_observability_s3_secret_key"),
+                ):
+                    if secret_values.get(src) not in (None, ""):
+                        vault_data[dest] = secret_values.get(src)
+                        vault_data_changed = True
+                        secret_values.pop(src, None)
+                    elif public_values.get(src) not in (None, ""):
+                        # Allow non-secret path for lab MinIO; still vault preferred.
+                        vault_data[dest] = public_values.get(src)
+                        vault_data_changed = True
+                vars_data_changed = True
+
         if component == "devspaces":
+            for key in ("delivery_mode", "gitops_repo_url", "gitops_revision", "gitops_path",
+                        "gitops_namespace", "gitops_project", "gitops_destination"):
+                if key in public_values:
+                    vars_data["ocp_devspaces_" + key] = public_values[key]
+                    if key == "gitops_path" and not public_values[key]:
+                        vars_data.pop("ocp_devspaces_gitops_path", None)
+
             vars_data.setdefault("components_env", {}).setdefault("devspaces", {})
             mapping = {
                 "hostname": "hostname",
@@ -2400,7 +2560,8 @@ def merge_component(component, cfg):
             apps_domain = str(
                 ((preflight.get("openshift") or {}).get("apps_domain")) or ""
             ).strip()
-            if not acs_host and apps_domain:
+            # Prefer apps-domain derivation; do not keep a stale form override.
+            if apps_domain:
                 acs_host = f"central.{apps_domain}"
             if acs_host:
                 host_clean = strip_host(str(acs_host))
@@ -2434,6 +2595,18 @@ def merge_component(component, cfg):
             vars_data_changed = True
             if public_values.get("storage"):
                 vars_data["storage_class"] = public_values.get("storage")
+
+        if component == "mtv":
+            channel = first_present(
+                public_values.get("channel"),
+                vars_data.get("operator_channel"),
+            )
+            if channel is not None and str(channel).strip():
+                vars_data["operator_channel"] = str(channel).strip()
+                vars_data_changed = True
+            if public_values.get("namespace"):
+                vars_data["name_space"] = public_values.get("namespace")
+                vars_data_changed = True
 
         if component == "openshift_virt":
             openshift_values = preflight.get("openshift") or {}
@@ -2557,6 +2730,55 @@ def merge_component(component, cfg):
             if "tags" in public_values and isinstance(public_values.get("tags"), dict):
                 vars_data["ec2_ami_copy_tags"] = public_values["tags"]
                 vars_data_changed = True
+
+        if component == "ocp_virtualization":
+            # Pin subscription vars into vars_ocp_virtualization.yml so a shared
+            # Contoller/inventory operator_channel from ACM (release-2.x) cannot
+            # leak into the kubevirt-hyperconverged Subscription / HCO install.
+            channel = str(
+                first_present(
+                    public_values.get("operator_channel"),
+                    public_values.get("channel"),
+                    "stable",
+                )
+            ).strip() or "stable"
+            # ACM uses release-2.x — never accept that for CNV.
+            if channel.startswith("release-"):
+                channel = "stable"
+            vars_data["operator_channel"] = channel
+            vars_data["operator_name"] = str(
+                first_present(public_values.get("operator_name"), "kubevirt-hyperconverged")
+            )
+            vars_data["operator_source"] = str(
+                first_present(public_values.get("operator_source"), "redhat-operators")
+            )
+            vars_data["operator_source_namespace"] = str(
+                first_present(
+                    public_values.get("operator_source_namespace"),
+                    "openshift-marketplace",
+                )
+            )
+            vars_data["name_space"] = str(
+                first_present(public_values.get("namespace"), "openshift-cnv")
+            )
+            vars_data["operator_subscription_namespace"] = vars_data["name_space"]
+            vars_data["operatorgroup"] = str(
+                first_present(
+                    public_values.get("operatorgroup"),
+                    "kubevirt-hyperconverged-group",
+                )
+            )
+            vars_data.setdefault("component_config", {}).setdefault(
+                "ocp_virtualization", {}
+            )
+            vars_data["component_config"]["ocp_virtualization"][
+                "operator_channel"
+            ] = channel
+            if "enable_kube_secondary_dns" in public_values:
+                vars_data["ocp_virtualization_install_enable_kube_secondary_dns"] = (
+                    as_bool(public_values.get("enable_kube_secondary_dns"), False)
+                )
+            vars_data_changed = True
 
         if component == "aws":
             if public_values.get("profile") is not None:
@@ -3469,8 +3691,32 @@ if openshift:
     )
     vars_data["openshift_install_nfs_during_bootstrap"] = as_bool(
         openshift.get("install_nfs_during_bootstrap"),
-        False,
+        "nfs_csi" in openshift_options,
     )
+    vars_data["openshift_install_image_registry_during_bootstrap"] = as_bool(
+        openshift.get("install_image_registry_during_bootstrap"),
+        "integrated_image_registry" in openshift_options,
+    )
+
+    if "integrated_image_registry" in openshift_options:
+        vars_data["ocp_image_registry_enabled"] = True
+        vars_data["openshift_integrated_registry_enabled"] = True
+        default_route = as_bool(
+            first_present(
+                openshift.get("integrated_registry_default_route"),
+                openshift.get("openshift_integrated_registry_default_route"),
+                openshift.get("ocp_image_registry_default_route"),
+            ),
+            True,
+        )
+        vars_data["ocp_image_registry_default_route"] = default_route
+        vars_data["openshift_integrated_registry_default_route"] = default_route
+    else:
+        vars_data.pop("ocp_image_registry_enabled", None)
+        vars_data.pop("openshift_integrated_registry_enabled", None)
+        vars_data.pop("ocp_image_registry_default_route", None)
+        vars_data.pop("openshift_integrated_registry_default_route", None)
+        vars_data.pop("openshift_install_image_registry_during_bootstrap", None)
 
     if "nfs_csi" in openshift_options:
         nfs_server = first_present(
@@ -3539,7 +3785,7 @@ if openshift:
 
     vars_data["openshift_install_iscsi_during_bootstrap"] = as_bool(
         openshift.get("install_iscsi_during_bootstrap"),
-        False,
+        "iscsi_csi" in openshift_options,
     )
 
     if "iscsi_csi" in openshift_options:
@@ -3622,6 +3868,15 @@ if openshift:
         if action not in ("add", "replace", "remove"):
             action = "add"
         vars_data["htpasswd_action"] = action
+        idp_name = str(openshift.get("htpasswd_idp_name") or "htpasswd-admin").strip()
+        if not idp_name:
+            idp_name = "htpasswd-admin"
+        secret_name = str(openshift.get("htpasswd_secret") or "").strip()
+        if not secret_name:
+            secret_name = f"{idp_name}-secret"
+        vars_data["htpasswd_idp_name"] = idp_name
+        vars_data["htpasswd_idp"] = idp_name
+        vars_data["htpasswd_secret"] = secret_name
         users = openshift.get("htpasswd_users")
         normalized_users = []
         if isinstance(users, list):
@@ -3672,6 +3927,12 @@ if openshift:
             env_dir / "vars_htpass_admin.yml",
             env_dir / "vars_admin_htpasswd.yml",
         ]
+        htpass_public = {
+            "htpasswd_action": action,
+            "htpasswd_idp_name": idp_name,
+            "htpasswd_idp": idp_name,
+            "htpasswd_secret": secret_name,
+        }
         if normalized_users:
             vault_data["htpasswd_users"] = normalized_users
             vault_data["htpasswd_pass"] = normalized_users[0].get("password") or ""
@@ -3684,10 +3945,7 @@ if openshift:
                 htpass_admin_vault["htpasswd_pass"] = normalized_users[0].get("password") or ""
                 write_yaml(htpass_admin_vault_path, htpass_admin_vault, "0600")
             for htpass_admin_vars_path in htpass_vars_paths:
-                htpass_admin_vars = load_yaml(htpass_admin_vars_path)
-                htpass_admin_vars["htpasswd_action"] = action
-                # Keep only role-relevant keys in the dedicated vars files.
-                write_yaml(htpass_admin_vars_path, {"htpasswd_action": action}, "0644")
+                write_yaml(htpass_admin_vars_path, copy.deepcopy(htpass_public), "0644")
         else:
             raise SystemExit(
                 "Admin HTPasswd is selected but no users with name+password were provided. "
@@ -3695,6 +3953,9 @@ if openshift:
             )
     else:
         vars_data.pop("htpasswd_action", None)
+        vars_data.pop("htpasswd_idp_name", None)
+        vars_data.pop("htpasswd_idp", None)
+        vars_data.pop("htpasswd_secret", None)
         vault_data.pop("htpasswd_users", None)
         vault_data.pop("htpasswd_pass", None)
 
@@ -3714,7 +3975,20 @@ if openshift:
         vars_data["state"] = banner_state
         vars_data["console_banner_state"] = banner_state
         vars_data["ocp_console_banner_state"] = banner_state
-        if banner_state != "delete":
+        if banner_state == "delete":
+            # Delete only needs state; drop leftover text/colors from prior adds.
+            for banner_key in (
+                "ocp_console_banner_text",
+                "console_banner_text",
+                "ocp_console_banner_location",
+                "console_banner_location",
+                "ocp_console_banner_background_color",
+                "console_banner_background_color",
+                "ocp_console_banner_text_color",
+                "console_banner_text_color",
+            ):
+                vars_data.pop(banner_key, None)
+        else:
             if openshift.get("banner_text"):
                 vars_data["ocp_console_banner_text"] = openshift.get("banner_text")
                 vars_data["console_banner_text"] = openshift.get("banner_text")

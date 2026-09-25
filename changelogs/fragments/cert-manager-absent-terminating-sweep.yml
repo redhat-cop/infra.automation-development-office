@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager ``state=absent`` now
+    assert-gates operand/operator namespaces to the allowlist, then sweeps
+    leftover CSVs/InstallPlans/Deployments/pods, re-deletes webhooks, clears
+    cert-manager APIServices, and fails if namespaces remain. Prior runs
+    deleted Subscriptions but left Failed CSVs that recreated Deployments and
+    stuck ``cert-manager`` namespaces Terminating for hours.

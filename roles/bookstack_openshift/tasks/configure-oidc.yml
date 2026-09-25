@@ -1,11 +1,12 @@
 ---
+# kubernetes.core.k8s* does not accept validate_certs (causes "conflicting action
+# statements"). Use K8S_AUTH_VERIFY_SSL from the play environment instead.
 - name: Read existing BookStack app secret for OIDC redeploy
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Secret
     name: bookstack-app
     namespace: "{{ bookstack_namespace }}"
-    validate_certs: "{{ bookstack_validate_certs }}"
   register: bookstack_openshift_oidc_app_secret
   no_log: true
 
@@ -67,7 +68,6 @@
       stringData:
         oidc-client-id: "{{ bookstack_oidc_client_id | default('') }}"
         oidc-client-secret: "{{ bookstack_oidc_client_secret | default('') }}"
-    validate_certs: "{{ bookstack_validate_certs }}"
   no_log: true
 
 - name: Redeploy BookStack with OIDC environment

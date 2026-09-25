@@ -1,0 +1,16 @@
+---
+- name: Verify disabled sources are not attached
+  hosts: localhost
+  gather_facts: false
+  vars:
+    generated_dir: "{{ molecule_ephemeral_directory }}/group_vars/molecule"
+  tasks:
+    - name: Read generated Controller intent
+      ansible.builtin.include_vars:
+        file: >-
+          {{ generated_dir }}/aap_config_vars.yml
+    - name: Only enabled and attached local source is selected
+      ansible.builtin.assert:
+        that:
+          - controller_bootstrap_controller_organizations[0].galaxy_credentials
+            == ['Local Hub']

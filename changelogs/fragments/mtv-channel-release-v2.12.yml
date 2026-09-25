@@ -1,0 +1,5 @@
+---
+bugfixes:
+  - ocp_mtv - Default ``mtv-operator`` channel to ``release-v2.12`` (catalog
+    current); ``release-v2.8`` caused ``ConstraintsNotSatisfiable`` when that
+    channel is absent from redhat-operators.

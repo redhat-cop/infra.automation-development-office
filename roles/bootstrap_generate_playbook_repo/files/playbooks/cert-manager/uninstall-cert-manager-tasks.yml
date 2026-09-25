@@ -1,0 +1,232 @@
+---
+# yamllint disable rule:line-length
+# Cert-manager uninstall order matters:
+# 1) delete CRs while webhook still works
+# 2) strip finalizers on any stuck CRs
+# 3) delete admission webhooks (orphans break the next install)
+# 4) delete OLM Subscription/CSV/InstallPlan + OperatorGroup
+# 5) delete namespaces via ocp_namespace (runs ocp_absent_cleanup gate)
+# 6) clear cert-manager APIServices
+#
+# Safe gate: only touch ADO cert-manager operator/operand namespaces,
+# ADO ClusterIssuers (idm-acme, root-ca-issuer, extras), and known
+# cluster-scoped cert-manager webhook/APIService names.
+
+- name: ADO | Assert cert-manager uninstall namespace allowlist
+  ansible.builtin.assert:
+    that:
+      - >-
+        (bootstrap_cert_manager_operand_namespace | default('') | string | trim)
+        in (bootstrap_cert_manager_safe_namespaces | default(['cert-manager']))
+      - >-
+        (bootstrap_cert_manager_operator_namespace | default('') | string | trim)
+        in (
+          bootstrap_cert_manager_safe_namespaces
+          | default(['cert-manager', 'cert-manager-operator'])
+        )
+    fail_msg: >-
+      Refusing cert-manager absent cleanup: operand_ns=
+      '{{ bootstrap_cert_manager_operand_namespace | default('') }}'
+      operator_ns='{{ bootstrap_cert_manager_operator_namespace | default('') }}'
+      must be in allowlist
+      {{ bootstrap_cert_manager_safe_namespaces | default(['cert-manager', 'cert-manager-operator']) }}.
+
+- name: ADO | Resolve ADO ClusterIssuer names to delete
+  ansible.builtin.set_fact:
+    bootstrap_cert_manager_clusterissuer_names: >-
+      {{
+        (
+          [
+            cert_issuer_name | default('idm-acme'),
+            ocp_cert_manager_root_ca_issuer_name | default('root-ca-issuer'),
+          ]
+          + (bootstrap_cert_manager_extra_clusterissuers | default([]))
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | unique
+        | list
+      }}
+  changed_when: false
+
+- name: ADO | List ClusterIssuers for uninstall
+  kubernetes.core.k8s_info:
+    api_version: cert-manager.io/v1
+    kind: ClusterIssuer
+  register: bootstrap_cert_manager_clusterissuers
+  failed_when: false
+
+- name: ADO | Delete ADO ClusterIssuers
+  kubernetes.core.k8s:
+    state: absent
+    api_version: cert-manager.io/v1
+    kind: ClusterIssuer
+    name: "{{ item.metadata.name }}"
+  loop: "{{ bootstrap_cert_manager_clusterissuers.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('unknown') }}"
+  when:
+    - item.metadata.name is defined
+    - >-
+      item.metadata.name
+      in (bootstrap_cert_manager_clusterissuer_names | default(['idm-acme', 'root-ca-issuer']))
+  failed_when: false
+
+- name: ADO | List namespaced cert-manager CRs in operand namespace
+  kubernetes.core.k8s_info:
+    api_version: "{{ item.api }}"
+    kind: "{{ item.kind }}"
+    namespace: "{{ bootstrap_cert_manager_operand_namespace }}"
+  loop:
+    - {api: 'cert-manager.io/v1', kind: Certificate}
+    - {api: 'cert-manager.io/v1', kind: Issuer}
+    - {api: 'cert-manager.io/v1', kind: CertificateRequest}
+    - {api: 'acme.cert-manager.io/v1', kind: Challenge}
+    - {api: 'acme.cert-manager.io/v1', kind: Order}
+  register: bootstrap_cert_manager_ns_crs
+  failed_when: false
+
+- name: ADO | Flatten namespaced CR delete list
+  ansible.builtin.set_fact:
+    bootstrap_cert_manager_ns_cr_items: []
+  changed_when: false
+
+- name: ADO | Append namespaced CR resources from each list result
+  ansible.builtin.set_fact:
+    bootstrap_cert_manager_ns_cr_items: >-
+      {{
+        bootstrap_cert_manager_ns_cr_items
+        + (item.resources | default([], true) | list)
+      }}
+  loop: "{{ bootstrap_cert_manager_ns_crs.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.kind | default('resources') }}"
+  changed_when: false
+
+- name: ADO | Delete listed namespaced cert-manager CRs
+  kubernetes.core.k8s:
+    state: absent
+    api_version: "{{ item.apiVersion }}"
+    kind: "{{ item.kind }}"
+    namespace: "{{ item.metadata.namespace }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ bootstrap_cert_manager_ns_cr_items }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name | default('?') }}"
+  when:
+    - item.metadata.name is defined
+    - item.metadata.namespace is defined
+  failed_when: false
+
+- name: ADO | Strip finalizers on leftover namespaced CRs
+  kubernetes.core.k8s:
+    state: present
+    force: true
+    definition:
+      apiVersion: "{{ item.apiVersion }}"
+      kind: "{{ item.kind }}"
+      metadata:
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ item.metadata.namespace }}"
+        finalizers: []
+  loop: "{{ bootstrap_cert_manager_ns_cr_items }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name | default('?') }}"
+  when:
+    - item.metadata.name is defined
+    - (item.metadata.finalizers | default([]) | length) > 0
+  failed_when: false
+
+- name: ADO | Remove cert-manager admission webhooks (pass 1)
+  kubernetes.core.k8s:
+    state: absent
+    api_version: admissionregistration.k8s.io/v1
+    kind: "{{ item }}"
+    name: cert-manager-webhook
+  loop:
+    - ValidatingWebhookConfiguration
+    - MutatingWebhookConfiguration
+  failed_when: false
+
+- name: ADO | Unsubscribe cert-manager operator (Subscription + CSVs)
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_operator_subscription
+  vars:
+    name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
+    operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
+    operator_subscription_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
+    operator_csv_contains: >-
+      {{
+        operator_csv_contains
+        | default(operator_name_substring, true)
+        | default('cert-manager', true)
+      }}
+    ocp_operator_subscription_absent_sweep_workloads: true
+    state: absent
+
+- name: ADO | Pre-delete sweep both cert-manager namespaces
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_absent_cleanup
+  vars:
+    ocp_absent_cleanup_namespaces:
+      - "{{ bootstrap_cert_manager_operand_namespace }}"
+      - "{{ bootstrap_cert_manager_operator_namespace }}"
+    ocp_absent_cleanup_mode: cleanup
+    ocp_absent_cleanup_sweep_olm: true
+    ocp_absent_cleanup_sweep_workloads: true
+    ocp_absent_cleanup_fail_if_present: false
+
+- name: ADO | Remove cert-manager admission webhooks (pass 2 after OLM)
+  kubernetes.core.k8s:
+    state: absent
+    api_version: admissionregistration.k8s.io/v1
+    kind: "{{ item }}"
+    name: cert-manager-webhook
+  loop:
+    - ValidatingWebhookConfiguration
+    - MutatingWebhookConfiguration
+  failed_when: false
+
+- name: ADO | Remove cert-manager APIServices that pin deleted webhook Service
+  kubernetes.core.k8s:
+    state: absent
+    api_version: apiregistration.k8s.io/v1
+    kind: APIService
+    name: "{{ item }}"
+  loop:
+    - v1.cert-manager.io
+    - v1.acme.cert-manager.io
+    - v1alpha1.trust.cert-manager.io
+  failed_when: false
+
+- name: ADO | Delete cert-manager OperatorGroup
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_operatorgroups
+  vars:
+    name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
+    operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
+    operatorgroup: "{{ bootstrap_cert_manager_operatorgroup }}"
+    state: absent
+
+- name: ADO | Delete cert-manager operand namespace
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_namespace
+  vars:
+    ocp_namespace_name: "{{ bootstrap_cert_manager_operand_namespace }}"
+    name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
+    state: absent
+    ocp_namespace_delete_wait_timeout: 30
+    ocp_namespace_terminating_retries: 12
+    ocp_namespace_terminating_delay: 5
+
+- name: ADO | Delete cert-manager operator namespace
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_namespace
+  vars:
+    ocp_namespace_name: "{{ bootstrap_cert_manager_operator_namespace }}"
+    name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
+    state: absent
+    ocp_namespace_delete_wait_timeout: 30
+    ocp_namespace_terminating_retries: 12
+    ocp_namespace_terminating_delay: 5

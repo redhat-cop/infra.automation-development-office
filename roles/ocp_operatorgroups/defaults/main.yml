@@ -1,5 +1,12 @@
+---
 # all_namespaces_install: false
 # reconcile_single_ns: true          # <= real default (no recursion)
 # k8s_validate_certs: true
 # k8s_wait: true
 # k8s_wait_timeout: 300
+
+# Absent confirm wait (controllers may briefly recreate OG during hub teardown)
+ocp_operatorgroups_delete_wait: true
+ocp_operatorgroups_delete_wait_timeout: 60
+ocp_operatorgroups_delete_confirm_retries: 12
+ocp_operatorgroups_delete_confirm_delay: 5

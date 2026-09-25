@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Destroy — remove resources
   hosts: localhost
   gather_facts: false
@@ -31,9 +32,9 @@
         kind: OperatorGroup
         name: "{{ operatorgroup }}"
         namespace: "{{ name_space }}"
-        validate_certs: "{{ k8s_validate_certs | default(false) }}" # set true if you trust the CA
+        validate_certs: "{{ k8s_validate_certs | default(false) }}"  # set true if you trust the CA
       register: ocp_operator_groups_og_gone
-      failed_when: false # tolerate NotFound / namespace gone
+      failed_when: false  # tolerate NotFound / namespace gone
       until: (ocp_operator_groups_og_gone.resources | default([])) | length == 0
       retries: 12
       delay: 5
@@ -61,6 +62,12 @@
     - name: Report namespace state (optional)
       ansible.builtin.debug:
         msg: >-
-          {{ (ocp_operator_groups_ns_after.resources | default([])) | length == 0
-              | ternary("ℹ️ Namespace '" ~ name_space ~ "' is gone.",
-                        "ℹ️ Namespace '" ~ name_space ~ "' still exists.") }}
+          {{
+            (
+              ((ocp_operator_groups_ns_after.resources | default([]) | length) == 0)
+              | ternary(
+                  "ℹ️ Namespace '" ~ name_space ~ "' is gone.",
+                  "ℹ️ Namespace '" ~ name_space ~ "' still exists."
+                )
+            )
+          }}

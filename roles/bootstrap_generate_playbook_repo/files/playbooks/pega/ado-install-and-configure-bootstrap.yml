@@ -4,30 +4,24 @@
   gather_facts: false
   vars:
     component: pega
-    pega_namespace: pega
-    pega_deployment_name: pega
-    pega_app_domain: apps.ocp.prod.rhlab
-    pega_push_images_to_internal_registry: false
-    pega_image: default-route-openshift-image-registry.apps.ocp.prod.rhlab/pega/pega:23.1.1
-    pega_srs_image: default-route-openshift-image-registry.apps.ocp.prod.rhlab/pega/search-n-reporting-service-os:1.35.0
-    pega_installer_image: default-route-openshift-image-registry.apps.ocp.prod.rhlab/pega/installer:23.1.1
-    pega_storage_class: synology-nfs-csi
-    pega_opensearch_replicas: 1
   vars_files:
-    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
-    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
-    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
+    - >-
+      {{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml
+    - >-
+      {{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component
+      }}.yml
+    - >-
+      {{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component
+      }}.yml
   environment:
     K8S_AUTH_HOST: '{{ host | default(api_host) }}'
     K8S_AUTH_API_KEY: '{{ token }}'
-    K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'') }}'
+    K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'')
+      }}'
   pre_tasks:
-    - name: Resolve vars for component from framework defaults + env overrides
+    - name: >-
+        Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.ado.bootstrap_resolve_component
-    - name: Fail — PEGA install role is not part of infra.ado
-      ansible.builtin.fail:
-        msg: >-
-          No infra.ado PEGA role exists (no install_pega / ocp_pega / pega_install).
-          Add a PEGA role to the collection or remove this playbook from the
-          generated component map before enabling the PEGA job template.
+  roles:
+    - role: infra.ado.ocp_pega

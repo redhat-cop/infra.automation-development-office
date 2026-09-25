@@ -1,4 +1,8 @@
 ---
+# yamllint disable rule:line-length
+# RHBK OpenShift deploy / uninstall.
+# Present: namespace → OG → Subscription → wait operator → Keycloak CR → pods/routes → realm/fed/mapper.
+# Absent: Keycloak CR → Subscription → OG → namespace (do NOT wait for CSV).
 - name: ADO | Deploy and Configure RHBK
   hosts: localhost
   gather_facts: false
@@ -90,17 +94,82 @@
           {{ ocp_rhbk_issuer_kind | default('ClusterIssuer') }}
         ocp_rhbk_issuer_name: >-
           {{ ocp_rhbk_issuer_name | default('idm-acme') }}
-  roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_operatorgroups
-    - role: infra.ado.ocp_operator_subscription
-    - role: infra.ado.ocp_wait_operator
-    - role: infra.ado.install_rhbk
+
+  tasks:
+    # ----- present: install -----
+    - name: ADO | Ensure RHBK namespace exists
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Create RHBK OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Subscribe RHBK operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for RHBK operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_wait_operator
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Install RHBK Keycloak CR (OpenShift)
+      ansible.builtin.include_role:
+        name: infra.ado.install_rhbk
       vars:
         install_rhbk_platform: openshift
         rhbk_platform: openshift
-    - role: infra.ado.ocp_wait_pods
-    - role: infra.ado.ocp_routes
-    - role: infra.ado.rhbk_realm
-    - role: infra.ado.rhbk_manage_federation
-    - role: infra.ado.rhbk_setup_mapper
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for RHBK pods
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_wait_pods
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Configure RHBK routes
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_routes
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Configure RHBK realm
+      ansible.builtin.include_role:
+        name: infra.ado.rhbk_realm
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Configure RHBK LDAP federation
+      ansible.builtin.include_role:
+        name: infra.ado.rhbk_manage_federation
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Configure RHBK LDAP mappers
+      ansible.builtin.include_role:
+        name: infra.ado.rhbk_setup_mapper
+      when: (state | default('present')) == 'present'
+
+    # ----- absent: CR → subscription → OG → namespace (never wait for CSV) -----
+    - name: ADO | Delete RHBK Keycloak CR / operator resources
+      ansible.builtin.include_role:
+        name: infra.ado.install_rhbk
+      vars:
+        install_rhbk_platform: openshift
+        rhbk_platform: openshift
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Unsubscribe RHBK operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete RHBK OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete RHBK namespace
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'absent'

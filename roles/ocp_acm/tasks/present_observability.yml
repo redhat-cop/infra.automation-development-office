@@ -1,0 +1,105 @@
+---
+# yamllint disable rule:line-length
+# Enable ACM Multicluster Observability (MCO). Requires S3-compatible object
+# storage for Thanos (MinIO, AWS S3, etc.). Does not run unless
+# ocp_acm_observability_enabled is true.
+
+- name: OpenShift ACM | Observability | Assert S3 settings
+  ansible.builtin.assert:
+    that:
+      - ocp_acm_observability_s3_bucket | default('') | length > 0
+      - ocp_acm_observability_s3_endpoint | default('') | length > 0
+      - ocp_acm_observability_s3_access_key | default('') | length > 0
+      - ocp_acm_observability_s3_secret_key | default('') | length > 0
+    fail_msg: >-
+      Multicluster Observability needs S3 bucket, endpoint, access_key, and
+      secret_key (component_config.acm.observability_* / vault). Lab MinIO
+      works. Fleet Virtualization Overview stays empty without this.
+
+- name: OpenShift ACM | Observability | Ensure namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ ocp_acm_observability_namespace }}"
+
+- name: OpenShift ACM | Observability | Look for hub pull secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: multiclusterhub-operator-pull-secret
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_hub_pull_secret
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Observability | Copy pull secret when present
+  when: (ocp_acm_hub_pull_secret.resources | default([]) | length) > 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: multiclusterhub-operator-pull-secret
+        namespace: "{{ ocp_acm_observability_namespace }}"
+      type: "{{ ocp_acm_hub_pull_secret.resources[0].type | default('kubernetes.io/dockerconfigjson') }}"
+      data: "{{ ocp_acm_hub_pull_secret.resources[0].data | default({}) }}"
+
+- name: OpenShift ACM | Observability | Create thanos-object-storage secret
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp_acm_observability_secret_name }}"
+        namespace: "{{ ocp_acm_observability_namespace }}"
+      type: Opaque
+      stringData:
+        thanos.yaml: |
+          type: s3
+          config:
+            bucket: {{ ocp_acm_observability_s3_bucket }}
+            endpoint: {{ ocp_acm_observability_s3_endpoint }}
+            insecure: {{ ocp_acm_observability_s3_insecure | default(true) | bool | lower }}
+            access_key: {{ ocp_acm_observability_s3_access_key }}
+            secret_key: {{ ocp_acm_observability_s3_secret_key }}
+
+- name: OpenShift ACM | Observability | Build MultiClusterObservability spec
+  ansible.builtin.set_fact:
+    ocp_acm_mco_spec:
+      observabilityAddonSpec: {}
+      storageConfig:
+        metricObjectStorage:
+          name: "{{ ocp_acm_observability_secret_name }}"
+          key: thanos.yaml
+
+- name: OpenShift ACM | Observability | Add storageClass when set
+  when: ocp_acm_observability_storage_class | default('') | length > 0
+  ansible.builtin.set_fact:
+    ocp_acm_mco_spec: >-
+      {{
+        ocp_acm_mco_spec
+        | combine(
+          {
+            'storageConfig': {
+              'storageClass': ocp_acm_observability_storage_class
+            }
+          },
+          recursive=true
+        )
+      }}
+
+- name: OpenShift ACM | Observability | Deploy MultiClusterObservability
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: observability.open-cluster-management.io/v1beta2
+      kind: MultiClusterObservability
+      metadata:
+        name: "{{ ocp_acm_observability_mco_name }}"
+      spec: "{{ ocp_acm_mco_spec }}"

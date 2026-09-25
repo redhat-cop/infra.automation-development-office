@@ -1,0 +1,60 @@
+---
+# yamllint disable rule:line-length
+- name: Verify - ocp_image_registry README and seeds
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ocp_image_registry_role_dir: >-
+      {{ playbook_dir }}/../../../roles/ocp_image_registry
+    ocp_image_registry_playbook: >-
+      {{ playbook_dir }}/../../../roles/bootstrap_generate_playbook_repo/files/playbooks/openshift/ado-enable-integrated-image-registry-bootstrap.yml
+    ocp_image_registry_jt: >-
+      {{ playbook_dir }}/../../../roles/bootstrap_controller/files/job_templates/ado-openshift-enable-integrated-image-registry-bootstrap.jt.yml
+  tasks:
+    - name: Stat role README
+      ansible.builtin.stat:
+        path: "{{ ocp_image_registry_role_dir }}/README.md"
+      register: ocp_image_registry_readme_file
+
+    - name: Assert README exists
+      ansible.builtin.assert:
+        that:
+          - ocp_image_registry_readme_file.stat.exists
+
+    - name: Read README
+      ansible.builtin.slurp:
+        src: "{{ ocp_image_registry_role_dir }}/README.md"
+      register: ocp_image_registry_readme_raw
+
+    - name: Decode README
+      ansible.builtin.set_fact:
+        ocp_image_registry_readme: "{{ ocp_image_registry_readme_raw.content | b64decode }}"
+
+    - name: Assert README sections
+      ansible.builtin.assert:
+        that:
+          - ocp_image_registry_readme is regex('(?m)^#\\s+Role:')
+          - ocp_image_registry_readme is search('\\|\\s*Variable\\s*\\|\\s*Description\\s*\\|', multiline=True)
+          - ocp_image_registry_readme is search('(?m)^##\\s+Role Author')
+          - ocp_image_registry_readme is search('(?m)^##\\s+✅\\s+Role Requirements')
+          - ocp_image_registry_readme is search('(?m)^##\\s+📦\\s+Role Variables')
+          - ocp_image_registry_readme is search('(?m)^##\\s+🚀\\s+Role Usage')
+          - ocp_image_registry_readme is search('(?m)^##\\s+🧪\\s+Role Molecule Testing')
+          - ocp_image_registry_readme is search('(?m)^##\\s+📁\\s+Role Structure')
+
+    - name: Assert bootstrap seeds exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ ocp_image_registry_playbook }}"
+        - "{{ ocp_image_registry_jt }}"
+      register: ocp_image_registry_seeds
+
+    - name: Assert seed files present
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Missing seed {{ item.item }}"
+      loop: "{{ ocp_image_registry_seeds.results }}"
+      loop_control:
+        label: "{{ item.item | basename }}"

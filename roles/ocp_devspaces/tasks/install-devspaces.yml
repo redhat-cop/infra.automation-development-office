@@ -2,40 +2,8 @@
 # ----------------------------
 # 0) Resolve namespaces and config from component_config / components_env
 # ----------------------------
-- name: Resolve DevSpaces namespaces and options  # noqa: jinja[invalid]
-  ansible.builtin.set_fact:
-    ocp_devspaces_operator_ns: "{{ operator_namespace | default(name_space | default('openshift-operators')) }}"
-    ocp_devspaces_app_ns: "{{ app_namespace | default(devspaces_namespace | default(namespace | default('openshift-devspaces'))) }}"
-    ocp_devspaces_disable_default_samples: "{{ ocp_devspaces_disable_default_samples | default(disable_default_samples | default(true)) | bool }}"
-    ocp_devspaces_customize_workspace: "{{ ocp_devspaces_customize_workspace | default(customize_workspace | default(false)) | bool }}"
-    ocp_devspaces_default_devfile_url: "{{ ocp_devspaces_default_devfile_url | default(default_devfile_url | default('')) }}"
-    ocp_devspaces_default_workspace_image: "{{ ocp_devspaces_default_workspace_image | default(default_workspace_image | default('')) }}"
-    ocp_devspaces_che_image_tag: "{{ ocp_devspaces_che_image_tag | default(che_image_tag | default('')) }}"
-    ocp_devspaces_dashboard_image: "{{ ocp_devspaces_dashboard_image | default(dashboard_image | default('')) }}"
-    ocp_devspaces_status_exporter_enabled: "{{ ocp_devspaces_status_exporter_enabled | default(status_exporter_enabled | default(true)) | bool }}"
-    ocp_devspaces_hostname: >-
-      {{
-        (
-          ocp_devspaces_hostname
-          | default(hostname, true)
-          | default(devspaces_hostname, true)
-          | default('', true)
-        )
-        | regex_replace('^https?://', '')
-        | regex_replace('/.*$', '')
-      }}
-    ocp_devspaces_ingress_domain: >-
-      {{
-        (
-          ocp_devspaces_hostname
-          | default(hostname, true)
-          | default(devspaces_hostname, true)
-          | default('', true)
-        )
-        | regex_replace('^https?://', '')
-        | regex_replace('/.*$', '')
-        | regex_replace('^[^.]+\\.', '')
-      }}
+- name: Build shared Dev Spaces desired configuration
+  ansible.builtin.import_tasks: build-checluster.yml
 
 # ----------------------------
 # 1) Wait for Dev Spaces CSV (operator install namespace)
@@ -109,88 +77,14 @@
 # ----------------------------
 # 3) Build CheCluster spec
 # ----------------------------
-- name: Build base CheCluster spec
-  ansible.builtin.set_fact:
-    ocp_devspaces_checluster_spec:
-      components:
-        cheServer: {}
-        dashboard: {}
-        devfileRegistry: {}
-        pluginRegistry: {}
-      containerRegistry: {}
-      networking: {}
-      devEnvironments: {}
-
-- name: Apply DevSpaces hostname from preflight when set
-  ansible.builtin.set_fact:
-    ocp_devspaces_checluster_spec: >-
-      {{
-        ocp_devspaces_checluster_spec
-        | combine({
-            'server': {
-              'host': ocp_devspaces_hostname
-            },
-            'networking': {
-              'domain': ocp_devspaces_ingress_domain
-            }
-          }, recursive=True)
-      }}
-  when: (ocp_devspaces_hostname | default('') | length) > 0
-
-- name: Apply optional dashboard image override
-  ansible.builtin.set_fact:
-    ocp_devspaces_checluster_spec: >-
-      {{
-        ocp_devspaces_checluster_spec
-        | combine({
-            'components': {
-              'dashboard': {
-                'deployment': {
-                  'containers': [
-                    {'name': 'che-dashboard', 'image': ocp_devspaces_dashboard_image}
-                  ]
-                }
-              }
-            }
-          }, recursive=True)
-      }}
-  when: (ocp_devspaces_dashboard_image | length) > 0
-
-- name: Apply default workspace container image when customizing
-  ansible.builtin.set_fact:
-    ocp_devspaces_checluster_spec: >-
-      {{
-        ocp_devspaces_checluster_spec
-        | combine({
-            'devEnvironments': {
-              'defaultComponents': [
-                {
-                  'name': 'dev',
-                  'container': {
-                    'image': ocp_devspaces_default_workspace_image
-                  }
-                }
-              ]
-            }
-          }, recursive=True)
-      }}
-  when:
-    - ocp_devspaces_customize_workspace | bool
-    - (ocp_devspaces_default_workspace_image | length) > 0
-
 # ----------------------------
 # 4) Deploy CheCluster
 # ----------------------------
 - name: Deploy CheCluster to enable DevSpaces (app namespace)
   kubernetes.core.k8s:
     state: present
-    definition:
-      apiVersion: org.eclipse.che/v2
-      kind: CheCluster
-      metadata:
-        name: devspaces
-        namespace: "{{ ocp_devspaces_app_ns }}"
-      spec: "{{ ocp_devspaces_checluster_spec }}"
+    definition: '{{ ocp_devspaces_checluster_resource }}'
+  register: ocp_devspaces_checluster_apply
 
 # ----------------------------
 # 5) Getting-started samples ConfigMap (remove defaults / set custom)
@@ -301,14 +195,39 @@
   kubernetes.core.k8s_info:
     api_version: org.eclipse.che/v2
     kind: CheCluster
-    name: devspaces
-    namespace: "{{ ocp_devspaces_app_ns }}"
+    name: "{{ ocp_devspaces_checluster_resource.metadata.name }}"
+    namespace: "{{ ocp_devspaces_checluster_resource.metadata.namespace }}"
   register: ocp_devspaces_checluster
-  retries: 18
-  delay: 10
+  retries: 36
+  delay: 15
   until: >
     (ocp_devspaces_checluster.resources | default([]) | length) > 0 and
     ((ocp_devspaces_checluster.resources[0].status.cheURL | default('')) | length) > 0
+  failed_when: false
+
+- name: List CheClusters in app namespace when named wait returned empty
+  when: (ocp_devspaces_checluster.resources | default([]) | length) == 0
+  kubernetes.core.k8s_info:
+    api_version: org.eclipse.che/v2
+    kind: CheCluster
+    namespace: "{{ ocp_devspaces_checluster_resource.metadata.namespace }}"
+  register: ocp_devspaces_checluster_listed
+  failed_when: false
+
+- name: Fail with CheCluster wait context
+  when: >-
+    (ocp_devspaces_checluster.resources | default([]) | length) == 0
+    or ((ocp_devspaces_checluster.resources[0].status.cheURL | default('')) | length) == 0
+  ansible.builtin.fail:
+    msg: >-
+      CheCluster {{ ocp_devspaces_checluster_resource.metadata.namespace }}/{{
+      ocp_devspaces_checluster_resource.metadata.name }} did not report cheURL.
+      Named lookup count={{ ocp_devspaces_checluster.resources | default([]) | length }}.
+      Namespace CheClusters={{
+        ocp_devspaces_checluster_listed.resources | default([])
+        | map(attribute='metadata.name') | list
+      }}.
+      Check operator logs and CheCluster status conditions.
 
 - name: Show DevSpaces URL
   ansible.builtin.debug:

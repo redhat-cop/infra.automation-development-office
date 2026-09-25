@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    ocp_virtualization_install - Honor
+    ``ocp_virtualization_install_enable_kube_secondary_dns`` by setting
+    HyperConverged ``featureGates.deployKubeSecondaryDNS`` when creating the CR.

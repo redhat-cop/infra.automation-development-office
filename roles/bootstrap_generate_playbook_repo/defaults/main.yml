@@ -46,9 +46,11 @@ bootstrap_generate_playbook_repo_component_map:
     - kafka
     - minio
     - oadp
+    - pega
     - ocp_compliance
     - ocp_descheduler
     - ocp_virtualization
+    - mtv
     - openshift
     - quay
     - rhbk
@@ -183,6 +185,9 @@ bootstrap_generate_playbook_repo_component_map:
   compliance:
     - compliance
 
+  pega:
+    - pega
+
   oadp:
     - oadp
 
@@ -194,6 +199,9 @@ bootstrap_generate_playbook_repo_component_map:
 
   ocp_virtualization:
     - ocp_virtualization
+
+  mtv:
+    - mtv
 
   gitlab_runner:
     - gitlab_runner
@@ -255,6 +263,19 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: platform
     app: cert_manager
 
+  # Supporting tasks for Deploy + dedicated IdM ACME playbook (not a JT itself).
+  - src: cert-manager/configure-idm-acme-clusterissuer-tasks.yml
+    dest: playbooks/cert-manager/configure-idm-acme-clusterissuer-tasks.yml
+    target_platform: openshift
+    category: platform
+    app: cert_manager
+
+  - src: cert-manager/uninstall-cert-manager-tasks.yml
+    dest: playbooks/cert-manager/uninstall-cert-manager-tasks.yml
+    target_platform: openshift
+    category: platform
+    app: cert_manager
+
   - src: cert-manager/ado-deploy-and-configure-bootstrap.yml
     dest: playbooks/cert-manager/ado-deploy-and-configure-bootstrap.yml
     target_platform: openshift
@@ -278,6 +299,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: console
+
+  - src: openshift/ado-enable-integrated-image-registry-bootstrap.yml
+    dest: playbooks/openshift/ado-enable-integrated-image-registry-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: integrated_image_registry
 
   - src: devspaces/ado-deploy-and-configure-bootstrap.yml
     dest: playbooks/devspaces/ado-deploy-and-configure-bootstrap.yml
@@ -471,6 +498,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: applications
     app: kafka
 
+  - src: pega/ado-install-and-configure-bootstrap.yml
+    dest: playbooks/pega/ado-install-and-configure-bootstrap.yml
+    target_platform: openshift
+    category: applications
+    app: pega
+
   - src: oadp/ado-deploy-bootstrap.yml
     dest: playbooks/oadp/ado-deploy-bootstrap.yml
     target_platform: openshift
@@ -500,6 +533,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: ocp_virtualization
+
+  - src: mtv/ado-deploy-bootstrap.yml
+    dest: playbooks/mtv/ado-deploy-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: mtv
 
   - src: ocp_descheduler/ado-deploy-bootstrap.yml
     dest: playbooks/ocp_descheduler/ado-deploy-bootstrap.yml

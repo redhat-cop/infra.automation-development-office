@@ -5,3 +5,19 @@
 grafana_install_admin_user: "{{ grafana_admin_user | default('admin') }}"
 grafana_install_admin_password: "{{ grafana_admin_password | default('redhat123') }}"
 grafana_install_validate_certs: false
+
+# Prefer these; public aliases grafana_database_* / grafana_postgres_* also work.
+grafana_install_database_type: sqlite
+grafana_install_database_provision: true
+grafana_install_postgres_name: grafana-postgres
+grafana_install_postgres_database: grafana
+grafana_install_postgres_user: grafana
+grafana_install_postgres_password: ""
+grafana_install_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
+grafana_install_postgres_storage_size: 5Gi
+grafana_install_postgres_storage_class: ""
+grafana_install_postgres_host: ""
+grafana_install_postgres_port: 5432
+grafana_install_postgres_ssl_mode: disable
+grafana_install_postgres_ready_retries: 60
+grafana_install_postgres_ready_delay: 5

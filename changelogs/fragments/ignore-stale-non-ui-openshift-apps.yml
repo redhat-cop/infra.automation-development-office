@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Ignore stale top-level ``components[]``
+    leftovers for non-UI OpenShift playbook apps (for example
+    ``gitlab_runner``) so console-banner-only bootstrap no longer generates
+    Deploy GitLab Runner in the local no-AAP run plan.

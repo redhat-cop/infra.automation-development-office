@@ -87,3 +87,7 @@ roles/install_rhbk/
     install-rhbk-operator.yml
     install-rhbk-standalone.yml
 ```
+
+Platform branches in ``main.yml`` use ``include_tasks`` so the unused path is not
+parsed at load time (static ``import_tasks`` would require ``ansible.posix`` even
+for OpenShift-only runs).
