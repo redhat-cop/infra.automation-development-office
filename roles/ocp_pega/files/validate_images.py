@@ -1,4 +1,3 @@
-#!/usr/bin/python
 """Validate Helm-rendered image references without contacting a registry."""
 import json
 import sys

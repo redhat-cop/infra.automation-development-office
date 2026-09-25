@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Unit tests for ocp_absent_cleanup allowlist helpers (pure Python)."""
 

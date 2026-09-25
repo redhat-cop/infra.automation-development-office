@@ -77,7 +77,7 @@ in preflight JSON (or ``component_config.openshift``):
 
 ``bootstrap_controller`` then runs ``install_nfs_csi.yml`` during scaffolding.
 Apps (RHBK, Grafana, GitLab, …) still pick a StorageClass name separately via
-each component’s storage / Look up field — this role installs the driver and
+each component's storage / Look up field — this role installs the driver and
 creates the class.
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build an OpenShift-compatible htpasswd map from a JSON job file or stdin."""
 from __future__ import annotations
 
