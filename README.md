@@ -1,7 +1,8 @@
 # infra.ado
 
-[![Ansible Collection CI/CD](https://github.com/Automation-Development-Office/ado/actions/workflows/main.yml/badge.svg)](https://github.com/Automation-Development-Office/ado/actions/workflows/main.yml)
-[![Security Check](https://github.com/Automation-Development-Office/ado/actions/workflows/security-check.yml/badge.svg)](https://github.com/Automation-Development-Office/ado/actions/workflows/security-check.yml)
+[![Ansible Collection CI/CD](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/main.yml/badge.svg)](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/main.yml)
+[![Security Check](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/security-check.yml/badge.svg)](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/security-check.yml)
+[![Certification checker](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/certification.yml/badge.svg)](https://github.com/redhat-cop/infra.automation-development-office/actions/workflows/certification.yml)
 
 Automation Development Office (`infra.ado`) Ansible collection for building and
 operating platform automation across Ansible Automation Platform, OpenShift,
@@ -44,7 +45,7 @@ PEP440 is the schema used to describe the versions of Ansible.
 
 | Type | Name | Description |
 | --- | --- | --- |
-| Module | [`infra.ado.ec2_ami_copy`](docs/modules/ec2_ami_copy.md) | Copy an AWS AMI between regions; optionally rename with `name` or omit it to keep the source name. |
+| Module | [`infra.ado.ec2_ami_copy`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/docs/modules/ec2_ami_copy.md) | Copy an AWS AMI between regions; optionally rename with `name` or omit it to keep the source name. |
 | Role | See [Role documentation](#role-documentation) | Platform automation roles (AAP, OpenShift, RHEL, identity, and more). |
 
 ## Module documentation
@@ -54,7 +55,7 @@ Use this index as the starting point for operators and automation users.
 
 | Module | Description |
 | --- | --- |
-| [`infra.ado.ec2_ami_copy`](docs/modules/ec2_ami_copy.md) | Copy an AWS AMI between regions; optionally rename with `name` or omit it to keep the source name. |
+| [`infra.ado.ec2_ami_copy`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/docs/modules/ec2_ami_copy.md) | Copy an AWS AMI between regions; optionally rename with `name` or omit it to keep the source name. |
 
 ## Role documentation
 
@@ -63,109 +64,109 @@ Use this index as the starting point for operators and automation users.
 
 | Role | Description |
 | --- | --- |
-| [`infra.ado.aap_build_ee`](roles/aap_build_ee/README.md) | Build a custom Ansible Execution Environment (EE) image with ansible-builder. |
-| [`infra.ado.aap_configuration`](roles/aap_configuration/README.md) | Collect user-provided AAP configuration files and dispatch them to the upstream infra.aap_configuration.dispatch role for processing. |
-| [`infra.ado.acs_report`](roles/acs_report/README.md) | Generate RHACS vulnerability reports from Central and optional CVE enrichment via acs-cve-plugin. |
-| [`infra.ado.acs_upload_policies`](roles/acs_upload_policies/README.md) | Upload RHACS policy bundles to Central from role files or custom paths. |
-| [`infra.ado.bootstrap_controller`](roles/bootstrap_controller/README.md) | Generate and apply Ansible Automation Platform controller objects for an ADO bootstrap repository. |
-| [`infra.ado.bootstrap_flatten_vars`](roles/bootstrap_flatten_vars/README.md) | Flatten a named dictionary into top-level Ansible facts for bootstrap playbooks that expect direct variable names. |
-| [`infra.ado.bootstrap_framework_defaults`](roles/bootstrap_framework_defaults/README.md) | Load shared bootstrap framework defaults before component-specific roles resolve their effective configuration. |
-| [`infra.ado.bootstrap_generate_env_vars`](roles/bootstrap_generate_env_vars/README.md) | Generate environment group variables and vault files used by the ADO bootstrap playbook repository. |
-| [`infra.ado.bootstrap_generate_playbook_repo`](roles/bootstrap_generate_playbook_repo/README.md) | Create or refresh the generated bootstrap playbook repository structure used by ADO component automation. |
-| [`infra.ado.bootstrap_resolve_component`](roles/bootstrap_resolve_component/README.md) | Resolve one bootstrap component into the effective variable set used by its generated playbook. |
-| [`infra.ado.bookstack_openshift`](roles/bookstack_openshift/README.md) | Deploy BookStack on OpenShift with MariaDB, Routes, and optional RHBK OIDC. |
-| [`infra.ado.elastic`](roles/elastic/README.md) | Operational checks and actions for Elasticsearch through a state-driven interface. |
-| [`infra.ado.gitlab_install`](roles/gitlab_install/README.md) | Install and configure GitLab on OpenShift using the GitLab Operator and Custom Resource (CR). |
-| [`infra.ado.grafana_create_datasource`](roles/grafana_create_datasource/README.md) | Configure a Grafana Prometheus datasource from the OpenShift Prometheus route and a service-account token. |
-| [`infra.ado.grafana_install`](roles/grafana_install/README.md) | Deploy Grafana on OpenShift with the Grafana Operator, storage, credentials, optional OIDC, and a Route. |
-| [`infra.ado.grafana_manage_folders`](roles/grafana_manage_folders/README.md) | Create and manage Grafana dashboard folders. |
-| [`infra.ado.grafana_upload_dashboards`](roles/grafana_upload_dashboards/README.md) | Render and upload Grafana dashboards with OpenShift datasource substitution. |
-| [`infra.ado.idm_ad_trust`](roles/idm_ad_trust/README.md) | Establish IdM ↔ Active Directory trust and map AD groups for SSH/sudo. |
-| [`infra.ado.idm_client`](roles/idm_client/README.md) | Register hosts as Red Hat IdM (FreeIPA) clients. |
-| [`infra.ado.idm_configure_replica`](roles/idm_configure_replica/README.md) | Install and configure an IdM replica server. |
-| [`infra.ado.idm_dns`](roles/idm_dns/README.md) | Manage IdM DNS records via redhat.rhel_idm. |
-| [`infra.ado.idm_server`](roles/idm_server/README.md) | Install and configure a Red Hat Identity Management (IdM/FreeIPA) server. |
-| [`infra.ado.install_aap`](roles/install_aap/README.md) | Install AAP on OpenShift or RHEL via validated ``infra.aap_utilities`` (``aap_ocp_install`` / ``aap_setup_*``). |
-| [`infra.ado.install_dirsrv`](roles/install_dirsrv/README.md) | Install and configure 389 Directory Server (DirSrv) on OpenShift. |
-| [`infra.ado.install_elastic`](roles/install_elastic/README.md) | Deploy Elastic Cloud on Kubernetes (ECK) operator and Elasticsearch/Kibana on OpenShift. |
-| [`infra.ado.install_gitlab`](roles/install_gitlab/README.md) | Install standalone GitLab CE/EE on RHEL (Omnibus packages or offline RPM). |
-| [`infra.ado.install_postfix`](roles/install_postfix/README.md) | Deploy a Postfix relay on OpenShift with ConfigMap, Secret, and Pod resources. |
-| [`infra.ado.install_rhbk`](roles/install_rhbk/README.md) | Install or tear down Red Hat build of Keycloak (RHBK) on OpenShift or as a standalone RHEL zip install. |
-| [`infra.ado.jira`](roles/jira/README.md) | Create Jira issues and subtasks from track templates for ADO automation workflows. |
-| [`infra.ado.jira_stories`](roles/jira_stories/README.md) | Create and manage Jira stories and optional subtasks from selected track templates. |
-| [`infra.ado.kafka_install`](roles/kafka_install/README.md) | Install the AMQ Streams / Kafka operator and related resources on OpenShift. |
-| [`infra.ado.netbox_oidc`](roles/netbox_oidc/README.md) | Wire NetBox login to Keycloak / RHBK OIDC (client `netbox`). |
-| [`infra.ado.ocp_aap_hub_harden`](roles/ocp_aap_hub_harden/README.md) | Harden AAP Hub for shared-Postgres LWLock stability (replicas/workers/maintenance). |
-| [`infra.ado.ocp_absent_cleanup`](roles/ocp_absent_cleanup/README.md) | Safe OpenShift absent cleanup gate for Terminating namespaces, stuck finalizers, and leftover OLM/workloads. |
-| [`infra.ado.ocp_acm`](roles/ocp_acm/README.md) | Install ACM MultiClusterHub (wait Running, Fleet Management plug-ins); thorough absent cleanup for stuck uninstall leftovers. |
-| [`infra.ado.ocp_acs`](roles/ocp_acs/README.md) | Install Red Hat Advanced Cluster Security (ACS) Central and related resources on OpenShift. |
-| [`infra.ado.ocp_alt_routes`](roles/ocp_alt_routes/README.md) | Ensure alternate OpenShift Routes exist from a configured candidate list. |
-| [`infra.ado.ocp_awspca`](roles/ocp_awspca/README.md) | Manage an AWS PCA-backed AWSPCAClusterIssuer and its credentials Secret in OpenShift/Kubernetes. |
-| [`infra.ado.ocp_cert_manager`](roles/ocp_cert_manager/README.md) | Install and configure cert-manager on OpenShift, with optional AWS PCA intermediate CA material. |
-| [`infra.ado.ocp_compliance_install`](roles/ocp_compliance_install/README.md) | Validate that Compliance Operator pods are present and at least one pod reaches the Running phase. |
-| [`infra.ado.ocp_compliance_profiles`](roles/ocp_compliance_profiles/README.md) | Create or delete a Compliance Operator ComplianceProfile resource. |
-| [`infra.ado.ocp_compliance_remediation`](roles/ocp_compliance_remediation/README.md) | Trigger an ACS remediation request by calling the ACS API when remediation is enabled. |
-| [`infra.ado.ocp_compliance_scan`](roles/ocp_compliance_scan/README.md) | Create Compliance Operator scan resources for scheduled or immediate scan execution. |
-| [`infra.ado.ocp_component_route`](roles/ocp_component_route/README.md) | Resolve primary and alternate OpenShift Route hostnames for an ADO component. |
-| [`infra.ado.ocp_console_banner`](roles/ocp_console_banner/README.md) | Manage OpenShift console notification banners using ConsoleNotification resources. |
-| [`infra.ado.ocp_data_foundation`](roles/ocp_data_foundation/README.md) | Create an OpenShift Data Foundation (ODF) StorageCluster. |
-| [`infra.ado.ocp_descheduler`](roles/ocp_descheduler/README.md) | Install and configure the Kubernetes Descheduler on OpenShift. |
-| [`infra.ado.ocp_devspaces`](roles/ocp_devspaces/README.md) | Install or remove the OpenShift Dev Spaces operator and related resources. |
-| [`infra.ado.ocp_devspaces_user_config`](roles/ocp_devspaces_user_config/README.md) | Configure per-user OpenShift Dev Spaces resources (certs, bashrc ConfigMap, PVC). |
-| [`infra.ado.ocp_dev_hub`](roles/ocp_dev_hub/README.md) | Deploy Red Hat Developer Hub (RHDH) on OpenShift via the RHDH operator with optional GitLab catalog and Keycloak OIDC. |
-| [`infra.ado.ocp_discover_routes`](roles/ocp_discover_routes/README.md) | Discover OpenShift Route hostnames cluster-wide and build alternate-route candidates. |
-| [`infra.ado.ocp_efs_csi`](roles/ocp_efs_csi/README.md) | Create an AWS EFS CSI StorageClass on OpenShift. |
-| [`infra.ado.ocp_gitlab_runner`](roles/ocp_gitlab_runner/README.md) | Deploy GitLab Runner to OpenShift using a Kubernetes deployment. |
-| [`infra.ado.ocp_gitops`](roles/ocp_gitops/README.md) | Deploy and configure an OpenShift GitOps (Argo CD) instance and optional route. |
-| [`infra.ado.ocp_htpasswd_admin`](roles/ocp_htpasswd_admin/README.md) | Create or remove an htpasswd OAuth identity provider and admin user on OpenShift. |
-| [`infra.ado.ocp_image_registry`](roles/ocp_image_registry/README.md) | Optionally enable the OpenShift integrated image registry and validate operational status. |
-| [`infra.ado.ocp_iscsi_storage`](roles/ocp_iscsi_storage/README.md) | Install Synology CSI (iSCSI) on OpenShift using kubernetes.core.k8s. |
-| [`infra.ado.ocp_ldap_auth`](roles/ocp_ldap_auth/README.md) | Configure OpenShift LDAP OAuth authentication from vault ldap_config. |
-| [`infra.ado.ocp_logging`](roles/ocp_logging/README.md) | Configure OpenShift Cluster Log Forwarder (for example Splunk) for cluster logging. |
-| [`infra.ado.ocp_loki`](roles/ocp_loki/README.md) | Create or delete a LokiStack for OpenShift logging and observability. |
-| [`infra.ado.ocp_minio`](roles/ocp_minio/README.md) | Deploy MinIO object storage on OpenShift with API/console Routes and optional Keycloak OIDC console login. |
-| [`infra.ado.ocp_namespace`](roles/ocp_namespace/README.md) | Create or delete OpenShift/Kubernetes namespaces (absent runs ``ocp_absent_cleanup``). |
-| [`infra.ado.ocp_nfs_storage`](roles/ocp_nfs_storage/README.md) | Install the NFS CSI driver via Helm and configure NFS-backed storage on OpenShift. |
-| [`infra.ado.ocp_oadp`](roles/ocp_oadp/README.md) | Configure OpenShift API for Data Protection (OADP) DataProtectionApplication and credentials. |
-| [`infra.ado.ocp_mtv`](roles/ocp_mtv/README.md) | Create ForkliftController for Migration Toolkit for Virtualization after mtv-operator is installed. |
-| [`infra.ado.ocp_oidc_auth`](roles/ocp_oidc_auth/README.md) | Configure OpenShift OIDC OAuth authentication (typically via Keycloak/RHBK). |
-| [`infra.ado.ocp_operator_defaults`](roles/ocp_operator_defaults/README.md) | Resolve OpenShift operator PackageManifest defaults for downstream operator installs. |
-| [`infra.ado.ocp_operator_subscription`](roles/ocp_operator_subscription/README.md) | Create or update OLM OperatorGroups and Subscriptions for OpenShift operators. |
-| [`infra.ado.ocp_operatorgroups`](roles/ocp_operatorgroups/README.md) | Create or delete OperatorGroups used by OpenShift operator installs. |
-| [`infra.ado.ocp_print_crd`](roles/ocp_print_crd/README.md) | Discover an operator Subscription in a namespace and print related CRD and operator info. |
-| [`infra.ado.ocp_pull_secrets`](roles/ocp_pull_secrets/README.md) | Manage the cluster pull-secret (registry auth) for OpenShift. |
-| [`infra.ado.ocp_quay`](roles/ocp_quay/README.md) | Install or remove Red Hat Quay (namespace, PVC, operator) on OpenShift. |
-| [`infra.ado.ocp_rhbk_client_secrets`](roles/ocp_rhbk_client_secrets/README.md) | Fetch RHBK client secrets and materialize them as OpenShift Secrets for components. |
-| [`infra.ado.ocp_routes`](roles/ocp_routes/README.md) | List and print OpenShift Route hostnames for one or more namespaces. |
-| [`infra.ado.ocp_search_dirsrv`](roles/ocp_search_dirsrv/README.md) | Locate a running DirSrv pod for subsequent directory operations. |
-| [`infra.ado.ocp_secret_replicator`](roles/ocp_secret_replicator/README.md) | Replicate a Kubernetes Secret to namespaces and/or HashiCorp Vault. |
-| [`infra.ado.ocp_service_accounts`](roles/ocp_service_accounts/README.md) | Create or delete OpenShift/Kubernetes ServiceAccounts across target namespaces. |
-| [`infra.ado.ocp_virtualization`](roles/ocp_virtualization/README.md) | Build lab Virt VM specs (DataSource + Multus) and create via `infra.openshift_virtualization_ops.vm_provision`. |
-| [`infra.ado.ocp_zabbix`](roles/ocp_zabbix/README.md) | Deploy Zabbix monitoring on OpenShift (MariaDB, Zabbix server, web UI, and Route). |
-| [`infra.ado.ocp_wait_operator`](roles/ocp_wait_operator/README.md) | Wait until an OLM Operator CSV reaches the installed/succeeded state. |
-| [`infra.ado.ocp_wait_pods`](roles/ocp_wait_pods/README.md) | Wait until pods in a namespace are running and ready. |
-| [`infra.ado.rhbk_client`](roles/rhbk_client/README.md) | Manage Red Hat build of Keycloak (RHBK) clients. |
-| [`infra.ado.rhbk_client_scope`](roles/rhbk_client_scope/README.md) | Manage Red Hat build of Keycloak (RHBK) client scopes. |
-| [`infra.ado.rhbk_groups`](roles/rhbk_groups/README.md) | Manage Red Hat build of Keycloak (RHBK) groups. |
-| [`infra.ado.rhbk_manage_federation`](roles/rhbk_manage_federation/README.md) | Manage Red Hat build of Keycloak (RHBK) user federation (for example LDAP). |
-| [`infra.ado.rhbk_manage_idp`](roles/rhbk_manage_idp/README.md) | Configure and remove identity provider settings for Red Hat build of Keycloak. |
-| [`infra.ado.rhbk_realm`](roles/rhbk_realm/README.md) | Manage Red Hat build of Keycloak (RHBK) realms. |
-| [`infra.ado.rhbk_setup_mapper`](roles/rhbk_setup_mapper/README.md) | Manage LDAP group mapper components in Red Hat build of Keycloak. |
-| [`infra.ado.rhbk_users`](roles/rhbk_users/README.md) | Manage Red Hat build of Keycloak users and user-group membership operations. |
-| [`infra.ado.rhel_cron`](roles/rhel_cron/README.md) | Manage special cron schedule entries (@hourly, @daily, @weekly, @monthly, @yearly, @annually, @reboot). |
-| [`infra.ado.rhel_ext_system_roles`](roles/rhel_ext_system_roles/README.md) | Thin adapter/wrapper to call RHEL System Roles by short keys. |
-| [`infra.ado.rhel_facts`](roles/rhel_facts/README.md) | Gather extended RHEL host facts (tuned, firewalld, memory, release, time). |
-| [`infra.ado.rhel_mount`](roles/rhel_mount/README.md) | Mount filesystems (NFS, CIFS, local) with optional auto-detection of filesystem type. |
-| [`infra.ado.rhel_patching`](roles/rhel_patching/README.md) | Comprehensive patching for Red Hat Enterprise Linux (RHEL) servers. |
-| [`infra.ado.rhel_repos`](roles/rhel_repos/README.md) | Manage repository enable and disable operations on Red Hat Enterprise Linux systems. |
-| [`infra.ado.rhel_sat_reg`](roles/rhel_sat_reg/README.md) | Register or unregister RHEL hosts with Red Hat Satellite via subscription-manager. |
-| [`infra.ado.rhel_stig_cac`](roles/rhel_stig_cac/README.md) | Apply DISA STIG Compliance-as-Code on RHEL 8, 9, and 10 with OpenSCAP. |
-| [`infra.ado.rhel_services_management`](roles/rhel_services_management/README.md) | Manage RHEL system services with version-aware paths for RHEL 8/9/10. |
-| [`infra.ado.satellite_config`](roles/satellite_config/README.md) | Configure a Red Hat Satellite server after installation. |
-| [`infra.ado.satellite_content_view`](roles/satellite_content_view/README.md) | Manage Red Hat Satellite Content Views with create, publish, and promote actions. |
-| [`infra.ado.satellite_install`](roles/satellite_install/README.md) | Prepare and install a Red Hat Satellite host on supported RHEL systems. |
-| [`infra.ado.satellite_oidc`](roles/satellite_oidc/README.md) | Wire Satellite login to Keycloak / RHBK OIDC (client `ado-satellite`). |
-| [`infra.ado.vm_image_management`](roles/vm_image_management/README.md) | Create a qcow2 virtual machine image from an existing base image. |
+| [`infra.ado.aap_build_ee`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/aap_build_ee/README.md) | Build a custom Ansible Execution Environment (EE) image with ansible-builder. |
+| [`infra.ado.aap_configuration`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/aap_configuration/README.md) | Collect user-provided AAP configuration files and dispatch them to the upstream infra.aap_configuration.dispatch role for processing. |
+| [`infra.ado.acs_report`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/acs_report/README.md) | Generate RHACS vulnerability reports from Central and optional CVE enrichment via acs-cve-plugin. |
+| [`infra.ado.acs_upload_policies`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/acs_upload_policies/README.md) | Upload RHACS policy bundles to Central from role files or custom paths. |
+| [`infra.ado.bootstrap_controller`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_controller/README.md) | Generate and apply Ansible Automation Platform controller objects for an ADO bootstrap repository. |
+| [`infra.ado.bootstrap_flatten_vars`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_flatten_vars/README.md) | Flatten a named dictionary into top-level Ansible facts for bootstrap playbooks that expect direct variable names. |
+| [`infra.ado.bootstrap_framework_defaults`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_framework_defaults/README.md) | Load shared bootstrap framework defaults before component-specific roles resolve their effective configuration. |
+| [`infra.ado.bootstrap_generate_env_vars`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_generate_env_vars/README.md) | Generate environment group variables and vault files used by the ADO bootstrap playbook repository. |
+| [`infra.ado.bootstrap_generate_playbook_repo`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_generate_playbook_repo/README.md) | Create or refresh the generated bootstrap playbook repository structure used by ADO component automation. |
+| [`infra.ado.bootstrap_resolve_component`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bootstrap_resolve_component/README.md) | Resolve one bootstrap component into the effective variable set used by its generated playbook. |
+| [`infra.ado.bookstack_openshift`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/bookstack_openshift/README.md) | Deploy BookStack on OpenShift with MariaDB, Routes, and optional RHBK OIDC. |
+| [`infra.ado.elastic`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/elastic/README.md) | Operational checks and actions for Elasticsearch through a state-driven interface. |
+| [`infra.ado.gitlab_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/gitlab_install/README.md) | Install and configure GitLab on OpenShift using the GitLab Operator and Custom Resource (CR). |
+| [`infra.ado.grafana_create_datasource`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/grafana_create_datasource/README.md) | Configure a Grafana Prometheus datasource from the OpenShift Prometheus route and a service-account token. |
+| [`infra.ado.grafana_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/grafana_install/README.md) | Deploy Grafana on OpenShift with the Grafana Operator, storage, credentials, optional OIDC, and a Route. |
+| [`infra.ado.grafana_manage_folders`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/grafana_manage_folders/README.md) | Create and manage Grafana dashboard folders. |
+| [`infra.ado.grafana_upload_dashboards`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/grafana_upload_dashboards/README.md) | Render and upload Grafana dashboards with OpenShift datasource substitution. |
+| [`infra.ado.idm_ad_trust`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/idm_ad_trust/README.md) | Establish IdM ↔ Active Directory trust and map AD groups for SSH/sudo. |
+| [`infra.ado.idm_client`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/idm_client/README.md) | Register hosts as Red Hat IdM (FreeIPA) clients. |
+| [`infra.ado.idm_configure_replica`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/idm_configure_replica/README.md) | Install and configure an IdM replica server. |
+| [`infra.ado.idm_dns`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/idm_dns/README.md) | Manage IdM DNS records via redhat.rhel_idm. |
+| [`infra.ado.idm_server`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/idm_server/README.md) | Install and configure a Red Hat Identity Management (IdM/FreeIPA) server. |
+| [`infra.ado.install_aap`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_aap/README.md) | Install AAP on OpenShift or RHEL via validated ``infra.aap_utilities`` (``aap_ocp_install`` / ``aap_setup_*``). |
+| [`infra.ado.install_dirsrv`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_dirsrv/README.md) | Install and configure 389 Directory Server (DirSrv) on OpenShift. |
+| [`infra.ado.install_elastic`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_elastic/README.md) | Deploy Elastic Cloud on Kubernetes (ECK) operator and Elasticsearch/Kibana on OpenShift. |
+| [`infra.ado.install_gitlab`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_gitlab/README.md) | Install standalone GitLab CE/EE on RHEL (Omnibus packages or offline RPM). |
+| [`infra.ado.install_postfix`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_postfix/README.md) | Deploy a Postfix relay on OpenShift with ConfigMap, Secret, and Pod resources. |
+| [`infra.ado.install_rhbk`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/install_rhbk/README.md) | Install or tear down Red Hat build of Keycloak (RHBK) on OpenShift or as a standalone RHEL zip install. |
+| [`infra.ado.jira`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/jira/README.md) | Create Jira issues and subtasks from track templates for ADO automation workflows. |
+| [`infra.ado.jira_stories`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/jira_stories/README.md) | Create and manage Jira stories and optional subtasks from selected track templates. |
+| [`infra.ado.kafka_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/kafka_install/README.md) | Install the AMQ Streams / Kafka operator and related resources on OpenShift. |
+| [`infra.ado.netbox_oidc`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/netbox_oidc/README.md) | Wire NetBox login to Keycloak / RHBK OIDC (client `netbox`). |
+| [`infra.ado.ocp_aap_hub_harden`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_aap_hub_harden/README.md) | Harden AAP Hub for shared-Postgres LWLock stability (replicas/workers/maintenance). |
+| [`infra.ado.ocp_absent_cleanup`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_absent_cleanup/README.md) | Safe OpenShift absent cleanup gate for Terminating namespaces, stuck finalizers, and leftover OLM/workloads. |
+| [`infra.ado.ocp_acm`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_acm/README.md) | Install ACM MultiClusterHub (wait Running, Fleet Management plug-ins); thorough absent cleanup for stuck uninstall leftovers. |
+| [`infra.ado.ocp_acs`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_acs/README.md) | Install Red Hat Advanced Cluster Security (ACS) Central and related resources on OpenShift. |
+| [`infra.ado.ocp_alt_routes`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_alt_routes/README.md) | Ensure alternate OpenShift Routes exist from a configured candidate list. |
+| [`infra.ado.ocp_awspca`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_awspca/README.md) | Manage an AWS PCA-backed AWSPCAClusterIssuer and its credentials Secret in OpenShift/Kubernetes. |
+| [`infra.ado.ocp_cert_manager`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_cert_manager/README.md) | Install and configure cert-manager on OpenShift, with optional AWS PCA intermediate CA material. |
+| [`infra.ado.ocp_compliance_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_compliance_install/README.md) | Validate that Compliance Operator pods are present and at least one pod reaches the Running phase. |
+| [`infra.ado.ocp_compliance_profiles`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_compliance_profiles/README.md) | Create or delete a Compliance Operator ComplianceProfile resource. |
+| [`infra.ado.ocp_compliance_remediation`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_compliance_remediation/README.md) | Trigger an ACS remediation request by calling the ACS API when remediation is enabled. |
+| [`infra.ado.ocp_compliance_scan`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_compliance_scan/README.md) | Create Compliance Operator scan resources for scheduled or immediate scan execution. |
+| [`infra.ado.ocp_component_route`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_component_route/README.md) | Resolve primary and alternate OpenShift Route hostnames for an ADO component. |
+| [`infra.ado.ocp_console_banner`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_console_banner/README.md) | Manage OpenShift console notification banners using ConsoleNotification resources. |
+| [`infra.ado.ocp_data_foundation`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_data_foundation/README.md) | Create an OpenShift Data Foundation (ODF) StorageCluster. |
+| [`infra.ado.ocp_descheduler`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_descheduler/README.md) | Install and configure the Kubernetes Descheduler on OpenShift. |
+| [`infra.ado.ocp_devspaces`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_devspaces/README.md) | Install or remove the OpenShift Dev Spaces operator and related resources. |
+| [`infra.ado.ocp_devspaces_user_config`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_devspaces_user_config/README.md) | Configure per-user OpenShift Dev Spaces resources (certs, bashrc ConfigMap, PVC). |
+| [`infra.ado.ocp_dev_hub`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_dev_hub/README.md) | Deploy Red Hat Developer Hub (RHDH) on OpenShift via the RHDH operator with optional GitLab catalog and Keycloak OIDC. |
+| [`infra.ado.ocp_discover_routes`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_discover_routes/README.md) | Discover OpenShift Route hostnames cluster-wide and build alternate-route candidates. |
+| [`infra.ado.ocp_efs_csi`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_efs_csi/README.md) | Create an AWS EFS CSI StorageClass on OpenShift. |
+| [`infra.ado.ocp_gitlab_runner`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_gitlab_runner/README.md) | Deploy GitLab Runner to OpenShift using a Kubernetes deployment. |
+| [`infra.ado.ocp_gitops`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_gitops/README.md) | Deploy and configure an OpenShift GitOps (Argo CD) instance and optional route. |
+| [`infra.ado.ocp_htpasswd_admin`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_htpasswd_admin/README.md) | Create or remove an htpasswd OAuth identity provider and admin user on OpenShift. |
+| [`infra.ado.ocp_image_registry`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_image_registry/README.md) | Optionally enable the OpenShift integrated image registry and validate operational status. |
+| [`infra.ado.ocp_iscsi_storage`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_iscsi_storage/README.md) | Install Synology CSI (iSCSI) on OpenShift using kubernetes.core.k8s. |
+| [`infra.ado.ocp_ldap_auth`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_ldap_auth/README.md) | Configure OpenShift LDAP OAuth authentication from vault ldap_config. |
+| [`infra.ado.ocp_logging`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_logging/README.md) | Configure OpenShift Cluster Log Forwarder (for example Splunk) for cluster logging. |
+| [`infra.ado.ocp_loki`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_loki/README.md) | Create or delete a LokiStack for OpenShift logging and observability. |
+| [`infra.ado.ocp_minio`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_minio/README.md) | Deploy MinIO object storage on OpenShift with API/console Routes and optional Keycloak OIDC console login. |
+| [`infra.ado.ocp_namespace`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_namespace/README.md) | Create or delete OpenShift/Kubernetes namespaces (absent runs ``ocp_absent_cleanup``). |
+| [`infra.ado.ocp_nfs_storage`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_nfs_storage/README.md) | Install the NFS CSI driver via Helm and configure NFS-backed storage on OpenShift. |
+| [`infra.ado.ocp_oadp`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_oadp/README.md) | Configure OpenShift API for Data Protection (OADP) DataProtectionApplication and credentials. |
+| [`infra.ado.ocp_mtv`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_mtv/README.md) | Create ForkliftController for Migration Toolkit for Virtualization after mtv-operator is installed. |
+| [`infra.ado.ocp_oidc_auth`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_oidc_auth/README.md) | Configure OpenShift OIDC OAuth authentication (typically via Keycloak/RHBK). |
+| [`infra.ado.ocp_operator_defaults`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_operator_defaults/README.md) | Resolve OpenShift operator PackageManifest defaults for downstream operator installs. |
+| [`infra.ado.ocp_operator_subscription`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_operator_subscription/README.md) | Create or update OLM OperatorGroups and Subscriptions for OpenShift operators. |
+| [`infra.ado.ocp_operatorgroups`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_operatorgroups/README.md) | Create or delete OperatorGroups used by OpenShift operator installs. |
+| [`infra.ado.ocp_print_crd`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_print_crd/README.md) | Discover an operator Subscription in a namespace and print related CRD and operator info. |
+| [`infra.ado.ocp_pull_secrets`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_pull_secrets/README.md) | Manage the cluster pull-secret (registry auth) for OpenShift. |
+| [`infra.ado.ocp_quay`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_quay/README.md) | Install or remove Red Hat Quay (namespace, PVC, operator) on OpenShift. |
+| [`infra.ado.ocp_rhbk_client_secrets`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_rhbk_client_secrets/README.md) | Fetch RHBK client secrets and materialize them as OpenShift Secrets for components. |
+| [`infra.ado.ocp_routes`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_routes/README.md) | List and print OpenShift Route hostnames for one or more namespaces. |
+| [`infra.ado.ocp_search_dirsrv`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_search_dirsrv/README.md) | Locate a running DirSrv pod for subsequent directory operations. |
+| [`infra.ado.ocp_secret_replicator`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_secret_replicator/README.md) | Replicate a Kubernetes Secret to namespaces and/or HashiCorp Vault. |
+| [`infra.ado.ocp_service_accounts`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_service_accounts/README.md) | Create or delete OpenShift/Kubernetes ServiceAccounts across target namespaces. |
+| [`infra.ado.ocp_virtualization`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_virtualization/README.md) | Build lab Virt VM specs (DataSource + Multus) and create via `infra.openshift_virtualization_ops.vm_provision`. |
+| [`infra.ado.ocp_zabbix`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_zabbix/README.md) | Deploy Zabbix monitoring on OpenShift (MariaDB, Zabbix server, web UI, and Route). |
+| [`infra.ado.ocp_wait_operator`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_wait_operator/README.md) | Wait until an OLM Operator CSV reaches the installed/succeeded state. |
+| [`infra.ado.ocp_wait_pods`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/ocp_wait_pods/README.md) | Wait until pods in a namespace are running and ready. |
+| [`infra.ado.rhbk_client`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_client/README.md) | Manage Red Hat build of Keycloak (RHBK) clients. |
+| [`infra.ado.rhbk_client_scope`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_client_scope/README.md) | Manage Red Hat build of Keycloak (RHBK) client scopes. |
+| [`infra.ado.rhbk_groups`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_groups/README.md) | Manage Red Hat build of Keycloak (RHBK) groups. |
+| [`infra.ado.rhbk_manage_federation`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_manage_federation/README.md) | Manage Red Hat build of Keycloak (RHBK) user federation (for example LDAP). |
+| [`infra.ado.rhbk_manage_idp`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_manage_idp/README.md) | Configure and remove identity provider settings for Red Hat build of Keycloak. |
+| [`infra.ado.rhbk_realm`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_realm/README.md) | Manage Red Hat build of Keycloak (RHBK) realms. |
+| [`infra.ado.rhbk_setup_mapper`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_setup_mapper/README.md) | Manage LDAP group mapper components in Red Hat build of Keycloak. |
+| [`infra.ado.rhbk_users`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhbk_users/README.md) | Manage Red Hat build of Keycloak users and user-group membership operations. |
+| [`infra.ado.rhel_cron`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_cron/README.md) | Manage special cron schedule entries (@hourly, @daily, @weekly, @monthly, @yearly, @annually, @reboot). |
+| [`infra.ado.rhel_ext_system_roles`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_ext_system_roles/README.md) | Thin adapter/wrapper to call RHEL System Roles by short keys. |
+| [`infra.ado.rhel_facts`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_facts/README.md) | Gather extended RHEL host facts (tuned, firewalld, memory, release, time). |
+| [`infra.ado.rhel_mount`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_mount/README.md) | Mount filesystems (NFS, CIFS, local) with optional auto-detection of filesystem type. |
+| [`infra.ado.rhel_patching`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_patching/README.md) | Comprehensive patching for Red Hat Enterprise Linux (RHEL) servers. |
+| [`infra.ado.rhel_repos`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_repos/README.md) | Manage repository enable and disable operations on Red Hat Enterprise Linux systems. |
+| [`infra.ado.rhel_sat_reg`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_sat_reg/README.md) | Register or unregister RHEL hosts with Red Hat Satellite via subscription-manager. |
+| [`infra.ado.rhel_stig_cac`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_stig_cac/README.md) | Apply DISA STIG Compliance-as-Code on RHEL 8, 9, and 10 with OpenSCAP. |
+| [`infra.ado.rhel_services_management`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/rhel_services_management/README.md) | Manage RHEL system services with version-aware paths for RHEL 8/9/10. |
+| [`infra.ado.satellite_config`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_config/README.md) | Configure a Red Hat Satellite server after installation. |
+| [`infra.ado.satellite_content_view`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_content_view/README.md) | Manage Red Hat Satellite Content Views with create, publish, and promote actions. |
+| [`infra.ado.satellite_install`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_install/README.md) | Prepare and install a Red Hat Satellite host on supported RHEL systems. |
+| [`infra.ado.satellite_oidc`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_oidc/README.md) | Wire Satellite login to Keycloak / RHBK OIDC (client `ado-satellite`). |
+| [`infra.ado.vm_image_management`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/vm_image_management/README.md) | Create a qcow2 virtual machine image from an existing base image. |
 
 ## Using this collection
 
@@ -204,7 +205,7 @@ for more details.
 ## Release notes
 
 See the
-[changelog](https://github.com/automation-development-office/ado/blob/main/CHANGELOG.rst).
+[changelog](https://github.com/redhat-cop/infra.automation-development-office/blob/main/CHANGELOG.rst).
 
 ## Testing
 
