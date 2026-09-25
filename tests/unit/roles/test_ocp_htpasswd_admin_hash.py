@@ -1,6 +1,7 @@
 """Multi-user htpasswd hash job covers every requested account."""
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,11 +18,15 @@ class TestHashHtpasswdUsers(unittest.TestCase):
             json.dump(job, handle)
             path = handle.name
         completed = subprocess.run(
-            ["python3", str(SCRIPT), path],
-            check=True,
+            [sys.executable, str(SCRIPT), path],
+            check=False,
             capture_output=True,
             text=True,
         )
+        if completed.returncode != 0:
+            self.fail(
+                f"hash script exited {completed.returncode}: {completed.stderr}"
+            )
         return json.loads(completed.stdout), completed.stderr
 
     def test_hashes_every_requested_user_on_add(self):
