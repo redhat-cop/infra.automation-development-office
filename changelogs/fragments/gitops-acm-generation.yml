@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - ocp_gitops_application - Generate Applications and resource bundles.
+  - ocp_acm_policy - Generate namespace-label policies with explicit placement.
+  - ocp_devspaces - Share CheCluster rendering for direct and GitOps generation.
+  - bootstrap_generate_playbook_repo - Generate GitOps and policy files.
+  - bootstrap_generate_env_vars - Map delivery and policy inputs.

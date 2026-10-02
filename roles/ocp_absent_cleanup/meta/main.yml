@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  author: Chad Elliott
+  description: >-
+    Safe OpenShift absent cleanup gate for Terminating namespaces,
+    stuck finalizers, and leftover OLM/workload objects.
+  company: Automation Development Office
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.16.0"
+  galaxy_tags:
+    - openshift
+    - kubernetes
+    - cleanup
+dependencies: []

@@ -1,6 +1,25 @@
 ---
 # Wire NetBox ConfigMap OIDC settings (avoids helm upgrade PDB/StatefulSet conflicts).
 
+- name: Check existing NetBox namespace before configuring OIDC
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ netbox_oidc_namespace }}"
+    validate_certs: "{{ netbox_oidc_validate_certs }}"
+  register: netbox_oidc_namespace_check
+  when: netbox_oidc_state | default('present') == 'present'
+
+- name: Require an existing NetBox installation
+  ansible.builtin.assert:
+    that:
+      - netbox_oidc_namespace_check.resources | default([]) | length > 0
+    fail_msg: >-
+      NetBox namespace {{ netbox_oidc_namespace }} does not exist on the target cluster.
+      Install NetBox first or correct component_config.netbox.namespace.
+      The NetBox workflow configures OIDC for an existing installation; it does not install NetBox.
+  when: netbox_oidc_state | default('present') == 'present'
+
 # Survey extra_vars beat set_fact on the same name — use *_resolved for effective values.
 - name: Resolve NetBox OIDC issuer from RHBK when unset
   ansible.builtin.set_fact:

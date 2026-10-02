@@ -4,7 +4,7 @@
 #
 # Folder entries may include:
 #   datasource_mode: pin | multi | none
-#   datasource: Openshift-Prod | Openshift-Dev (for pin)
+#   datasource: OpenshiftProd | OpenshiftProdInfra (for pin)
 #   uid_suffix: prod | dev
 #   title_cluster: Prod | Dev
 #
@@ -64,7 +64,7 @@
   when: (grafana_upload_dashboards_work_items | length) > 0
 
 # Legacy templates use {{ grafana_datasource }}; Contoller group_vars often only
-# define grafana_datasources[]. Default to the first / Openshift-Prod.
+# define grafana_datasources[]. Default to the first / OpenshiftProd.
 - name: Default grafana_datasource for Jinja dashboard templates  # noqa: var-naming[no-role-prefix]
   ansible.builtin.set_fact:
     grafana_datasource: >-
@@ -74,7 +74,7 @@
             (
               (grafana_datasources | default([]) | map(attribute='name') | list | first)
               if (grafana_datasources | default([]) | length) > 0
-              else 'Openshift-Prod'
+              else 'OpenshiftProd'
             ),
             true
           )

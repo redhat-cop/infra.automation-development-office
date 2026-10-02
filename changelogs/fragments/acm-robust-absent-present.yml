@@ -1,0 +1,18 @@
+---
+bugfixes:
+  - >-
+    ocp_acm - Harden ``state=absent`` to remove MultiClusterHub plus related
+    hub objects (MultiClusterEngine, ClusterManager, ``local-cluster``
+    ManagedCluster), clear stuck uninstall finalizers, and drop known ACM
+    validating webhooks whose backing Service is already gone.
+  - >-
+    ocp_acm - On ``state=present``, detect Uninstalling MultiClusterHub /
+    MultiClusterEngine and finish that uninstall first
+    (``ocp_acm_heal_stuck_uninstall``, default true), ensure a missing
+    ``local-cluster`` Namespace when the ManagedCluster exists, wait for
+    MultiClusterHub ``Running``, and enable Fleet Management Console
+    plug-ins ``acm`` and ``mce``.
+doc_changes:
+  - >-
+    ocp_acm - Document robust absent/present behavior, heal flag, and
+    Fleet Management console plug-in defaults.

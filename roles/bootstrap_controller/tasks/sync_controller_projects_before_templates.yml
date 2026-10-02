@@ -1,3 +1,5 @@
+---
+# yamllint disable rule:line-length
 - name: AAP 2.5+ | Load controller configs before project sync
   ansible.builtin.include_tasks: load_controller_configs.yml
 
@@ -139,23 +141,18 @@
     - bootstrap_controller_projects_status_query is defined
     - not (bootstrap_controller_projects_status_query.failed | default(false) | bool)
 
-- name: AAP 2.5+ | Force project sync before creating job templates
-  ansible.controller.project_update:
-    project: "{{ item.name }}"
-    organization: "{{ item.organization | default(controller_bootstrap_organization | default(bootstrap_controller_organization), true) }}"
-    wait: true
-    timeout: "{{ bootstrap_controller_project_sync_timeout | default(600) }}"
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
+- name: AAP 2.5+ | Initialize project sync results
+  ansible.builtin.set_fact:
+    bootstrap_controller_project_sync_result:
+      results: []
+
+- name: AAP 2.5+ | Complete one sync per project before creating templates
+  ansible.builtin.include_tasks: sync_one_controller_project.yml
   loop: "{{ controller_projects | default([]) }}"
-  register: bootstrap_controller_project_sync_result
-  failed_when: false
-  when:
-    - controller_projects | default([]) | length > 0
-    - item.scm_type | default('') | length > 0
+  loop_control:
+    loop_var: bootstrap_controller_sync_project
+    label: "{{ bootstrap_controller_sync_project.name }}"
+  when: bootstrap_controller_sync_project.scm_type | default('') | length > 0
 
 - name: AAP 2.5+ | Collect failed project sync items
   ansible.builtin.set_fact:
@@ -165,7 +162,7 @@
       {%- if not (result.skipped | default(false) | bool) -%}
       {%- if result.failed | default(false) | bool -%}
       {%- set _ = failures.append(result) -%}
-      {%- elif result.status is defined and (result.status | string) != 'successful' -%}
+      {%- elif (result.status | default('error') | string) != 'successful' -%}
       {%- set _ = failures.append(result) -%}
       {%- endif -%}
       {%- endif -%}
@@ -174,103 +171,6 @@
   when:
     - controller_projects | default([]) | length > 0
     - bootstrap_controller_project_sync_result is defined
-
-- name: AAP 2.5+ | Re-query Controller project status after sync attempts
-  ansible.builtin.uri:
-    url: >-
-      {{
-        (controller_host | default(vault_controller_hostname)).rstrip('/')
-      }}/api/controller/v2/projects/?page_size=200
-    method: GET
-    return_content: true
-    status_code: [200]
-    body_format: json
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
-    headers: >-
-      {{
-        {'Authorization': 'Bearer ' ~ (controller_oauthtoken | default(vault_controller_oauthtoken | default('')))}
-        if (controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | string | trim | length) > 0
-        else omit
-      }}
-    user: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    force_basic_auth: >-
-      {{
-        (controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | string | trim | length) == 0
-      }}
-  register: bootstrap_controller_projects_status_requery
-  failed_when: false
-  when:
-    - bootstrap_controller_project_sync_failures | default([]) | length > 0
-
-- name: AAP 2.5+ | Note Controller projects whose last update job succeeded after sync
-  ansible.builtin.set_fact:
-    bootstrap_controller_projects_last_job_ok: >-
-      {{
-        (
-          bootstrap_controller_projects_status_requery.json.results
-          | default([])
-          | selectattr('summary_fields.last_job.status', 'defined')
-          | selectattr('summary_fields.last_job.status', 'equalto', 'successful')
-          | map(attribute='name')
-          | list
-        )
-        if (
-          bootstrap_controller_projects_status_requery is defined
-          and not (bootstrap_controller_projects_status_requery.failed | default(false) | bool)
-        )
-        else []
-      }}
-  when:
-    - bootstrap_controller_project_sync_failures | default([]) | length > 0
-
-- name: AAP 2.5+ | Identify recoverable project sync failures
-  ansible.builtin.set_fact:
-    bootstrap_controller_project_sync_recoverable: >-
-      {%- set recoverable = [] -%}
-      {%- set post_results = bootstrap_controller_projects_status_requery.json.results | default([]) -%}
-      {%- for fail in bootstrap_controller_project_sync_failures | default([]) -%}
-      {%- set pname = fail.item.name -%}
-      {%- set pre = bootstrap_controller_projects_pre_sync.get(pname, {}) if bootstrap_controller_projects_pre_sync is defined else {} -%}
-      {%- set post = (post_results | selectattr('name', 'equalto', pname) | list | first) | default({}) -%}
-      {%- set pre_rev = pre.scm_revision | default('') -%}
-      {%- set post_rev = post.scm_revision | default('') -%}
-      {%- if pname in (bootstrap_controller_projects_last_job_ok | default([])) -%}
-      {%- set _ = recoverable.append(pname) -%}
-      {%- elif post_rev | length > 0 and post_rev != pre_rev -%}
-      {%- set _ = recoverable.append(pname) -%}
-      {%- elif pre.last_job_status | default('') == 'successful' -%}
-      {%- set _ = recoverable.append(pname) -%}
-      {%- endif -%}
-      {%- endfor -%}
-      {{ recoverable | unique | list }}
-  when:
-    - bootstrap_controller_project_sync_failures | default([]) | length > 0
-
-- name: AAP 2.5+ | Warn and continue when project sync failure is recoverable
-  ansible.builtin.debug:
-    msg: >-
-      Project sync for {{ item }} reported failure but bootstrap will continue:
-      git revision advanced, the prior sync was already successful, or Controller
-      now shows a successful project update (for example collection install failed
-      after SCM checkout). Fix Galaxy/Hub credentials or requirements.yml if
-      collection install keeps failing.
-  loop: "{{ bootstrap_controller_project_sync_recoverable | default([]) }}"
-  when:
-    - bootstrap_controller_project_sync_recoverable | default([]) | length > 0
-
-- name: AAP 2.5+ | Drop recoverable project sync failures
-  ansible.builtin.set_fact:
-    bootstrap_controller_project_sync_failures: >-
-      {{
-        bootstrap_controller_project_sync_failures
-        | default([])
-        | rejectattr('item.name', 'in', bootstrap_controller_project_sync_recoverable | default([]))
-        | list
-      }}
-  when:
-    - bootstrap_controller_project_sync_failures | default([]) | length > 0
-    - bootstrap_controller_project_sync_recoverable | default([]) | length > 0
 
 - name: AAP 2.5+ | Fetch failed project update stdout
   ansible.builtin.uri:
@@ -340,15 +240,9 @@
       git.token (HTTP access token); Controller Source Control credentials
       use basic auth, not OAuth2 or Bearer headers.
       Job stdout (tail):
-      {{
-        bootstrap_controller_project_sync_stdout.results
-        | default([])
-        | map(attribute='content')
-        | map('default', '', true)
-        | map('regex_replace', '(?s)^.*((?:\\n|^)(?:.*\\n){0,40})$', '\\1')
-        | list
-        | join('\n---\n')
-      }}
+      {%- for result in bootstrap_controller_project_sync_stdout.results | default([]) %}
+      {{ (result.content | default('', true)).splitlines()[-40:] | join('\n') }}
+      {% endfor %}
   when:
     - bootstrap_controller_project_sync_failures | default([]) | length > 0
 

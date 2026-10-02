@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - >-
+    bootstrap_generate_playbook_repo - Local no-AAP component runner accepts
+    per-playbook ``step_options`` (typed ``vars``, optional ``state``, and
+    freeform ``extra_args``) so Preview/Run can override Common extra vars
+    for a single step.

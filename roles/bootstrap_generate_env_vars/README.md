@@ -112,9 +112,19 @@ Automation Development Office
 | `bootstrap_generate_env_vars_capsule_loadbalancer_activation_key` | Activation key for load balancer registration. |
 
 OpenShift preflight JSON can include `component_options.openshift` to opt into
-optional OpenShift configuration. `admin_htpasswd` writes HTPasswd admin user
-vault values, and `console_banner` writes console banner vars. When those
-options are omitted, stale generated HTPasswd and banner values are removed.
+optional OpenShift configuration. ``admin_htpasswd`` must be explicitly selected
+to generate the HTPasswd admin playbook and vault values (presence of
+``openshift.admin_username`` / ``admin_password`` alone is not enough).
+Set ``openshift.htpasswd_idp_name`` for the console login button label
+(OAuth identity provider name; default ``htpasswd-admin``); the secret name
+defaults to ``<idp>-secret``. ``console_banner`` writes console banner vars and selects the console playbook.
+``integrated_image_registry`` enables the OpenShift integrated image registry
+option (``ocp_image_registry_*`` / ``openshift_integrated_registry_*`` vars,
+Contoller JT, and optional install-during-bootstrap before NFS CSI).
+Stale ``openshift.banner_text`` alone does not select console. When those
+options are omitted, stale generated HTPasswd and banner values are removed. OpenShift
+``component_apps`` entries that are not in the preflight UI checkbox catalog are
+ignored so leftover import ghosts do not generate playbooks.
 
 Preflight `additional_environments` (space/comma-separated names) is combined
 with the primary `environment` value to build AAP survey
@@ -257,3 +267,27 @@ roles/bootstrap_generate_env_vars/
   tasks/main.yml
   README.md
 ```
+
+### Pega disconnected inputs
+
+`component_config.pega` maps local chart/values paths, database mode and allowed
+registry hosts into `ocp_pega_*` variables. Database mode defaults to `new`; an
+existing initialized database can be selected explicitly. Paths refer to files
+inside the execution environment. See `docs/PEGA_DISCONNECTED.md` and the
+`ocp_pega` role README for artifact preparation and the full input contract.
+
+Dev Spaces `component_config.devspaces.delivery_mode` (`direct`/`generate`) and
+`gitops_repo_url`, `gitops_revision`, `gitops_path`, `gitops_namespace`,
+`gitops_project`, `gitops_destination` map to `ocp_devspaces_*`. Blank GitOps paths
+use the environment-specific default. ACM `component_config.acm.policy_enabled`
+and `policy_name`, `policy_namespace`, `policy_target_namespace`, `policy_label_key`,
+`policy_label_value`, `policy_cluster_set`, `policy_selector_key`,
+`policy_selector_value`, `policy_remediation` map to `ocp_acm_policy_*` variables.
+Bootstrap's playbook-repo generator consumes these variables before committing
+files. Neither generator applies Argo CD applications or ACM policies.
+
+Public Galaxy access is controlled by `aap.galaxy_credentials`: set the public
+credential entry to `enabled: false` and `attach_to_org: false` for local Hub
+only operation. Mirror the complete dependency closure into Hub first. Existing
+JSON exports retain their explicit settings; importing an older export can
+re-enable its public source. New Preflight defaults leave public Galaxy disabled.

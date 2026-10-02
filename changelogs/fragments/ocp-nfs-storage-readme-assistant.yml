@@ -1,0 +1,6 @@
+---
+doc_changes:
+  - >-
+    ocp_nfs_storage - Document NFS server/share/StorageClass variables and the
+    preflight ``nfs_csi`` / ``nfs_server`` / ``nfs_share`` bootstrap contract so
+    ADO Assistant README search finds NFS CSI install guidance.

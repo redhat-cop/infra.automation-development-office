@@ -27,6 +27,8 @@ dirsrv:
 grafana_admin_user: admin
 grafana_admin_password: redhat123
 vault_grafana_api_key: ""
+# Optional: only needed for external postgres (provision=false).
+vault_grafana_postgres_password: ""
 
 {% elif component_name == 'satellite' %}
 vault_satellite_service_account_username: "{{ bootstrap_generate_env_vars_satellite_service_account_username | default('') }}"

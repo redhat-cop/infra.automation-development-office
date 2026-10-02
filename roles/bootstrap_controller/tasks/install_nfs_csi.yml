@@ -1,40 +1,103 @@
 ---
 # yamllint disable rule:line-length
+# Note: do not put ``environment:`` on include_role — older ansible-core
+# rejects it (``'environment' is not a valid attribute for a IncludeRole``).
+# Put env on a block instead so Helm/k8s see KUBECONFIG.
+#
+# Do not pass ``ocp_nfs_storage_*: "{{ ocp_nfs_storage_* | default(...) }}"``
+# on include_role vars — that self-references and recurses under ansible-core.
+
+- name: Bootstrap NFS CSI | Resolve settings from preflight / group_vars
+  ansible.builtin.set_fact:
+    bootstrap_controller_nfs_csi_server: >-
+      {{
+        (
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).nfs_server
+          | default(
+            (
+              (bootstrap_generate_env_vars_preflight | default({})).openshift
+              | default({})
+            ).ocp_nfs_storage_server
+            | default(none),
+            true
+          )
+        )
+        | default(nfs_server | default(none), true)
+        | default(ocp_nfs_storage_server | default(''), true)
+      }}
+    bootstrap_controller_nfs_csi_share: >-
+      {{
+        (
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).nfs_share
+          | default(
+            (
+              (bootstrap_generate_env_vars_preflight | default({})).openshift
+              | default({})
+            ).ocp_nfs_storage_share
+            | default(none),
+            true
+          )
+        )
+        | default(nfs_share | default(none), true)
+        | default(ocp_nfs_storage_share | default(''), true)
+      }}
+    bootstrap_controller_nfs_csi_class_name: >-
+      {{
+        nfs_storage_class_name
+        | default(ocp_nfs_storage_class_name | default('synology-nfs-csi'), true)
+      }}
+    bootstrap_controller_nfs_csi_driver_version: >-
+      {{
+        nfs_driver_version
+        | default(ocp_nfs_storage_driver_version | default('4.11.0'), true)
+      }}
+    bootstrap_controller_nfs_csi_nfs_version: >-
+      {{
+        nfs_version
+        | default(ocp_nfs_storage_nfs_version | default('4.1'), true)
+      }}
+    bootstrap_controller_nfs_csi_create_test_namespace: >-
+      {{
+        nfs_create_test_namespace
+        | default(ocp_nfs_storage_create_test_namespace | default(true), true)
+        | bool
+      }}
+    bootstrap_controller_nfs_csi_create_test_pvc: >-
+      {{
+        nfs_create_test_pvc
+        | default(ocp_nfs_storage_create_test_pvc | default(false), true)
+        | bool
+      }}
+
 - name: Bootstrap NFS CSI | Assert NFS settings are present
   ansible.builtin.assert:
     that:
-      - ocp_nfs_storage_server | default('') | length > 0
-      - ocp_nfs_storage_share | default('') | length > 0
+      - bootstrap_controller_nfs_csi_server | length > 0
+      - bootstrap_controller_nfs_csi_share | length > 0
     fail_msg: >-
       nfs_csi bootstrap prep requires openshift.nfs_server and
       openshift.nfs_share (or ocp_nfs_storage_* vars).
 
 - name: Bootstrap NFS CSI | Install driver and StorageClass
-  ansible.builtin.include_role:
-    name: infra.ado.ocp_nfs_storage
-  vars:
-    ocp_nfs_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
-    ocp_nfs_storage_driver_version: >-
-      {{
-        ocp_nfs_storage_driver_version
-        | default(nfs_driver_version | default('4.11.0'))
-      }}
-    ocp_nfs_storage_server: >-
-      {{ ocp_nfs_storage_server | default(nfs_server) }}
-    ocp_nfs_storage_share: >-
-      {{ ocp_nfs_storage_share | default(nfs_share) }}
-    ocp_nfs_storage_class_name: >-
-      {{
-        ocp_nfs_storage_class_name
-        | default(nfs_storage_class_name | default('synology-nfs-csi'))
-      }}
-    ocp_nfs_storage_nfs_version: >-
-      {{
-        ocp_nfs_storage_nfs_version
-        | default(nfs_version | default('4.1'))
-      }}
-    ocp_nfs_storage_create_test_namespace: "{{ ocp_nfs_storage_create_test_namespace | default(nfs_create_test_namespace | default(true)) }}"
-    ocp_nfs_storage_create_test_pvc: "{{ ocp_nfs_storage_create_test_pvc | default(nfs_create_test_pvc | default(false)) }}"
   environment:
     KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
     K8S_AUTH_KUBECONFIG: "{{ bootstrap_controller_openshift_kubeconfig }}"
+  block:
+    - name: Bootstrap NFS CSI | Include ocp_nfs_storage
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_nfs_storage
+      vars:
+        ocp_nfs_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
+        ocp_nfs_storage_server: "{{ bootstrap_controller_nfs_csi_server }}"
+        ocp_nfs_storage_share: "{{ bootstrap_controller_nfs_csi_share }}"
+        ocp_nfs_storage_class_name: "{{ bootstrap_controller_nfs_csi_class_name }}"
+        ocp_nfs_storage_driver_version: "{{ bootstrap_controller_nfs_csi_driver_version }}"
+        ocp_nfs_storage_nfs_version: "{{ bootstrap_controller_nfs_csi_nfs_version }}"
+        ocp_nfs_storage_create_test_namespace: "{{ bootstrap_controller_nfs_csi_create_test_namespace }}"
+        ocp_nfs_storage_create_test_pvc: "{{ bootstrap_controller_nfs_csi_create_test_pvc }}"

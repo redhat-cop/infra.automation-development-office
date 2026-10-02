@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - OpenShift Admin HTPasswd playbooks are generated
+    only when ``component_options.openshift`` includes ``admin_htpasswd`` (not merely
+    because admin username/password fields are present).
+  - >-
+    bootstrap_generate_env_vars - Ignore stale ``component_apps.openshift`` entries
+    that are not in the preflight UI checkbox catalog so leftover imports no longer
+    generate unrelated playbooks.

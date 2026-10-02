@@ -16,7 +16,18 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
-| `ocp_htpasswd_admin_state` | Desired state used by role tasks when supported. |
+| `htpasswd_action` | `add` (merge users), `replace` (rewrite secret), or `remove`. |
+| `htpasswd_users` | List of `{name, password, role}` entries for the HTPasswd secret. |
+| `htpasswd_idp_name` | OAuth identity provider name shown as the OpenShift console login button. Default `htpasswd-admin`. Required for ``state=absent`` (must match the Login button to remove). |
+| `htpasswd_secret` | Secret in `openshift-config` holding htpasswd data. Default `{htpasswd_idp_name}-secret`. |
+| `htpasswd_mapping_method` | OAuth mapping method (`add` preferred to avoid stale Identity conflicts). |
+| `htpasswd_remove_all` | When true with remove action, remove the provider when no users remain. |
+| `state` | `present` (create/update) or `absent` (delete the IdP named by `htpasswd_idp_name` and its secret). |
+
+On ``state=present`` with ``add``/``replace``, the role rewrites the existing
+OAuth HTPasswd provider when ``mappingMethod`` **or** ``htpasswd.fileData.name``
+(the secret) differs from the desired values. Secret *content* updates still
+patch the Secret even when the OAuth IdP list is unchanged.
 
 ## 🚀 Role Usage
 

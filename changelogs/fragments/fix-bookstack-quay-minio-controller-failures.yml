@@ -1,0 +1,17 @@
+---
+bugfixes:
+  - >-
+    bookstack_openshift - Remove invalid ``validate_certs`` from
+    ``kubernetes.core.k8s*`` OIDC tasks (conflicting action statements).
+  - >-
+    ocp_quay - Resolve OIDC issuer without self-referencing an undefined
+    ``ocp_quay_oidc_issuer_url`` fact.
+  - >-
+    ocp_minio - Build Service ports as real integers so the API rejects
+    string ports no longer occur.
+  - >-
+    gitlab_install - Align chart version fallback with supported
+    ``10.3.2`` (operator rejects ``10.3.1``).
+  - >-
+    ocp_devspaces - Longer CheCluster wait and clearer failure when
+    ``cheURL`` never appears.

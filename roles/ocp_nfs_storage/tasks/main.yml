@@ -48,12 +48,78 @@
       ocp_nfs_storage_server, ocp_nfs_storage_share, and
       ocp_nfs_storage_class_name are required.
 
+- name: NFS CSI | Resolve Helm chart reference
+  ansible.builtin.set_fact:
+    ocp_nfs_storage__use_local_chart: >-
+      {{
+        (ocp_nfs_storage_chart_path | default('') | length > 0)
+        or (ocp_nfs_storage_use_bundled_chart | default(true) | bool)
+      }}
+    ocp_nfs_storage__chart_ref: >-
+      {{
+        ocp_nfs_storage_chart_path
+        if (ocp_nfs_storage_chart_path | default('') | length > 0)
+        else (
+          (
+            role_path
+            ~ '/files/charts/csi-driver-nfs-'
+            ~ ocp_nfs_storage_driver_version
+            ~ '.tgz'
+          )
+          if (ocp_nfs_storage_use_bundled_chart | default(true) | bool)
+          else 'csi-driver-nfs/csi-driver-nfs'
+        )
+      }}
+
+- name: NFS CSI | Assert bundled chart archive exists
+  when:
+    - ocp_nfs_storage__use_local_chart | bool
+    - ocp_nfs_storage_chart_path | default('') | length == 0
+  ansible.builtin.stat:
+    path: "{{ ocp_nfs_storage__chart_ref }}"
+  register: ocp_nfs_storage__bundled_chart
+
+- name: NFS CSI | Fail when bundled chart is missing
+  when:
+    - ocp_nfs_storage__use_local_chart | bool
+    - ocp_nfs_storage_chart_path | default('') | length == 0
+    - not (ocp_nfs_storage__bundled_chart.stat.exists | default(false))
+  ansible.builtin.fail:
+    msg: >-
+      Bundled Helm chart not found at {{ ocp_nfs_storage__chart_ref }}.
+      Ship files/charts/csi-driver-nfs-{{ ocp_nfs_storage_driver_version }}.tgz
+      with the collection, set ocp_nfs_storage_chart_path, or set
+      ocp_nfs_storage_use_bundled_chart=false to use the GitHub helm repo.
+
 - name: NFS CSI | Ensure Helm repo for csi-driver-nfs is present
+  when: not (ocp_nfs_storage__use_local_chart | bool)
   kubernetes.core.helm_repository:
     name: "{{ ocp_nfs_storage_helm_repo_name }}"
     repo_url: "{{ ocp_nfs_storage_helm_repo_url }}"
 
-- name: NFS CSI | Install csi-driver-nfs with Helm
+- name: NFS CSI | Install csi-driver-nfs with Helm (local chart)
+  when: ocp_nfs_storage__use_local_chart | bool
+  kubernetes.core.helm:
+    name: "{{ ocp_nfs_storage_helm_release }}"
+    chart_ref: "{{ ocp_nfs_storage__chart_ref }}"
+    create_namespace: true
+    namespace: "{{ ocp_nfs_storage_namespace }}"
+    host: "{{ ocp_nfs_storage_k8s_auth.host | default(omit) }}"
+    api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
+    kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
+    validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+    values:
+      controller:
+        runOnControlPlane: true
+        replicas: 2
+        strategyType: RollingUpdate
+      externalSnapshotter:
+        enabled: true
+        customResourceDefinitions:
+          enabled: false
+
+- name: NFS CSI | Install csi-driver-nfs with Helm (remote repo)
+  when: not (ocp_nfs_storage__use_local_chart | bool)
   kubernetes.core.helm:
     name: "{{ ocp_nfs_storage_helm_release }}"
     chart_ref: csi-driver-nfs/csi-driver-nfs

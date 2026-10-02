@@ -1,18 +1,28 @@
 ---
+# Use include_tasks (not import_tasks) for platform gates.
+# Static import_tasks always parses install-rhbk-standalone.yml at load time,
+# so OpenShift Contoller/EE runs fail on ansible.posix.firewalld even when
+# install_rhbk_platform is openshift and the standalone when is false.
 - name: Install RHBK (Keycloak) on OpenShift via operator
-  ansible.builtin.import_tasks: install-rhbk-operator.yml
+  ansible.builtin.include_tasks: install-rhbk-operator.yml
   when:
     - state | default('present') == 'present'
-    - (install_rhbk_platform | default('openshift') | lower) in ['openshift', 'ocp', 'k8s']
+    - >-
+      (install_rhbk_platform | default('openshift') | lower)
+      in ['openshift', 'ocp', 'k8s']
 
 - name: Install RHBK (Keycloak) standalone on RHEL / VM
-  ansible.builtin.import_tasks: install-rhbk-standalone.yml
+  ansible.builtin.include_tasks: install-rhbk-standalone.yml
   when:
     - state | default('present') == 'present'
-    - (install_rhbk_platform | default('openshift') | lower) in ['rhel', 'standalone', 'vm', 'baremetal']
+    - >-
+      (install_rhbk_platform | default('openshift') | lower)
+      in ['rhel', 'standalone', 'vm', 'baremetal']
 
 - name: Delete RHBK operator resources on OpenShift
-  ansible.builtin.import_tasks: delete-rhbk-operator.yml
+  ansible.builtin.include_tasks: delete-rhbk-operator.yml
   when:
     - state | default('present') == 'absent'
-    - (install_rhbk_platform | default('openshift') | lower) in ['openshift', 'ocp', 'k8s']
+    - >-
+      (install_rhbk_platform | default('openshift') | lower)
+      in ['openshift', 'ocp', 'k8s']

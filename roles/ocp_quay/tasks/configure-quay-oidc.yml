@@ -6,12 +6,17 @@
   block:
     - name: Resolve Quay OIDC issuer URL
       ansible.builtin.set_fact:
+        # Avoid self-referencing the same fact name before it exists (undefined on
+        # Contoller when vault/preflight omit issuer and only RHBK host is set).
+        _ocp_quay_oidc_issuer_configured: "{{ ocp_quay_oidc_issuer_url | default('', true) | string | trim }}"
+
+    - name: Set Quay OIDC issuer URL from config or RHBK defaults
+      ansible.builtin.set_fact:
         ocp_quay_oidc_issuer_url: >-
           {{
-            (
-              ocp_quay_oidc_issuer_url | default('') | string | trim | length > 0
-            ) | ternary(
-              ocp_quay_oidc_issuer_url | string | trim,
+            _ocp_quay_oidc_issuer_configured
+            if (_ocp_quay_oidc_issuer_configured | length > 0)
+            else (
               'https://'
               ~ (rhbk_hostname | default(keycloak_hostname | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com'))))))
               ~ '/realms/'

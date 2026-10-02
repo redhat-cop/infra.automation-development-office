@@ -1,0 +1,285 @@
+---
+# yamllint disable rule:line-length
+# Per-namespace sweep + finalize (included from main.yml).
+
+- name: Absent cleanup | Lookup namespace {{ ocp_absent_cleanup_ns }}
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_ns_info
+  failed_when: false
+
+- name: Absent cleanup | Report namespace status
+  ansible.builtin.debug:
+    msg: >-
+      namespace={{ ocp_absent_cleanup_ns }}
+      present={{ (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0 }}
+      phase={{ (ocp_absent_cleanup_ns_info.resources | default([{}]))[0].status.phase | default('absent') }}
+      mode={{ ocp_absent_cleanup_mode }}
+  when: (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+
+- name: Absent cleanup | List CSVs
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_csvs
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+
+- name: Absent cleanup | List InstallPlans
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: InstallPlan
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_ips
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+
+- name: Absent cleanup | List Deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_deploys
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_workloads | bool
+
+- name: Absent cleanup | List Pods
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_pods
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_workloads | bool
+
+- name: Absent cleanup | Check-mode inventory
+  ansible.builtin.debug:
+    msg: >-
+      CHECK {{ ocp_absent_cleanup_ns }}:
+      csvs={{ ocp_absent_cleanup_csvs.resources | default([]) | length }}
+      installplans={{ ocp_absent_cleanup_ips.resources | default([]) | length }}
+      deployments={{ ocp_absent_cleanup_deploys.resources | default([]) | length }}
+      pods={{ ocp_absent_cleanup_pods.resources | default([]) | length }}
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'check'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+
+- name: Absent cleanup | Select CSVs to delete
+  ansible.builtin.set_fact:
+    ocp_absent_cleanup_csvs_to_delete: >-
+      {{
+        (
+          ocp_absent_cleanup_csvs.resources | default([])
+        )
+        if (ocp_absent_cleanup_csv_name_match | default('') | string | trim | length) == 0
+        else (
+          ocp_absent_cleanup_csvs.resources | default([])
+          | selectattr('metadata.name', 'defined')
+          | selectattr(
+              'metadata.name',
+              'search',
+              ocp_absent_cleanup_csv_name_match | regex_escape
+            )
+          | list
+        )
+      }}
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+  changed_when: false
+
+- name: Absent cleanup | Delete CSVs
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ ocp_absent_cleanup_csvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('?') }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+    - item.metadata.name is defined
+  failed_when: false
+
+- name: Absent cleanup | Strip CSV finalizers
+  kubernetes.core.k8s:
+    state: present
+    force: true
+    definition:
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
+      metadata:
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ ocp_absent_cleanup_ns }}"
+        finalizers: []
+  loop: "{{ ocp_absent_cleanup_csvs_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('?') }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+    - item.metadata.name is defined
+    - (item.metadata.finalizers | default([]) | length) > 0
+  failed_when: false
+
+- name: Absent cleanup | Delete InstallPlans
+  kubernetes.core.k8s:
+    state: absent
+    api_version: operators.coreos.com/v1alpha1
+    kind: InstallPlan
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ ocp_absent_cleanup_ips.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('?') }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_olm | bool
+    - item.metadata.name is defined
+    - >-
+      (ocp_absent_cleanup_csv_name_match | default('') | string | trim | length) == 0
+      or (
+        (
+          item.spec.clusterServiceVersionNames
+          | default([])
+          | join(' ')
+        ) is search(ocp_absent_cleanup_csv_name_match | regex_escape)
+      )
+  failed_when: false
+
+- name: Absent cleanup | Select Deployments to delete
+  ansible.builtin.set_fact:
+    ocp_absent_cleanup_deploys_to_delete: >-
+      {{
+        ocp_absent_cleanup_deploys.resources | default([])
+        if (ocp_absent_cleanup_deployment_names | default([]) | length) == 0
+        else (
+          ocp_absent_cleanup_deploys.resources | default([])
+          | selectattr('metadata.name', 'defined')
+          | selectattr('metadata.name', 'in', ocp_absent_cleanup_deployment_names)
+          | list
+        )
+      }}
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_workloads | bool
+  changed_when: false
+
+- name: Absent cleanup | Delete Deployments
+  kubernetes.core.k8s:
+    state: absent
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+    name: "{{ item.metadata.name }}"
+  loop: "{{ ocp_absent_cleanup_deploys_to_delete | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('?') }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_workloads | bool
+    - item.metadata.name is defined
+  failed_when: false
+
+- name: Absent cleanup | Force-delete Pods
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ocp_absent_cleanup_ns }}"
+    name: "{{ item.metadata.name }}"
+    delete_options:
+      grace_period_seconds: 0
+      propagation_policy: Background
+  loop: "{{ ocp_absent_cleanup_pods.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('?') }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_sweep_workloads | bool
+    - item.metadata.name is defined
+  failed_when: false
+
+- name: Absent cleanup | Settle before finalize
+  ansible.builtin.pause:
+    seconds: "{{ ocp_absent_cleanup_delete_settle_seconds | int }}"
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - ocp_absent_cleanup_finalize | default(true) | bool
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+
+- name: Absent cleanup | Re-lookup namespace before finalize
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_ns_before_finalize
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - ocp_absent_cleanup_finalize | default(true) | bool
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+
+- name: Absent cleanup | Finalize stuck namespace
+  ansible.builtin.include_tasks: finalize_namespace.yml
+  when:
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - ocp_absent_cleanup_finalize | default(true) | bool
+    - (ocp_absent_cleanup_ns_before_finalize.resources | default([]) | length) == 1
+    - >-
+      not (ocp_absent_cleanup_finalize_only_terminating | default(true) | bool)
+      or (
+        (
+          ocp_absent_cleanup_ns_before_finalize.resources[0].status.phase
+          | default('')
+        ) == 'Terminating'
+      )
+  vars:
+    ocp_absent_cleanup_finalize_resource: >-
+      {{ ocp_absent_cleanup_ns_before_finalize.resources[0] }}
+
+- name: Absent cleanup | Verify namespace gone
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_absent_cleanup_ns }}"
+  register: ocp_absent_cleanup_ns_verify
+  failed_when: false
+  when:
+    - (ocp_absent_cleanup_ns_info.resources | default([]) | length) > 0
+    - ocp_absent_cleanup_finalize | default(true) | bool
+    - ocp_absent_cleanup_fail_if_present | bool
+
+- name: Absent cleanup | Fail when namespace still present
+  ansible.builtin.fail:
+    msg: >-
+      ocp_absent_cleanup: namespace '{{ ocp_absent_cleanup_ns }}' still present
+      after cleanup
+      (phase={{ (ocp_absent_cleanup_ns_verify.resources | default([{}]))[0].status.phase | default('unknown') }}).
+      Check leftover CRD conversion webhooks, finalizers, or non-swept resources.
+  when:
+    - ocp_absent_cleanup_fail_if_present | bool
+    - ocp_absent_cleanup_finalize | default(true) | bool
+    - (ocp_absent_cleanup_mode | string) == 'cleanup'
+    - ocp_absent_cleanup_ns_verify is defined
+    - not (ocp_absent_cleanup_ns_verify is skipped)
+    - (ocp_absent_cleanup_ns_verify.resources | default([]) | length) > 0

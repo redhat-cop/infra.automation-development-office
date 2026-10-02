@@ -1,0 +1,13 @@
+---
+minor_changes:
+  - >-
+    grafana_install - Add optional PostgreSQL backend for new OpenShift Grafana
+    installs (``grafana_database_type: sqlite|postgres``). When postgres and
+    ``grafana_database_provision=true`` (default), create Secret/PVC/Deployment/Service
+    ``grafana-postgres`` and configure the Grafana CR ``database`` section. External
+    Postgres is supported with ``grafana_database_provision=false`` plus host/user/
+    password. SQLite remains the default; SQLite→Postgres data migration is not
+    automatic (separate follow-up workflow).
+  - >-
+    grafana_install - Gate operator/CR install on ``grafana_install_scope=install``
+    so OIDC/email configure JTs no longer re-apply the full install path.

@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    bootstrap_resolve_component - Always re-apply operator subscription identity
+    vars (``operator_channel``, ``operator_name``, …) from the selected
+    component so ACM ``release-2.x`` cannot leak into OpenShift Virtualization
+    (or other operators) when Contoller inventory already defines
+    ``operator_channel``.
+  - >-
+    bootstrap_generate_env_vars - Pin ``operator_channel: stable`` (and related
+    subscription vars) into ``vars_ocp_virtualization.yml``; reject ACM-style
+    ``release-*`` channels for CNV/HCO.

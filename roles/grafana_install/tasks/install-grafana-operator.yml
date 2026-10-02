@@ -90,14 +90,75 @@
   ansible.builtin.import_tasks: build-grafana-email-config.yml
   when: grafana_install_email_enabled | default(false) | bool
 
-- name: Merge Grafana config (base + optional OIDC + optional SMTP)
+- name: Resolve Grafana database type
+  ansible.builtin.set_fact:
+    grafana_install_db_type: >-
+      {{
+        grafana_install_database_type
+        | default(grafana_database_type)
+        | default(grafana_database.type | default('sqlite'))
+        | string
+        | trim
+        | lower
+      }}
+    grafana_install_db_provision: >-
+      {{
+        grafana_install_database_provision
+        | default(grafana_database_provision)
+        | default(grafana_database.provision | default(true))
+        | bool
+      }}
+  changed_when: false
+
+- name: Assert Grafana database type is supported
+  ansible.builtin.assert:
+    that:
+      - grafana_install_db_type in ['sqlite', 'postgres']
+    fail_msg: >-
+      grafana_database_type must be sqlite or postgres
+      (got '{{ grafana_install_db_type }}').
+
+- name: Provision in-cluster PostgreSQL for Grafana
+  ansible.builtin.import_tasks: provision-grafana-postgres.yml
+  when:
+    - grafana_install_db_type == 'postgres'
+    - grafana_install_db_provision | bool
+
+- name: Resolve external PostgreSQL for Grafana
+  ansible.builtin.import_tasks: resolve-external-postgres.yml
+  when:
+    - grafana_install_db_type == 'postgres'
+    - not (grafana_install_db_provision | bool)
+
+- name: Build Grafana PostgreSQL database config
+  ansible.builtin.set_fact:
+    grafana_install_config_database:
+      database:
+        type: postgres
+        host: "{{ grafana_install_pg_host }}"
+        name: "{{ grafana_install_pg_database }}"
+        user: "{{ grafana_install_pg_user }}"
+        password: "{{ grafana_install_pg_password }}"
+        ssl_mode: >-
+          {{
+            grafana_install_postgres_ssl_mode
+            | default(grafana_postgres_ssl_mode)
+            | default('disable')
+          }}
+  when: grafana_install_db_type == 'postgres'
+  no_log: true
+  changed_when: false
+
+- name: Merge Grafana config (base + database + optional OIDC + optional SMTP)
   ansible.builtin.set_fact:
     grafana_install_config: >-
       {{
         grafana_install_config_base
+        | combine((grafana_install_config_database | default({})), recursive=True)
         | combine((grafana_install_config_oidc | default({})), recursive=True)
         | combine((grafana_install_config_smtp | default({})), recursive=True)
       }}
+  no_log: true
 
 # =========================================================
 # Grafana instance + SCC + route (your existing tasks)

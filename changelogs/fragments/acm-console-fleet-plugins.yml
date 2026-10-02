@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_acm - After MultiClusterHub create, wait for ``Running``, keep the
+    ``console`` component enabled, and enable OpenShift Console plug-ins
+    ``acm`` and ``mce`` by default so Fleet Management / All Clusters appears
+    in the web console (operator-only install left the UI hidden).

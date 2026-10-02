@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Treat OpenShift option ``nfs_csi`` / ``iscsi_csi`` as
+    enabling install during bootstrap by default (``install_*_during_bootstrap``
+    defaults to true when the option is selected), so selecting the option in
+    preflight actually runs the CSI install tasks.
+doc_changes:
+  - >-
+    ocp_nfs_storage - Prefight UI now exposes NFS CSI under OpenShift Options;
+    README already documents the JSON contract.

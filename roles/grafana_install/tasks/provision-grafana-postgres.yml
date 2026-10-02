@@ -1,0 +1,320 @@
+---
+# yamllint disable rule:line-length
+# Provision in-cluster PostgreSQL for Grafana (new installs).
+# Password is stored in Secret grafana-postgres and reused on reruns.
+
+- name: Grafana Postgres | Resolve names and storage
+  ansible.builtin.set_fact:
+    grafana_install_pg_resource_name: >-
+      {{
+        grafana_install_postgres_name
+        | default(grafana_postgres_name)
+        | default('grafana-postgres')
+      }}
+    grafana_install_pg_db_name: >-
+      {{
+        grafana_install_postgres_database
+        | default(grafana_postgres_database)
+        | default('grafana')
+      }}
+    grafana_install_pg_db_user: >-
+      {{
+        grafana_install_postgres_user
+        | default(grafana_postgres_user)
+        | default('grafana')
+      }}
+    grafana_install_pg_image_ref: >-
+      {{
+        grafana_install_postgres_image
+        | default(grafana_postgres_image)
+        | default('registry.redhat.io/rhel9/postgresql-15:latest')
+      }}
+    grafana_install_pg_pvc_size: >-
+      {{
+        grafana_install_postgres_storage_size
+        | default(grafana_postgres_storage_size)
+        | default('5Gi')
+      }}
+    grafana_install_pg_pvc_class: >-
+      {{
+        grafana_install_postgres_storage_class
+        | default(grafana_postgres_storage_class)
+        | default(storage_class | default(storage | default('')), true)
+      }}
+    grafana_install_pg_svc_host: >-
+      {{
+        (
+          (
+            grafana_install_postgres_name
+            | default(grafana_postgres_name)
+            | default('grafana-postgres')
+          )
+          ~ '.' ~ name_space ~ '.svc:'
+          ~ (
+            grafana_install_postgres_port
+            | default(grafana_postgres_port)
+            | default(5432)
+            | string
+          )
+        )
+      }}
+  changed_when: false
+
+- name: Grafana Postgres | Require storage class when provisioning
+  ansible.builtin.assert:
+    that:
+      - (grafana_install_pg_pvc_class | string | trim | length) > 0
+    fail_msg: >-
+      grafana_postgres_storage_class (or storage_class) is required when
+      grafana_database_type=postgres and grafana_database_provision=true.
+
+- name: Grafana Postgres | Lookup existing password Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ grafana_install_pg_resource_name }}"
+    namespace: "{{ name_space }}"
+  register: grafana_install_pg_secret_info
+  failed_when: false
+  no_log: true
+
+- name: Grafana Postgres | Reuse password from existing Secret
+  ansible.builtin.set_fact:
+    grafana_install_pg_password: >-
+      {{
+        grafana_install_pg_secret_info.resources[0].data['POSTGRESQL_PASSWORD']
+        | b64decode
+      }}
+  when:
+    - (grafana_install_pg_secret_info.resources | default([]) | length) > 0
+    - >-
+      (
+        grafana_install_pg_secret_info.resources[0].data['POSTGRESQL_PASSWORD']
+        | default('')
+        | string
+        | length
+      ) > 0
+  no_log: true
+  changed_when: false
+
+- name: Grafana Postgres | Use password from vars when Secret missing
+  ansible.builtin.set_fact:
+    grafana_install_pg_password: >-
+      {{
+        grafana_install_postgres_password
+        | default(grafana_postgres_password)
+        | default('')
+      }}
+  when:
+    - grafana_install_pg_password is not defined
+      or (grafana_install_pg_password | default('') | string | length) == 0
+    - >-
+      (
+        grafana_install_postgres_password
+        | default(grafana_postgres_password)
+        | default('')
+        | string
+        | length
+      ) > 0
+  no_log: true
+  changed_when: false
+
+- name: Grafana Postgres | Generate password when none provided
+  ansible.builtin.set_fact:
+    grafana_install_pg_password: >-
+      {{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}
+  when: >-
+    grafana_install_pg_password is not defined
+    or (grafana_install_pg_password | default('') | string | length) == 0
+  no_log: true
+  changed_when: false
+
+- name: Grafana Postgres | Create password Secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ grafana_install_pg_resource_name }}"
+          app.kubernetes.io/name: grafana-postgres
+          app.kubernetes.io/part-of: grafana
+      type: Opaque
+      stringData:
+        POSTGRESQL_USER: "{{ grafana_install_pg_db_user }}"
+        POSTGRESQL_PASSWORD: "{{ grafana_install_pg_password }}"
+        POSTGRESQL_DATABASE: "{{ grafana_install_pg_db_name }}"
+  no_log: true
+
+- name: Grafana Postgres | Create PVC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ grafana_install_pg_resource_name }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{ grafana_install_pg_pvc_class }}"
+        resources:
+          requests:
+            storage: "{{ grafana_install_pg_pvc_size }}"
+
+- name: Grafana Postgres | Allow default SA anyuid SCC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: "{{ grafana_install_pg_resource_name }}-anyuid"
+        namespace: "{{ name_space }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:openshift:scc:anyuid
+      subjects:
+        - kind: ServiceAccount
+          name: default
+          namespace: "{{ name_space }}"
+
+- name: Grafana Postgres | Create Deployment
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ grafana_install_pg_resource_name }}"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ grafana_install_pg_resource_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ grafana_install_pg_resource_name }}"
+          spec:
+            securityContext:
+              fsGroup: 26
+              fsGroupChangePolicy: OnRootMismatch
+            initContainers:
+              - name: fix-data-perms
+                image: "{{ grafana_install_pg_image_ref }}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - |
+                    mkdir -p /var/lib/pgsql/data/userdata
+                    chown -R 26:26 /var/lib/pgsql/data /var/lib/pgsql/data/userdata || true
+                    chmod -R ug+rwX /var/lib/pgsql/data /var/lib/pgsql/data/userdata || true
+                securityContext:
+                  runAsUser: 0
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data
+            containers:
+              - name: postgres
+                image: "{{ grafana_install_pg_image_ref }}"
+                ports:
+                  - containerPort: 5432
+                    name: postgres
+                env:
+                  - name: POSTGRESQL_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ grafana_install_pg_resource_name }}"
+                        key: POSTGRESQL_USER
+                  - name: POSTGRESQL_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ grafana_install_pg_resource_name }}"
+                        key: POSTGRESQL_PASSWORD
+                  - name: POSTGRESQL_DATABASE
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ grafana_install_pg_resource_name }}"
+                        key: POSTGRESQL_DATABASE
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data/userdata
+                readinessProbe:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -ec
+                      - pg_isready -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                securityContext:
+                  runAsUser: 26
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: "{{ grafana_install_pg_resource_name }}"
+
+- name: Grafana Postgres | Create Service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ grafana_install_pg_resource_name }}"
+      spec:
+        selector:
+          app: "{{ grafana_install_pg_resource_name }}"
+        ports:
+          - name: postgres
+            port: >-
+              {{
+                grafana_install_postgres_port
+                | default(grafana_postgres_port)
+                | default(5432)
+                | int
+              }}
+            targetPort: 5432
+
+- name: Grafana Postgres | Wait until Deployment is available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ grafana_install_pg_resource_name }}"
+    namespace: "{{ name_space }}"
+  register: grafana_install_pg_deploy
+  until: >-
+    (
+      grafana_install_pg_deploy.resources
+      | default([])
+      | length
+    ) > 0
+    and (
+      grafana_install_pg_deploy.resources[0].status.availableReplicas
+      | default(0)
+      | int
+    ) >= 1
+  retries: "{{ grafana_install_postgres_ready_retries | default(60) | int }}"
+  delay: "{{ grafana_install_postgres_ready_delay | default(5) | int }}"
+  changed_when: false
+
+- name: Grafana Postgres | Export connection facts for Grafana CR
+  ansible.builtin.set_fact:
+    grafana_install_pg_host: "{{ grafana_install_pg_svc_host }}"
+    grafana_install_pg_user: "{{ grafana_install_pg_db_user }}"
+    grafana_install_pg_database: "{{ grafana_install_pg_db_name }}"
+  changed_when: false

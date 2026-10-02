@@ -1,53 +1,119 @@
 ---
-- name: Resolve inputs
+- name: Resolve IdP/secret names for removal
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_idp_to_remove: >-
       {{
         (
-          ocp_htpasswd_admin_htpasswd_idp_name
-          if (
-            ocp_htpasswd_admin_htpasswd_idp_name is defined
-            and (ocp_htpasswd_admin_htpasswd_idp_name | length) > 0
-          )
-          else 'htpasswd-admin'
+          htpasswd_idp_name
+          | default(htpasswd_idp | default(''), true)
+          | string
+          | trim
         )
       }}
     ocp_htpasswd_admin_secret_to_remove: >-
       {{
         (
-          ocp_htpasswd_admin_htpasswd_secret_name
-          if (
-            ocp_htpasswd_admin_htpasswd_secret_name is defined
-            and (ocp_htpasswd_admin_htpasswd_secret_name | length) > 0
+          htpasswd_secret
+          | default('', true)
+          | string
+          | trim
+        )
+        if (
+          (htpasswd_secret | default('', true) | string | trim | length) > 0
+        )
+        else (
+          (
+            htpasswd_idp_name
+            | default(htpasswd_idp | default(''), true)
+            | string
+            | trim
           )
-          else 'htpasswd-admin-secret'
+          ~ '-secret'
         )
       }}
-    ocp_htpasswd_admin_vcerts: "{{ ocp_htpasswd_admin_validate_certs | default(false) }}"
+    ocp_htpasswd_admin_vcerts: >-
+      {{
+        validate_certs
+        | default(ocp_htpasswd_admin_validate_certs | default(false))
+      }}
+
+- name: Require an explicit htpasswd IdP name for delete
+  ansible.builtin.assert:
+    that:
+      - (ocp_htpasswd_admin_idp_to_remove | length) > 0
+    fail_msg: >-
+      state=absent requires htpasswd_idp_name (Login button name / IdP).
+      Set it in preflight Admin HTPasswd, re-run bootstrap so
+      vars_admin_htpasswd.yml / vars_openshift.yml include it, or pass
+      -e htpasswd_idp_name=<name>. Refusing to guess htpasswd-admin.
+
+- name: Show htpasswd IdP targeted for removal
+  ansible.builtin.debug:
+    msg: >-
+      Removing OAuth IdP '{{ ocp_htpasswd_admin_idp_to_remove }}'
+      and secret '{{ ocp_htpasswd_admin_secret_to_remove }}'
+      (from htpasswd_idp_name / htpasswd_secret).
 
 - name: Read current OAuth
   kubernetes.core.k8s_info:
     api_version: config.openshift.io/v1
     kind: OAuth
     name: "cluster"
-    validate_certs: "{{ validate_certs }}"
+    validate_certs: "{{ ocp_htpasswd_admin_vcerts }}"
   register: ocp_htpasswd_admin_oauth
   failed_when: false
 
-- name: Build pruned IdP list (if OAuth exists)
-  when: ocp_htpasswd_admin_oauth.resources | length > 0
+- name: List current OAuth IdP names
+  when: ocp_htpasswd_admin_oauth.resources | default([]) | length > 0
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_existing_idps: >-
       {{ ocp_htpasswd_admin_oauth.resources[0].spec.identityProviders | default([]) }}
+    ocp_htpasswd_admin_existing_idp_names: >-
+      {{
+        ocp_htpasswd_admin_oauth.resources[0].spec.identityProviders
+        | default([])
+        | map(attribute='name')
+        | list
+      }}
+    ocp_htpasswd_admin_existing_htpasswd_names: >-
+      {{
+        ocp_htpasswd_admin_oauth.resources[0].spec.identityProviders
+        | default([])
+        | selectattr('type', 'defined')
+        | selectattr('type', 'equalto', 'HTPasswd')
+        | map(attribute='name')
+        | list
+      }}
+
+- name: Fail when configured IdP is missing but other HTPasswd IdPs exist
+  when:
+    - ocp_htpasswd_admin_existing_idp_names is defined
+    - ocp_htpasswd_admin_idp_to_remove not in ocp_htpasswd_admin_existing_idp_names
+    - (ocp_htpasswd_admin_existing_htpasswd_names | default([]) | length) > 0
+  ansible.builtin.fail:
+    msg: >-
+      Refusing to delete IdP '{{ ocp_htpasswd_admin_idp_to_remove }}' — it is
+      not on the cluster. HTPasswd login buttons present:
+      {{ ocp_htpasswd_admin_existing_htpasswd_names | join(', ') }}.
+      Set Login button name (IdP) to the one you want removed (or pass
+      -e htpasswd_idp_name=...), then re-run. All IdPs:
+      {{ ocp_htpasswd_admin_existing_idp_names | join(', ') }}.
+
+- name: Build pruned IdP list (if OAuth exists)
+  when: ocp_htpasswd_admin_oauth.resources | default([]) | length > 0
+  ansible.builtin.set_fact:
     ocp_htpasswd_admin_idps_new: >-
       {{
         (ocp_htpasswd_admin_oauth.resources[0].spec.identityProviders | default([]))
-        | rejectattr('name','equalto', ocp_htpasswd_admin_idp_to_remove)
+        | rejectattr('name', 'equalto', ocp_htpasswd_admin_idp_to_remove)
         | list
       }}
 
 - name: Apply OAuth without our IdP
-  when: ocp_htpasswd_admin_oauth.resources | length > 0
+  when:
+    - ocp_htpasswd_admin_oauth.resources | default([]) | length > 0
+    - ocp_htpasswd_admin_idps_new is defined
+    - ocp_htpasswd_admin_idp_to_remove in (ocp_htpasswd_admin_existing_idp_names | default([]))
   kubernetes.core.k8s:
     api_version: config.openshift.io/v1
     kind: OAuth
@@ -63,7 +129,13 @@
     validate_certs: "{{ ocp_htpasswd_admin_vcerts }}"
   register: ocp_htpasswd_admin_apply_oauth_result
 
+- name: Record whether OAuth IdP list was updated
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_oauth_removed: >-
+      {{ ocp_htpasswd_admin_apply_oauth_result is changed }}
+
 - name: Wait for OAuth to settle after removal
+  when: ocp_htpasswd_admin_oauth_removed | default(false) | bool
   kubernetes.core.k8s_info:
     api_version: config.openshift.io/v1
     kind: ClusterOperator
@@ -90,28 +162,29 @@
     state: absent
     validate_certs: "{{ ocp_htpasswd_admin_vcerts }}"
 
-- name: Build admin subjects list (for CRB cleanup)
-  ansible.builtin.set_fact:
-    ocp_htpasswd_admin_admin_subjects: >-
-      {{
-        (users | default([]) | map(attribute='name') | list)
-        if (users | default([]) | length > 0)
-        else ([ htpasswd_user ] if (htpasswd_user is defined) else [])
-      }}
-
 - name: Optionally remove cluster-admin CRBs we created
-  when: (remove_cluster_admin_bindings | default(true) | bool) and (grant_admin | default(true) | bool)
-  loop: "{{ ocp_htpasswd_admin_admin_subjects }}"
+  when: (remove_cluster_admin_bindings | default(true) | bool)
+  loop: >-
+    {{
+      htpasswd_users
+      | default([])
+      | selectattr('name', 'defined')
+      | map(attribute='name')
+      | map('string')
+      | map('trim')
+      | reject('equalto', '')
+      | list
+    }}
   loop_control:
     label: "{{ item }}"
   kubernetes.core.k8s:
     api_version: rbac.authorization.k8s.io/v1
     kind: ClusterRoleBinding
-    name: "cluster-admin-{{ item }}"
+    name: "htpasswd-{{ item }}-cluster-admin"
     state: absent
     validate_certs: "{{ ocp_htpasswd_admin_vcerts }}"
+  failed_when: false
 
-# <-- Pauce to wait for provider to show up on console -->
-- name: Give the new identity providers a few seconds to propagate
+- name: Give the identity providers a few seconds to propagate
   ansible.builtin.pause:
     seconds: 25

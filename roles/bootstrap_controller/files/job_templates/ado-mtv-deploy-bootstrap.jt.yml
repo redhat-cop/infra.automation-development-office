@@ -1,0 +1,39 @@
+---
+controller_templates:
+  - name: ADO | Deploy MTV
+    description: >-
+      Bootstrap - Deploy Migration Toolkit for Virtualization (mtv-operator +
+      ForkliftController). Select OpenShift Virtualization on migration targets.
+    organization: '{{ bootstrap_controller_organization }}'
+    playbook: playbooks/mtv/ado-deploy-bootstrap.yml
+    inventory: '{{ bootstrap_controller_inventory_name }}'
+    project: '{{ bootstrap_controller_project_name }}'
+    execution_environment: '{{ bootstrap_controller_execution_environment_name }}'
+    credentials:
+      - '{{ bootstrap_controller_creds }}'
+    related: null
+    labels:
+      - name: ADO | bootstrap
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | mtv
+        organization: '{{ bootstrap_controller_organization }}'
+    extra_vars: {}
+    survey_enabled: true
+    survey_spec:
+      name: ADO | Deploy MTV Survey
+      description: Configuration options for MTV deployment
+      spec:
+        - question_name: ADO | Do you want to install or remove?
+          question_description: Install (present) or Remove (absent)
+          required: true
+          type: multiplechoice
+          variable: state
+          choices: '{{ bootstrap_controller_state_choices }}'
+          default: '{{ bootstrap_controller_default_state }}'
+        - question_name: ADO | What environment?
+          question_description: Target environment
+          required: true
+          type: multiplechoice
+          variable: env
+          choices: '{{ bootstrap_controller_environment_choices }}'
+          default: '{{ bootstrap_controller_default_environment }}'

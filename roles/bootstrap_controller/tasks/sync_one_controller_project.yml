@@ -1,0 +1,100 @@
+---
+# yamllint disable rule:line-length
+# Project source changes can start an update even with update_project: false.
+# Wait for that update, and reuse it only when its source matches desired state.
+- name: Project sync | Look up the project in its organization
+  ansible.builtin.uri:
+    url: >-
+      {{ (controller_host | default(vault_controller_hostname)).rstrip('/')
+      }}/api/controller/v2/projects/?name={{ bootstrap_controller_sync_project.name | urlencode
+      }}&organization__name={{ bootstrap_controller_sync_project.organization | urlencode }}
+    method: GET
+    return_content: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    url_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
+    url_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
+    force_basic_auth: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | length == 0 }}"
+    headers: >-
+      {{ {'Authorization': 'Bearer ' ~ (controller_oauthtoken | default(vault_controller_oauthtoken))}
+         if controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | length > 0 else {} }}
+  register: bootstrap_controller_sync_lookup
+  no_log: true
+
+- name: Project sync | Require an unambiguous project
+  ansible.builtin.assert:
+    that:
+      - bootstrap_controller_sync_lookup.json.count == 1
+    fail_msg: "Project lookup did not return exactly one project in the requested organization."
+
+- name: Project sync | Record current update URL
+  ansible.builtin.set_fact:
+    bootstrap_controller_sync_current_url: >-
+      {{ bootstrap_controller_sync_lookup.json.results[0].related.current_update | default('', true) }}
+
+- name: Project sync | Inspect the current update
+  ansible.builtin.uri:
+    url: >-
+      {{ (controller_host | default(vault_controller_hostname)).rstrip('/')
+      }}{{ bootstrap_controller_sync_current_url }}
+    method: GET
+    return_content: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    url_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
+    url_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
+    force_basic_auth: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | length == 0 }}"
+    headers: >-
+      {{ {'Authorization': 'Bearer ' ~ (controller_oauthtoken | default(vault_controller_oauthtoken))}
+         if controller_oauthtoken | default(vault_controller_oauthtoken | default('')) | length > 0 else {} }}
+  register: bootstrap_controller_sync_current
+  when: bootstrap_controller_sync_current_url | length > 0
+  no_log: true
+
+- name: Project sync | Wait for the current update instead of queuing another
+  ansible.controller.job_wait:
+    job_id: "{{ bootstrap_controller_sync_current.json.id }}"
+    job_type: project_updates
+    timeout: "{{ bootstrap_controller_project_sync_timeout | default(600) }}"
+    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
+    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
+    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
+    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+  register: bootstrap_controller_sync_existing_result
+  failed_when: false
+  when: bootstrap_controller_sync_current_url | length > 0
+
+- name: Project sync | Decide whether the completed update matches the desired source
+  ansible.builtin.set_fact:
+    bootstrap_controller_sync_reuse: >-
+      {{ bootstrap_controller_sync_current_url | length > 0
+         and bootstrap_controller_sync_current.json.scm_url | default('') == bootstrap_controller_sync_project.scm_url
+         and bootstrap_controller_sync_current.json.scm_branch | default('') == bootstrap_controller_sync_project.scm_branch | default('') }}
+
+- name: Project sync | Start an update only when no matching update was available
+  ansible.controller.project_update:
+    project: "{{ bootstrap_controller_sync_project.name }}"
+    organization: "{{ bootstrap_controller_sync_project.organization }}"
+    wait: true
+    timeout: "{{ bootstrap_controller_project_sync_timeout | default(600) }}"
+    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
+    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
+    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
+    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+  register: bootstrap_controller_sync_new_result
+  failed_when: false
+  when:
+    - not bootstrap_controller_sync_reuse | bool
+    - >-
+      bootstrap_controller_sync_current_url | length == 0 or
+      bootstrap_controller_sync_existing_result.status | default('') in ['successful', 'failed', 'error', 'canceled']
+
+- name: Project sync | Record the exact update result
+  ansible.builtin.set_fact:
+    bootstrap_controller_project_sync_result: >-
+      {{ {'results': bootstrap_controller_project_sync_result.results + [
+        (bootstrap_controller_sync_new_result
+         if not (bootstrap_controller_sync_new_result.skipped | default(false))
+         else bootstrap_controller_sync_existing_result)
+        | combine({'item': bootstrap_controller_sync_project})
+      ]} }}

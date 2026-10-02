@@ -1,0 +1,4 @@
+---
+doc_changes:
+  - docs - Restored collection README CI badges, certification badge, and
+    role documentation links to ``redhat-cop/infra.automation-development-office``.

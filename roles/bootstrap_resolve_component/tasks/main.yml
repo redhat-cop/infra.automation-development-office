@@ -116,6 +116,10 @@
   when: (bootstrap_resolve_component_debug | default(false)) | bool
 
 # Export EVERYTHING (scalars/lists/dicts), but NEVER clobber higher precedence vars.
+# Exception: operator / namespace identity keys always come from the selected
+# component registry so a flat ``name_space`` / ``operator_channel`` left in
+# Contoller inventory or group_vars (e.g. openshift-cnv from Virt) cannot stick
+# on a later ACM / other operator job.
 # Skip dotted keys — Ansible fact names cannot contain '.' (e.g. legacy
 # ``infra.ado.ocp_operatorgroups`` registry entries). Prefer flattened aliases.
 - name: Resolve_component | Export resolved vars (top-level, don't clobber higher precedence vars)
@@ -132,7 +136,17 @@
     label: "{{ item.key }}"
   when:
     # Survey/extra_vars may pass "" — treat as unset so registry defaults can export.
-    - (vars[item.key] is not defined) or ((vars[item.key] | string) == "")
+    - >-
+      item.key in [
+        'name_space', 'app_namespace', 'acs_namespace',
+        'operator_channel', 'operator_name', 'operator_source',
+        'operator_source_namespace', 'operator_csv_contains',
+        'operator_name_substring', 'operator_subscription_namespace',
+        'operator_subscription_name', 'operatorgroup', 'operator_namespace',
+        'operator_starting_csv', 'operator_deployment_pattern'
+      ]
+      or (vars[item.key] is not defined)
+      or ((vars[item.key] | string) == "")
 # noqa: var-naming
 
 # Apply aliases safely:

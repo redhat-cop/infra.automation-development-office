@@ -1,0 +1,13 @@
+---
+minor_changes:
+  - >-
+    ocp_mtv - New role plus bootstrap playbook / Contoller JT / OpenShift
+    workflow node for Migration Toolkit for Virtualization
+    (``mtv-operator`` + ``ForkliftController``). Preflight OpenShift app
+    ``mtv``.
+  - >-
+    ocp_acm - Optional Multicluster Observability
+    (``ocp_acm_observability_enabled``) creates the observability namespace,
+    ``thanos-object-storage`` secret, and ``MultiClusterObservability`` CR
+    so Fleet Virtualization Overview can show metrics. Requires S3-compatible
+    object storage (MinIO supported). Preflight ACM tab checkbox + S3 fields.

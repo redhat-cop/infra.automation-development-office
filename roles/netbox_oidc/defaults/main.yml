@@ -2,7 +2,7 @@
 # Wire NetBox login to Keycloak / RHBK OIDC by updating the NetBox ConfigMap.
 
 netbox_oidc_state: present
-netbox_oidc_namespace: netbox
+netbox_oidc_namespace: "{{ netbox_namespace | default(name_space | default('netbox')) }}"
 netbox_oidc_release: netbox
 netbox_oidc_validate_certs: "{{ validate_certs | default(true) }}"
 

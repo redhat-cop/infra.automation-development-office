@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Create HyperConverged and wait for OpenShift Virtualization to become ready.
 - name: OpenShift Virtualization | Normalize namespace
   ansible.builtin.set_fact:
@@ -23,7 +24,7 @@
       }}
   changed_when: false
 
-- name: OpenShift Virtualization | Wait for CSV
+- name: OpenShift Virtualization | Wait for CSV Succeeded
   kubernetes.core.k8s_info:
     api_version: operators.coreos.com/v1alpha1
     kind: ClusterServiceVersion
@@ -33,12 +34,38 @@
     (
       ocp_virtualization_install_csvs.resources
       | default([])
-      | selectattr('metadata.name', 'search', ocp_virtualization_install_csv_substring)
+      | selectattr(
+          'metadata.name',
+          'search',
+          ocp_virtualization_install_csv_substring
+        )
+      | selectattr('status.phase', 'defined')
+      | selectattr('status.phase', 'equalto', 'Succeeded')
       | list
       | length
     ) > 0
   retries: "{{ ocp_virtualization_install_csv_retries | default(90) | int }}"
   delay: "{{ ocp_virtualization_install_csv_delay | default(10) | int }}"
+  changed_when: false
+  when: (state | default('present')) == 'present'
+
+- name: OpenShift Virtualization | Build HyperConverged spec
+  ansible.builtin.set_fact:
+    ocp_virtualization_install_hco_spec: {}
+  changed_when: false
+  when: (state | default('present')) == 'present'
+
+- name: OpenShift Virtualization | Enable KubeSecondaryDNS feature gate
+  ansible.builtin.set_fact:
+    ocp_virtualization_install_hco_spec:
+      featureGates:
+        deployKubeSecondaryDNS: true
+  when:
+    - (state | default('present')) == 'present'
+    - >-
+      ocp_virtualization_install_enable_kube_secondary_dns
+      | default(false)
+      | bool
   changed_when: false
 
 - name: OpenShift Virtualization | Create HyperConverged
@@ -50,7 +77,7 @@
       metadata:
         name: "{{ ocp_virtualization_install_hco_name }}"
         namespace: "{{ ocp_virtualization_install_namespace }}"
-      spec: {}
+      spec: "{{ ocp_virtualization_install_hco_spec }}"
   when: (state | default('present')) == 'present'
 
 - name: OpenShift Virtualization | Wait for HyperConverged Available
@@ -68,27 +95,15 @@
     ) > 0
     and
     (
-      (
-        ocp_virtualization_install_hco.resources[0].status.conditions
-        | default([])
-        | selectattr('type', 'defined')
-        | selectattr('type', 'equalto', 'Available')
-        | selectattr('status', 'defined')
-        | selectattr('status', 'equalto', 'True')
-        | list
-        | length
-      ) > 0
-      or
-      (
-        ocp_virtualization_install_csvs.resources
-        | default([])
-        | selectattr('metadata.name', 'search', ocp_virtualization_install_csv_substring)
-        | selectattr('status.phase', 'defined')
-        | selectattr('status.phase', 'equalto', 'Succeeded')
-        | list
-        | length
-      ) > 0
-    )
+      ocp_virtualization_install_hco.resources[0].status.conditions
+      | default([])
+      | selectattr('type', 'defined')
+      | selectattr('type', 'equalto', 'Available')
+      | selectattr('status', 'defined')
+      | selectattr('status', 'equalto', 'True')
+      | list
+      | length
+    ) > 0
   retries: "{{ ocp_virtualization_install_hco_retries | default(90) | int }}"
   delay: "{{ ocp_virtualization_install_hco_delay | default(10) | int }}"
   when: (state | default('present')) == 'present'
@@ -101,3 +116,28 @@
       {{ ocp_virtualization_install_namespace }}
       ({{ ocp_virtualization_install_hco_name }}).
   when: (state | default('present')) == 'present'
+
+- name: OpenShift Virtualization | Delete HyperConverged
+  kubernetes.core.k8s:
+    state: absent
+    api_version: hco.kubevirt.io/v1beta1
+    kind: HyperConverged
+    name: "{{ ocp_virtualization_install_hco_name }}"
+    namespace: "{{ ocp_virtualization_install_namespace }}"
+    wait: "{{ ocp_virtualization_install_hco_delete_wait | default(true) | bool }}"
+    wait_timeout: "{{ ocp_virtualization_install_hco_delete_wait_timeout | default(120) | int }}"
+  when: (state | default('present')) == 'absent'
+  failed_when: false
+
+- name: OpenShift Virtualization | Confirm HyperConverged gone
+  kubernetes.core.k8s_info:
+    api_version: hco.kubevirt.io/v1beta1
+    kind: HyperConverged
+    name: "{{ ocp_virtualization_install_hco_name }}"
+    namespace: "{{ ocp_virtualization_install_namespace }}"
+  register: ocp_virtualization_install_hco_gone
+  until: (ocp_virtualization_install_hco_gone.resources | default([]) | length) == 0
+  retries: "{{ ocp_virtualization_install_hco_delete_retries | default(24) | int }}"
+  delay: "{{ ocp_virtualization_install_hco_delete_delay | default(10) | int }}"
+  failed_when: false
+  when: (state | default('present')) == 'absent'

@@ -1,4 +1,10 @@
 ---
+# yamllint disable rule:line-length
+# Absent path: delete the OperatorGroup directly. Do not gate on Namespace
+# existence — ACM/OLM uninstall often deletes (or races) the namespace first,
+# and a NS-length guard then skips delete while a recreated OG still fails the
+# final assert.
+
 - name: Derive OperatorGroup name for delete (DNS-1123)
   ansible.builtin.set_fact:
     ocp_operatorgroups_name: >-
@@ -12,7 +18,7 @@
       }}
   when: (state | default('present')) == 'absent'
 
-- name: Check if operator namespace exists (delete guard)
+- name: Check if operator namespace exists (delete context)
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Namespace
@@ -21,7 +27,7 @@
   failed_when: false
   when: (state | default('present')) == 'absent'
 
-- name: Check if OperatorGroup exists (delete guard)
+- name: Check if OperatorGroup exists (delete)
   kubernetes.core.k8s_info:
     api_version: operators.coreos.com/v1
     kind: OperatorGroup
@@ -29,9 +35,7 @@
     namespace: "{{ name_space }}"
   register: ocp_operatorgroups_og
   failed_when: false
-  when:
-    - (state | default('present')) == 'absent'
-    - (ocp_operatorgroups_op_ns.resources | default([])) | length == 1
+  when: (state | default('present')) == 'absent'
 
 - name: Delete OperatorGroup when present
   kubernetes.core.k8s:
@@ -42,39 +46,49 @@
       metadata:
         name: "{{ ocp_operatorgroups_name }}"
         namespace: "{{ name_space }}"
+    wait: "{{ ocp_operatorgroups_delete_wait | default(true) | bool }}"
+    wait_timeout: "{{ ocp_operatorgroups_delete_wait_timeout | default(60) | int }}"
   when:
     - (state | default('present')) == 'absent'
-    - (ocp_operatorgroups_op_ns.resources | default([])) | length == 1
-    - (ocp_operatorgroups_og.resources | default([])) | length == 1
+    - (ocp_operatorgroups_og.resources | default([]) | length) > 0
+  failed_when: false
 
 - name: Note already-absent state
   ansible.builtin.debug:
     msg: >-
       {{
-        (ocp_operatorgroups_op_ns.resources | default([])) | length == 0
-          | ternary("ℹ️ Namespace '" ~ name_space ~ "' already absent; OperatorGroup implicitly absent.",
-                    "ℹ️ OperatorGroup '" ~ ocp_operatorgroups_name ~ "' already absent in namespace '" ~ name_space ~ "'.")
+        (
+          ((ocp_operatorgroups_op_ns.resources | default([]) | length) == 0)
+          | ternary(
+              "ℹ️ Namespace '" ~ name_space ~ "' already absent; OperatorGroup implicitly absent unless recreated.",
+              "ℹ️ OperatorGroup '" ~ ocp_operatorgroups_name ~ "' already absent in namespace '" ~ name_space ~ "'."
+            )
+        )
       }}
   when:
     - (state | default('present')) == 'absent'
-    - >-
-      (ocp_operatorgroups_op_ns.resources | default([])) | length == 0 or (ocp_operatorgroups_og.resources
-      | default([])) | length == 0
+    - (ocp_operatorgroups_og.resources | default([]) | length) == 0
 
-- name: Confirm OperatorGroup is gone (final check)
+- name: Confirm OperatorGroup is gone (wait)
   kubernetes.core.k8s_info:
     api_version: operators.coreos.com/v1
     kind: OperatorGroup
     name: "{{ ocp_operatorgroups_name }}"
     namespace: "{{ name_space }}"
   register: ocp_operatorgroups_gone
+  until: (ocp_operatorgroups_gone.resources | default([]) | length) == 0
+  retries: "{{ ocp_operatorgroups_delete_confirm_retries | default(12) | int }}"
+  delay: "{{ ocp_operatorgroups_delete_confirm_delay | default(5) | int }}"
   failed_when: false
   when: (state | default('present')) == 'absent'
 
 - name: Assert OperatorGroup deleted
   ansible.builtin.assert:
     that:
-      - (ocp_operatorgroups_gone.resources | default([])) | length == 0
+      - (ocp_operatorgroups_gone.resources | default([]) | length) == 0
     success_msg: "✅ k8s confirms OperatorGroup '{{ ocp_operatorgroups_name }}' is not present in namespace '{{ name_space }}'."
-    fail_msg: "❌ OperatorGroup '{{ ocp_operatorgroups_name }}' still present in namespace '{{ name_space }}'."
+    fail_msg: >-
+      ❌ OperatorGroup '{{ ocp_operatorgroups_name }}' still present in namespace
+      '{{ name_space }}' after delete. Controllers may be recreating it — remove
+      MultiClusterHub/Subscription first (ACM absent order), then re-run.
   when: (state | default('present')) == 'absent'

@@ -4,6 +4,12 @@
 ocp_nfs_storage_driver_version: "4.11.0"
 ocp_nfs_storage_namespace: csi-driver-nfs
 ocp_nfs_storage_helm_release: csi-driver-nfs
+# Bundled chart under files/charts/ (default). Set false to add the upstream
+# GitHub helm repo at runtime (needs outbound network).
+ocp_nfs_storage_use_bundled_chart: true
+# Optional absolute path to a chart .tgz or directory. Empty uses the bundled
+# archive for ocp_nfs_storage_driver_version when use_bundled_chart is true.
+ocp_nfs_storage_chart_path: ""
 ocp_nfs_storage_helm_repo_name: csi-driver-nfs
 ocp_nfs_storage_helm_repo_url: >-
   https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts

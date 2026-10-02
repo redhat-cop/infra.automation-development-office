@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - bootstrap_controller - Wire ``ADO | Deploy OpenShift Virtualization`` into
+    the OpenShift workflow so selecting ``ocp_virtualization`` keeps a parallel
+    root node (it was pruned because the JT existed but was never in
+    ``simplified_workflow_nodes``).
+  - bootstrap_controller - Add missing ``Alt Routes Workflow`` nested node so
+    OpenShift workflow success edges to alternate routes resolve when that
+    sub-workflow is generated.

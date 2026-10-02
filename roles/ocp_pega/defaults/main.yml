@@ -1,0 +1,16 @@
+---
+ocp_pega_namespace: pega
+ocp_pega_release_name: pega
+ocp_pega_chart_path: ''
+ocp_pega_values_file: ''
+ocp_pega_opensearch_chart_path: ''
+ocp_pega_opensearch_values_file: ''
+ocp_pega_backingservices_chart_path: ''
+ocp_pega_backingservices_values_file: ''
+ocp_pega_allowed_registries: []
+ocp_pega_helm_binary: helm
+ocp_pega_timeout: 20m0s
+ocp_pega_validate_only: false
+ocp_pega_database_mode: new
+ocp_pega_database_chart_path: ''
+ocp_pega_database_values_file: ''

@@ -56,3 +56,5 @@ roles/ocp_quay/
   tests/
   vars/
 ```
+
+OIDC issuer resolution accepts an omitted `ocp_quay_oidc_issuer_url` and derives the issuer from the configured RHBK host and realm.

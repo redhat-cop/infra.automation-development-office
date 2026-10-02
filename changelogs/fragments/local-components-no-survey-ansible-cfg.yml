@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Generated ``ansible.cfg`` uses
+    ``stdout_callback = default`` so bootstrap does not fail on removed
+    ``community.general.yaml`` (community.general 12+).
+minor_changes:
+  - >-
+    bootstrap_generate_playbook_repo - Local no-AAP component runner no longer
+    re-prompts Contoller survey fields; generated ``group_vars`` from the form
+    are the source of truth.

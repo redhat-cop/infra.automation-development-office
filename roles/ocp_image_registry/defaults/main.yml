@@ -1,0 +1,27 @@
+---
+# yamllint disable rule:line-length
+# Optional enablement of the OpenShift integrated image registry.
+# Default is off at the preflight/option layer; when this role runs, enablement
+# is the requested action unless state=absent / report_only.
+
+ocp_image_registry_state: present
+
+# When true (default for present), set managementState=Managed if not already.
+ocp_image_registry_enabled: true
+
+# Patch defaultRoute when enabling (or when already Managed and this differs).
+ocp_image_registry_default_route: true
+
+ocp_image_registry_config_name: cluster
+ocp_image_registry_namespace: openshift-image-registry
+ocp_image_registry_deployment_name: image-registry
+ocp_image_registry_service_name: image-registry
+ocp_image_registry_route_name: default-route
+ocp_image_registry_cluster_operator: image-registry
+
+# Wait/timeouts for operator and workload readiness after patching.
+ocp_image_registry_wait_retries: 36
+ocp_image_registry_wait_delay: 10
+
+# When true, only report current status (no Config patch).
+ocp_image_registry_report_only: false

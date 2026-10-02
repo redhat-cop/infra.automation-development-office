@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - ocp_operatorgroups - On ``state=absent``, delete the OperatorGroup without
+    requiring the namespace to still exist, wait for removal, and fix the
+    already-absent debug message Jinja precedence that printed boolean false.
+  - acm playbook - Uninstall MultiClusterHub/subscription before OperatorGroup
+    and namespace so hub controllers cannot recreate the OG mid-absent run.
+  - ocp_virtualization - ``state=absent`` deletes HyperConverged first, then
+    subscription/OperatorGroup/namespace (same teardown order as ACM).

@@ -94,3 +94,5 @@ roles/ocp_minio/
     configure-keycloak-oidc.yml
     configure-minio-oidc.yml
 ```
+
+Service manifests render numeric port values as YAML integers, including when Ansible uses non-native templating.

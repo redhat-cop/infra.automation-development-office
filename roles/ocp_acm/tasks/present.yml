@@ -1,0 +1,322 @@
+---
+# Install / converge MultiClusterHub and enable Fleet Management UI.
+- name: OpenShift ACM | Check for stuck prior uninstall
+  ansible.builtin.include_tasks: finish_stuck_uninstall.yml
+
+# Never create over a Terminating MultiClusterHub — k8s present returns ok
+# and the Running wait burns the full retry budget.
+- name: OpenShift ACM | Pre-deploy MultiClusterHub sanity
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_pre_deploy_mch
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Refuse install over terminating MultiClusterHub
+  when:
+    - (ocp_acm_pre_deploy_mch.resources | default([]) | length) > 0
+    - ocp_acm_pre_deploy_mch.resources[0].metadata.deletionTimestamp is defined
+      or (
+        (
+          ocp_acm_pre_deploy_mch.resources[0].status.phase
+          | default('')
+          | lower
+        ) == 'uninstalling'
+      )
+  ansible.builtin.fail:
+    msg: >-
+      MultiClusterHub {{ ocp_acm_namespace }}/{{ ocp_acm_mch_name }}
+      is still uninstalling/deleting (phase={{
+      ocp_acm_pre_deploy_mch.resources[0].status.phase | default('?')
+      }}). Re-run Deploy ACM with state=absent until the CR is fully
+      gone, then present. Do not wait for Running on a terminating hub.
+
+- name: OpenShift ACM | Deploy MultiClusterHub CR
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: operator.open-cluster-management.io/v1
+      kind: MultiClusterHub
+      metadata:
+        name: "{{ ocp_acm_mch_name }}"
+        namespace: "{{ ocp_acm_namespace }}"
+      spec:
+        availabilityConfig: >-
+          {{ ocp_acm_availability_config | default('High') }}
+
+- name: OpenShift ACM | Ensure console component enabled
+  when: ocp_acm_enable_console_component | default(true) | bool
+  block:
+    - name: OpenShift ACM | Read MultiClusterHub
+      kubernetes.core.k8s_info:
+        api_version: operator.open-cluster-management.io/v1
+        kind: MultiClusterHub
+        name: "{{ ocp_acm_mch_name }}"
+        namespace: "{{ ocp_acm_namespace }}"
+      register: ocp_acm_mch_info
+      until: (ocp_acm_mch_info.resources | default([]) | length) > 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    # Preserve existing component entries (incl. configOverrides). Only flip
+    # console.enabled — rewriting the list without configOverrides makes
+    # kubernetes.core.k8s report changed every run and can bounce MCH reconcile.
+    - name: OpenShift ACM | Detect console component enablement
+      ansible.builtin.set_fact:
+        ocp_acm_mch_components_current: >-
+          {{
+            ocp_acm_mch_info.resources[0].spec.overrides.components
+            | default([])
+          }}
+        ocp_acm_console_already_enabled: >-
+          {{
+            (
+              ocp_acm_mch_info.resources[0].spec.overrides.components
+              | default([])
+              | selectattr('name', 'equalto', 'console')
+              | selectattr('enabled')
+              | list
+              | length
+            ) > 0
+          }}
+      changed_when: false
+
+    - name: OpenShift ACM | Merge console component override
+      when: not (ocp_acm_console_already_enabled | bool)
+      ansible.builtin.set_fact:
+        ocp_acm_mch_components: >-
+          {{
+            (
+              ocp_acm_mch_components_current
+              | rejectattr('name', 'equalto', 'console')
+              | list
+            )
+            + [
+              (
+                ocp_acm_mch_components_current
+                | selectattr('name', 'equalto', 'console')
+                | list
+                | first
+                | default({'name': 'console'})
+              )
+              | combine({'enabled': true})
+            ]
+          }}
+      changed_when: false
+
+    - name: OpenShift ACM | Patch MultiClusterHub console component
+      when: not (ocp_acm_console_already_enabled | bool)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: operator.open-cluster-management.io/v1
+          kind: MultiClusterHub
+          metadata:
+            name: "{{ ocp_acm_mch_name }}"
+            namespace: "{{ ocp_acm_namespace }}"
+          spec:
+            overrides:
+              components: "{{ ocp_acm_mch_components }}"
+
+- name: OpenShift ACM | Wait for MultiClusterHub Running
+  block:
+    - name: OpenShift ACM | Wait for MultiClusterHub Running
+      kubernetes.core.k8s_info:
+        api_version: operator.open-cluster-management.io/v1
+        kind: MultiClusterHub
+        name: "{{ ocp_acm_mch_name }}"
+        namespace: "{{ ocp_acm_namespace }}"
+      register: ocp_acm_mch_ready
+      until: >-
+        (
+          ocp_acm_mch_ready.resources
+          | default([])
+          | length
+        ) > 0
+        and
+        (
+          ocp_acm_mch_ready.resources[0].metadata.deletionTimestamp
+          is not defined
+        )
+        and
+        (
+          ocp_acm_mch_ready.resources[0].status.phase
+          | default('')
+          | lower
+        ) == 'running'
+      retries: "{{ ocp_acm_mch_retries | default(90) | int }}"
+      delay: "{{ ocp_acm_mch_delay | default(20) | int }}"
+      changed_when: false
+  rescue:
+    - name: OpenShift ACM | Explain MultiClusterHub wait failure
+      ansible.builtin.fail:
+        msg: >-
+          MultiClusterHub {{ ocp_acm_namespace }}/{{ ocp_acm_mch_name }} did
+          not reach Running.
+          phase={{
+            (
+              ocp_acm_mch_ready.resources[0].status.phase
+              | default('missing')
+            )
+            if (ocp_acm_mch_ready.resources | default([]) | length) > 0
+            else 'missing'
+          }},
+          deleting={{
+            (
+              ocp_acm_mch_ready.resources[0].metadata.deletionTimestamp
+              is defined
+            )
+            if (ocp_acm_mch_ready.resources | default([]) | length) > 0
+            else false
+          }},
+          message={{
+            (
+              ocp_acm_mch_ready.resources[0].status.message
+              | default('')
+            )
+            if (ocp_acm_mch_ready.resources | default([]) | length) > 0
+            else ''
+          }}.
+          If deleting/Uninstalling: finish state=absent first. If Installing:
+          check MultiClusterEngine / cluster-permission pods, then re-run
+          present.
+
+- name: OpenShift ACM | Ensure local-cluster namespace if ManagedCluster exists
+  block:
+    - name: OpenShift ACM | Read local-cluster ManagedCluster
+      kubernetes.core.k8s_info:
+        api_version: cluster.open-cluster-management.io/v1
+        kind: ManagedCluster
+        name: "{{ ocp_acm_local_cluster_name }}"
+      register: ocp_acm_mc_present
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Read local-cluster Namespace
+      when: (ocp_acm_mc_present.resources | default([]) | length) > 0
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Namespace
+        name: "{{ ocp_acm_local_cluster_name }}"
+      register: ocp_acm_mc_ns
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Create missing local-cluster Namespace
+      when:
+        - (ocp_acm_mc_present.resources | default([]) | length) > 0
+        - (ocp_acm_mc_ns.resources | default([]) | length) == 0
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ ocp_acm_local_cluster_name }}"
+            labels:
+              cluster.open-cluster-management.io/managedCluster: >-
+                {{ ocp_acm_local_cluster_name }}
+              open-cluster-management.io/cluster-name: >-
+                {{ ocp_acm_local_cluster_name }}
+
+- name: OpenShift ACM | Enable Fleet Management console plug-ins
+  when: ocp_acm_enable_console_plugins | default(true) | bool
+  block:
+    - name: OpenShift ACM | Resolve plug-in names to enable
+      ansible.builtin.set_fact:
+        ocp_acm_plugin_names: >-
+          {{ ocp_acm_console_plugins | default(['acm', 'mce']) }}
+      changed_when: false
+
+    - name: OpenShift ACM | Wait for ConsolePlugin resources
+      kubernetes.core.k8s_info:
+        api_version: console.openshift.io/v1
+        kind: ConsolePlugin
+        name: "{{ item }}"
+      loop: "{{ ocp_acm_plugin_names }}"
+      register: ocp_acm_plugin_wait
+      until: (ocp_acm_plugin_wait.resources | default([]) | length) > 0
+      retries: 60
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: OpenShift ACM | Select plug-ins that exist
+      ansible.builtin.set_fact:
+        ocp_acm_plugins_to_enable: >-
+          {{
+            ocp_acm_plugin_names
+            | select('in', (
+                ocp_acm_plugin_wait.results
+                | default([])
+                | selectattr('resources', 'defined')
+                | map(attribute='resources')
+                | flatten
+                | map(attribute='metadata.name')
+                | list
+              ))
+            | list
+          }}
+      changed_when: false
+
+    - name: OpenShift ACM | Require at least one ConsolePlugin
+      ansible.builtin.assert:
+        that:
+          - (ocp_acm_plugins_to_enable | default([]) | length) > 0
+        fail_msg: >-
+          MultiClusterHub is Running but ConsolePlugin resources
+          {{ ocp_acm_plugin_names }} were not found yet. Wait and re-run,
+          or check MCH console component status.
+
+    - name: OpenShift ACM | Read cluster Console operator
+      kubernetes.core.k8s_info:
+        api_version: operator.openshift.io/v1
+        kind: Console
+        name: cluster
+      register: ocp_acm_console_operator
+      until: (ocp_acm_console_operator.resources | default([]) | length) > 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: OpenShift ACM | Merge enabled console plug-ins
+      ansible.builtin.set_fact:
+        ocp_acm_console_plugins_merged: >-
+          {{
+            (
+              ocp_acm_console_operator.resources[0].spec.plugins
+              | default([])
+              + ocp_acm_plugins_to_enable
+            )
+            | unique
+            | list
+          }}
+      changed_when: false
+
+    - name: OpenShift ACM | Patch Console operator plug-ins
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: operator.openshift.io/v1
+          kind: Console
+          metadata:
+            name: cluster
+          spec:
+            plugins: "{{ ocp_acm_console_plugins_merged }}"
+      when: (ocp_acm_plugins_to_enable | default([]) | length) > 0
+
+    - name: OpenShift ACM | Fleet Management UI note
+      ansible.builtin.debug:
+        msg: >-
+          MultiClusterHub is Running. Enabled Console plug-ins
+          {{ ocp_acm_plugins_to_enable | default([]) }}.
+          Refresh the OpenShift console and open Fleet Management
+          (or All Clusters on older OCP).
+
+- name: OpenShift ACM | Enable Multicluster Observability
+  when: ocp_acm_observability_enabled | default(false) | bool
+  ansible.builtin.include_tasks: present_observability.yml

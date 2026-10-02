@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Treat cert-manager ``mode=custom`` like ``cert`` when
+    pruning OpenShift workflow nodes so IdM ACME and AWS PCA job templates are
+    omitted unless those modes are selected.
+minor_changes:
+  - >-
+    cert_manager - Preflight issuer selection uses clearable options (IdM ACME,
+    AWS PCA, Custom); unchecking all keeps operator-only deploy (``mode=cert``).
+    Contoller workflow follows cert-manager plus optional issuer and/or Default
+    Ingress Cert.

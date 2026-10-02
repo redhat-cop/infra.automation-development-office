@@ -1,8 +1,21 @@
 ---
+- name: Validate Dev Spaces delivery mode
+  ansible.builtin.assert:
+    that:
+      - ocp_devspaces_delivery_mode in ['direct', 'generate']
+      - >-
+        ocp_devspaces_delivery_mode != 'generate'
+        or state | default('present') == 'present'
+- name: Generate Dev Spaces GitOps resources
+  ansible.builtin.include_tasks: generate-gitops.yml
+  when: ocp_devspaces_delivery_mode == 'generate'
 - name: Install Devspaces operator
   ansible.builtin.import_tasks: install-devspaces.yml
-  when: state == "present"
-
+  when:
+    - state | default('present') == 'present'
+    - ocp_devspaces_delivery_mode == 'direct'
 - name: Delete Devspaces operator
   ansible.builtin.import_tasks: delete-devspaces.yml
-  when: state == "absent"
+  when:
+    - state | default('present') == 'absent'
+    - ocp_devspaces_delivery_mode == 'direct'

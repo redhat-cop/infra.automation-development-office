@@ -1,0 +1,85 @@
+---
+# Delete known ACM validating webhooks when their backing Service is missing.
+- name: OpenShift ACM | Evaluate stale validating webhooks
+  when: ocp_acm_cleanup_stale_webhooks | default(true) | bool
+  block:
+    - name: OpenShift ACM | Reset webhook target list
+      ansible.builtin.set_fact:
+        ocp_acm_webhook_targets: []
+      changed_when: false
+
+    - name: OpenShift ACM | Read candidate validating webhook
+      kubernetes.core.k8s_info:
+        api_version: admissionregistration.k8s.io/v1
+        kind: ValidatingWebhookConfiguration
+        name: "{{ item }}"
+      loop: "{{ ocp_acm_stale_validating_webhooks | default([]) }}"
+      register: ocp_acm_webhook_info
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Resolve webhook Service reference
+      ansible.builtin.set_fact:
+        ocp_acm_webhook_targets: >-
+          {{
+            ocp_acm_webhook_targets | default([])
+            + [{
+                'name': (item.resources[0].metadata.name | default('')),
+                'service_name': (
+                  item.resources[0].webhooks
+                  | default([])
+                  | map(attribute='clientConfig')
+                  | selectattr('service', 'defined')
+                  | map(attribute='service.name')
+                  | list
+                  | first
+                  | default('')
+                ),
+                'service_namespace': (
+                  item.resources[0].webhooks
+                  | default([])
+                  | map(attribute='clientConfig')
+                  | selectattr('service', 'defined')
+                  | map(attribute='service.namespace')
+                  | list
+                  | first
+                  | default('')
+                )
+              }]
+          }}
+      when: (item.resources | default([]) | length) > 0
+      loop: "{{ ocp_acm_webhook_info.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item | default('') }}"
+      changed_when: false
+
+    - name: OpenShift ACM | Check webhook Service exists
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: "{{ item.service_name }}"
+        namespace: "{{ item.service_namespace }}"
+      loop: "{{ ocp_acm_webhook_targets | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - item.name | length > 0
+        - item.service_name | length > 0
+        - item.service_namespace | length > 0
+      register: ocp_acm_webhook_svc
+      failed_when: false
+      changed_when: false
+
+    - name: OpenShift ACM | Delete validating webhook with missing Service
+      kubernetes.core.k8s:
+        state: absent
+        api_version: admissionregistration.k8s.io/v1
+        kind: ValidatingWebhookConfiguration
+        name: "{{ item.item.name }}"
+      loop: "{{ ocp_acm_webhook_svc.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name | default('') }}"
+      when:
+        - item.item is defined
+        - (item.resources | default([]) | length) == 0
+      failed_when: false

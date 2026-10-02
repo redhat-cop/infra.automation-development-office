@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: ADO | Install {{ component_friendly_name }}
   hosts: localhost
   gather_facts: false
@@ -77,18 +78,21 @@
     - name: ADO | Show cert-manager operator vs operand namespaces
       ansible.builtin.debug:
         msg: >-
+          state={{ state | default('present') }}
           operator_ns={{ bootstrap_cert_manager_operator_namespace }}
           operand_ns={{ bootstrap_cert_manager_operand_namespace }}
           operatorgroup={{ bootstrap_cert_manager_operatorgroup }}
 
-    # Use include_role (not roles:) so namespace overrides are not clobbered by
-    # the host fact name_space=cert-manager from bootstrap_resolve_component.
+  tasks:
+    # ----- present: install -----
     - name: ADO | Ensure cert-manager operator namespace exists
       ansible.builtin.include_role:
         name: infra.ado.ocp_namespace
       vars:
         ocp_namespace_name: "{{ bootstrap_cert_manager_operator_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
+        state: present
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Create cert-manager OperatorGroup
       ansible.builtin.include_role:
@@ -97,6 +101,8 @@
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
         operatorgroup: "{{ bootstrap_cert_manager_operatorgroup }}"
+        state: present
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Subscribe cert-manager operator
       ansible.builtin.include_role:
@@ -105,6 +111,8 @@
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
         operator_subscription_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
+        state: present
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for cert-manager operator
       ansible.builtin.include_role:
@@ -112,6 +120,7 @@
       vars:
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Ensure cert-manager operand namespace exists
       ansible.builtin.include_role:
@@ -119,19 +128,39 @@
       vars:
         ocp_namespace_name: "{{ bootstrap_cert_manager_operand_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
+        state: present
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for cert-manager operand pods
       ansible.builtin.include_role:
         name: infra.ado.ocp_wait_pods
       vars:
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
+      when: (state | default('present')) == 'present'
 
     - name: ADO | Configure cert-manager
       ansible.builtin.include_role:
         name: infra.ado.ocp_cert_manager
       vars:
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
+        state: present
+      when: (state | default('present')) == 'present'
+
+    # Preflight Cert Manager → IdM ACME must create ClusterIssuer idm-acme.
+    - name: ADO | Configure IdM ACME ClusterIssuer when mode is idm_acme
+      ansible.builtin.include_tasks: configure-idm-acme-clusterissuer-tasks.yml
+      when:
+        - (state | default('present')) == 'present'
+        - >-
+          (ocp_cert_manager_mode | default(mode | default('cert'), true) | string)
+          == 'idm_acme'
 
     - name: ADO | Manage cert-manager routes
       ansible.builtin.include_role:
         name: infra.ado.ocp_routes
+      when: (state | default('present')) == 'present'
+
+    # ----- absent: full uninstall (see uninstall-cert-manager-tasks.yml) -----
+    - name: ADO | Uninstall cert-manager
+      ansible.builtin.include_tasks: uninstall-cert-manager-tasks.yml
+      when: (state | default('present')) == 'absent'

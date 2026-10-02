@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # roles/ocp_operator_subscription/tasks/main.yml
 
 - name: Subscription | Derive namespaces and names
@@ -21,6 +22,17 @@
     ocp_operator_subscription_pkg_name: "{{ operator_name }}"
     # Always force channel to string
     ocp_operator_subscription_channel: "{{ operator_channel | string }}"
+    ocp_operator_subscription_csv_match: >-
+      {{
+        (
+          operator_csv_contains
+          | default(operator_name_substring, true)
+          | default(operator_name, true)
+          | default('', true)
+          | string
+          | trim
+        )
+      }}
   changed_when: false
 
 - name: Subscription | Assert required inputs
@@ -28,111 +40,28 @@
     that:
       - ocp_operator_subscription_sub_namespace is defined and (ocp_operator_subscription_sub_namespace | string | trim | length) > 0
       - operator_name is defined and (operator_name | string | trim | length) > 0
-      - operator_channel is defined and (operator_channel | string | trim | length) > 0
-      - operator_source is defined and (operator_source | string | trim | length) > 0
-      - operator_source_namespace is defined and (operator_source_namespace | string | trim | length) > 0
+      - >-
+        (state | default('present')) == 'absent'
+        or (
+          (operator_channel | default('') | string | trim | length) > 0
+          and (operator_source | default('') | string | trim | length) > 0
+          and (operator_source_namespace | default('') | string | trim | length) > 0
+        )
     fail_msg: |
       Missing required vars for operator subscription.
-      Need: operator_subscription_namespace (or name_space), operator_name, operator_channel,
-            operator_source, operator_source_namespace.
+      Need: operator_subscription_namespace (or name_space), operator_name;
+            for present also operator_channel, operator_source, operator_source_namespace.
       Got: namespace='{{ ocp_operator_subscription_sub_namespace | default('') }}'
            operator_name='{{ operator_name | default('') }}'
            operator_channel='{{ operator_channel | default('') }}'
            operator_source='{{ operator_source | default('') }}'
            operator_source_namespace='{{ operator_source_namespace | default('') }}'
+           state='{{ state | default('present') }}'
 
-# Stale Subscriptions (wrong package) leave the namespace in ResolutionFailed and
-# block the new package (seen with redhat-developer-hub-operator → rhdh).
-- name: Subscription | Remove stale incompatible Subscriptions
-  kubernetes.core.k8s:
-    state: absent
-    api_version: operators.coreos.com/v1alpha1
-    kind: Subscription
-    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
-    name: "{{ item }}"
-  loop: "{{ operator_subscription_remove_stale | default([]) }}"
-  loop_control:
-    label: "{{ item }}"
-  when: (operator_subscription_remove_stale | default([]) | length) > 0
-  changed_when: false
+- name: Subscription | Install path (state=present)
+  ansible.builtin.import_tasks: install_operator.yml
+  when: (state | default('present')) == 'present'
 
-# Optional safety: ensure namespace exists
-- name: Namespace | Ensure subscription namespace exists
-  kubernetes.core.k8s:
-    state: present
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: "{{ ocp_operator_subscription_sub_namespace }}"
-  when: state | default('present') == 'present'
-
-# OLM allows only one OperatorGroup per namespace (e.g. openshift-operators
-# already has global-operators). Discover first; create only when none exist.
-- name: OperatorGroup | List existing in subscription namespace
-  kubernetes.core.k8s_info:
-    api_version: operators.coreos.com/v1
-    kind: OperatorGroup
-    namespace: "{{ ocp_operator_subscription_sub_namespace }}"
-  register: ocp_operator_subscription_existing_ogs
-  when:
-    - state | default('present') == 'present'
-    - operatorgroup is defined
-    - (operatorgroup | string | trim | length) > 0
-
-- name: OperatorGroup | Create only when namespace has none
-  kubernetes.core.k8s:
-    state: "{{ state | default('present') }}"
-    definition:
-      apiVersion: operators.coreos.com/v1
-      kind: OperatorGroup
-      metadata:
-        name: "{{ operatorgroup | regex_replace('_', '-') }}"
-        namespace: "{{ ocp_operator_subscription_sub_namespace }}"
-      spec: >-
-        {{
-          (all_namespaces_install | default(false) | bool)
-          | ternary({}, {'targetNamespaces': [ocp_operator_subscription_sub_namespace]})
-        }}
-  when:
-    - state | default('present') == 'present'
-    - operatorgroup is defined
-    - (operatorgroup | string | trim | length) > 0
-    - (ocp_operator_subscription_existing_ogs.resources | default([])) | length == 0
-
-# Subscription with startingCSV (pinning)
-- name: Subscription | Create/Update Operator subscription (supports startingCSV)
-  kubernetes.core.k8s:
-    state: "{{ state | default('present') }}"
-    definition:
-      apiVersion: operators.coreos.com/v1alpha1
-      kind: Subscription
-      metadata:
-        name: "{{ ocp_operator_subscription_sub_name }}"
-        namespace: "{{ ocp_operator_subscription_sub_namespace }}"
-      spec:
-        channel: "{{ ocp_operator_subscription_channel }}"
-        name: "{{ ocp_operator_subscription_pkg_name }}"
-        source: "{{ operator_source }}"
-        sourceNamespace: "{{ operator_source_namespace }}"
-        installPlanApproval: "{{ installPlanApproval | default('Automatic') }}"
-        startingCSV: "{{ operator_starting_csv }}"
-  when: (operator_starting_csv | default('') | string | trim | length) > 0
-
-# Subscription without startingCSV (latest for channel)
-- name: Subscription | Create/Update Operator subscription (no startingCSV)
-  kubernetes.core.k8s:
-    state: "{{ state | default('present') }}"
-    definition:
-      apiVersion: operators.coreos.com/v1alpha1
-      kind: Subscription
-      metadata:
-        name: "{{ ocp_operator_subscription_sub_name }}"
-        namespace: "{{ ocp_operator_subscription_sub_namespace }}"
-      spec:
-        channel: "{{ ocp_operator_subscription_channel }}"
-        name: "{{ ocp_operator_subscription_pkg_name }}"
-        source: "{{ operator_source }}"
-        sourceNamespace: "{{ operator_source_namespace }}"
-        installPlanApproval: "{{ installPlanApproval | default('Automatic') }}"
-  when: (operator_starting_csv | default('') | string | trim | length) == 0
+- name: Subscription | Uninstall path (state=absent)
+  ansible.builtin.import_tasks: uninstall_operator.yml
+  when: (state | default('present')) == 'absent'

@@ -1,0 +1,4 @@
+bugfixes:
+  - ocp_operatorgroups - Default ``state`` to ``present`` so local/non-AAP
+    component runs (which omit ``-e state=`` so vars-file deletes still work)
+    no longer fail with ``'state' is undefined``.

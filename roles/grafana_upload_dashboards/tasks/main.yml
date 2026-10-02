@@ -1,3 +1,12 @@
 ---
+# TEMPORARY — proves Contoller loaded THIS tree (no EE shell required).
+# Expect role_path under the project roles/, not ansible_collections/infra/ado/.
+- name: DEBUG - prove grafana_upload_dashboards load path
+  ansible.builtin.debug:
+    msg:
+      role_path: "{{ role_path }}"
+      playbook_dir: "{{ playbook_dir }}"
+      role_name: "{{ role_name | default('') }}"
+
 - name: Upload Grafana dashboards (json and json.j2, multi-folder aware)
   ansible.builtin.import_tasks: grafana-upload-dashboards.yml

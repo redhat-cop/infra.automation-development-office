@@ -43,17 +43,17 @@
       - --mode
       - "{{ grafana_dashboard_item.datasource_mode | default('none') }}"
       - --datasource
-      - "{{ grafana_dashboard_item.datasource | default(grafana_datasource | default('Openshift-Prod')) }}"
+      - "{{ grafana_dashboard_item.datasource | default(grafana_datasource | default('OpenshiftProd')) }}"
       - --datasource-uid
       - >-
         {{
           grafana_upload_dashboards_uid_by_name[
             grafana_dashboard_item.datasource
-            | default(grafana_datasource | default('Openshift-Prod'))
+            | default(grafana_datasource | default('OpenshiftProd'))
           ]
           | default(
               grafana_dashboard_item.datasource
-              | default(grafana_datasource | default('Openshift-Prod')),
+              | default(grafana_datasource | default('OpenshiftProd')),
               true
             )
         }}
@@ -66,16 +66,18 @@
 - name: Replace leftover legacy string datasource names
   ansible.builtin.replace:
     path: "/tmp/grafana-dashboards/{{ grafana_dashboard_item.name }}.json"
-    regexp: '"datasource"\s*:\s*"(\{\{\s*grafana_datasource\s*\}\}|Openshift|Prometheus|prometheus|grafana_datasource|\$\{DS_OPENSHIFT\}|DS_OPENSHIFT)"'
+    regexp: >-
+      "datasource"\s*:\s*"(?:\s*\{\{\s*grafana_datasource\s*\}\}\s*|Openshift(?:-Prod|-Dev)?|OpenshiftProd(?:Infra)?|Prometheus|prometheus|grafana_datasource|\$\{DS_OPENSHIFT\}|DS_OPENSHIFT)"
     replace: >-
       "datasource": {"type": "prometheus", "uid": "{{
         grafana_upload_dashboards_uid_by_name[
           grafana_dashboard_item.datasource
-          | default(grafana_datasource | default('Openshift-Prod'))
+          | default(grafana_datasource | default('OpenshiftProd'))
         ]
         | default(
             grafana_dashboard_item.datasource
-            | default(grafana_datasource | default('Openshift-Prod')),
+            | default(grafana_datasource | default('OpenshiftProd')),
             true
           )
       }}"}
+  when: (grafana_dashboard_item.datasource_mode | default('none')) != 'multi'

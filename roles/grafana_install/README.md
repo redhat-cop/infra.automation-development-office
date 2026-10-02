@@ -1,8 +1,11 @@
 # Role: infra.ado.grafana_install
 
 Deploy Grafana on OpenShift using the Grafana Operator, including persistent storage,
-admin credentials, an optional Keycloak OIDC integration, and an OpenShift Route. When
-`state: absent`, the role removes the Grafana custom resource and route.
+admin credentials, an optional Keycloak OIDC integration, and an OpenShift Route.
+Optionally use PostgreSQL (`grafana_database_type: postgres`) instead of the default
+embedded SQLite — ADO can provision an in-cluster PostgreSQL 15 Deployment or point
+at an external database. When `state: absent`, the role removes the Grafana custom
+resource, route, and any ADO-managed PostgreSQL resources.
 
 ## Role Author
 
@@ -28,6 +31,15 @@ admin credentials, an optional Keycloak OIDC integration, and an OpenShift Route
 | `grafana_install_admin_password` | Grafana admin password. | ✅ | — |
 | `storage_size` | PVC size for Grafana persistence. | ✅ | — |
 | `storage_class` | Storage class for the Grafana PVC. | ✅ | — |
+| `grafana_database_type` | `sqlite` (default) or `postgres`. | ❌ | `sqlite` |
+| `grafana_database_provision` | When postgres: create in-cluster PostgreSQL (default `true`). Set `false` for external DB. | ❌ | `true` |
+| `grafana_postgres_storage_class` | Storage class for ADO-managed PostgreSQL PVC (falls back to `storage_class`). | ❌ | — |
+| `grafana_postgres_storage_size` | PostgreSQL PVC size. | ❌ | `5Gi` |
+| `grafana_postgres_image` | PostgreSQL container image. | ❌ | `registry.redhat.io/rhel9/postgresql-15:latest` |
+| `grafana_postgres_database` / `grafana_postgres_user` | DB name and user. | ❌ | `grafana` |
+| `grafana_postgres_password` | Password (generated into Secret when empty on provision). Required for external. | ❌ | generated |
+| `grafana_postgres_host` | External host:port when `grafana_database_provision=false`. | ❌ | — |
+| `grafana_postgres_ssl_mode` | Grafana `database.ssl_mode`. | ❌ | `disable` |
 | `grafana_install_validate_certs` | Validate TLS when checking `/api/health`. | ❌ | `false` |
 | `grafana_install_route_name` | OpenShift Route name for Grafana. | ❌ | `grafana` |
 | `grafana_install_route_backend_svc` | Backend service name for the Route. | ❌ | `grafana-service` |
@@ -62,6 +74,10 @@ export K8S_AUTH_VERIFY_SSL="no"
     grafana_install_admin_password: supersecret
     storage_size: 5Gi
     storage_class: synology-iscsi-storage
+    # Optional PostgreSQL (default is sqlite):
+    # grafana_database_type: postgres
+    # grafana_database_provision: true
+    # grafana_postgres_storage_class: synology-iscsi-storage
     state: present
   roles:
     - role: infra.ado.grafana_install
@@ -115,6 +131,8 @@ grafana_install/
 ├── tasks/
 │   ├── main.yml
 │   ├── install-grafana-operator.yml
+│   ├── provision-grafana-postgres.yml
+│   ├── resolve-external-postgres.yml
 │   └── delete-grafana-operator.yml
 ├── tests/
 │   ├── inventory

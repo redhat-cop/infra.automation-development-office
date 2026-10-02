@@ -250,28 +250,41 @@
     state: present
     definition: "{{ ocp_minio_deployment_definition }}"
 
+- name: Build MinIO Service definition (ports as real ints for the API)
+  ansible.builtin.set_fact:
+    ocp_minio_service_definition: >-
+      {{
+        {
+          'apiVersion': 'v1',
+          'kind': 'Service',
+          'metadata': {
+            'name': minio_service_name,
+            'namespace': name_space,
+            'labels': {'app.kubernetes.io/name': 'minio'}
+          },
+          'spec': {
+            'type': 'ClusterIP',
+            'selector': {'app': 'minio'},
+            'ports': [
+              {
+                'name': 'api',
+                'port': (minio_api_port | int),
+                'targetPort': 'api'
+              },
+              {
+                'name': 'console',
+                'port': (minio_console_port | int),
+                'targetPort': 'console'
+              }
+            ]
+          }
+        }
+      }}
+
 - name: Create MinIO Service
   kubernetes.core.k8s:
     state: present
-    definition:
-      apiVersion: v1
-      kind: Service
-      metadata:
-        name: "{{ minio_service_name }}"
-        namespace: "{{ name_space }}"
-        labels:
-          app.kubernetes.io/name: minio
-      spec:
-        type: ClusterIP
-        selector:
-          app: minio
-        ports:
-          - name: api
-            port: "{{ minio_api_port | int }}"
-            targetPort: api
-          - name: console
-            port: "{{ minio_console_port | int }}"
-            targetPort: console
+    definition: "{{ ocp_minio_service_definition }}"
 
 - name: Wait for MinIO Service endpoints
   kubernetes.core.k8s_info:

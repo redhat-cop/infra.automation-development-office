@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_wait_operator - Require matching CSV ``status.phase == Succeeded``
+    before treating an operator as installed (avoids false success when only
+    unrelated AllNamespaces CSVs are listed in the operator namespace).

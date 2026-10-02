@@ -423,24 +423,11 @@ components_env:
       idp_name: LDAP_IDM
 
 {% elif component_name == 'pega' %}
-k8s_auth_verify_ssl: false
-
-pega_namespace: pega
-pega_deployment_name: pega
-pega_app_domain: ocp.prod.rhlab
-
-pega_local_images:
-  - src_tar: /data/pega/pega_23_1_1.tar
-    source_image: "pega-docker.downloads.pega.com/platform/pega:23.1.1"
-    target_image: "pega/pega:23.1.1"
-  - src_tar: /data/pega/pega_srs.tar
-    source_image: "pega-docker.downloads.pega.com/platform-services/search-n-reporting-service-os:1.35.0"
-    target_image: "pega/search-n-reporting-service-os:1.35.0"
-  - src_tar: /data/pega/pega_23_install.tar
-    source_image: "pega-docker.downloads.pega.com/platform/installer:23.1.1"
-    target_image: "pega/installer:23.1.1"
-
-pega_kafka_bootstrap_server: "pega-kafka-cluster-kafka-bootstrap.pega.svc.cluster.local:9092"
+# Local artifact paths are resolved inside the Controller execution environment.
+ocp_pega_namespace: pega
+ocp_pega_chart_path: ''
+ocp_pega_values_file: ''
+ocp_pega_allowed_registries: []
 
 {% elif component_name == 'rhel' %}
 components_env:

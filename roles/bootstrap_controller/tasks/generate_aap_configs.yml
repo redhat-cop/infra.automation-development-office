@@ -266,6 +266,9 @@
         - ado-kafka-deploy-and-configure-bootstrap.jt.yml
         - ado-kafka-setup-alerting-bootstrap.jt.yml
 
+      pega:
+        - ado-pega-install-and-configure-bootstrap.jt.yml
+
       oadp:
         - ado-oadp-deploy-bootstrap.jt.yml
 
@@ -278,11 +281,16 @@
       ocp_virtualization:
         - ado-ocp-virtualization-deploy-bootstrap.jt.yml
 
+      mtv:
+        - ado-mtv-deploy-bootstrap.jt.yml
+
       gitlab_runner:
         - ado-gitlab-runner-deploy-bootstrap.jt.yml
 
       admin_htpasswd:
         - ado-openshift-create-htpass-user-bootstrap.jt.yml
+      integrated_image_registry:
+        - ado-openshift-enable-integrated-image-registry-bootstrap.jt.yml
       nfs_csi:
         - ado-openshift-install-nfs-csi-bootstrap.jt.yml
       iscsi_csi:
@@ -405,15 +413,57 @@
       }}
   when: bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
 
-- name: AAP configs | Skip default ingress JT unless update_default_ingress is enabled
+- name: >-
+    AAP configs | Skip default ingress JT unless update_default_ingress
+    is enabled
   ansible.builtin.set_fact:
     bootstrap_controller_job_template_files_selected: >-
       {{
         bootstrap_controller_job_template_files_selected
-        | reject('equalto', 'ado-openshift-update-default-ingress-cert-bootstrap.jt.yml')
+        | reject(
+            'equalto',
+            'ado-openshift-update-default-ingress-cert-bootstrap.jt.yml'
+          )
         | list
       }}
-  when: not (bootstrap_controller_update_default_ingress | default(false) | bool)
+  when: >-
+    not (
+      bootstrap_controller_update_default_ingress
+      | default(false)
+      | bool
+    )
+
+- name: >-
+    AAP configs | Skip IdM ACME JT unless cert_manager mode is idm_acme
+  ansible.builtin.set_fact:
+    bootstrap_controller_job_template_files_selected: >-
+      {{
+        bootstrap_controller_job_template_files_selected
+        | reject(
+            'equalto',
+            'ado-cert-manager-configure-idm-acme-clusterissuer.jt.yml'
+          )
+        | list
+      }}
+  when: >-
+    bootstrap_controller_cert_manager_mode
+    | default('cert') != 'idm_acme'
+
+- name: >-
+    AAP configs | Skip AWSPCA JT unless cert_manager mode is aws_pca
+  ansible.builtin.set_fact:
+    bootstrap_controller_job_template_files_selected: >-
+      {{
+        bootstrap_controller_job_template_files_selected
+        | reject(
+            'equalto',
+            'ado-cert-manager-install-and-configure-awspca-bootstrap.jt.yml'
+          )
+        | list
+      }}
+  when: >-
+    bootstrap_controller_cert_manager_mode
+    | default('cert') != 'aws_pca'
 
 # yamllint disable rule:line-length
 - name: AAP configs | Copy job templates for generated playbooks only
@@ -744,6 +794,23 @@
   when:
     - "'openshift' in bootstrap_controller_effective_components"
 
+- name: AAP configs | Copy Cert Manager workflow when selected
+  ansible.builtin.copy:
+    src: workflows/ado-cert-manager-workflow-bootstrap.wf.yml
+    dest: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-cert-manager-workflow-bootstrap.wf.yml
+    mode: "0644"
+    force: "{{ bootstrap_controller_jt_wf_force | bool }}"
+  when: >-
+    'cert_manager' in bootstrap_controller_effective_components
+    or (
+      bootstrap_controller_update_default_ingress
+      | default(false)
+      | bool
+    )
+
 - name: AAP configs | Copy RHBK workflow when selected
   ansible.builtin.copy:
     src: workflows/ado-rhbk-workflow-bootstrap.wf.yml
@@ -881,6 +948,23 @@
   when:
     - bootstrap_controller_jt_wf_force | bool
     - "'openshift' not in bootstrap_controller_effective_components"
+
+- name: AAP configs | Remove Cert Manager workflow when unselected
+  ansible.builtin.file:
+    path: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-cert-manager-workflow-bootstrap.wf.yml
+    state: absent
+  when:
+    - bootstrap_controller_jt_wf_force | bool
+    - >-
+      'cert_manager' not in bootstrap_controller_effective_components
+      and not (
+        bootstrap_controller_update_default_ingress
+        | default(false)
+        | bool
+      )
 
 - name: AAP configs | Remove RHBK workflow when unselected
   ansible.builtin.file:
@@ -1096,7 +1180,7 @@
                 node for node in nodes
                 if node.get("unified_job_template") in available_templates
             ]
-            if cert_manager_mode == "cert":
+            if cert_manager_mode in ("cert", "custom", ""):
                 kept_nodes = [
                     node for node in kept_nodes
                     if node.get("identifier") not in (
@@ -1117,9 +1201,11 @@
             kept_ids = {node.get("identifier") for node in kept_nodes}
             kept_by_id = {node.get("identifier"): node for node in kept_nodes}
 
-            # After ACME/PCA prune, Ensure Deploy cert-manager still gates RHBK.
-            # Default Ingress alone must not unlock RHBK when cert-manager is selected.
-            cert_node = kept_by_id.get("Deploy cert-manager")
+            # After ACME/PCA prune, ensure Cert Manager Workflow (or legacy
+            # Deploy cert-manager) still gates RHBK when both are present.
+            cert_wf_id = "Cert Manager Workflow"
+            legacy_cert_id = "Deploy cert-manager"
+            cert_gate = kept_by_id.get(cert_wf_id) or kept_by_id.get(legacy_cert_id)
             rhbk_workflow_id = "RHBK Workflow"
             legacy_rhbk_id = "Deploy RHBK"
             rhbk_target = (
@@ -1127,15 +1213,15 @@
                 if rhbk_workflow_id in kept_ids
                 else legacy_rhbk_id
             )
-            if cert_node is not None and rhbk_target in kept_ids:
-                edges = list(cert_node.get("success_nodes") or [])
+            if cert_gate is not None and rhbk_target in kept_ids:
+                edges = list(cert_gate.get("success_nodes") or [])
                 edges = [
                     item for item in edges
                     if item not in (legacy_rhbk_id, rhbk_workflow_id)
                 ]
                 if rhbk_target not in edges:
                     edges.append(rhbk_target)
-                    cert_node["success_nodes"] = edges
+                    cert_gate["success_nodes"] = edges
 
             platform_ids = {
                 "Grafana Workflow",
@@ -1165,6 +1251,7 @@
             rhbk_id = rhbk_workflow_id if rhbk_workflow_id in kept_ids else legacy_rhbk_id
             ingress_id = "Update Default Ingress Certificate"
             cert_id = "Deploy cert-manager"
+            cert_wf_id = "Cert Manager Workflow"
 
             # If OIDC JT was pruned, hang platform apps off RHBK Workflow (or legacy RHBK chain).
             if oauth_id not in kept_ids:
@@ -1172,6 +1259,7 @@
                     kept_by_id.get(rhbk_workflow_id)
                     or kept_by_id.get(client_id)
                     or kept_by_id.get(legacy_rhbk_id)
+                    or kept_by_id.get(cert_wf_id)
                     or kept_by_id.get(ingress_id)
                     or kept_by_id.get(cert_id)
                 )

@@ -1,0 +1,51 @@
+{
+  "environment": "molecule",
+  "components": [
+    "aap"
+  ],
+  "component_apps": {
+    "openshift": [
+      "aap"
+    ]
+  },
+  "aap": {
+    "enabled": true,
+    "organization": "Test",
+    "galaxy_setup_enabled": true,
+    "galaxy_hub_token": "fixture-not-a-secret",
+    "galaxy_credentials": [
+      {
+        "name": "Local Hub",
+        "url": "https://hub.example.test/api/galaxy/content/validated/",
+        "enabled": true,
+        "attach_to_org": true,
+        "order": 1
+      },
+      {
+        "name": "Ansible Galaxy",
+        "url": "https://galaxy.ansible.com/",
+        "enabled": false,
+        "attach_to_org": true,
+        "order": 2
+      },
+      {
+        "name": "Unattached Hub",
+        "url": "https://hub.example.test/api/galaxy/content/community/",
+        "enabled": true,
+        "attach_to_org": false,
+        "order": 3
+      }
+    ],
+    "git_url": "https://git.example.test/bootstrap.git",
+    "git_branch": "main",
+    "hostname": "controller.example.test",
+    "version": "26",
+    "project": "Test-project",
+    "inventory": "Test-inventory",
+    "execution_environment": "Default execution environment",
+    "vault_credential_name": "Test-vault"
+  },
+  "vault": {
+    "encrypt": false
+  }
+}

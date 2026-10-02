@@ -1,0 +1,70 @@
+---
+- name: GitOps | Validate generation inputs
+  ansible.builtin.assert:
+    that:
+      - ocp_gitops_application_repo_url | length > 0
+      - ocp_gitops_application_revision | length > 0
+      - ocp_gitops_application_resources | length > 0
+      - ocp_gitops_application_repo_path is match('^[a-zA-Z0-9_./-]+$')
+      - not ocp_gitops_application_repo_path.startswith('/')
+      - "'..' not in ocp_gitops_application_repo_path.split('/')"
+      - ocp_gitops_application_name is match('^[a-z0-9][a-z0-9-]*$')
+    fail_msg: Supply a repository URL, revision and safe relative resource path.
+- name: GitOps | Create output directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    mode: '0755'
+  loop:
+    - >-
+      {{ ocp_gitops_application_output_dir }}/{{
+      ocp_gitops_application_repo_path }}
+    - '{{ ocp_gitops_application_output_dir }}/gitops-applications'
+- name: GitOps | Write desired resources
+  ansible.builtin.copy:
+    content: |
+      {% for resource in ocp_gitops_application_resources %}
+      {{ resource | to_nice_yaml }}
+      {% if not loop.last %}
+      ---
+      {% endif %}
+      {% endfor %}
+    dest: >-
+      {{ ocp_gitops_application_output_dir }}/{{
+      ocp_gitops_application_repo_path }}/resources.yml
+    mode: '0644'
+- name: GitOps | Write Kustomization
+  ansible.builtin.copy:
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+        - resources.yml
+    dest: >-
+      {{ ocp_gitops_application_output_dir }}/{{
+      ocp_gitops_application_repo_path }}/kustomization.yaml
+    mode: '0644'
+- name: GitOps | Build manual-sync Application
+  ansible.builtin.set_fact:
+    ocp_gitops_application_manifest:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: '{{ ocp_gitops_application_name }}'
+        namespace: '{{ ocp_gitops_application_namespace }}'
+      spec:
+        project: '{{ ocp_gitops_application_project }}'
+        source:
+          repoURL: '{{ ocp_gitops_application_repo_url }}'
+          targetRevision: '{{ ocp_gitops_application_revision }}'
+          path: '{{ ocp_gitops_application_repo_path }}'
+        destination:
+          server: '{{ ocp_gitops_application_destination }}'
+          namespace: '{{ ocp_gitops_application_target_namespace }}'
+- name: GitOps | Write Application without registering or syncing it
+  ansible.builtin.copy:
+    content: '{{ ocp_gitops_application_manifest | to_nice_yaml }}'
+    dest: >-
+      {{ ocp_gitops_application_output_dir }}/gitops-applications/{{
+      ocp_gitops_application_name }}.yml
+    mode: '0644'

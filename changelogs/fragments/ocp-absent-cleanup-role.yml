@@ -1,0 +1,18 @@
+---
+minor_changes:
+  - >-
+    ocp_absent_cleanup - New role: safe OpenShift absent cleanup gate for
+    Terminating namespaces, stuck finalizers, leftover CSVs/InstallPlans, and
+    Deployments/pods (explicit namespace allowlist; refuses kube-* /
+    platform NS).
+  - >-
+    ocp_namespace - ``state=absent`` now runs ``ocp_absent_cleanup`` before
+    and after delete so every OpenShift namespace uninstall gets the same
+    stuck-cleanup behavior.
+  - >-
+    ocp_operator_subscription - ``state=absent`` runs ``ocp_absent_cleanup``
+    with CSV name match (workloads off by default for shared namespaces).
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager absent uses
+    ``ocp_absent_cleanup`` for namespace sweeps instead of one-off tasks.

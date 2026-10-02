@@ -1,0 +1,72 @@
+---
+- name: Pega | Require absolute local artifact paths
+  ansible.builtin.assert:
+    that:
+      - ocp_pega_release.chart is match('^/')
+      - ocp_pega_release.values_path is match('^/')
+    fail_msg: >-
+      Charts and values must be absolute paths available inside the execution
+      environment; URLs are not accepted.
+- name: Pega | Inspect local artifacts
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop:
+    - '{{ ocp_pega_release.chart }}'
+    - '{{ ocp_pega_release.values_path }}'
+  register: ocp_pega_artifacts
+- name: Pega | Assert artifacts are available
+  ansible.builtin.assert:
+    that:
+      - >-
+        ocp_pega_artifacts.results | map(attribute='stat.exists') | min
+    fail_msg: >-
+      Stage charts (including dependencies) and values into the execution
+      environment before running Pega.
+- name: Pega | Read supplied chart values
+  ansible.builtin.slurp:
+    src: '{{ ocp_pega_release.values_path }}'
+  register: ocp_pega_values_raw
+  no_log: true
+- name: Pega | Write effective action overrides for the Pega chart
+  ansible.builtin.copy:
+    content: >-
+      {{ ({'global': {'actions': {'execute': ocp_pega_action}},
+           'action': ocp_pega_action}
+          if ocp_pega_release.name == ocp_pega_release_name else {})
+         | to_nice_yaml }}
+    dest: '{{ ocp_pega_tmp.path }}/action.yml'
+    mode: '0600'
+  changed_when: false
+- name: Pega | Render chart without downloading dependencies
+  ansible.builtin.command:
+    argv:
+      - '{{ ocp_pega_helm_binary }}'
+      - template
+      - '{{ ocp_pega_release.name }}'
+      - '{{ ocp_pega_release.chart }}'
+      - --namespace
+      - '{{ ocp_pega_namespace }}'
+      - --values
+      - '{{ ocp_pega_release.values_path }}'
+      - --values
+      - '{{ ocp_pega_tmp.path }}/action.yml'
+      - --include-crds
+  register: ocp_pega_rendered
+  changed_when: false
+  no_log: true
+- name: >-
+    Pega | Store rendered manifest privately for image validation
+  ansible.builtin.copy:
+    content: '{{ ocp_pega_rendered.stdout }}'
+    dest: '{{ ocp_pega_tmp.path }}/rendered.yml'
+    mode: '0600'
+  changed_when: false
+  no_log: true
+- name: >-
+    Pega | Check every rendered image against disconnected registries
+  ansible.builtin.script:
+    cmd: >-
+      validate_images.py {{ (ocp_pega_tmp.path ~ '/rendered.yml') | quote
+      }} {{ ocp_pega_allowed_registries | to_json | quote }}
+    executable: '{{ ansible_playbook_python }}'
+  changed_when: false

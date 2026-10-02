@@ -1,0 +1,7 @@
+---
+# Thorough uninstall path for MultiClusterHub and related hub objects.
+- name: OpenShift ACM | Absent cleanup
+  ansible.builtin.include_tasks: cleanup_hub.yml
+  vars:
+    ocp_acm_cleanup_reason: absent
+    ocp_acm_heal_stuck_uninstall: true

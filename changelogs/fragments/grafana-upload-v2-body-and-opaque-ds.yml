@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    grafana_upload_dashboards - Remap all Prometheus datasource UIDs on
+    ``pin``/``multi`` (Contoller exports use opaque UIDs, not only
+    ``Openshift-*`` placeholders).
+  - >-
+    grafana_upload_dashboards - Send schema-v2 dashboard ``spec`` as a JSON
+    object (not a stringified YAML scalar) so Grafana accepts boards with
+    ``elements`` (e.g. RHACS CVE report).

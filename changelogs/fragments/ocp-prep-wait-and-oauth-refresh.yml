@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    ocp_virtualization_install - Wait for HyperConverged ``Available=True``
+    after the CSV reaches ``Succeeded``. A Succeeded CSV alone no longer
+    marks virtualization ready.
+  - >-
+    bootstrap_controller - Pass ``KUBECONFIG`` / ``K8S_AUTH_KUBECONFIG``
+    into ``ocp_image_registry`` during bootstrap prep, matching HTPasswd
+    and CSI install tasks.
+  - >-
+    ocp_htpasswd_admin - Re-apply the OAuth HTPasswd IdP when
+    ``fileData.name`` (secret) differs, not only when ``mappingMethod``
+    differs.

@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Move ``environment`` off ``include_role`` onto a
+    surrounding ``block`` in ``install_nfs_csi.yml``, ``install_iscsi_csi.yml``,
+    and ``install_htpasswd.yml`` so ansible-core that rejects
+    ``environment`` on IncludeRole no longer fails bootstrap CSI/HTPasswd prep.
+  - >-
+    bootstrap_controller - Resolve NFS/iSCSI CSI inputs with ``set_fact`` before
+    ``include_role`` instead of
+    ``ocp_* | default(alias)`` on the same var name, which recursed under
+    ansible-core and failed the NFS CSI assert during bootstrap.

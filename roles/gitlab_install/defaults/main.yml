@@ -13,7 +13,7 @@ gitlab_install_tls_key: ""
 gitlab_install_admin_user: gitlab
 gitlab_install_admin_password: redhat123
 gitlab_install_root_password: redhat123
-gitlab_install_chart_version: "10.3.1"
+gitlab_install_chart_version: "10.3.2"
 gitlab_install_enable_postgresql: false
 gitlab_install_postgres_image: "postgres:15-alpine"
 gitlab_install_postgres_storage_size: "10Gi"

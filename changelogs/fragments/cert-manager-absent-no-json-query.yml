@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Cert-manager absent CR flatten no
+    longer uses ``json_query`` (requires jmespath). Loop-append resources
+    so uninstall works in the preflight pod EE.

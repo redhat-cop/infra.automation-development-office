@@ -1,0 +1,49 @@
+---
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Shared OpenShift absent cleanup gate: stuck Terminating namespaces,
+# leftover OLM CSVs/InstallPlans, Deployments/pods, and finalizers.
+#
+# Safe by default: refuses empty namespace lists and platform namespaces
+# (kube-*/default/openshift). Callers must pass explicit namespaces.
+
+# Required: list of namespaces this run may touch.
+ocp_absent_cleanup_namespaces: []
+
+# check = report only; cleanup = delete leftovers + finalize Terminating.
+ocp_absent_cleanup_mode: cleanup
+
+# Sweep OLM objects in each namespace.
+ocp_absent_cleanup_sweep_olm: true
+# When set, only delete CSVs whose name matches this substring (safe for
+# shared namespaces). Empty = all CSVs in the NS (dedicated wipe).
+ocp_absent_cleanup_csv_name_match: ""
+
+# Sweep Deployments (optional name list) and force-delete Pods.
+ocp_absent_cleanup_sweep_workloads: true
+# Empty = delete every Deployment in the NS (operator NS wipe).
+ocp_absent_cleanup_deployment_names: []
+
+# Fail the play when a targeted namespace still exists after cleanup.
+ocp_absent_cleanup_fail_if_present: true
+
+# When true, clear namespace finalizers via /finalize and wait until gone.
+# Subscription absent should leave this false — namespace delete belongs to
+# ocp_namespace later; finalizing here causes repeated 12x retry spam.
+ocp_absent_cleanup_finalize: true
+# Only finalize when status.phase is Terminating (never on Active).
+ocp_absent_cleanup_finalize_only_terminating: true
+
+ocp_absent_cleanup_terminating_retries: 12
+ocp_absent_cleanup_terminating_delay: 5
+ocp_absent_cleanup_delete_settle_seconds: 3
+
+# Hard deny — never finalize/sweep these even if a caller passes them.
+ocp_absent_cleanup_blocked_namespaces:
+  - default
+  - kube-system
+  - kube-public
+  - kube-node-lease
+  - openshift
+# kube-* only — openshift-* often hosts legitimate ADO operators (gitops, etc.).
+ocp_absent_cleanup_blocked_namespace_prefixes:
+  - kube-

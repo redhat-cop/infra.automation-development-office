@@ -96,31 +96,71 @@
   when: ocp_htpasswd_admin_action in ['add', 'remove']
   no_log: true
 
+# Hash all requested users in one Python step (stdin job). Looping set_fact +
+# password_hash + no_log has dropped later users (secret ended with only the
+# first username). Avoid Jinja ``| keys`` (unavailable in some EEs).
 - name: Apply add/replace password hashes for requested users
-  ansible.builtin.set_fact:
-    ocp_htpasswd_admin_effective_map: >-
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/hash_htpasswd_users.py"
+      - "-"
+    stdin: >-
       {{
-        ocp_htpasswd_admin_effective_map
-        | combine({
-            (item.name | string | trim): (
-              item.password
-              | string
-              | trim
-              | password_hash('bcrypt', rounds=12)
-              | regex_replace('^\$2b\$', '$2y$')
-            )
-          }, recursive=True)
+        {
+          'action': ocp_htpasswd_admin_action,
+          'base': ocp_htpasswd_admin_effective_map | default({}),
+          'users': htpasswd_users | default([])
+        } | to_json
       }}
-  loop: "{{ htpasswd_users | default([]) }}"
-  loop_control:
-    label: "{{ item.name | default('unnamed') }}"
+  register: ocp_htpasswd_admin_hash_cmd
+  when: ocp_htpasswd_admin_action in ['add', 'replace']
+  no_log: true
+  changed_when: false
+
+- name: Store hashed htpasswd payload
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_hash_payload: >-
+      {{ ocp_htpasswd_admin_hash_cmd.stdout | from_json }}
+    ocp_htpasswd_admin_effective_map: >-
+      {{ (ocp_htpasswd_admin_hash_cmd.stdout | from_json).map | default({}) }}
+    ocp_htpasswd_admin_htpasswd_content: >-
+      {{ (ocp_htpasswd_admin_hash_cmd.stdout | from_json).htpasswd | default('') }}
+    ocp_htpasswd_admin_hashed_users: >-
+      {{ (ocp_htpasswd_admin_hash_cmd.stdout | from_json).users | default([]) }}
+    ocp_htpasswd_admin_requested_users: >-
+      {{ (ocp_htpasswd_admin_hash_cmd.stdout | from_json).requested | default([]) }}
   when:
     - ocp_htpasswd_admin_action in ['add', 'replace']
-    - item.name is defined
-    - (item.name | string | trim | length) > 0
-    - item.password is defined
-    - (item.password | string | trim | length) > 0
+    - ocp_htpasswd_admin_hash_cmd is defined
+    - ocp_htpasswd_admin_hash_cmd.stdout is defined
   no_log: true
+
+- name: Show htpasswd usernames that will be written
+  ansible.builtin.debug:
+    msg: >-
+      HTPasswd secret '{{ htpasswd_secret }}' will contain users:
+      {{ ocp_htpasswd_admin_hashed_users | default([]) | join(', ') }}
+  when:
+    - ocp_htpasswd_admin_action in ['add', 'replace']
+    - ocp_htpasswd_admin_hashed_users is defined
+
+- name: Assert every requested htpasswd user was hashed
+  ansible.builtin.assert:
+    that:
+      - (ocp_htpasswd_admin_requested_users | default([]) | length) > 0
+      - >-
+        (
+          ocp_htpasswd_admin_requested_users | default([])
+          | difference(ocp_htpasswd_admin_hashed_users | default([]))
+          | length
+        ) == 0
+    fail_msg: >-
+      One or more htpasswd users were not written into the secret map.
+      requested={{ ocp_htpasswd_admin_requested_users | default([]) }}
+      hashed={{ ocp_htpasswd_admin_hashed_users | default([]) }}.
+      Check every user has a non-empty password in vault_admin_htpasswd.yml.
+  when: ocp_htpasswd_admin_action in ['add', 'replace']
 
 - name: Remove requested users from map
   ansible.builtin.set_fact:
@@ -157,6 +197,9 @@
         | map('join', ':')
         | join('\n')
       }}
+  when: >-
+    ocp_htpasswd_admin_action == 'remove'
+    or ocp_htpasswd_admin_htpasswd_content is not defined
   no_log: true
 
 - name: Create or update htpasswd Secret
@@ -303,6 +346,35 @@
     - (ocp_htpasswd_admin_effective_map | length) == 0
   no_log: true
 
+- name: Capture current htpasswd IdP mapping and secret name
+  ansible.builtin.set_fact:
+    ocp_htpasswd_admin_current_mapping_method: >-
+      {{
+        (
+          ocp_htpasswd_admin_current_providers
+          | selectattr('name', 'equalto', htpasswd_idp_name)
+          | list
+          | first
+          | default({})
+        ).mappingMethod | default('claim')
+      }}
+    ocp_htpasswd_admin_current_secret_name: >-
+      {{
+        (
+          (
+            (
+              ocp_htpasswd_admin_current_providers
+              | selectattr('name', 'equalto', htpasswd_idp_name)
+              | list
+              | first
+              | default({})
+            ).htpasswd | default({})
+          ).fileData | default({})
+        ).name | default('')
+      }}
+  when: ocp_htpasswd_admin_htpasswd_exists | bool
+  no_log: true
+
 - name: Detect whether OAuth IdP list needs apply
   ansible.builtin.set_fact:
     ocp_htpasswd_admin_oauth_needs_update: >-
@@ -322,13 +394,12 @@
           and (ocp_htpasswd_admin_effective_map | length) > 0
           and (
             (
-              ocp_htpasswd_admin_current_providers
-              | selectattr('name', 'equalto', htpasswd_idp_name)
-              | list
-              | first
-              | default({})
-            ).get('mappingMethod', 'claim')
-            != (htpasswd_mapping_method | default('add'))
+              ocp_htpasswd_admin_current_mapping_method | default('claim')
+            ) != (htpasswd_mapping_method | default('add'))
+            or
+            (
+              ocp_htpasswd_admin_current_secret_name | default('')
+            ) != (htpasswd_secret | default('') | string)
           )
         )
       }}

@@ -1,0 +1,39 @@
+---
+- name: Delivery | Read generated ACM variables
+  ansible.builtin.include_vars:
+    file: '{{ playbook_dir }}/group_vars/all/{{ env }}/vars_acm.yml'
+    name: bootstrap_acm_delivery
+- name: Delivery | Render ACM policy files
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_acm_policy
+  when: bootstrap_acm_delivery.ocp_acm_policy_enabled | default(false) | bool
+  vars:
+    ocp_acm_policy_output_dir: >-
+      {{ bootstrap_generate_playbook_repo_dest_resolved }}/policies/{{ env }}
+    ocp_acm_policy_name: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_name
+         | default('namespace-label') }}
+    ocp_acm_policy_namespace: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_namespace
+         | default('policies') }}
+    ocp_acm_policy_target_namespace: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_target_namespace
+         | default('') }}
+    ocp_acm_policy_label_key: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_label_key
+         | default('') }}
+    ocp_acm_policy_label_value: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_label_value
+         | default('') }}
+    ocp_acm_policy_cluster_set: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_cluster_set
+         | default('') }}
+    ocp_acm_policy_selector_key: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_selector_key
+         | default('') }}
+    ocp_acm_policy_selector_value: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_selector_value
+         | default('') }}
+    ocp_acm_policy_remediation: >-
+      {{ bootstrap_acm_delivery.ocp_acm_policy_remediation
+         | default('inform') }}

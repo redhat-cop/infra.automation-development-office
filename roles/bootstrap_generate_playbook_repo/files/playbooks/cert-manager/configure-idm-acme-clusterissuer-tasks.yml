@@ -1,0 +1,206 @@
+---
+# yamllint disable rule:line-length
+# Shared by Deploy (when mode=idm_acme) and the dedicated IdM ACME playbook.
+# Do not use meta:end_host here — Deploy continues to routes after this include.
+- name: ADO | Resolve IdM ACME inputs (flat + nested)
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_idm_acme_url: >-
+      {{
+        (idm.acme_directory_url | default('') | string | trim)
+        if (idm is defined and (idm.acme_directory_url | default('') | string | trim | length) > 0)
+        else (idm_acme_directory_url | default('') | string | trim)
+      }}
+    bootstrap_generate_playbook_repo_idm_ca_configured: >-
+      {{
+        (idm.ca_bundle_file | default('') | string | trim)
+        if (idm is defined and (idm.ca_bundle_file | default('') | string | trim | length) > 0)
+        else (idm_ca_bundle_file | default('') | string | trim)
+      }}
+    bootstrap_generate_playbook_repo_idm_ca_pem: >-
+      {{
+        (idm.ca_bundle_pem | default('') | string)
+        if (idm is defined and (idm.ca_bundle_pem | default('') | string | length) > 0)
+        else (idm_ca_bundle_pem | default('') | string)
+      }}
+    bootstrap_generate_playbook_repo_idm_acme_skip: "{{ idm_acme_skip | default(false) | bool }}"
+  changed_when: false
+
+- name: ADO | Skip IdM ACME ClusterIssuer when idm_acme_skip=true
+  ansible.builtin.debug:
+    msg: Skipping IdM ACME ClusterIssuer because idm_acme_skip=true
+  when: bootstrap_generate_playbook_repo_idm_acme_skip | bool
+
+- name: ADO | Fail if IdM ACME URL missing
+  ansible.builtin.fail:
+    msg:
+      - Missing IdM ACME directory URL.
+      - 'Set idm.acme_directory_url in vars_cert_manager.yml via preflight.'
+      - 'Or set idm_acme_skip: true to skip this playbook.'
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_acme_url | length) == 0
+
+- name: ADO | Resolve IdM CA file candidates (Contoller cwd-safe)
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_idm_ca_candidates: >-
+      {{
+        (
+          [
+            bootstrap_generate_playbook_repo_idm_ca_configured,
+            (playbook_dir ~ '/../../' ~ bootstrap_generate_playbook_repo_idm_ca_configured)
+              if (bootstrap_generate_playbook_repo_idm_ca_configured | length) > 0 else '',
+            playbook_dir ~ '/../../files/certs/ca.crt',
+            playbook_dir ~ '/../../files/certs/idm-root-ca.crt',
+            '/runner/project/' ~ bootstrap_generate_playbook_repo_idm_ca_configured
+              if (bootstrap_generate_playbook_repo_idm_ca_configured | length) > 0 else '',
+            '/runner/project/files/certs/ca.crt',
+            '/runner/project/files/certs/idm-root-ca.crt',
+          ]
+          | select('string')
+          | map('trim')
+          | reject('equalto', '')
+          | unique
+          | list
+        )
+      }}
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | length) == 0
+  changed_when: false
+
+- name: ADO | Stat IdM CA candidate paths
+  ansible.builtin.stat:
+    path: '{{ item }}'
+  loop: '{{ bootstrap_generate_playbook_repo_idm_ca_candidates | default([]) }}'
+  register: bootstrap_generate_playbook_repo_idm_ca_stats
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | length) == 0
+
+- name: ADO | Pick first existing IdM CA file
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_idm_ca_bundle_file: >-
+      {{
+        (
+          bootstrap_generate_playbook_repo_idm_ca_stats.results
+          | default([])
+          | selectattr('stat.exists')
+          | map(attribute='item')
+          | list
+          | first
+        )
+        | default('')
+      }}
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | length) == 0
+  changed_when: false
+
+- name: ADO | Fail if IdM CA is missing (no PEM and no file)
+  ansible.builtin.fail:
+    msg:
+      - 'IdM CA not found for ACME ClusterIssuer.'
+      - 'Upload ca.crt in preflight (Cert-Manager → IdM ACME) and re-run bootstrap,'
+      - 'or set idm_acme_skip: true.'
+      - >-
+        Tried paths:
+        {{ bootstrap_generate_playbook_repo_idm_ca_candidates | default([]) | to_json }}
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | length) == 0
+    - (bootstrap_generate_playbook_repo_idm_ca_bundle_file | default('') | length) == 0
+
+- name: ADO | Read IdM CA PEM from resolved file
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_idm_ca_pem: >-
+      {{ lookup('ansible.builtin.file', bootstrap_generate_playbook_repo_idm_ca_bundle_file) }}
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | length) == 0
+    - (bootstrap_generate_playbook_repo_idm_ca_bundle_file | default('') | length) > 0
+
+- name: ADO | Fail if IdM CA PEM is empty
+  ansible.builtin.fail:
+    msg:
+      - IdM CA PEM is empty after resolve/read.
+  when:
+    - not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+    - (bootstrap_generate_playbook_repo_idm_ca_pem | string | length) == 0
+
+# ClusterIssuer admission calls cert-manager-webhook. Fresh installs often race
+# wait_pods (Running) before the webhook Service has endpoints.
+- name: ADO | Resolve cert-manager webhook namespace
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_cert_manager_webhook_ns: >-
+      {{
+        bootstrap_cert_manager_operand_namespace
+        | default(name_space | default('cert-manager'), true)
+      }}
+  when: not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+  changed_when: false
+
+- name: ADO | Wait for cert-manager-webhook Deployment available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ bootstrap_generate_playbook_repo_cert_manager_webhook_ns }}"
+    name: cert-manager-webhook
+  register: bootstrap_generate_playbook_repo_cm_webhook_deploy
+  until: >-
+    (bootstrap_generate_playbook_repo_cm_webhook_deploy.resources | default([]) | length) > 0
+    and (
+      (
+        bootstrap_generate_playbook_repo_cm_webhook_deploy.resources[0].status.availableReplicas
+        | default(0) | int
+      ) >= 1
+    )
+  retries: "{{ bootstrap_cert_manager_webhook_retries | default(36) | int }}"
+  delay: "{{ bootstrap_cert_manager_webhook_delay | default(5) | int }}"
+  when: not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+
+- name: ADO | Wait for cert-manager-webhook Service endpoints
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Endpoints
+    namespace: "{{ bootstrap_generate_playbook_repo_cert_manager_webhook_ns }}"
+    name: cert-manager-webhook
+  register: bootstrap_generate_playbook_repo_cm_webhook_eps
+  until:
+    - (bootstrap_generate_playbook_repo_cm_webhook_eps.resources | default([]) | length) > 0
+    - (bootstrap_generate_playbook_repo_cm_webhook_eps.resources[0].subsets | default([]) | length) > 0
+    - >-
+      (
+        bootstrap_generate_playbook_repo_cm_webhook_eps.resources[0].subsets
+        | map(attribute='addresses')
+        | select('defined')
+        | flatten
+        | list
+        | length
+      ) > 0
+  retries: "{{ bootstrap_cert_manager_webhook_retries | default(36) | int }}"
+  delay: "{{ bootstrap_cert_manager_webhook_delay | default(5) | int }}"
+  when: not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)
+
+- name: ADO | Manage IdM ACME ClusterIssuer
+  kubernetes.core.k8s:
+    state: '{{ state | default("present") }}'
+    definition:
+      apiVersion: cert-manager.io/v1
+      kind: ClusterIssuer
+      metadata:
+        name: idm-acme
+      spec:
+        acme:
+          server: '{{ bootstrap_generate_playbook_repo_idm_acme_url }}'
+          caBundle: '{{ bootstrap_generate_playbook_repo_idm_ca_pem | b64encode }}'
+          privateKeySecretRef:
+            name: idm-acme-account-key
+          solvers:
+            - http01:
+                ingress:
+                  class: openshift-default
+  register: bootstrap_generate_playbook_repo_idm_acme_issuer
+  until: bootstrap_generate_playbook_repo_idm_acme_issuer is succeeded
+  retries: "{{ bootstrap_cert_manager_issuer_retries | default(12) | int }}"
+  delay: "{{ bootstrap_cert_manager_issuer_delay | default(10) | int }}"
+  when: not (bootstrap_generate_playbook_repo_idm_acme_skip | bool)

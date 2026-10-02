@@ -1,4 +1,4 @@
-"""Adapt a Grafana dashboard JSON for OpenshiftProd / OpenshiftDev / Openshift folders."""
+"""Adapt a Grafana dashboard JSON for OpenshiftProd / OpenshiftProdInfra / Openshift folders."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,7 @@ import sys
 
 
 K8S_VAR = {
-    "current": {"selected": True, "text": "Openshift-Prod", "value": "Openshift-Prod"},
+    "current": {"selected": True, "text": "OpenshiftProd", "value": "OpenshiftProd"},
     "hide": 0,
     "includeAll": False,
     "label": "K8S",
@@ -17,16 +17,20 @@ K8S_VAR = {
     "options": [],
     "query": "prometheus",
     "refresh": 1,
-    "regex": "/^Openshift-(Prod|Dev)$/",
+    # Only OpenshiftProd and OpenshiftProdInfra (uid == name from create_datasource).
+    "regex": "/^OpenshiftProd(Infra)?$/",
     "skipUrlSync": False,
     "type": "datasource",
 }
 
 # String / uid forms that should be remapped to the folder Prometheus target.
+# Keep legacy Openshift-Prod / Openshift-Dev so old source JSON is rewritten.
 LEGACY_DS_STRINGS = {
     "Openshift",
     "Openshift-Prod",
     "Openshift-Dev",
+    "OpenshiftProd",
+    "OpenshiftProdInfra",
     "Prometheus",
     "prometheus",
     "grafana_datasource",
@@ -62,7 +66,13 @@ def ensure_k8s_var(dash: dict, *, pinned: str | None = None, hide: int = 0) -> N
     templating["list"] = others
 
 
-def _should_rewrite_ds(ds) -> bool:
+def _should_rewrite_ds(ds, *, all_prometheus: bool = False) -> bool:
+    """Return True if this datasource ref should be remapped.
+
+    Contoller / Grafana-exported boards often use opaque UIDs (e.g. PBFA97CFB…)
+    that are not Openshift-* / grafana_datasource. For pin|multi, rewrite every
+    prometheus-typed ref; otherwise only legacy ADO placeholders.
+    """
     if isinstance(ds, str):
         if ds in LEGACY_DS_STRINGS:
             return True
@@ -72,12 +82,26 @@ def _should_rewrite_ds(ds) -> bool:
             return True
         if ds.startswith("${") and "datasource" in ds.lower():
             return True
+        # pin|multi: any bare string prometheus-looking name (not Loki/Tempo/etc.)
+        if all_prometheus and ds.lower() not in (
+            "loki",
+            "tempo",
+            "jaeger",
+            "elasticsearch",
+            "grafana",
+            "-- dashboard --",
+            "-- mixed --",
+        ):
+            return True
         return False
     if isinstance(ds, dict):
         ds_type = (ds.get("type") or "").lower()
         uid = str(ds.get("uid") or "")
         name = str(ds.get("name") or "")
         if ds_type in ("prometheus", ""):
+            # pin|multi: always remap prometheus (including opaque Grafana UIDs)
+            if all_prometheus:
+                return True
             if (
                 uid in LEGACY_DS_STRINGS
                 or name in LEGACY_DS_STRINGS
@@ -97,31 +121,35 @@ def _should_rewrite_ds(ds) -> bool:
     return False
 
 
-def rewrite_prometheus_ds(obj, pinned: str | None = None) -> None:
+def rewrite_prometheus_ds(
+    obj, pinned: str | None = None, *, all_prometheus: bool = False
+) -> None:
     target = {"type": "prometheus", "uid": pinned or "${datasource}"}
     if isinstance(obj, dict):
-        if "datasource" in obj and _should_rewrite_ds(obj["datasource"]):
+        if "datasource" in obj and _should_rewrite_ds(
+            obj["datasource"], all_prometheus=all_prometheus
+        ):
             obj["datasource"] = dict(target)
         for v in obj.values():
-            rewrite_prometheus_ds(v, pinned=pinned)
+            rewrite_prometheus_ds(v, pinned=pinned, all_prometheus=all_prometheus)
     elif isinstance(obj, list):
         for v in obj:
-            rewrite_prometheus_ds(v, pinned=pinned)
+            rewrite_prometheus_ds(v, pinned=pinned, all_prometheus=all_prometheus)
 
 
 def apply_uid(dash: dict, uid_suffix: str) -> None:
     base = str(dash.get("uid") or "ado-dashboard")
     # strip prior cluster suffixes
-    base = re.sub(r"-(prod|dev)$", "", base, flags=re.I)
+    base = re.sub(r"-(prod|dev|infra)$", "", base, flags=re.I)
     dash["uid"] = f"{base}{uid_suffix}" if uid_suffix else base
 
 
 def apply_title(dash: dict, title_cluster: str, mode: str) -> None:
     title = str(dash.get("title") or "Dashboard")
-    title = re.sub(r"^OpenShift\s+(Prod|Dev)\s*[—-]\s*", "OpenShift — ", title, flags=re.I)
+    title = re.sub(r"^OpenShift\s+(Prod|Dev|Infra)\s*[—-]\s*", "OpenShift — ", title, flags=re.I)
     title = re.sub(r"^OpenShift\s*[—-]\s*", "OpenShift — ", title, flags=re.I)
     if mode == "pin" and title_cluster:
-        # OpenshiftProd / OpenshiftDev folders: cluster-specific title
+        # OpenshiftProd / OpenshiftProdInfra folders: cluster-specific title
         if title.startswith("OpenShift — "):
             dash["title"] = f"OpenShift {title_cluster} — {title[len('OpenShift — '):]}"
         else:
@@ -144,7 +172,7 @@ def main() -> int:
     parser.add_argument(
         "--uid-suffix",
         default="",
-        help="Suffix like prod/dev or -prod/-dev (leading dash optional)",
+        help="Suffix like prod/infra or -prod/-infra (leading dash optional)",
     )
     parser.add_argument("--title-cluster", default="")
     args = parser.parse_args()
@@ -156,26 +184,27 @@ def main() -> int:
     if uid_suffix and not uid_suffix.startswith("-"):
         uid_suffix = f"-{uid_suffix}"
 
-    ds_name = str(args.datasource or "").strip() or "Openshift-Prod"
+    ds_name = str(args.datasource or "").strip() or "OpenshiftProd"
     ds_uid = str(args.datasource_uid or "").strip() or ds_name
 
     if args.mode == "none":
-        # Still rewrite legacy placeholders so boards are not left on grafana_datasource
-        rewrite_prometheus_ds(dash, pinned=ds_uid)
+        # Legacy placeholders only — do not clobber unrelated prometheus UIDs.
+        rewrite_prometheus_ds(dash, pinned=ds_uid, all_prometheus=False)
         open(args.dest, "w", encoding="utf-8").write(json.dumps(dash, indent=2) + "\n")
         return 0
 
     if args.mode == "pin":
         apply_uid(dash, uid_suffix)
         apply_title(dash, args.title_cluster or "", "pin")
-        rewrite_prometheus_ds(dash, pinned=ds_uid)
+        # Contoller exports use opaque UIDs; remap all prometheus refs to pin target.
+        rewrite_prometheus_ds(dash, pinned=ds_uid, all_prometheus=True)
         # no K8S dropdown in single-cluster folders
         templating = dash.setdefault("templating", {})
         templating["list"] = [v for v in templating.get("list", []) if v.get("name") != "datasource"]
     elif args.mode == "multi":
         apply_uid(dash, "")
         apply_title(dash, "", "multi")
-        rewrite_prometheus_ds(dash, pinned=None)
+        rewrite_prometheus_ds(dash, pinned=None, all_prometheus=True)
         ensure_k8s_var(dash, pinned=None, hide=0)
 
     open(args.dest, "w", encoding="utf-8").write(json.dumps(dash, indent=2) + "\n")

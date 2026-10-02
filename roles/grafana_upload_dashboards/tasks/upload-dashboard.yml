@@ -76,6 +76,36 @@
         )
       }}
 
+# TEMPORARY debug — remove after datasource naming verified in Contoller stdout.
+# Must not fail the job: v2 boards lack panels[]; some panels lack datasource.
+- name: DEBUG - final dashboard datasource refs before Grafana upload
+  ansible.builtin.debug:
+    msg:
+      work_item: "{{ grafana_dashboard_item.name | default('') }}"
+      folder: "{{ grafana_dashboard_item.folder | default('') }}"
+      datasource_mode: "{{ grafana_dashboard_item.datasource_mode | default('none') }}"
+      pinned_datasource_name: "{{ grafana_dashboard_item.datasource | default(grafana_datasource | default('')) }}"
+      dashboard_title: "{{ grafana_upload_dashboards_one_json.title | default('UNKNOWN') }}"
+      dashboard_uid: "{{ grafana_upload_dashboards_one_json.uid | default('UNKNOWN') }}"
+      has_panels: "{{ grafana_upload_dashboards_one_json.panels is defined }}"
+      has_elements: "{{ grafana_upload_dashboards_one_json.elements is defined }}"
+      panel_datasource_uids_sample: >-
+        {{
+          grafana_upload_dashboards_one_json.panels
+          | default([])
+          | selectattr('datasource', 'defined')
+          | map(attribute='datasource')
+          | list
+          | unique
+        }}
+      contains_OpenshiftProd: "{{ 'OpenshiftProd' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_OpenshiftProdInfra: "{{ 'OpenshiftProdInfra' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_Openshift_Prod: "{{ 'Openshift-Prod' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_Openshift_Dev: "{{ 'Openshift-Dev' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_old_regex: "{{ 'Openshift-(Prod|Dev)' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_datasource_var: "{{ '${datasource}' in (grafana_upload_dashboards_one_json | to_json) }}"
+      contains_new_regex: "{{ 'OpenshiftProd(Infra)' in (grafana_upload_dashboards_one_json | to_json) }}"
+
 - name: Import classic Grafana dashboard (/api/dashboards/db)
   ansible.builtin.uri:
     url: "{{ grafana_upload_dashboards_url }}/api/dashboards/db"
@@ -109,6 +139,8 @@
     validate_certs: "{{ grafana_validate_certs | default(false) }}"
   when: not (grafana_upload_dashboards_one_is_v2 | bool)
 
+# NOTE: body must be one Jinja dict. YAML ``spec: >- {{ dict }}`` stringifies
+# the dashboard and Grafana returns: "Dashboard appears to be in v1 format".
 - name: Import Grafana schema-v2 dashboard (dashboard.grafana.app/v2)
   ansible.builtin.uri:
     url: >-
@@ -126,27 +158,32 @@
         else {'Content-Type': 'application/json'}
       }}
     body_format: json
-    body:
-      kind: Dashboard
-      apiVersion: dashboard.grafana.app/v2
-      metadata:
-        name: "{{ grafana_upload_dashboards_one_uid }}"
-        annotations: >-
-          {{
-            {'grafana.app/folder': grafana_upload_dashboards_one_folder_uid}
+    body: >-
+      {{
+        {
+          'kind': 'Dashboard',
+          'apiVersion': 'dashboard.grafana.app/v2',
+          'metadata': (
+            {
+              'name': grafana_upload_dashboards_one_uid,
+              'annotations': {
+                'grafana.app/folder': grafana_upload_dashboards_one_folder_uid
+              }
+            }
             if (
               (not (grafana_upload_dashboards_one_is_root | bool))
               and (grafana_upload_dashboards_one_folder_uid | length) > 0
             )
-            else {}
-          }}
-      spec: >-
-        {{
-          grafana_upload_dashboards_one_json
-          | dict2items
-          | rejectattr('key', 'equalto', 'id')
-          | items2dict
-        }}
+            else {'name': grafana_upload_dashboards_one_uid}
+          ),
+          'spec': (
+            grafana_upload_dashboards_one_json
+            | dict2items
+            | rejectattr('key', 'equalto', 'id')
+            | items2dict
+          )
+        }
+      }}
     status_code: [200, 201]
     validate_certs: "{{ grafana_validate_certs | default(false) }}"
   register: grafana_upload_dashboards_one_v2_put
@@ -168,27 +205,32 @@
         else {'Content-Type': 'application/json'}
       }}
     body_format: json
-    body:
-      kind: Dashboard
-      apiVersion: dashboard.grafana.app/v2
-      metadata:
-        name: "{{ grafana_upload_dashboards_one_uid }}"
-        annotations: >-
-          {{
-            {'grafana.app/folder': grafana_upload_dashboards_one_folder_uid}
+    body: >-
+      {{
+        {
+          'kind': 'Dashboard',
+          'apiVersion': 'dashboard.grafana.app/v2',
+          'metadata': (
+            {
+              'name': grafana_upload_dashboards_one_uid,
+              'annotations': {
+                'grafana.app/folder': grafana_upload_dashboards_one_folder_uid
+              }
+            }
             if (
               (not (grafana_upload_dashboards_one_is_root | bool))
               and (grafana_upload_dashboards_one_folder_uid | length) > 0
             )
-            else {}
-          }}
-      spec: >-
-        {{
-          grafana_upload_dashboards_one_json
-          | dict2items
-          | rejectattr('key', 'equalto', 'id')
-          | items2dict
-        }}
+            else {'name': grafana_upload_dashboards_one_uid}
+          ),
+          'spec': (
+            grafana_upload_dashboards_one_json
+            | dict2items
+            | rejectattr('key', 'equalto', 'id')
+            | items2dict
+          )
+        }
+      }}
     status_code: [200, 201]
     validate_certs: "{{ grafana_validate_certs | default(false) }}"
   when:

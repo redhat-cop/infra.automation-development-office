@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - ocp_image_registry - Add optional OpenShift integrated image registry
+    enablement with merge-only Config patch, operational PASS/FAIL reporting,
+    Contoller JT/workflow wiring, bootstrap prep, and preflight option
+    ``integrated_image_registry``.

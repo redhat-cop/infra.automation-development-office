@@ -1,0 +1,5 @@
+---
+# yamllint disable rule:line-length
+# Create ForkliftController after mtv-operator CSV is Succeeded.
+ocp_mtv_controller_name: forklift-controller
+ocp_mtv_olm_managed: true

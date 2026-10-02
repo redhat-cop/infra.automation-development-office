@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Wait for cert-manager-webhook
+    Deployment and Service endpoints (and retry ClusterIssuer create)
+    before creating ``idm-acme``. Fresh Deploy no longer races
+    ``no endpoints available for service cert-manager-webhook``.

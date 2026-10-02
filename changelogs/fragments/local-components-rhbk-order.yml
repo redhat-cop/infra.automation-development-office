@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Local component ordering expands nested
+    Contoller workflows (e.g. ``ADO | RHBK Workflow`` → OAuth) so Deploy RHBK
+    runs before Configure OAuth/RHBK; selection order is honored for ties and
+    can be adjusted in the UI.
+  - >-
+    bootstrap_generate_playbook_repo - Mark ``ado-enable-realm-bootstrap`` as a
+    non-recommended day-2 helper (Deploy RHBK / Deploy RHBK Realm already
+    create and enable the realm).

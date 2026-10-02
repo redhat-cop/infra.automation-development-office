@@ -1,0 +1,74 @@
+---
+# yamllint disable rule:line-length
+# MTV install/uninstall. Virt should be present on migration targets.
+- name: ADO | Deploy Migration Toolkit for Virtualization
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: mtv
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
+  environment:
+    K8S_AUTH_HOST: '{{ host | default(api_host) }}'
+    K8S_AUTH_API_KEY: '{{ token }}'
+    K8S_AUTH_VERIFY_SSL: >-
+      {{ (verify_ssl | bool) | ternary('yes', 'no') }}
+  pre_tasks:
+    - name: >-
+        ADO | Resolve vars for component from framework defaults + env
+        overrides
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+
+  tasks:
+    - name: ADO | Ensure MTV namespace exists
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Create MTV OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Subscribe MTV operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for MTV operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_wait_operator
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Configure ForkliftController
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_mtv
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for MTV pods
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_wait_pods
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Delete ForkliftController
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_mtv
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Unsubscribe MTV operator
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operator_subscription
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete MTV OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_operatorgroups
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete MTV namespace
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_namespace
+      when: (state | default('present')) == 'absent'

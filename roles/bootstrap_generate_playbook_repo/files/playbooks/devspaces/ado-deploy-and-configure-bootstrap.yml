@@ -4,6 +4,7 @@
   gather_facts: false
   vars:
     component: devspaces
+    ocp_devspaces_gitops_output_dir: "{{ playbook_dir }}/../.."
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
@@ -18,9 +19,13 @@
         name: infra.ado.bootstrap_resolve_component
   roles:
     - role: infra.ado.ocp_namespace
+      when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
     - role: infra.ado.ocp_operator_subscription
+      when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
     - role: infra.ado.ocp_devspaces
     - role: infra.ado.ocp_wait_pods
+      when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
     - role: infra.ado.ocp_routes
+      when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
       vars:
         name_space: "{{ app_namespace | default(devspaces_namespace | default('openshift-devspaces')) }}"

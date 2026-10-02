@@ -1,0 +1,22 @@
+---
+- name: Render shared Dev Spaces CheCluster
+  ansible.builtin.include_tasks: build-checluster.yml
+- name: Generate Dev Spaces manual-sync Application and resources
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_gitops_application
+  vars:
+    ocp_gitops_application_name: "devspaces-{{ env | default('default') }}"
+    ocp_gitops_application_repo_url: '{{ ocp_devspaces_gitops_repo_url }}'
+    ocp_gitops_application_revision: '{{ ocp_devspaces_gitops_revision }}'
+    ocp_gitops_application_repo_path: '{{ ocp_devspaces_gitops_path }}'
+    ocp_gitops_application_namespace: '{{ ocp_devspaces_gitops_namespace }}'
+    ocp_gitops_application_project: '{{ ocp_devspaces_gitops_project }}'
+    ocp_gitops_application_destination: '{{ ocp_devspaces_gitops_destination }}'
+    ocp_gitops_application_target_namespace: '{{ ocp_devspaces_app_ns }}'
+    ocp_gitops_application_output_dir: '{{ ocp_devspaces_gitops_output_dir }}'
+    ocp_gitops_application_resources:
+      - apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: '{{ ocp_devspaces_app_ns }}'
+      - '{{ ocp_devspaces_checluster_resource }}'

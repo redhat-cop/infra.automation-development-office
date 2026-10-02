@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    ocp_wait_operator - Skip wait tasks when ``state`` is not ``present`` via a
+    portable ``when`` + ``block`` gate. Do not use ``meta: end_role``
+    (ansible-core 2.18+ only); older Execution Environments fail with
+    ``invalid meta action requested: end_role`` even on ACM/Virt install
+    (``state=present``).
+  - >-
+    bootstrap_generate_playbook_repo - Gate RHBK Deploy present vs absent like
+    ACM (wait operator / Keycloak CR / realm only on present; absent tears down
+    CR → Subscription → OG → namespace without waiting for CSV).

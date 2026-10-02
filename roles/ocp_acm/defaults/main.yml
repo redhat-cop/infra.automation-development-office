@@ -1,3 +1,55 @@
-# SPDX-License-Identifier: GPL-3.0-or-later-0
-# ---
-# defaults file for advanced-cluster-management
+---
+# Deploy MultiClusterHub and enable OpenShift console Fleet Management UI.
+ocp_acm_mch_name: multiclusterhub
+ocp_acm_mce_name: multiclusterengine
+ocp_acm_clustermanager_name: cluster-manager
+ocp_acm_local_cluster_name: local-cluster
+ocp_acm_availability_config: High
+
+# Wait for MultiClusterHub status.phase == Running after create.
+ocp_acm_mch_retries: 90
+ocp_acm_mch_delay: 20
+
+# Stuck Uninstalling / deleting: wait then clear known ACM finalizers.
+# Keep this short — stale webhooks are cleared first; long waits hide that bug.
+ocp_acm_uninstall_retries: 36
+ocp_acm_uninstall_delay: 5
+# On present: if MCH/MCE is Uninstalling, finish that uninstall first (default).
+ocp_acm_heal_stuck_uninstall: true
+# On absent: also remove MCE, ClusterManager, and local-cluster ManagedCluster.
+ocp_acm_absent_cleanup_mce: true
+ocp_acm_absent_cleanup_clustermanager: true
+ocp_acm_absent_cleanup_local_cluster: true
+# Remove known ACM validating webhooks when their backing Service is gone.
+ocp_acm_cleanup_stale_webhooks: true
+ocp_acm_stale_validating_webhooks:
+  - discovery.open-cluster-management.io
+  - multiclusterengines.multicluster.openshift.io
+  - multiclusterhub-operator-validating-webhook
+# On hub cleanup (absent / stuck-uninstall heal): always delete this webhook
+# so MCH DELETE is not blocked when the operator Service is already gone.
+ocp_acm_force_remove_mch_webhook: true
+ocp_acm_mch_validating_webhook: multiclusterhub-operator-validating-webhook
+# After delete+finalizer clear, require MCH/MCE fully gone (no soft-skip).
+ocp_acm_mch_gone_retries: 60
+ocp_acm_mch_gone_delay: 5
+
+# Ensure MCH console component stays enabled (Fleet Management plug-in source).
+ocp_acm_enable_console_component: true
+# Enable acm + mce ConsolePlugins on the cluster Console operator (default on).
+ocp_acm_enable_console_plugins: true
+ocp_acm_console_plugins:
+  - acm
+  - mce
+
+# Multicluster Observability (optional). Needs S3-compatible object storage.
+ocp_acm_observability_enabled: false
+ocp_acm_observability_namespace: open-cluster-management-observability
+ocp_acm_observability_mco_name: observability
+ocp_acm_observability_secret_name: thanos-object-storage
+ocp_acm_observability_storage_class: ""
+ocp_acm_observability_s3_bucket: ""
+ocp_acm_observability_s3_endpoint: ""
+ocp_acm_observability_s3_insecure: true
+ocp_acm_observability_s3_access_key: ""
+ocp_acm_observability_s3_secret_key: ""

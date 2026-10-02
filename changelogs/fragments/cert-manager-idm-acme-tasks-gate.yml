@@ -1,0 +1,2 @@
+bugfixes:
+  - bootstrap_generate_playbook_repo - Keep ``configure-idm-acme-clusterissuer-tasks.yml`` gated with the IdM ACME playbook so Contoller JT ``playbooks/cert-manager/ado-configure-idm-acme-clusterissuer.yml`` is not left missing after mode-based playbook pruning.

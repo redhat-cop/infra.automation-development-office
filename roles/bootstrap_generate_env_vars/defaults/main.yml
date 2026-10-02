@@ -25,6 +25,7 @@ generate_env_vars_components:  # noqa: var-naming[no-role-prefix]
   - ocp_compliance
   - ocp_descheduler
   - ocp_virtualization
+  - mtv
   - openshift_virt
   - ec2_ami_copy
   - pega
@@ -53,6 +54,46 @@ bootstrap_generate_env_vars_encrypt_vault_files: >-
 bootstrap_generate_env_vars_vault_password_file: >-
   {{ generate_env_vars_vault_password_file }}
 bootstrap_generate_env_vars_components: "{{ generate_env_vars_components }}"
+
+# OpenShift app ids that preflight UI exposes as checkboxes.
+# component_apps.openshift entries outside this list are treated as stale
+# import leftovers and ignored for playbook/JT selection (option-derived
+# keys like console / admin_htpasswd still apply).
+bootstrap_generate_env_vars_preflight_ui_openshift_apps:
+  - aap
+  - acs
+  - acm
+  - bookstack
+  - cert_manager
+  - console
+  - devspaces
+  - dev_hub
+  - dirsrv
+  - eck
+  - gitops
+  - gitlab
+  - grafana
+  - kafka
+  - minio
+  - netbox
+  - oadp
+  - ocp_virtualization
+  - mtv
+  - openshift
+  - pega
+  - quay
+  - rhbk
+  - zabbix
+
+# Playbook apps that exist in the collection but are not preflight UI
+# checkboxes. Stale imports often leave these in top-level components[];
+# never select them from that leftover list (only via an explicit future
+# UI catalog entry under component_apps).
+bootstrap_generate_env_vars_non_ui_openshift_playbook_apps:
+  - gitlab_runner
+  - web_terminal
+  - ocp_descheduler
+  - ocp_compliance
 
 # AAP generated object defaults
 bootstrap_generate_env_vars_aap_additional_credentials: []

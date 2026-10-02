@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    ocp_acm - Absent/heal hub cleanup now safeguards half-finished uninstalls:
+    recreate the hub Namespace when MultiClusterHub is orphaned, force-remove
+    ``multiclusterhub-operator-validating-webhook`` before DELETE (admission
+    otherwise blocks delete when the webhook Service is gone), clear finalizers,
+    and re-request delete so the wait loop does not sit with no
+    ``deletionTimestamp``.
