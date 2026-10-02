@@ -4,6 +4,231 @@ Infra Ado Collection Release Notes
 
 .. contents:: Topics
 
+v2.0.0
+======
+
+Minor Changes
+-------------
+
+- ado-preflight-ui - Admin HTPasswd form includes Login button name (IdP) wired through bootstrap vars and Contoller JT survey.
+- ado-preflight-ui - Move Credentials and Git under AAP Configuration tabs; RHBK OpenShift form adds TLS mode (edge / cert-manager / own cert upload).
+- bootstrap_controller - Add ``ADO | Satellite Capsule Install`` job template wired to ``infra.ado.capsule_install``.
+- bootstrap_controller - Include selected Pega playbooks and job templates in generated bootstrap output.
+- bootstrap_controller - Nest cert-manager under ``ADO | Cert Manager Workflow`` (deploy, optional IdM ACME / AWS PCA, optional default ingress), referenced from ``ADO | OpenShift Workflow`` like RHBK and Grafana.
+- bootstrap_generate_env_vars - Map Pega disconnected inputs and remove obsolete lab-specific generated defaults.
+- bootstrap_generate_env_vars - Map delivery and policy inputs.
+- bootstrap_generate_env_vars - Write ``capsule_install_*`` variables into ``vars_satellite.yml`` / ``vault_satellite.yml`` and seed a dedicated Capsule AAP inventory.
+- bootstrap_generate_playbook_repo - Generate GitOps and policy files.
+- bootstrap_generate_playbook_repo - Generate ``playbooks/satellite/ado-install-capsule-bootstrap.yml`` for the ``satellite_capsule_install`` app.
+- bootstrap_generate_playbook_repo - Generate a local component execution plan and CLI runner from selected playbooks and existing workflow ordering. Validate selections and required survey inputs, preview commands, and stop execution on the first failed playbook without requiring Controller.
+- bootstrap_generate_playbook_repo - Local no-AAP component runner accepts per-playbook ``step_options`` (typed ``vars``, optional ``state``, and freeform ``extra_args``) so Preview/Run can override Common extra vars for a single step.
+- bootstrap_generate_playbook_repo - Local no-AAP component runner no longer re-prompts Contoller survey fields; generated ``group_vars`` from the form are the source of truth.
+- bootstrap_generate_playbook_repo - Replace the Pega failure placeholder with the ocp_pega role.
+- bootstrap_resolve_component - Prefer RHBK operator channel ``stable-v26.2`` so login-event metrics are available after upgrade.
+- capsule_install - Added HAProxy template and integration_capsule_install Molecule scenario.
+- capsule_install - Added firewall, DNS, and custom Capsule certificate generation tasks after package installation.
+- capsule_install - Added package installation after storage configuration when ``satellite-capsule`` is not already installed.
+- capsule_install - Ensure ``firewalld`` is installed before enabling the ``RH-Satellite-6-capsule`` service and opening load-balancer ports.
+- capsule_install - Install packages from ``capsule_install_packages`` instead of ``satellite_install_packages``.
+- capsule_install - Renamed OAuth consumer facts to ``capsule_install_foreman_proxy_oauth_consumer_key`` and ``capsule_install_foreman_proxy_oauth_consumer_secret``.
+- capsule_install - Renamed numbered task files to install_capsule, post_config, sync_capsule, and haproxy; wired full install flow in main.yml.
+- capsule_install - Skip load-balancer firewall delegation when ``capsule_install_loadbalancer_fqdn`` is unset so non-HAProxy runs do not fail firewall configuration.
+- cert_manager - Preflight issuer selection uses clearable options (IdM ACME, AWS PCA, Custom); unchecking all keeps operator-only deploy (``mode=cert``). Contoller workflow follows cert-manager plus optional issuer and/or Default Ingress Cert.
+- ci - Add the Red Hat partner certification checker workflow and Dependabot updates for GitHub Actions.
+- galaxy.yml - Add the ``infrastructure`` tag required by Automation Hub import checks.
+- grafana - Added standalone content playbooks under ``playbooks/grafana/`` (datasources, folders, dashboards, alerts, combined) for manual Contoller JT wiring without bootstrap install.
+- grafana - Keycloak metrics dashboard adds login success/fail panels and failed-login table/rate by Keycloak ``error`` (bad password / unknown user).
+- grafana_install - Add optional PostgreSQL backend for new OpenShift Grafana installs (``grafana_database_type: sqlite|postgres``). When postgres and ``grafana_database_provision=true`` (default), create Secret/PVC/Deployment/Service ``grafana-postgres`` and configure the Grafana CR ``database`` section. External Postgres is supported with ``grafana_database_provision=false`` plus host/user/ password. SQLite remains the default; SQLite→Postgres data migration is not automatic (separate follow-up workflow).
+- grafana_install - Gate operator/CR install on ``grafana_install_scope=install`` so OIDC/email configure JTs no longer re-apply the full install path.
+- grafana_upload_dashboards - Allow ``recurse: false`` on folder sources.
+- install_rhbk - Add ``event_metrics_user_enabled`` / ``install_rhbk_event_metrics_user_enabled`` (default false until RHBK 26.2+) plus ServiceMonitor for management ``/metrics``.
+- ocp_absent_cleanup - New role: safe OpenShift absent cleanup gate for Terminating namespaces, stuck finalizers, leftover CSVs/InstallPlans, and Deployments/pods (explicit namespace allowlist; refuses kube-* / platform NS).
+- ocp_acm - Optional Multicluster Observability (``ocp_acm_observability_enabled``) creates the observability namespace, ``thanos-object-storage`` secret, and ``MultiClusterObservability`` CR so Fleet Virtualization Overview can show metrics. Requires S3-compatible object storage (MinIO supported). Preflight ACM tab checkbox + S3 fields.
+- ocp_acm_policy - Generate namespace-label policies with explicit placement.
+- ocp_devspaces - Default ``ocp_devspaces_status_exporter_enabled`` / preflight ``status_exporter_enabled`` to ``true`` so Grafana Dev Spaces dashboards get phase and VS Code extension metrics out of the box.
+- ocp_devspaces - Optional DevWorkspace status metrics exporter (``status_exporter_enabled``) for Grafana; portable ``dw_*`` labels in the Dev Spaces operator namespace.
+- ocp_devspaces - Share CheCluster rendering for direct and GitOps generation.
+- ocp_devspaces - Status exporter can scrape VS Code extensions from Running workspace pods (``devworkspace_vscode_extension`` metric; needs pods/exec RBAC).
+- ocp_devspaces / preflight - Add custom getting-started sample fields (display name, git/devfile URL, bundled ADO icon or upload) so Dev Spaces can replace stock samples with an ADO-branded card.
+- ocp_gitops_application - Generate Applications and resource bundles.
+- ocp_htpasswd_admin / bootstrap_generate_env_vars - Preflight ``openshift.htpasswd_idp_name`` sets the OpenShift console login button (OAuth IdP name); secret defaults to ``<idp>-secret``.
+- ocp_image_registry - Add optional OpenShift integrated image registry enablement with merge-only Config patch, operational PASS/FAIL reporting, Contoller JT/workflow wiring, bootstrap prep, and preflight option ``integrated_image_registry``.
+- ocp_mtv - New role plus bootstrap playbook / Contoller JT / OpenShift workflow node for Migration Toolkit for Virtualization (``mtv-operator`` + ``ForkliftController``). Preflight OpenShift app ``mtv``.
+- ocp_namespace - ``state=absent`` now runs ``ocp_absent_cleanup`` before and after delete so every OpenShift namespace uninstall gets the same stuck-cleanup behavior.
+- ocp_nfs_storage - Bundle ``csi-driver-nfs`` Helm chart ``files/charts/csi-driver-nfs-4.11.0.tgz`` (~12 KiB) and install from that path by default so bootstrap / Contoller runs do not need GitHub ``helm repo add``. Set ``ocp_nfs_storage_use_bundled_chart=false`` to use the upstream charts URL, or ``ocp_nfs_storage_chart_path`` for a custom archive. Container images referenced by the chart are unchanged.
+- ocp_operator_subscription - ``state=absent`` runs ``ocp_absent_cleanup`` with CSV name match (workloads off by default for shared namespaces).
+- ocp_pega - Add local-chart Helm deployment with offline image validation and optional OpenSearch and Backing Services.
+- ocp_virtualization_install - Honor ``ocp_virtualization_install_enable_kube_secondary_dns`` by setting HyperConverged ``featureGates.deployKubeSecondaryDNS`` when creating the CR.
+- preflight - RHBK checkbox for user-event metrics (enable after upgrading off ``stable-v26.0``).
+
+Bugfixes
+--------
+
+- acm playbook - Stop passing a self-referential ``operatorgroup: "{{ operatorgroup | default(...) }}"`` into ``ocp_operatorgroups``. That recursion aborts absent after hub cleanup already succeeded; use the value from ``bootstrap_resolve_component``.
+- acm playbook - Uninstall MultiClusterHub/subscription before OperatorGroup and namespace so hub controllers cannot recreate the OG mid-absent run.
+- ado-preflight-ui - Typing Additional ansible-playbook options no longer swaps the playbook preview pane back to the bootstrap scaffolding command; click Preview commands to refresh.
+- bookstack_openshift - OIDC-only scope reads existing bookstack-app Secret for APP_KEY before redeploy (fixes undefined bookstack_openshift_app_key_effective).
+- bookstack_openshift - Remove invalid ``validate_certs`` from ``kubernetes.core.k8s*`` OIDC tasks (conflicting action statements).
+- bootstrap_controller - Add missing ``Alt Routes Workflow`` nested node so OpenShift workflow success edges to alternate routes resolve when that sub-workflow is generated.
+- bootstrap_controller - Hub Pulp URI auth no longer sets ``headers`` to ``omit`` under basic-auth (empty OAuth/Hub token), which left ``bootstrap_controller_hub_uri_headers`` undefined and crashed collection publish on hub-only / standalone runs.
+- bootstrap_controller - Hub publish finds prebuilt ``infra-ado-*.tar.gz`` under ``/opt/ado-collections`` as well as ``/workspace``, so force updates stage the exact preflight tarball instead of silently rebuilding from ``ado-source``.
+- bootstrap_controller - Hub-only collection/EE publish no longer skipped after a prior license-attach left ``aap_ocp_install_license_only`` / ``aap_install_during_bootstrap`` in group_vars. Resolve install flags from preflight only; only a full AAP operator install blocks Contoller apply (license-only attach does not).
+- bootstrap_controller - Keep Configure LDAP in OpenShift on the OpenShift workflow when ldap_auth is selected (JT alone is not enough).
+- bootstrap_controller - Lengthen Hub pulp import/promote waits (default ~10m; ~20m for tarballs >= 30MB such as ``redhat.rhel_system_roles``) so large collection publishes finish before Hub EE push.
+- bootstrap_controller - Move ``environment`` off ``include_role`` onto a surrounding ``block`` in ``install_nfs_csi.yml``, ``install_iscsi_csi.yml``, and ``install_htpasswd.yml`` so ansible-core that rejects ``environment`` on IncludeRole no longer fails bootstrap CSI/HTPasswd prep.
+- bootstrap_controller - Pass ``KUBECONFIG`` / ``K8S_AUTH_KUBECONFIG`` into ``ocp_image_registry`` during bootstrap prep, matching HTPasswd and CSI install tasks.
+- bootstrap_controller - Resolve NFS/iSCSI CSI inputs with ``set_fact`` before ``include_role`` instead of ``ocp_* | default(alias)`` on the same var name, which recursed under ansible-core and failed the NFS CSI assert during bootstrap.
+- bootstrap_controller - Retry Hub EE ``skopeo copy`` on registry 502/gateway flakes (skopeo ``--retry-times``/``--retry-delay`` plus Ansible retries).
+- bootstrap_controller - Skip IdM ACME and AWSPCA job templates unless ``bootstrap_controller_cert_manager_mode`` is ``idm_acme`` or ``aws_pca``.
+- bootstrap_controller - Treat OpenShift option ``nfs_csi`` / ``iscsi_csi`` as enabling install during bootstrap by default (``install_*_during_bootstrap`` defaults to true when the option is selected), so selecting the option in preflight actually runs the CSI install tasks.
+- bootstrap_controller - Treat cert-manager ``mode=custom`` like ``cert`` when pruning OpenShift workflow nodes so IdM ACME and AWS PCA job templates are omitted unless those modes are selected.
+- bootstrap_controller - Wait for an existing project update and reuse it when its source matches, instead of queuing a duplicate sync. Preserve failures rather than accepting stale successful revisions, and display actual project-update output in failure guidance.
+- bootstrap_controller - Wire ``ADO | Deploy OpenShift Virtualization`` into the OpenShift workflow so selecting ``ocp_virtualization`` keeps a parallel root node (it was pruned because the JT existed but was never in ``simplified_workflow_nodes``).
+- bootstrap_generate_env_vars - Admin HTPasswd rejects empty passwords instead of writing blank hashes (no silent ``redhat123`` default).
+- bootstrap_generate_env_vars - Admin HTPasswd vault templates no longer hardcode ``redhat123``. Write real ``htpasswd_users`` into ``vault_htpass_admin.yml``, ``vault_admin_htpasswd.yml``, and ``vault_openshift.yml`` from preflight; drop the bogus ``admin_htpasswd: redhat123`` stub key.
+- bootstrap_generate_env_vars - Always derive RHACS Central hostname as ``central.<apps_domain>`` when apps domain is set; ignore stale preflight form overrides for ``component_config.acs.hostname``.
+- bootstrap_generate_env_vars - Clear stale ``license_only`` / ``install_during_bootstrap`` when preflight has attach/install off.
+- bootstrap_generate_env_vars - Console Banner delete clears leftover banner text/color keys from prior adds in ``vars_openshift.yml``.
+- bootstrap_generate_env_vars - Do not drop an explicit preflight StorageClass on ocp-dev (including synology-nfs-csi). Emptying storage left ACS/Quay/MinIO with no storage in group_vars.
+- bootstrap_generate_env_vars - Exclude disabled Galaxy credentials from generated organization attachments so disabling public Galaxy is respected by bootstrap.
+- bootstrap_generate_env_vars - For OpenShift RHBK, Grafana, and GitLab (standalone option not selected), do not write any ``standalone_*`` fields or RHEL ``install_*`` / zip / RPM / edition vars into group_vars — only when Standalone is selected.
+- bootstrap_generate_env_vars - Hub hostname auto-discovers from Contoller ``aap.hostname`` unless ``hub_hostname_manual`` is true, so stale imported ``hub_hostname`` values no longer publish collections to the wrong Hub.
+- bootstrap_generate_env_vars - Ignore stale ``component_apps.openshift`` entries that are not in the preflight UI checkbox catalog so leftover imports no longer generate unrelated playbooks.
+- bootstrap_generate_env_vars - Ignore stale top-level ``components[]`` leftovers for non-UI OpenShift playbook apps (for example ``gitlab_runner``) so console-banner-only bootstrap no longer generates Deploy GitLab Runner in the local no-AAP run plan.
+- bootstrap_generate_env_vars - Ignore stale top-level ``components[]`` leftovers for non-UI OpenShift playbook apps (for example ``gitlab_runner``) so option-only selections do not generate those playbooks.
+- bootstrap_generate_env_vars - OpenShift Admin HTPasswd playbooks are generated only when ``component_options.openshift`` includes ``admin_htpasswd`` (not merely because admin username/password fields are present).
+- bootstrap_generate_env_vars - Pass Quay OIDC client/realm and optional client secret from preflight ``component_config.quay``.
+- bootstrap_generate_env_vars - Pin ``operator_channel: stable`` (and related subscription vars) into ``vars_ocp_virtualization.yml``; reject ACM-style ``release-*`` channels for CNV/HCO.
+- bootstrap_generate_env_vars - RHBK OpenShift TLS supports ``manual`` mode (``tls.crt`` / ``tls.key`` into vault) alongside edge and cert-manager; stop silently defaulting Keycloak admin password to ``redhat123`` when unset.
+- bootstrap_generate_env_vars - Select the console banner playbook only when ``console_banner`` is in OpenShift options (not merely because ``openshift.banner_text`` is present in imported preflight JSON).
+- bootstrap_generate_env_vars - Stop forcing ``install_rhbk_platform: rhel`` when preflight UI ships default ``standalone_hostname`` / zip fields without the ``standalone`` RHBK option selected. OpenShift Deploy RHBK stays on the operator path; standalone ZIP vars apply only when ``standalone`` is checked.
+- bootstrap_generate_env_vars - Stop wiping synology-nfs-csi storage on ocp-dev when that is also the cluster default (Quay/ACS/MinIO lost storage and ACS tried to patch PVCs to empty storageClassName).
+- bootstrap_generate_env_vars - Wire OpenShift console banner ``state`` (add/update/delete), LDAP Auth ``ldap_config`` IdM fields, and OAuth/RHBK client/realm/scopes from preflight ``openshift.*`` into generated vars/vault.
+- bootstrap_generate_env_vars - Write Admin HTPasswd ``htpasswd_users`` / ``htpasswd_pass`` into both ``vault_htpass_admin.yml`` (Contoller JT component) and ``vault_admin_htpasswd.yml`` (env-gen stub name). Fail hard when Admin HTPasswd is selected with an empty password — no silent default.
+- bootstrap_generate_playbook_repo - Cert-manager Deploy creates ClusterIssuer ``idm-acme`` when ``ocp_cert_manager_mode`` / ``mode`` is ``idm_acme`` (preflight IdM ACME tab). Selecting that mode and running Deploy alone previously installed only the operator; the issuer stayed on a separate playbook/JT. Contoller Deploy JT uses the same playbook; the OpenShift workflow still runs ``ADO | Configure IDM ACME ClusterIssuer`` after Deploy when mode is ``idm_acme``.
+- bootstrap_generate_playbook_repo - Cert-manager Deploy honors ``state=absent``: removes ADO ClusterIssuers (``idm-acme``, ``root-ca-issuer``, and optional extras), unsubscribes CSVs, deletes OperatorGroup and namespaces, and skips wait/configure steps that previously re-verified a still-running operator. Other ClusterIssuers on the cluster are left in place.
+- bootstrap_generate_playbook_repo - Cert-manager ``state=absent`` now assert-gates operand/operator namespaces to the allowlist, then sweeps leftover CSVs/InstallPlans/Deployments/pods, re-deletes webhooks, clears cert-manager APIServices, and fails if namespaces remain. Prior runs deleted Subscriptions but left Failed CSVs that recreated Deployments and stuck ``cert-manager`` namespaces Terminating for hours.
+- bootstrap_generate_playbook_repo - Cert-manager ``state=absent`` now uninstalls in a fixed order: ClusterIssuers and namespaced CRs (strip finalizers), admission webhooks, OLM Subscription/CSV, OperatorGroup, then namespaces with quick force-finalize. Prior deletes left webhooks and Terminating namespaces that broke every reinstall.
+- bootstrap_generate_playbook_repo - Cert-manager absent CR flatten no longer uses ``json_query`` (requires jmespath). Loop-append resources so uninstall works in the preflight pod EE.
+- bootstrap_generate_playbook_repo - Cert-manager absent removes ``cert-manager-webhook`` Validating/MutatingWebhookConfigurations before deleting namespaces so uninstall does not leave orphans that block the next install.
+- bootstrap_generate_playbook_repo - Cert-manager absent uses ``ocp_absent_cleanup`` for namespace sweeps instead of one-off tasks.
+- bootstrap_generate_playbook_repo - Create Admin HTPasswd playbook loads dedicated htpasswd vaults last so Contoller uses the preflight password.
+- bootstrap_generate_playbook_repo - Default Ingress Cert no longer generates IdM ACME and AWSPCA local playbooks; those follow cert-manager mode, matching Contoller workflow gates.
+- bootstrap_generate_playbook_repo - Deploy RHBK / Grafana / GitLab playbooks prefer the OpenShift route host over a poisoned standalone hostname.
+- bootstrap_generate_playbook_repo - Gate RHBK Deploy present vs absent like ACM (wait operator / Keycloak CR / realm only on present; absent tears down CR → Subscription → OG → namespace without waiting for CSV).
+- bootstrap_generate_playbook_repo - Generated ``ansible.cfg`` uses ``stdout_callback = default`` so bootstrap does not fail on removed ``community.general.yaml`` (community.general 12+).
+- bootstrap_generate_playbook_repo - Keep ``configure-idm-acme-clusterissuer-tasks.yml`` gated with the IdM ACME playbook so Contoller JT ``playbooks/cert-manager/ado-configure-idm-acme-clusterissuer.yml`` is not left missing after mode-based playbook pruning.
+- bootstrap_generate_playbook_repo - Keep cert-manager operator namespace (``cert-manager-operator``) distinct from the operand (``cert-manager``) so OperatorGroup create no longer 404s after creating only the operand ns.
+- bootstrap_generate_playbook_repo - Load vault_rhbk.yml in NetBox/Grafana/BookStack/Quay/MinIO/Dev Hub OIDC (and related) playbooks so rhbk_admin_password resolves.
+- bootstrap_generate_playbook_repo - Local component ordering expands nested Contoller workflows (e.g. ``ADO | RHBK Workflow`` → OAuth) so Deploy RHBK runs before Configure OAuth/RHBK; selection order is honored for ties and can be adjusted in the UI.
+- bootstrap_generate_playbook_repo - Local component runs pass form ``htpasswd_idp_name`` / ``htpasswd_secret`` as extra vars so delete/add track the preflight Login button name even when group_vars are stale.
+- bootstrap_generate_playbook_repo - Local no-AAP runner no longer forces ``-e state=present``, which overrode ``vars_openshift.yml`` and made Console Banner delete run as add.
+- bootstrap_generate_playbook_repo - Mark ``ado-enable-realm-bootstrap`` as a non-recommended day-2 helper (Deploy RHBK / Deploy RHBK Realm already create and enable the realm).
+- bootstrap_generate_playbook_repo - Never commit plaintext ``ado-preflight-*.json`` / ``ado-extra-vars.json`` / ``.vault_pass`` on git push; gitignore them and untrack if previously committed. Encrypted ``ado-preflight-*.json.vault.yml`` remains allowed.
+- bootstrap_generate_playbook_repo - OpenShift Deploy RHBK playbook now ``set_fact``s ``install_rhbk_platform: openshift`` (and role vars) so stale ``vars_rhbk.yml`` cannot divert Contoller onto the standalone zip path.
+- bootstrap_generate_playbook_repo - Seed ``ado-rhbk-api-pre_tasks.yml`` (and enable-realm / client-scope playbooks) into the Contoller project. Realm/client/mapper jobs imported that shared file but bootstrap never copied it, so Contoller failed with ``Unable to retrieve file contents``.
+- bootstrap_generate_playbook_repo - Wait for cert-manager-webhook Deployment and Service endpoints (and retry ClusterIssuer create) before creating ``idm-acme``. Fresh Deploy no longer races ``no endpoints available for service cert-manager-webhook``.
+- bootstrap_generate_playbook_repo - cert-manager playbook uses ``include_role`` with explicit operator/operand namespaces (``roles:`` params named ``name_space`` were ignored and only the operand NS existed).
+- bootstrap_resolve_component - Always export ``name_space`` / ``app_namespace`` (and related) from the selected component registry so a flat inventory/group_vars value from another app (e.g. Virt ``openshift-cnv``) cannot make ACM uninstall/create in the wrong namespace.
+- bootstrap_resolve_component - Always re-apply operator subscription identity vars (``operator_channel``, ``operator_name``, …) from the selected component so ACM ``release-2.x`` cannot leak into OpenShift Virtualization (or other operators) when Contoller inventory already defines ``operator_channel``.
+- ci - Add ``infra.ado.grafana_upload_alerts`` to ``.ansible-lint`` ``mock_roles`` so standalone Grafana alert playbooks pass syntax-check.
+- ci - Pin fakecloud to ``v0.44.10`` so Molecule jobs download the tagged release asset instead of querying GitHub's latest-release API.
+- ci - Run ansible-lint offline so the certification checker does not try to install Automation Hub-only dependencies such as ``ansible.platform``.
+- ci - Run the partner certification checker on pushes to ``main`` (including merges), on a daily schedule, or manually, instead of on every pull-request push.
+- ci - Skip recursive include_role Jinja during production ansible-lint so the certification checker can complete.
+- gitlab_install - Align bootstrap chart defaults with GitLab chart 10.3.2.
+- gitlab_install - Align chart version fallback with supported ``10.3.2`` (operator rejects ``10.3.1``).
+- grafana - Optional OpenShift or standalone install; content steps (datasources, folders, dashboards, alerts) run independently or config-only against an existing Grafana.
+- grafana - Preflight tabs; datasources form (Prometheus URL/bearer and git/path JSON); General/root folder; Grafana API token/admin auth.
+- grafana_create_datasource - Import datasource JSON from git/path; accept Grafana API token.
+- grafana_upload_alerts - Admin basic auth fallback; clone git sources; independent Contoller JT.
+- grafana_upload_dashboards - Always sanitize and truncate Grafana dashboard UIDs to 40 characters (schema-v2 ``metadata.name``). Long work-item names such as ``rhacs-vulnerability-dashboard.json__Security`` no longer cause ``uid too long, max 40 characters``. Also strip classic ``id`` from v2 upload specs.
+- grafana_upload_dashboards - Enforce Grafana's 40-character UID limit with a hard regex slice. Jinja ``truncate(40)`` keeps a 5-character leeway, so names like ``rhacs-vulnerability-dashboard.json__Security`` (44 chars) were left unchanged and schema-v2 upload still returned ``uid too long, max 40 characters``.
+- grafana_upload_dashboards - For Grafana root boards, omit ``folderUid`` / ``folderId`` entirely (empty uid and ``folderId: 0`` both returned ``folder not found`` on current Grafana).
+- grafana_upload_dashboards - Remap all Prometheus datasource UIDs on ``pin``/``multi`` (Contoller exports use opaque UIDs, not only ``Openshift-*`` placeholders).
+- grafana_upload_dashboards - Send schema-v2 dashboard ``spec`` as a JSON object (not a stringified YAML scalar) so Grafana accepts boards with ``elements`` (e.g. RHACS CVE report).
+- grafana_upload_dashboards - Upload Grafana schema-v2 dashboards (``elements`` / no ``panels``) via ``/apis/dashboard.grafana.app/v2`` into the target folder (e.g. Security / RHACS boards).
+- grafana_upload_dashboards - Upload root/General boards with ``folderId: 0`` instead of empty ``folderUid`` (Grafana returned ``folder not found``).
+- install_rhbk - Fix cert-manager Certificate wait ``until`` using wrong register name (``ocp_rhbk_certificate_info`` vs ``install_rhbk_certificate_info``), which never saw Ready and retried until failure even when the Certificate was already issued.
+- install_rhbk - Indent Jinja conditionals inside the standalone systemd unit ``content`` block so YAML parsers (sanity/ansible-lint) no longer treat ``{%`` as invalid tokens.
+- install_rhbk - Use ``include_tasks`` (not static ``import_tasks``) for OpenShift vs standalone platform gates so Deploy RHBK on OpenShift no longer fails at playbook load on ``ansible.posix.firewalld`` from the unused standalone task file.
+- install_rhbk - Wire correct native user-event metrics options (``event-metrics-user-enabled`` + optional feature ``user-event-metrics``) instead of the invalid ``event-metrics-user-events-enabled`` typo; do not enable them by default on RHBK ``stable-v26.0`` (crash-loop).
+- netbox_oidc - Propagate the configured namespace and validate the existing installation prerequisite.
+- ocp_absent_cleanup - Only finalize namespaces that are already ``Terminating`` (``ocp_absent_cleanup_finalize_only_terminating``, default true). Finalizing Active namespaces during every cleanup pass caused repeated ``Wait until finalized namespace is gone`` retry spam on absent.
+- ocp_acm - Absent/heal hub cleanup now safeguards half-finished uninstalls: recreate the hub Namespace when MultiClusterHub is orphaned, force-remove ``multiclusterhub-operator-validating-webhook`` before DELETE (admission otherwise blocks delete when the webhook Service is gone), clear finalizers, and re-request delete so the wait loop does not sit with no ``deletionTimestamp``.
+- ocp_acm - After MultiClusterHub create, wait for ``Running``, keep the ``console`` component enabled, and enable OpenShift Console plug-ins ``acm`` and ``mce`` by default so Fleet Management / All Clusters appears in the web console (operator-only install left the UI hidden).
+- ocp_acm - Hard-fail when MultiClusterHub/MultiClusterEngine remain after hub cleanup (``Confirm … removed`` no longer uses ``failed_when: false``). Present previously continued and waited for Running on a Terminating MCH.
+- ocp_acm - Harden ``state=absent`` to remove MultiClusterHub plus related hub objects (MultiClusterEngine, ClusterManager, ``local-cluster`` ManagedCluster), clear stuck uninstall finalizers, and drop known ACM validating webhooks whose backing Service is already gone.
+- ocp_acm - On ``state=present``, detect Uninstalling MultiClusterHub / MultiClusterEngine and finish that uninstall first (``ocp_acm_heal_stuck_uninstall``, default true), ensure a missing ``local-cluster`` Namespace when the ManagedCluster exists, wait for MultiClusterHub ``Running``, and enable Fleet Management Console plug-ins ``acm`` and ``mce``.
+- ocp_acm - Refuse ``state=present`` install/wait when MultiClusterHub is still Uninstalling/deleting; wait failure message now reports phase and deletionTimestamp.
+- ocp_acm - Skip MultiClusterHub console-component patch when console is already enabled so present/workflow reruns stay idempotent (rewriting ``overrides.components`` without ``configOverrides`` was always ``changed`` and could bounce MCH back to Installing).
+- ocp_acs - Omit empty storageClassName on PVC ensure so bound claims are not invalidated.
+- ocp_acs - When storage is unset, omit storageClassName on PVC ensure instead of patching empty string onto bound claims. Do not invent a cluster default StorageClass.
+- ocp_default_ingress_cert - Fix PEM normalize register/fail variable name mismatch (``ocp_default_ingress_cert_pem_normalize``) that always surfaced ``unknown openssl/normalize error``.
+- ocp_devspaces - Do not overwrite ``custom_samples`` ConfigMap with the icon-less ``default_devfile_url`` sample when custom samples are set.
+- ocp_devspaces - Drop ``#!/usr/bin/env python3`` shebang and executable bit from ``devworkspace_status_exporter.py`` so ansible-test sanity shebang checks pass (container runs ``python3 /app/exporter.py``).
+- ocp_devspaces - Longer CSV wait and assert that reports only Dev Spaces CSV phases (not unrelated CSVs in openshift-operators).
+- ocp_devspaces - Longer CheCluster wait and clearer failure when ``cheURL`` never appears.
+- ocp_devspaces - Status exporter ClusterRole now force-converges with ``pods`` get/list and ``pods/exec`` get/create. Incomplete live ClusterRoles (devworkspaces-only) caused empty ``devworkspace_vscode_extension`` metrics even when the exporter Deployment was Running. ConfigMap updates force-replace and a pod template checksum annotation rolls the Deployment when the script changes.
+- ocp_devspaces - Use the v2 networking hostname and share desired identity with readiness lookup.
+- ocp_htpasswd_admin - After updating the htpasswd Secret, roll ``oauth-openshift`` and wait for the authentication operator. Contoller jobs were succeeding while console login kept failing because oauth pods never reloaded the new Secret (wait only ran when the OAuth IdP CR changed). Still uses Ansible ``password_hash('bcrypt')`` — no EE package install.
+- ocp_htpasswd_admin - Default ``mappingMethod`` to ``add`` and refresh the existing HTPasswd IdP in place. Stale Identity ``htpasswd:admin`` with IdP ``htpasswd-admin`` caused console ``Could not create user`` under ``claim``. Also delete leftover ``htpasswd:<user>`` Identities when the IdP name is ``htpasswd-admin``.
+- ocp_htpasswd_admin - Default ``state`` to ``present`` so local/no-AAP runs (which omit Contoller survey ``state``) no longer fail on ``state is undefined``.
+- ocp_htpasswd_admin - Hash all HTPasswd users in one step so secondary users (for example ``chaddie``) are written into the secret, not only the first username.
+- ocp_htpasswd_admin - Hash all htpasswd users via a single stdin Python job that emits the secret body and username list, avoiding Jinja ``| keys`` and looped ``set_fact`` drops that left only the first user (e.g. ``admin``) in the OpenShift secret.
+- ocp_htpasswd_admin - Keep htpasswd hashing on system libcrypt (stdlib
+  ``crypt`` or ctypes to libxcrypt) so Contoller EEs do not need a
+  ``bcrypt`` Python package. Restores Python 3.13+ where stdlib ``crypt``
+  was removed.
+- ocp_htpasswd_admin - On ``state=absent``, remove only the configured Login button IdP; refuse when that name is missing but other HTPasswd IdPs exist (no more silent delete of default ``htpasswd-admin``).
+- ocp_htpasswd_admin - Re-apply the OAuth HTPasswd IdP when ``fileData.name`` (secret) differs, not only when ``mappingMethod`` differs.
+- ocp_htpasswd_admin - Replace invalid Jinja ``| keys`` filter in the hashed-user assert with ``dict2items`` so multi-user add/replace no longer fails after hashing.
+- ocp_htpasswd_admin - Revert Contoller EE package install / ``htpasswd -nbB`` hashing. Restore Ansible ``password_hash('bcrypt')`` which the supported EE already provides; Contoller pods cannot install ``httpd-tools``.
+- ocp_htpasswd_admin - ``state=absent`` now removes the IdP named in ``htpasswd_idp_name`` (and matching ``htpasswd_secret``), not the hardcoded ``htpasswd-admin`` fallback.
+- ocp_minio - Build Service ports as real integers so the API rejects string ports no longer occur.
+- ocp_minio - Create Service with native YAML and flat selector (fix empty-name patch / nested matchLabels).
+- ocp_minio - Render Service ports as YAML integers with non-native templating.
+- ocp_mtv - Default ``mtv-operator`` channel to ``release-v2.12`` (catalog current); ``release-v2.8`` caused ``ConstraintsNotSatisfiable`` when that channel is absent from redhat-operators.
+- ocp_namespace - On ``present``, wait out and force-finalize a Terminating namespace before create (fixes OperatorGroup Forbidden ``NamespaceTerminating`` after cert-manager absent). On ``absent``, wait for deletion and finalize if stuck.
+- ocp_namespace - On ``state=present``, sweep a Terminating namespace with ``ocp_absent_cleanup`` before create and fail if the namespace remains Terminating (avoids OperatorGroup Forbidden after reinstall).
+- ocp_namespace - Prefer ``ocp_namespace_name`` over host fact ``name_space`` so dual-namespace installs (cert-manager-operator vs cert-manager) create the correct Namespace on Contoller.
+- ocp_namespace - Shorten delete wait and always force-finalize when the namespace remains (common on ACM clusters where content is gone but discovery reports failure).
+- ocp_oidc_auth - Require a CA for OpenShift Keycloak OIDC (prefer openshift-config-managed default-ingress-cert, then Keycloak TLS ca.crt/tls.crt). Set openID.ca so oauth-server can apply the IdP; fail the JT if no CA is found instead of succeeding with a hidden IdP.
+- ocp_operator_subscription - On ``state=absent``, run the absent-cleanup gate with ``ocp_absent_cleanup_finalize=false`` so subscription uninstall sweeps OLM leftovers without deleting the namespace (``ocp_namespace`` owns that step).
+- ocp_operator_subscription - ``state=absent`` now deletes the Subscription and matching ClusterServiceVersions (and related InstallPlans). Previously only the Subscription was removed, so the operator stayed in Installed Operators.
+- ocp_operatorgroups - Default ``state`` to ``present`` so local/non-AAP component runs (which omit ``-e state=`` so vars-file deletes still work) no longer fail with ``'state' is undefined``.
+- ocp_operatorgroups - On ``state=absent``, delete the OperatorGroup without requiring the namespace to still exist, wait for removal, and fix the already-absent debug message Jinja precedence that printed boolean false.
+- ocp_quay - Handle an omitted OIDC issuer during fallback evaluation.
+- ocp_quay - Resolve OIDC issuer without self-referencing an undefined ``ocp_quay_oidc_issuer_url`` fact.
+- ocp_quay / ocp_minio - Apply cluster-resolved StorageClass into storage before assert.
+- ocp_rhbk_client_secrets - Fix cluster admin Secret decode after rename so OIDC JTs can fall back when vault password is unset.
+- ocp_virtualization - Set ``operator_deployment_pattern`` to ``hco-operator`` in component defaults and the deploy playbook seed so ``ocp_wait_operator`` matches the real HCO Deployment (CSV package ``kubevirt-hyperconverged`` is not a Deployment name).
+- ocp_virtualization - ``state=absent`` deletes HyperConverged first, then subscription/OperatorGroup/namespace (same teardown order as ACM).
+- ocp_virtualization_install - Wait for HyperConverged ``Available=True`` after the CSV reaches ``Succeeded``. A Succeeded CSV alone no longer marks virtualization ready.
+- ocp_wait_operator - Require matching CSV ``status.phase == Succeeded`` before treating an operator as installed (avoids false success when only unrelated AllNamespaces CSVs are listed in the operator namespace).
+- ocp_wait_operator - Skip wait tasks when ``state`` is not ``present`` via a portable ``when`` + ``block`` gate. Do not use ``meta: end_role`` (ansible-core 2.18+ only); older Execution Environments fail with ``invalid meta action requested: end_role`` even on ACM/Virt install (``state=present``).
+- preflight / infra.ado - Remove hardcoded lab hostname defaults. Hostnames must come from the form, inventory, or survey — never silent defaults.
+- rhbk_client_scope - Stop folding Keycloak mapper URLs across lines with ``>-`` after ``/client-scopes/``. YAML inserted a space before the scope UUID (``.../client-scopes/ <uuid>/...``), so Contoller failed with ``URL can't contain control characters``.
+- rhbk_realm - Prefer ``ocp_rhbk_hostname`` for the admin API wait when ``install_rhbk_platform`` is ``openshift``.
+
+Documentation Changes
+---------------------
+
+- Convert relative documentation links to absolute GitHub blob URLs under
+  ``https://github.com/redhat-cop/infra.automation-development-office/blob/main/``
+  in ``README.md`` and remaining collection docs.
+- Update repository, documentation, homepage, and issues URLs from
+  ``Automation-Development-Office/ado`` to
+  ``redhat-cop/infra.automation-development-office`` in ``galaxy.yml``,
+  ``README.md``, ``CODE_OF_CONDUCT.md``, and the Developers Guide.
+- bootstrap_controller - Clarify Admin HTPasswd JT survey labels so ``htpasswd_action`` (add/replace/remove users) is distinct from ``state`` (present keeps the Login button, absent deletes the IdP).
+- capsule_install - Documented firewall, DNS, and custom certificate generation tasks and DNS variables.
+- docs - Restored collection README CI badges, certification badge, and role documentation links to ``redhat-cop/infra.automation-development-office``.
+- install_rhbk - Document that login fail reason is the built-in ``error`` label on ``keycloak_user_events_total``.
+- ocp_acm - Document robust absent/present behavior, heal flag, and Fleet Management console plug-in defaults.
+- ocp_nfs_storage - Document NFS server/share/StorageClass variables and the preflight ``nfs_csi`` / ``nfs_server`` / ``nfs_share`` bootstrap contract so ADO Assistant README search finds NFS CSI install guidance.
+- ocp_nfs_storage - Prefight UI now exposes NFS CSI under OpenShift Options; README already documents the JSON contract.
+
 v1.4.0
 ======
 

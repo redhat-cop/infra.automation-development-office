@@ -1,3 +1,0 @@
----
-minor_changes:
-  - "grafana_upload_dashboards - Allow ``recurse: false`` on folder sources."
