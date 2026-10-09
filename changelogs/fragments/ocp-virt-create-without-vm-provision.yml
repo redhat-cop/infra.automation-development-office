@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    ocp_virtualization - Create the VirtualMachine with
+    ``kubernetes.core.k8s`` when it is missing. The validated
+    ``infra.openshift_virtualization_ops`` collection has no
+    ``vm_provision`` role, so the previous include failed every
+    Controller job.

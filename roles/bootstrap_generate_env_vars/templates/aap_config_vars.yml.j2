@@ -3,8 +3,6 @@
 {% set preflight_machine_credential = preflight_aap.machine_credential | default({}) %}
 {% set preflight_galaxy_setup_enabled = preflight_aap.galaxy_setup_enabled | default(false) | bool %}
 {% set preflight_galaxy_credentials = preflight_aap.galaxy_credentials | default([]) %}
-{% set preflight_galaxy_hub_token = preflight_aap.galaxy_hub_token | default('', true) %}
-{% set preflight_galaxy_hub_token_present = (preflight_galaxy_hub_token | default('', true) | string | trim | length) > 0 %}
 {% set preflight_hub_push_ee = preflight_aap.hub_push_ee | default(false) | bool %}
 {% set preflight_container_registry_credential = preflight_aap.container_registry_credential | default({}) %}
 {% set preflight_galaxy_user_account = preflight_aap.galaxy_user_account | default({}) %}
@@ -45,6 +43,16 @@
     if preflight_patching_group_selected
     else []
 %}
+{% set preflight_satellite_group_selected =
+    'all' in preflight_components
+    or 'satellite' in preflight_components
+    or preflight_component == 'satellite'
+%}
+{% set preflight_satellite_apps =
+    preflight_component_apps.satellite | default([])
+    if preflight_satellite_group_selected
+    else []
+%}
 {% set machine_credential_component_selected =
     'all' in preflight_components
     or 'rhel' in preflight_components
@@ -53,6 +61,7 @@
     or preflight_component in ['rhel', 'satellite', 'patching']
     or 'rhel' in preflight_rhel_apps
     or 'satellite' in preflight_rhel_apps
+    or 'satellite' in preflight_satellite_apps
     or 'patching' in preflight_patching_apps
 %}
 {% set satellite_component_selected =
@@ -61,6 +70,7 @@
     or preflight_component == 'satellite'
     or 'satellite' in preflight_rhel_apps
     or 'satellite' in preflight_patching_apps
+    or 'satellite' in preflight_satellite_apps
 %}
 {% set rhel_component_selected =
     'all' in preflight_components
@@ -130,6 +140,15 @@
       or 'satellite_client_tools' in preflight_satellite_options
     )
 %}
+{# Content view is a localhost API job. Only install/OIDC need Satellite-Server-Inventory. #}
+{% set satellite_server_inventory_needed =
+    satellite_component_selected
+    and (
+      preflight_satellite_options | length == 0
+      or 'satellite_server_install' in (preflight_satellite_options | map('lower') | list)
+      or 'satellite_oidc' in (preflight_satellite_options | map('lower') | list)
+    )
+%}
 {% set bootstrap_generate_env_vars_satellite_server_url =
     preflight_satellite_config.hostname
     | default(bootstrap_generate_env_vars_satellite_server_url | default(''), true)
@@ -141,6 +160,10 @@
     preflight_satellite_config.service_account_username
     | default(bootstrap_generate_env_vars_satellite_service_account_username | default(''), true)
 %}
+{# Empty string from the form must not wipe the admin fallback used by rhel_sat_reg. #}
+{% if (bootstrap_generate_env_vars_satellite_service_account_username | default('', true) | length) == 0 %}
+{% set bootstrap_generate_env_vars_satellite_service_account_username = 'admin' %}
+{% endif %}
 {% set bootstrap_generate_env_vars_satellite_organization =
     preflight_satellite_config.organization
     | default(preflight_satellite_config.manifest_organization | default(bootstrap_generate_env_vars_satellite_organization | default(''), true), true)
@@ -149,6 +172,21 @@
     preflight_satellite_config.activation_key
     | default(bootstrap_generate_env_vars_satellite_activation_key | default(''), true)
 %}
+{% set bootstrap_generate_env_vars_satellite_service_account_password =
+    preflight_satellite_config.service_account_password
+    | default(bootstrap_generate_env_vars_satellite_service_account_password | default(''), true)
+%}
+{% set bootstrap_generate_env_vars_satellite_admin_password =
+    preflight_satellite_config.admin_password
+    | default(bootstrap_generate_env_vars_satellite_admin_password | default(''), true)
+%}
+{# Client registration: reuse admin password when no dedicated API password was set. #}
+{% if (bootstrap_generate_env_vars_satellite_service_account_password | default('', true) | length) == 0
+      and (bootstrap_generate_env_vars_satellite_admin_password | default('', true) | length) > 0 %}
+{% set bootstrap_generate_env_vars_satellite_service_account_password =
+    bootstrap_generate_env_vars_satellite_admin_password
+%}
+{% endif %}
 {% set bootstrap_generate_env_vars_satellite_validate_certs =
     preflight_satellite_config.validate_certs
     | default(bootstrap_generate_env_vars_satellite_validate_certs | default(false), true)
@@ -266,7 +304,11 @@
     and not bootstrap_generate_env_vars_rhel_use_existing_inventory
 %}
 {% set bootstrap_generate_env_vars_idm_inventory = bootstrap_generate_env_vars_aap_org ~ '-IDM-Inventory' %}
-{% set bootstrap_generate_env_vars_satellite_inventory = bootstrap_generate_env_vars_aap_org ~ '-Satellite-Server-Inventory' %}
+{% set bootstrap_generate_env_vars_satellite_inventory =
+    (bootstrap_generate_env_vars_aap_org ~ '-Satellite-Server-Inventory')
+    if satellite_server_inventory_needed
+    else bootstrap_generate_env_vars_aap_inventory
+%}
 {% set bootstrap_generate_env_vars_capsule_inventory = bootstrap_generate_env_vars_aap_org ~ '-Satellite-Capsule-Inventory' %}
 {% set bootstrap_generate_env_vars_capsule_hostname_effective =
     preflight_satellite_config.capsule_hostname
@@ -593,12 +635,11 @@ hub_collections:
 controller_bootstrap_controller_organizations:
   - name: "{{ bootstrap_generate_env_vars_aap_org }}"
     description: "{{ bootstrap_generate_env_vars_aap_org }}"
-{# Org Galaxy attach only when Galaxy setup is explicitly enabled and a Hub token
-   is present — hub-only collection publish must not push lab creds. #}
+{# Org Galaxy attach when Galaxy setup is enabled. Shared Hub token is optional;
+   hub-only collection publish without Galaxy setup still skips these creds. #}
 {% for galaxy_credential in preflight_galaxy_credentials_ordered
    if preflight_galaxy_setup_enabled
    and (galaxy_credential.enabled | default(true) | bool)
-   and preflight_galaxy_hub_token_present
    and (galaxy_credential.attach_to_org | default(true) | bool)
    and (galaxy_credential.name | default('', true) | length > 0) %}
 {% if loop.first %}
@@ -668,7 +709,7 @@ controller_bootstrap_controller_credentials:
       username: "{% raw %}{{ '{{ vault_satellite_service_account_username }}' }}{% endraw %}"
       password: "{% raw %}{{ '{{ vault_satellite_service_account_password }}' }}{% endraw %}"
 {% endif %}
-{% if preflight_galaxy_setup_enabled and preflight_galaxy_hub_token_present %}
+{% if preflight_galaxy_setup_enabled %}
 {% for galaxy_credential in preflight_galaxy_credentials_ordered %}
 {% if (galaxy_credential.enabled | default(true) | bool) and (galaxy_credential.name | default('', true) | length > 0) and (galaxy_credential.url | default('', true) | length > 0) %}
 {# AAP ships a platform-global "Ansible Galaxy" credential (no org). Creating an
@@ -684,7 +725,8 @@ controller_bootstrap_controller_credentials:
 {% if galaxy_credential.auth_url | default('', true) | length > 0 %}
       auth: "{{ galaxy_credential.auth_url }}"
 {% endif %}
-      token: "{% raw %}{{ '{{ vault_galaxy_hub_token }}' }}{% endraw %}"
+{% set galaxy_cred_name = galaxy_credential.name | replace("'", "") %}
+      token: "{{ '{{ vault_galaxy_credential_tokens[\'' ~ galaxy_cred_name ~ '\'] | default(vault_galaxy_hub_token, true) }}' }}"
 {% endif %}
 {% endif %}
 {% endfor %}
@@ -844,6 +886,7 @@ controller_bootstrap_controller_inventories:
     or 'satellite_server_install' in preflight_satellite_options_for_inv
     or 'satellite_oidc' in preflight_satellite_options_for_inv
 %}
+{# Keep creating the server inventory only for install/OIDC, not client/content-view. #}
 {% set satellite_capsule_inventory_needed =
     preflight_satellite_options_for_inv | length == 0
     or 'satellite_capsule_install' in preflight_satellite_options_for_inv
@@ -958,6 +1001,22 @@ bootstrap_controller_controller_hosts:
       ansible_connection: local
 {% endif %}
 
+{# Contoller group used by RHEL system-role / STIG / compliance playbooks
+   (hosts: rhel_servers). Patch Host JT uses hosts: all so inventory swaps work;
+   keep this group for the rest of the RHEL playbook set. #}
+controller_bootstrap_controller_groups:
+{% if rhel_inventory_selected and not bootstrap_generate_env_vars_rhel_use_existing_inventory and (bootstrap_generate_env_vars_rhel_hosts | length > 0) %}
+  - name: rhel_servers
+    description: RHEL managed hosts for ADO patching and system roles
+    inventory: "{{ bootstrap_generate_env_vars_rhel_inventory }}"
+    hosts:
+{% for rhel_host in bootstrap_generate_env_vars_rhel_hosts %}
+      - "{{ rhel_host }}"
+{% endfor %}
+{% else %}
+  []
+{% endif %}
+
 controller_bootstrap_controller_inventory_sources:
 {% if bootstrap_generate_env_vars_satellite_dynamic_inventory_enabled %}
   - name: "{{ bootstrap_generate_env_vars_satellite_inventory_source_name }}"
@@ -1001,7 +1060,10 @@ bootstrap_controller_generate_aap_configs_force_job_workflows: "{{ bootstrap_gen
 generate_playbook_repo_git_mode: "{{ 'push' if bootstrap_generate_env_vars_git_auto_push else 'manual' }}"
 generate_playbook_repo_git_push: "{{ bootstrap_generate_env_vars_git_auto_push }}"
 generate_playbook_repo_git_commit: "{{ bootstrap_generate_env_vars_git_auto_push }}"
-generate_playbook_repo_pause_for_push: "{{ not bootstrap_generate_env_vars_git_auto_push }}"
+{# Never pause for interactive push in generated configs — preflight/UI and Contoller
+   runs are non-interactive. Manual git mode just skips commit/push. #}
+generate_playbook_repo_pause_for_push: false
+bootstrap_generate_playbook_repo_pause_after_generate: false
 generate_playbook_repo_git_url: "{{ bootstrap_generate_env_vars_aap_git_url }}"
 generate_playbook_repo_git_branch: "{{ bootstrap_generate_env_vars_aap_git_branch }}"
 generate_playbook_repo_git_remote: "origin"

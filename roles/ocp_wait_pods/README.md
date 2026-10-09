@@ -1,6 +1,7 @@
 # Role: infra.ado.ocp_wait_pods
 
-Ocp Wait Pods automation role. Primary tasks include: Importing namespace; Set default values for pod wait retries and delay (if not set); Wait for all pods in namespace to be running.
+Wait until workload pods in a namespace are `Running` or `Succeeded`. Completed
+Job pods do not fail the wait. On timeout the role prints name and phase only.
 
 ## Role Author
 
@@ -36,7 +37,7 @@ This role runs tasks such as:
 
 - Importing namespace
 - Set default values for pod wait retries and delay (if not set)
-- Wait for all pods in namespace to be running
+- Wait for workload pods in namespace to be Running or Succeeded
 
 ```bash
 cd roles/ocp_wait_pods

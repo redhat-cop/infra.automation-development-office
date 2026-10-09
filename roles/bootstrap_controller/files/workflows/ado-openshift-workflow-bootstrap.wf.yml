@@ -76,6 +76,13 @@ controller_workflow_job_templates:
           - Print ADO Routes
           - Alt Routes Workflow
 
+      - identifier: Deploy OpenShift Compliance Operator
+        unified_job_template: ADO | Deploy OpenShift Compliance Operator
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
       # --- Cert Manager sub-workflow (deploy + optional issuer/ingress) ---
       # RHBK needs cert-manager webhook for Certificates; hang RHBK off this
       # nested workflow (same pattern as Grafana Workflow / RHBK Workflow).

@@ -1,6 +1,9 @@
 ---
 - name: Patch RHEL servers
-  hosts: rhel_servers
+  # Contoller JTs use ask_inventory_on_launch — target every host in the
+  # selected inventory (same pattern as Register Host to Satellite).
+  # Limit the job in Contoller when you only want a subset.
+  hosts: all
   gather_facts: true
   vars:
     rhel_patching_update_cache: true

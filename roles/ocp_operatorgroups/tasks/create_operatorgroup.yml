@@ -3,10 +3,15 @@
   ansible.builtin.set_fact:
     # Prefer the standard framework var if present
     ocp_operatorgroups_operator_ns: >-
-      {{ operator_namespace
-         | default(ocp_operatorgroups_operator_ns)
-         | default( (all_namespaces_install | default(false) | bool)
-                    | ternary('openshift-operators', name_space)) }}
+      {{
+        operator_namespace
+        | default(ocp_operatorgroups_operator_ns, true)
+        | default(
+            (all_namespaces_install | default(false) | bool)
+            | ternary('openshift-operators', name_space),
+            true
+          )
+      }}
     # Sanitize underscores → hyphens for DNS-1123 metadata.name
     ocp_operatorgroups_name: >-
       {{

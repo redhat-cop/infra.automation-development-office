@@ -233,6 +233,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     category: platform
     app: aap
 
+  - src: aap/ado-aap-hub-harden-bootstrap.yml
+    dest: playbooks/aap/ado-aap-hub-harden-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: aap_hub_harden
+
   - src: acs/ado-deploy-and-configure-bootstrap.yml
     dest: playbooks/acs/ado-deploy-and-configure-bootstrap.yml
     target_platform: openshift
@@ -727,6 +733,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: rhbk_mapper
+
+  - src: rhbk/ado-rhbk-login-events-exporter-bootstrap.yml
+    dest: playbooks/rhbk/ado-rhbk-login-events-exporter-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: rhbk
 
   - src: rhel/ado-patch-host-bootstrap.yml
     dest: playbooks/rhel/ado-patch-host-bootstrap.yml

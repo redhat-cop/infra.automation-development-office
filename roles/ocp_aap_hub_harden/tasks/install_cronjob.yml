@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Create ServiceAccount for Hub stability CronJob
   kubernetes.core.k8s:
     state: present
@@ -61,12 +62,14 @@
           #!/bin/bash
           set -euo pipefail
           NS="${NAMESPACE:-aap}"
+          AAP_CR="${AAP_CR:-aap}"
+          HUB_CR="${HUB_CR:-aap-hub}"
           PG_POD="${POSTGRES_POD:-aap-hub-dedicated-postgres-0}"
           DB="${POSTGRES_DB:-automationhub}"
           HUB_PG_SECRET="${HUB_POSTGRES_SECRET:-external-hub-postgres-configuration}"
           echo "[hub-stability] $(date -u +%FT%TZ) start pg_pod=$PG_POD"
 
-          oc -n "$NS" patch ansibleautomationplatform aap --type=merge -p "{
+          oc -n "$NS" patch ansibleautomationplatform "$AAP_CR" --type=merge -p "{
             \"spec\":{\"hub\":{
               \"postgres_configuration_secret\":\"$HUB_PG_SECRET\",
               \"api\":{\"replicas\":1},\"content\":{\"replicas\":1},
@@ -74,7 +77,7 @@
             }}
           }" >/dev/null || true
 
-          oc -n "$NS" patch automationhub aap-hub --type=merge -p "{
+          oc -n "$NS" patch automationhub "$HUB_CR" --type=merge -p "{
             \"spec\":{
               \"postgres_configuration_secret\":\"$HUB_PG_SECRET\",
               \"gunicorn_api_workers\":1,
@@ -140,6 +143,10 @@
                     env:
                       - name: NAMESPACE
                         value: "{{ ocp_aap_hub_harden_namespace }}"
+                      - name: AAP_CR
+                        value: "{{ ocp_aap_hub_harden_aap_name }}"
+                      - name: HUB_CR
+                        value: "{{ ocp_aap_hub_harden_automationhub_name }}"
                       - name: POSTGRES_POD
                         value: "{{ ocp_aap_hub_harden_postgres_pod }}"
                       - name: POSTGRES_DB

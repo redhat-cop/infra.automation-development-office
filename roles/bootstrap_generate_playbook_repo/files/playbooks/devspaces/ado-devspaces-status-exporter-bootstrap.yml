@@ -1,0 +1,21 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | DevWorkspace status exporter
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: devspaces
+    ocp_devspaces_status_exporter_enabled: true
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host) }}"
+    K8S_AUTH_API_KEY: "{{ token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ (verify_ssl | bool) | ternary('yes', 'no') }}"
+  tasks:
+    - name: Deploy DevWorkspace status metrics exporter
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_devspaces
+        tasks_from: status-exporter.yml

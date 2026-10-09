@@ -245,3 +245,5 @@
 - name: Deploy DevWorkspace status metrics exporter
   ansible.builtin.import_tasks: status-exporter.yml
   when: ocp_devspaces_status_exporter_enabled | default(false) | bool
+  tags:
+    - status_exporter

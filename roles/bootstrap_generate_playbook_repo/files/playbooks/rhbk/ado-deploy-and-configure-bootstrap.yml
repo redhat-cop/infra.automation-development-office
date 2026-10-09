@@ -140,6 +140,23 @@
         name: infra.ado.rhbk_realm
       when: (state | default('present')) == 'present'
 
+    - name: ADO | Resolve Keycloak URL for login-events exporter
+      ansible.builtin.set_fact:
+        rhbk_url: >-
+          {{
+            rhbk_url
+            | default('https://' ~ (rhbk_hostname | default(ocp_rhbk_hostname | default(''))), true)
+            | regex_replace('/$', '')
+          }}
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Deploy Keycloak login events exporter
+      ansible.builtin.include_role:
+        name: infra.ado.keycloak_login_events_exporter
+      when:
+        - (state | default('present')) == 'present'
+        - keycloak_login_events_exporter_enabled | default(true) | bool
+
     - name: ADO | Configure RHBK LDAP federation
       ansible.builtin.include_role:
         name: infra.ado.rhbk_manage_federation

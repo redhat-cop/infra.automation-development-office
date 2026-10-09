@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# yamllint disable rule:line-length
 ---
 # defaults file for gitlab_install (OpenShift operator CR path)
 
@@ -14,9 +15,22 @@ gitlab_install_admin_user: gitlab
 gitlab_install_admin_password: redhat123
 gitlab_install_root_password: redhat123
 gitlab_install_chart_version: "10.3.2"
+# Chart 9.x only: operator-bundled Postgres. Chart 10+ always uses dedicated PG.
 gitlab_install_enable_postgresql: false
-gitlab_install_postgres_image: "postgres:15-alpine"
+# Dedicated ADO-managed Postgres (Grafana-style RHEL image). Default on.
+gitlab_install_database_provision: true
+gitlab_install_postgres_name: gitlab-postgresql
+gitlab_install_postgres_database: gitlabhq_production
+gitlab_install_postgres_user: "{{ gitlab_install_admin_user | default('gitlab') }}"
+gitlab_install_postgres_password: ""
+gitlab_install_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
 gitlab_install_postgres_storage_size: "10Gi"
+gitlab_install_postgres_storage_class: ""
+gitlab_install_postgres_host: ""
+gitlab_install_postgres_ready_retries: 36
+gitlab_install_postgres_ready_delay: 10
+# When true, delete the gitlab-postgresql Deployment+PVC before recreate (wipes DB).
+gitlab_install_postgres_reset_data: false
 gitlab_install_redis_image: "redis:7-alpine"
 gitlab_install_minio_image: "minio/minio:latest"
 gitlab_install_minio_service: gitlab-minio

@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    bootstrap_generate_env_vars - OpenShift apps domain and route hostnames
+    still autofill from the base domain, but a typed override is kept via
+    ``apps_domain_manual`` / ``hostname_manual`` instead of being overwritten.

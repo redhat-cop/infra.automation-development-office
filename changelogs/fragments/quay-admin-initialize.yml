@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    ocp_quay - Create the Quay Database admin with
+    ``POST /api/v1/user/initialize`` using the Quay tab password
+    (``vault_ocp_quay_admin_password``). ``USER_INITIALIZE`` in
+    ``config.yaml`` is not a Quay setting and never set the login
+    password. Reruns reset an existing admin password to the vault
+    value. Vault no longer hardcodes username ``admin``.

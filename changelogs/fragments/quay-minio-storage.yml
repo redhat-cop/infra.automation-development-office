@@ -1,0 +1,13 @@
+---
+minor_changes:
+  - >-
+    ocp_quay - Add ``ocp_quay_storage_backend=minio`` so registry blobs use an
+    already-installed MinIO (S3-compatible RadosGWStorage) instead of a local
+    PVC. The role does not deploy MinIO.
+  - >-
+    bootstrap_generate_env_vars - Honor preflight ``component_options.quay``
+    ``minio`` by setting Quay object-storage vars and copying existing MinIO
+    credentials. The option does not add the MinIO component.
+  - >-
+    bootstrap_controller - When the operator explicitly selects both MinIO and
+    Quay, run Quay after MinIO so the bucket and API exist before Quay starts.

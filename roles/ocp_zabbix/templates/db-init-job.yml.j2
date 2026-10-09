@@ -1,3 +1,5 @@
+{% set zabbix_pg = (ocp_zabbix_use_postgres | default(true) | bool) %}
+{% set zabbix_pg_secret = zabbix_postgres_name | default('zabbix-postgres') %}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -10,10 +12,51 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: db-init
-          image: {{ zabbix_server_image }}
+          image: {{ ocp_zabbix_server_image | default(zabbix_server_image) }}
           env:
             - name: DB_HOST
-              value: mariadb.{{ name_space }}.svc.cluster.local
+              value: {{ ocp_zabbix_db_host }}
+{% if zabbix_pg %}
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_DATABASE
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_PASSWORD
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              set -euo pipefail
+              export PGPASSWORD="${POSTGRES_PASSWORD}"
+              until pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${POSTGRES_USER}" >/dev/null 2>&1; do sleep 2; done
+              if psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc "SELECT 1 FROM users LIMIT 1;" >/dev/null 2>&1; then
+                echo "Schema already present"
+                exit 0
+              fi
+              SCHEMA=""
+              for CAND in \
+                /usr/share/doc/zabbix-server-pgsql/create.sql.gz \
+                /usr/share/doc/zabbix-sql-scripts/postgresql/server.sql.gz \
+                /usr/share/zabbix/sql-scripts/postgresql/server.sql.gz \
+                /usr/share/doc/zabbix-sql-scripts/postgresql/create.sql.gz
+              do
+                if [ -f "$CAND" ]; then SCHEMA="$CAND"; break; fi
+              done
+              [ -n "$SCHEMA" ] || { echo "Zabbix SQL schema not found in image"; find /usr/share -name '*.sql*' 2>/dev/null | head; exit 1; }
+              echo "Loading schema from ${SCHEMA}"
+              gunzip -c "${SCHEMA}" | psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}"
+{% else %}
             - name: DB_PORT
               value: "3306"
             - name: MYSQL_DATABASE
@@ -61,3 +104,4 @@ spec:
               [ -n "$SCHEMA" ] || { echo "Zabbix SQL schema not found in image"; find /usr/share -name '*.sql*' 2>/dev/null | head; exit 1; }
               echo "Loading schema from ${SCHEMA}"
               gunzip -c "${SCHEMA}" | mysql -h "${DB_HOST}" -P "${DB_PORT}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" "${MYSQL_DATABASE}"
+{% endif %}

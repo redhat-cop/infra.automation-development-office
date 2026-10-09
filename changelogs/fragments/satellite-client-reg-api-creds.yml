@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - bootstrap_generate_env_vars / ado-preflight-ui - Client Satellite Registration
+    now collects Satellite API hostname, organization, username, and password when
+    Satellite Server Install is not selected. When Server Install is selected,
+    those values inherit from the server tab (admin password fills the API
+    password when service-account credentials are empty). Empty service-account
+    username no longer overwrites the ``admin`` fallback used by
+    ``infra.ado.rhel_sat_reg``.

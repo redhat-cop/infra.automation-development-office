@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    grafana_install / gitlab_install / ocp_zabbix - Use Quay-proven RHEL
+    PostgreSQL pattern on NFS: mount PVC at ``/var/lib/pgsql/data/userdata``
+    for init and postgres, strip entrypoint ``chmod``/``chown`` (NFS
+    root_squash), and wipe non-``PG_VERSION`` leftovers before initdb.
+    Add ``grafana_install_postgres_reset_data`` like GitLab.

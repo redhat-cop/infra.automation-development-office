@@ -16,6 +16,12 @@ ocp_acm_uninstall_retries: 36
 ocp_acm_uninstall_delay: 5
 # On present: if MCH/MCE is Uninstalling, finish that uninstall first (default).
 ocp_acm_heal_stuck_uninstall: true
+# On present: detect leftovers, message, and clean before ADO hub resources.
+ocp_acm_prep_for_ado_resources: true
+# When observability is enabled, delete existing MultiClusterObservability first.
+ocp_acm_observability_reset_mco: false
+# Optional: set when generating/applying ADO ACM policies (message only).
+ocp_acm_policy_enabled: false
 # On absent: also remove MCE, ClusterManager, and local-cluster ManagedCluster.
 ocp_acm_absent_cleanup_mce: true
 ocp_acm_absent_cleanup_clustermanager: true

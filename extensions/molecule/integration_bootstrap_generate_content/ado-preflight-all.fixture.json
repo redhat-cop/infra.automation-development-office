@@ -31,9 +31,11 @@
       "bookstack",
       "kafka",
       "oadp",
+      "ocp_compliance",
       "openshift",
       "pega",
       "quay",
+      "minio",
       "rhbk"
     ],
     "rhel": [
@@ -71,6 +73,9 @@
     ],
     "aws": [
       "ec2_ami_copy"
+    ],
+    "satellite": [
+      "satellite"
     ]
   },
   "component_options": {
@@ -89,6 +94,10 @@
     ],
     "acs": [
       "acs_report"
+    ],
+    "quay": [
+      "oidc",
+      "minio"
     ],
     "aws": [
       "ec2_ami_copy"
@@ -117,5 +126,11 @@
   },
   "jira": {
     "enabled": false
+  },
+  "component_config": {
+    "quay": {
+      "admin_user": "quayadmin",
+      "admin_password": "QuayFormPass1"
+    }
   }
 }

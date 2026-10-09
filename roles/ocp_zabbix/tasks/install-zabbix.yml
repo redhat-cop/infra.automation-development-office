@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Resolve Zabbix hostname
   ansible.builtin.set_fact:
     ocp_zabbix_hostname: >-
@@ -7,8 +8,88 @@
         | default(hostname)
         | default('zabbix.' ~ (apps_domain | default(app_domain | default('apps.example.com'))))
       }}
+    ocp_zabbix_database_type: "{{ zabbix_database_type | default('postgres') | lower }}"
+
+- name: Look up existing MariaDB Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: mariadb
+    namespace: "{{ name_space }}"
+  register: ocp_zabbix_existing_mariadb
+  failed_when: false
+
+- name: Look up existing dedicated Postgres Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ zabbix_postgres_name | default('zabbix-postgres') }}"
+    namespace: "{{ name_space }}"
+  register: ocp_zabbix_existing_postgres
+  failed_when: false
+
+- name: Keep MariaDB when it already exists and Postgres was never provisioned
+  ansible.builtin.set_fact:
+    ocp_zabbix_database_type: mysql
+  when:
+    - ocp_zabbix_database_type in ['postgres', 'postgresql']
+    - not (zabbix_database_force | default(false) | bool)
+    - (ocp_zabbix_existing_mariadb.resources | default([]) | length) > 0
+    - (ocp_zabbix_existing_postgres.resources | default([]) | length) == 0
+
+- name: Resolve Zabbix database connection and images
+  ansible.builtin.set_fact:
+    ocp_zabbix_use_postgres: "{{ ocp_zabbix_database_type not in ['mysql', 'mariadb'] }}"
+    ocp_zabbix_server_image: >-
+      {{
+        zabbix_server_pgsql_image
+        | default('zabbix/zabbix-server-pgsql:ubuntu-7.0-latest')
+        if (ocp_zabbix_database_type not in ['mysql', 'mariadb'])
+        else (
+          zabbix_server_mysql_image
+          | default('zabbix/zabbix-server-mysql:ubuntu-7.0-latest')
+        )
+      }}
+    ocp_zabbix_web_image: >-
+      {{
+        zabbix_web_pgsql_image
+        | default('zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest')
+        if (ocp_zabbix_database_type not in ['mysql', 'mariadb'])
+        else (
+          zabbix_web_mysql_image
+          | default('zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest')
+        )
+      }}
+    ocp_zabbix_db_host: >-
+      {{
+        (
+          zabbix_postgres_host
+          | default('', true)
+          | string
+          | trim
+        )
+        if (
+          (ocp_zabbix_database_type not in ['mysql', 'mariadb'])
+          and ((zabbix_postgres_host | default('', true) | string | trim | length) > 0)
+        )
+        else (
+          (
+            (zabbix_postgres_name | default('zabbix-postgres'))
+            ~ '.' ~ name_space ~ '.svc.cluster.local'
+          )
+          if (ocp_zabbix_database_type not in ['mysql', 'mariadb'])
+          else ('mariadb.' ~ name_space ~ '.svc.cluster.local')
+        )
+      }}
+
+- name: Provision dedicated Zabbix PostgreSQL
+  ansible.builtin.import_tasks: provision-zabbix-postgres.yml
+  when:
+    - ocp_zabbix_use_postgres | bool
+    - zabbix_database_provision | default(true) | bool
 
 - name: Create Zabbix MariaDB secret
+  when: not (ocp_zabbix_use_postgres | bool)
   kubernetes.core.k8s:
     state: present
     definition:
@@ -28,6 +109,7 @@
   kubernetes.core.k8s:
     state: present
     definition: "{{ lookup('template', 'mariadb-pvc.yml.j2') | from_yaml }}"
+  when: not (ocp_zabbix_use_postgres | bool)
 
 # Jobs are largely immutable; delete a failed prior init before recreate.
 - name: Remove prior Zabbix DB init Job if present
@@ -50,8 +132,10 @@
   loop: "{{ lookup('template', 'mariadb.yml.j2') | from_yaml_all | list }}"
   loop_control:
     label: "{{ item.kind }}/{{ item.metadata.name | default('resource') }}"
+  when: not (ocp_zabbix_use_postgres | bool)
 
 - name: Wait for MariaDB pod to be Ready
+  when: not (ocp_zabbix_use_postgres | bool)
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Pod

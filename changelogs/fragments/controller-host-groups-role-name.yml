@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - AAP 2.5+ apply now dispatches inventory groups via
+    ``infra.aap_configuration.controller_host_groups`` (correct role name).
+    Emitting ``rhel_servers`` after the Patch Host host-pattern fix incorrectly
+    called a non-existent ``controller_groups`` role and failed bootstrap with
+    ``ERROR! the role 'controller_groups' was not found``.

@@ -1,0 +1,19 @@
+---
+# yamllint disable rule:line-length
+# Refresh only the DevWorkspace status exporter (ConfigMap + Deployment).
+# Does not install Dev Spaces, CheCluster, or samples.
+
+- name: ADO | DevWorkspace status exporter
+  hosts: localhost
+  gather_facts: false
+  vars:
+    ocp_devspaces_status_exporter_enabled: true
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ (verify_ssl | default(false) | bool) | ternary('yes', 'no') }}"
+  tasks:
+    - name: Deploy DevWorkspace status metrics exporter
+      ansible.builtin.include_role:
+        name: infra.ado.ocp_devspaces
+        tasks_from: status-exporter.yml

@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Quay ``component_options.quay`` ``minio``
+    points at an existing MinIO and no longer auto-selects or deploys the
+    MinIO component.

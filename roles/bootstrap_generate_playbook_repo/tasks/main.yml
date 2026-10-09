@@ -197,11 +197,6 @@
             'equalto',
             'playbooks/cert-manager/ado-configure-idm-acme-clusterissuer.yml'
           )
-        | rejectattr(
-            'dest',
-            'equalto',
-            'playbooks/cert-manager/configure-idm-acme-clusterissuer-tasks.yml'
-          )
         | list
       }}
   when:
@@ -248,6 +243,33 @@
         | default(false)
         | bool
       )
+
+- name: Generate playbook repo | Drop unused AAP install target playbook
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | rejectattr(
+            'dest',
+            'equalto',
+            (
+              'playbooks/aap/ado-aap-ocp-install-bootstrap.yml'
+              if (
+                (
+                  install_aap_target
+                  | default(
+                    bootstrap_controller_aap_install_target
+                    | default('openshift')
+                  )
+                  | string
+                  | lower
+                ) == 'rhel'
+              )
+              else 'playbooks/aap/ado-aap-rhel-install-bootstrap.yml'
+            )
+          )
+        | list
+      }}
 
 - name: Generate playbook repo | Build selected playbook directories
   ansible.builtin.set_fact:

@@ -19,6 +19,8 @@ Automation Development Office
 | `state` | When not ``present`` (e.g. ``absent``), the role exits immediately and does not wait for CSV/Deployment. |
 | `ocp_wait_operator_retries` | Role input variable used to configure automation behavior. |
 | `ocp_wait_operator_delay` | Role input variable used to configure automation behavior. |
+| `operator_namespace` | Namespace that holds the operator CSV. Empty values fall through to ``operator_subscription_namespace`` then ``name_space`` so a leaked ACS/GitOps namespace is not used. |
+| `operator_name` / `operator_csv_contains` | Substring matched against CSV ``metadata.name`` (literal ``in``, not regex). Wait succeeds only when ``status.phase`` is ``Succeeded``. |
 
 ## 🚀 Role Usage
 

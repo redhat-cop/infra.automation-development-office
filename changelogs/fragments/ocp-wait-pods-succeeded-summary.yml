@@ -1,0 +1,5 @@
+---
+bugfixes:
+  - >-
+    ocp_wait_pods - Treat ``Succeeded`` Job pods as healthy and fail with a
+    compact name/phase list instead of dumping full Pod objects.

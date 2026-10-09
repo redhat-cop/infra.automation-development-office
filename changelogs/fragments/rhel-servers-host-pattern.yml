@@ -1,0 +1,17 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - ``ADO | RHEL Patch Host`` now targets
+    ``hosts: all`` so Contoller inventory selection works. Previously the
+    playbook required a ``rhel_servers`` group that bootstrap never created,
+    so changing the JT inventory still produced
+    ``Could not match supplied host pattern, ignoring: rhel_servers``.
+  - >-
+    bootstrap_controller / bootstrap_generate_env_vars - Create Contoller
+    inventory group ``rhel_servers`` for generated RHEL hosts so system-role,
+    STIG, and compliance playbooks that still use that group pattern continue
+    to work.
+minor_changes:
+  - >-
+    bootstrap_controller - ``ADO | RHEL Patch Host`` now prompts for inventory,
+    credential, and limit on launch (same as Register Host to Satellite).

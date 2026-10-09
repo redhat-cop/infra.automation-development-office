@@ -14,7 +14,11 @@ Automation Development Office
 ## ✅ Role Requirements
 
 - Collection: `infra.aap_utilities` (Automation Hub / Galaxy)
-- **OpenShift:** Python `kubernetes`, `kubernetes.core` / `redhat.openshift`, cluster credentials
+- **OpenShift:** Python `kubernetes`, `kubernetes.core` / `redhat.openshift`, cluster credentials.
+  The AAP operator must already be available in the cluster catalog
+  (typically ``redhat-operators`` /
+  ``ansible-automation-platform-operator``). This role does not add that
+  catalog source.
 - **RHEL:** installer download credentials / local tarball, inventory node map, become as needed
 
 ## 📦 Role Variables
@@ -24,6 +28,9 @@ Automation Development Office
 | `install_aap_state` | `present` (default) or `absent`. Legacy `state` accepted. |
 | `install_aap_target` | `openshift` or `rhel`. Auto-detects from `aap_ocp_install_*` vs `aap_setup_prep_inv_nodes` when empty. |
 | `aap_ocp_install_*` | Pass-through to `infra.aap_utilities.aap_ocp_install` plus ADO `reset_database` / license helpers. |
+| `aap_ocp_install_license_mode` | `none` (default), `manifest`, or `rhn`. `none`/`skip` installs the operator and platform only. Attach a subscription later with `aap_ocp_install_license_only` or the AAP wizard. |
+| `aap_ocp_install_license_only` | When `true`, skip operator install and only run license attach. |
+| `aap_ocp_install_reset_database` | When `true`, wipe leftover AAP Fernet secrets and Postgres PVCs before install. Default `false` (greenfield). Missing CR / 403 is skipped, not a hard fail. |
 | `aap_setup_*` | Pass-through to `aap_setup_download` / `prepare` / `install`. |
 | `install_aap_rhel_download` | Run download role (default `true`). |
 | `install_aap_rhel_prepare` | Run prepare role (default `true`). |
@@ -76,9 +83,16 @@ Automation Development Office
             admin_password: "{{ vault_aap_admin_password }}"
 ```
 
-Contoller bootstrap and `ado-aap-ocp-install-bootstrap.yml` call this role for
-OpenShift. Prefer `infra.aap_utilities.*` directly only when you do not need
+Contoller bootstrap calls this role from
+`ado-aap-ocp-install-bootstrap.yml` (OpenShift) or
+`ado-aap-rhel-install-bootstrap.yml` (standalone RHEL, inventory host
+`bastion`). Prefer `infra.aap_utilities.*` directly only when you do not need
 ADO reset/license helpers.
+
+When `aap_ocp_install_license_mode` is `none`/`skip`, a live platform/gateway
+route is enough for install success. `aap_ocp_install` may still wait for
+controller/hub/eda routes that only appear after a subscription; ADO accepts
+that wait failure so you can license later.
 
 ## 🧪 Role Molecule Testing
 
@@ -98,4 +112,5 @@ roles/install_aap/
     rhel.yml
     reset_stale_database.yml
     activate_license.yml
+    accept_unlicensed_platform.yml
 ```

@@ -30,15 +30,15 @@ Automation Development Office
 | `aap_auth_configure_gateway` | When true (from preflight `aap.auth`), apply `gateway_authenticators` / `gateway_authenticator_maps` on AAP 2.5+. |
 | `gateway_authenticators` | Automation Gateway authenticator definitions (Keycloak OIDC, LDAP, SAML). |
 | `gateway_authenticator_maps` | Authenticator map rules (superuser / organization). |
-| `bootstrap_controller_organization` | Default organization used for generated controller objects. |
+| `bootstrap_controller_organization` | Default organization used for generated controller objects. Hub-only and Hub EE look this form org up first and create it only when missing; an existing org does not fail the run. |
 | `bootstrap_controller_inventory_name` | Default inventory assigned to generated job templates. |
 | `bootstrap_controller_local_inventory_name` | Local bootstrap inventory name. Defaults to `bootstrap_controller_inventory_name`. |
 | `bootstrap_controller_rhel_inventory_name` | RHEL managed-host inventory used by RHEL patching, Satellite registration, IDM client, compliance, and STIG job templates. |
 | `bootstrap_controller_idm_inventory_name` | IDM server inventory used by IDM server, replica, DNS, topology, sudo, and server settings job templates. |
-| `bootstrap_controller_satellite_inventory_name` | Satellite server inventory used by Satellite install, configure, and content-view job templates. |
+| `bootstrap_controller_satellite_inventory_name` | Satellite server inventory used by Satellite install, configure, and OIDC job templates. Content-view uses the local bootstrap inventory. |
 | `bootstrap_controller_project_name` | Default project assigned to generated job templates. |
 | `bootstrap_controller_execution_environment_name` | Default execution environment assigned to generated job templates. |
-| `bootstrap_controller_controller_organizations` | Organization definitions to create or update. |
+| `bootstrap_controller_controller_organizations` | Organization names to ensure. Existing orgs are left unchanged; AAP 2.5+ returns 400 if an org is PATCHed. |
 | `bootstrap_controller_controller_credentials` | Credential definitions to create or update. |
 | `bootstrap_controller_controller_projects` | Project definitions to create or update. |
 | `bootstrap_controller_controller_inventories` | Inventory definitions to create or update. |
@@ -46,11 +46,21 @@ Automation Development Office
 | `bootstrap_controller_workflow_job_templates` | Workflow job template definitions loaded from generated YAML. |
 | `bootstrap_controller_controller_labels` | Controller labels to create. Generated runs include an organization label such as `ADO` alongside component labels such as `ADO | rhel`. |
 | `bootstrap_controller_hub_publish_timeout` | Hub collection upload timeout (seconds). Defaults to `900`. |
+| `bootstrap_controller_hub_pub_exist_repos` | Hub content repos treated as already installed (`validated`, `published`, `rh-certified`). |
+| `bootstrap_controller_hub_exist_check_retries` | Retries for Hub skip-if-exists GETs when the route returns 502/503/504. Default `8`. |
+| `bootstrap_controller_hub_exist_check_delay` | Seconds between skip-if-exists retries. Default `15`. |
+| `bootstrap_controller_hub_reserved_namespaces` | Namespaces that additional-collection publish must not create or upload into. Defaults to ``redhat``. |
 | `bootstrap_controller_hub_publish_verify_retries` | Pulp import/promote poll retries. Defaults to `60` (~10m with delay `10`). |
 | `bootstrap_controller_hub_publish_large_bytes` | Tarball size threshold for the large-collection wait path. Defaults to `30000000`. |
 | `bootstrap_controller_hub_publish_large_verify_retries` | Pulp poll retries for large tarballs. Defaults to `120` (~20m). |
 | `bootstrap_controller_hub_ee_skopeo_retry_times` | skopeo `--retry-times` for Hub EE push. Defaults to `8`. |
 | `bootstrap_controller_hub_ee_push_retries` | Ansible retries around Hub EE skopeo push (502/gateway flakes). Defaults to `5`. |
+
+Galaxy credential apply (`apply_galaxy_hub_credentials.yml`) runs when preflight
+`aap.galaxy_setup_enabled` is true, including hub-only / AAP-tabs-only runs.
+It does not require `aap.galaxy_hub_token`. Credentials are created from
+generated `controller_bootstrap_controller_credentials` (name + URL) and
+attached to the form organization in search order.
 
 ## Install / configure matrix
 
@@ -117,6 +127,12 @@ selected. The workflow chain is `Register Host to Satellite` ->
 Compliance and STIG job templates are generated when those components (or the
 matching RHEL options) are selected.
 
+`Register Host to Satellite` and `RHEL Patch Host` both use `hosts: all` so
+the Contoller inventory (and optional Limit) chosen at launch determines the
+target hosts. Bootstrap also creates Contoller group `rhel_servers` in
+`<org>-RHEL-Inventory` for generated RHEL hosts, which system-role / STIG /
+compliance playbooks still target.
+
 Generated RHEL bootstrap workflows are created when the selected component set
 includes RHEL, Satellite, IDM, compliance, and STIG. The workflow chain is
 `Register Host to Satellite` -> `RHEL Patch Host` -> `IdM Manage Client` ->
@@ -143,7 +159,8 @@ workflow starts with generated OpenShift prep jobs, runs the nested
 **Cert Manager Workflow** (deploy plus optional IdM ACME / AWS PCA / default
 ingress nodes, pruned by mode), then fans out through **RHBK Workflow** and
 selected platform services such as Grafana, GitLab, Pega, Kafka, AAP, ECK,
-GitOps, 389ds, OADP, Quay, ACS, and ACM. The console banner job uses
+GitOps, 389ds, OADP, Quay, ACS, ACM, and the OpenShift Compliance Operator.
+The console banner job uses
 `playbooks/openshift/ado-configure-console-banner-bootstrap.yml` and its survey
 offers `add`, `update`, and `delete`; `update` removes ADO-managed banners and
 creates one replacement banner. Workflow nodes are pruned when their job

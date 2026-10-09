@@ -1,0 +1,21 @@
+---
+# yamllint disable rule:line-length
+- name: Classify Keycloak login events the same way the exporter does
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Run exporter unit tests
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -m
+          - unittest
+          - test_export_login_failures.py
+          - -v
+        chdir: "{{ playbook_dir }}/../../../roles/keycloak_login_events_exporter/files"
+      changed_when: false
+      register: keycloak_login_events_exporter_tests
+
+    - name: Show unit test output
+      ansible.builtin.debug:
+        var: keycloak_login_events_exporter_tests.stderr

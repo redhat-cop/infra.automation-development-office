@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - bootstrap_generate_env_vars - Treat ``component_apps.satellite`` as a
+    first-class target-platform group so Satellite-only preflight JSON
+    expands the same way as OpenShift, RHEL, and Patching.

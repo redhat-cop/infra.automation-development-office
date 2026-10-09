@@ -1,5 +1,10 @@
 ---
 # Install / converge MultiClusterHub and enable Fleet Management UI.
+
+- name: OpenShift ACM | Prep cluster before ADO ACM resources
+  when: ocp_acm_prep_for_ado_resources | default(true) | bool
+  ansible.builtin.include_tasks: prep_for_ado_resources.yml
+
 - name: OpenShift ACM | Check for stuck prior uninstall
   ansible.builtin.include_tasks: finish_stuck_uninstall.yml
 

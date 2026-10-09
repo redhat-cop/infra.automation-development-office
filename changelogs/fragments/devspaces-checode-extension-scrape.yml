@@ -1,0 +1,13 @@
+---
+bugfixes:
+  - >-
+    ocp_devspaces - Status exporter now probes the CheCode editor container
+    and common extension directories. The old
+    ``tooling-container`` + ``/checode/remote/extensions``-only scrape left
+    Grafana plugin / CheCode extension tables empty on Running workspaces.
+minor_changes:
+  - >-
+    ocp_devspaces - Added exporter-only playbook
+    ``playbooks/devspaces/ado-devspaces-status-exporter.yml`` and
+    ``status_exporter`` tag so a script refresh does not rerun the full
+    Dev Spaces install.

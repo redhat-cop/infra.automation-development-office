@@ -1,10 +1,20 @@
 ---
-- name: Assert required Hub harden facts
-  ansible.builtin.assert:
-    that:
-      - ocp_aap_hub_harden_namespace | length > 0
-      - ocp_aap_hub_harden_aap_name | length > 0
-    fail_msg: Set ocp_aap_hub_harden_namespace and ocp_aap_hub_harden_aap_name
+# yamllint disable rule:line-length
+- name: Discover AAP / Hub CRs and dedicated-DB state
+  ansible.builtin.include_tasks: discover.yml
+
+- name: Report Hub already on dedicated Postgres
+  ansible.builtin.debug:
+    msg: >-
+      Hub {{ ocp_aap_hub_harden_namespace }}/{{ ocp_aap_hub_harden_automationhub_name }}
+      already uses {{ ocp_aap_hub_harden_postgres_secret }}. Skipping migrate.
+  when: ocp_aap_hub_harden_already_separated | bool
+
+- name: Separate Hub onto dedicated Postgres
+  ansible.builtin.include_tasks: separate_database.yml
+  when:
+    - ocp_aap_hub_harden_separate_database | default(true) | bool
+    - not (ocp_aap_hub_harden_already_separated | bool)
 
 - name: Patch AutomationHub gunicorn workers/timeouts and dedicated DB secret
   kubernetes.core.k8s:

@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Derive AAP, ECK/Kibana, Kafka, and GitOps
+    route hostnames from ``openshift.apps_domain`` the same way as Grafana
+    and Quay so the apps domain is typed once.

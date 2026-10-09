@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Stop PATCHing existing Controller organizations
+    on AAP 2.5+. Lookup first and create only when missing so bootstrap
+    no longer fails with ``Unable to update organization 400`` /
+    ``Failed to sync resource``.

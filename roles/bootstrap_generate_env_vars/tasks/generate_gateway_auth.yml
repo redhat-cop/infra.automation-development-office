@@ -310,6 +310,7 @@
     executable: /bin/bash
   register: bootstrap_generate_env_vars_gateway_auth
   changed_when: true
+  no_log: true
   when:
     - bootstrap_generate_env_vars_use_aap | bool
     - bootstrap_generate_env_vars_preflight is defined

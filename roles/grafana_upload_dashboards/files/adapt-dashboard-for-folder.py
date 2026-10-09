@@ -73,6 +73,10 @@ def _should_rewrite_ds(ds, *, all_prometheus: bool = False) -> bool:
     that are not Openshift-* / grafana_datasource. For pin|multi, rewrite every
     prometheus-typed ref; otherwise only legacy ADO placeholders.
     """
+    # Community / ACM exports often leave panel.datasource null. Grafana then
+    # ignores the K8S ${datasource} variable and every panel shows No data.
+    if ds is None:
+        return bool(all_prometheus)
     if isinstance(ds, str):
         if ds in LEGACY_DS_STRINGS:
             return True

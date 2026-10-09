@@ -1,0 +1,73 @@
+---
+# aap_ocp_install still waits for controller/hub/eda routes and APIs after the
+# AAP 2.5+ gateway is up. Those routes often appear only after a subscription
+# is attached. When license_mode is none/skip, treat a stored platform route
+# as install success so license can be attached later.
+
+- name: Record aap_ocp_install failure context
+  ansible.builtin.set_fact:
+    install_aap_utilities_failed_task: >-
+      {{
+        ansible_failed_task.name
+        if (
+          ansible_failed_task is defined
+          and ansible_failed_task.name is defined
+        )
+        else ''
+      }}
+    install_aap_utilities_failed_msg: >-
+      {{
+        ansible_failed_result.msg
+        if (
+          ansible_failed_result is defined
+          and ansible_failed_result.msg is defined
+        )
+        else (
+          ansible_failed_result.message
+          if (
+            ansible_failed_result is defined
+            and ansible_failed_result.message is defined
+          )
+          else 'infra.aap_utilities.aap_ocp_install failed'
+        )
+      }}
+
+- name: Fail when license attach was requested during install
+  ansible.builtin.fail:
+    msg: >-
+      infra.aap_utilities.aap_ocp_install failed
+      ({{ install_aap_utilities_failed_task }}):
+      {{ install_aap_utilities_failed_msg }}
+  when: >-
+    (aap_ocp_install_license_mode | default('none') | lower)
+    not in ['', 'none', 'skip']
+
+- name: Fail when the platform/gateway route was never stored
+  ansible.builtin.fail:
+    msg: >-
+      infra.aap_utilities.aap_ocp_install failed before the platform
+      route was available ({{ install_aap_utilities_failed_task }}):
+      {{ install_aap_utilities_failed_msg }}
+  when: (aap_ocp_install_platform_route | default('') | length) == 0
+
+- name: Fail when the error is not a deferred component wait
+  ansible.builtin.fail:
+    msg: >-
+      infra.aap_utilities.aap_ocp_install failed
+      ({{ install_aap_utilities_failed_task }}):
+      {{ install_aap_utilities_failed_msg }}
+  when: >-
+    install_aap_utilities_failed_task
+    is not search(
+      'controller route|controller API|EDA route|eda API|hub route|hub API',
+      ignorecase=True
+    )
+
+- name: Accept unlicensed platform install at the gateway
+  ansible.builtin.debug:
+    msg: >-
+      AAP platform is up at {{ aap_ocp_install_platform_route }}.
+      License mode is none — skipped waiting for controller/hub/eda
+      APIs. Attach a subscription later from the License tab
+      (attach_aap_license / aap_ocp_install_license_only) or the
+      AAP subscription wizard.
