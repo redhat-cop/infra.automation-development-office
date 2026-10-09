@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    install_aap - Do not force a database wipe on every OpenShift AAP
+    install. Default ``aap_ocp_install_reset_database`` is false. When a
+    reset is requested, treat a missing AnsibleAutomationPlatform CR or
+    403/Forbidden as skip so greenfield installs do not fail.

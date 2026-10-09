@@ -1,6 +1,8 @@
 ---
 # Publish one preflight tarball to Hub validated (staging upload + pulp move).
-# Skips when version already exists in validated unless __hub_pub_force is true.
+# Skips when version already exists in validated / published / rh-certified / pulp
+# unless __hub_pub_force is true. Never create or upload into reserved namespaces
+# (redhat).
 #
 # wait:false on ah_collection — the module's import wait polls Hub and can fail
 # with DNS/URLError even after a successful upload. We wait via pulp lookup.
@@ -128,9 +130,129 @@
             ~ '&version=' ~ bootstrap_controller_hub_pub_version
           }}
 
-    - name: Publish preflight collection | Check validated for existing version
+    - name: Publish preflight collection | Check Hub repos for existing version
       ansible.builtin.uri:
-        url: "{{ bootstrap_controller_hub_pub_validated_version_url }}"
+        url: >-
+          {{
+            bootstrap_controller_hub_pub_api_host.rstrip('/')
+            ~ '/api/galaxy/content/' ~ item
+            ~ '/v3/collections/' ~ __hub_pub_item.namespace
+            ~ '/' ~ __hub_pub_item.collection
+            ~ '/versions/' ~ bootstrap_controller_hub_pub_version ~ '/'
+          }}
+        method: GET
+        validate_certs: "{{ controller_validate_certs | default(false) }}"
+        status_code: [200, 404, 500, 502, 503, 504]
+        return_content: true
+        headers: "{{ bootstrap_controller_hub_pub_uri_headers }}"
+        user: "{{ bootstrap_controller_hub_pub_uri_user }}"
+        password: "{{ bootstrap_controller_hub_pub_uri_password }}"
+        force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
+      loop: >-
+        {{
+          bootstrap_controller_hub_pub_exist_repos
+          | default(['validated', 'published', 'rh-certified'])
+        }}
+      loop_control:
+        label: "{{ item }}"
+      register: bootstrap_controller_hub_pub_existing
+      until: >-
+        (bootstrap_controller_hub_pub_existing.status | default(0) | int)
+        in [200, 404]
+      retries: "{{ bootstrap_controller_hub_exist_check_retries | default(8) | int }}"
+      delay: "{{ bootstrap_controller_hub_exist_check_delay | default(15) | int }}"
+      failed_when: false
+
+    - name: Publish preflight collection | Check pulp for existing collection version
+      ansible.builtin.uri:
+        url: "{{ bootstrap_controller_hub_pub_pulp_cv_url }}"
+        method: GET
+        validate_certs: "{{ controller_validate_certs | default(false) }}"
+        status_code: [200, 500, 502, 503, 504]
+        return_content: true
+        headers: "{{ bootstrap_controller_hub_pub_uri_headers }}"
+        user: "{{ bootstrap_controller_hub_pub_uri_user }}"
+        password: "{{ bootstrap_controller_hub_pub_uri_password }}"
+        force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
+      register: bootstrap_controller_hub_pub_cv_present
+      until: (bootstrap_controller_hub_pub_cv_present.status | default(0) | int) == 200
+      retries: "{{ bootstrap_controller_hub_exist_check_retries | default(8) | int }}"
+      delay: "{{ bootstrap_controller_hub_exist_check_delay | default(15) | int }}"
+      failed_when: false
+
+    - name: Publish preflight collection | Decide whether to publish
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_already_present: >-
+          {{
+            (
+              bootstrap_controller_hub_pub_existing.results
+              | default([])
+              | selectattr('status', 'equalto', 200)
+              | list
+              | length
+            ) > 0
+            or (
+              bootstrap_controller_hub_pub_cv_present.json.count
+              | default(0)
+              | int
+            ) >= 1
+          }}
+        bootstrap_controller_hub_pub_reserved_namespace: >-
+          {{
+            (
+              __hub_pub_item.namespace
+              | default('')
+              | string
+              | lower
+            ) in (
+              bootstrap_controller_hub_reserved_namespaces
+              | default(['redhat'])
+              | map('lower')
+              | list
+            )
+          }}
+
+    - name: Publish preflight collection | Decide publish vs skip
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_should_publish: >-
+          {{
+            (__hub_pub_force | bool)
+            or (
+              not (bootstrap_controller_hub_pub_already_present | bool)
+              and not (bootstrap_controller_hub_pub_reserved_namespace | bool)
+            )
+          }}
+
+    - name: Publish preflight collection | Skip existing version
+      ansible.builtin.debug:
+        msg: >-
+          Skipping {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} —
+          already on Hub (validated, published, rh-certified, or pulp).
+      when:
+        - not (bootstrap_controller_hub_pub_should_publish | bool)
+        - bootstrap_controller_hub_pub_already_present | bool
+
+    - name: Publish preflight collection | Skip reserved Hub namespace
+      ansible.builtin.debug:
+        msg: >-
+          Skipping {{ __hub_pub_item.name }} — Hub namespace
+          '{{ __hub_pub_item.namespace }}' is reserved (or already owned by
+          certified content). Additional collections never create or overwrite
+          it. Use the Hub rh-certified / published copy.
+      when:
+        - not (bootstrap_controller_hub_pub_should_publish | bool)
+        - bootstrap_controller_hub_pub_reserved_namespace | bool
+        - not (bootstrap_controller_hub_pub_already_present | bool)
+
+    - name: Publish preflight collection | Check whether Hub namespace exists
+      ansible.builtin.uri:
+        url: >-
+          {{
+            bootstrap_controller_hub_pub_api_host.rstrip('/')
+            ~ '/api/galaxy/v3/namespaces/'
+            ~ __hub_pub_item.namespace
+            ~ '/'
+          }}
         method: GET
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200, 404]
@@ -139,22 +261,10 @@
         user: "{{ bootstrap_controller_hub_pub_uri_user }}"
         password: "{{ bootstrap_controller_hub_pub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
-      register: bootstrap_controller_hub_pub_existing
-
-    - name: Publish preflight collection | Decide whether to publish
-      ansible.builtin.set_fact:
-        bootstrap_controller_hub_pub_should_publish: >-
-          {{
-            __hub_pub_force | bool
-            or (bootstrap_controller_hub_pub_existing.status | default(404) | int) == 404
-          }}
-
-    - name: Publish preflight collection | Skip existing version
-      ansible.builtin.debug:
-        msg: >-
-          Skipping {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} — already
-          in {{ bootstrap_controller_hub_publish_repository | default('validated') }}.
-      when: not (bootstrap_controller_hub_pub_should_publish | bool)
+      register: bootstrap_controller_hub_pub_namespace
+      when:
+        - bootstrap_controller_hub_pub_should_publish | bool
+        - __hub_pub_item.namespace | length > 0
 
     - name: Publish preflight collection | Ensure Hub namespace exists
       ansible.hub.ah_namespace:
@@ -186,9 +296,25 @@
             else (bootstrap_controller_hub_ah_token | default(omit))
           }}
         validate_certs: "{{ controller_validate_certs | default(false) }}"
+      register: bootstrap_controller_hub_pub_namespace_ensure
+      failed_when: >-
+        (
+          bootstrap_controller_hub_pub_namespace_ensure.failed | default(false) | bool
+        )
+        and (
+          'already exist' not in (
+            bootstrap_controller_hub_pub_namespace_ensure.msg | default('') | lower
+          )
+        )
+        and (
+          'already exists' not in (
+            bootstrap_controller_hub_pub_namespace_ensure.msg | default('') | lower
+          )
+        )
       when:
         - bootstrap_controller_hub_pub_should_publish | bool
         - __hub_pub_item.namespace | length > 0
+        - (bootstrap_controller_hub_pub_namespace.status | default(404) | int) == 404
 
     - name: Publish preflight collection | Check whether pulp already has this version
       ansible.builtin.uri:

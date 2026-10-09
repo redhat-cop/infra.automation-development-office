@@ -329,9 +329,36 @@
           username: "{{ ocp_rhbk_client_secrets_admin_user_resolved }}"
           password: "{{ ocp_rhbk_client_secrets_admin_password_resolved }}"
         return_content: true
-        status_code: [200]
+        status_code: [200, 400, 401, 403, 404, 500, 502, 503, 504]
       register: ocp_rhbk_client_secrets__token_rsp
+      failed_when: false
       no_log: true
+
+    # no_log on the uri task censors the whole result; surface non-secret diagnostics here.
+    - name: Rhbk_get_client_secrets  Fail clearly when admin token grant fails
+      ansible.builtin.fail:
+        msg: >-
+          Keycloak admin token (password grant) failed.
+          host='{{ ocp_rhbk_secret_hostname_resolved }}'
+          realm=master
+          user='{{ ocp_rhbk_client_secrets_admin_user_resolved }}'
+          http_status={{ ocp_rhbk_client_secrets__token_rsp.status | default('n/a') }}
+          error={{
+            (ocp_rhbk_client_secrets__token_rsp.json.error | default(''))
+            if (ocp_rhbk_client_secrets__token_rsp.json is defined) else ''
+          }}
+          error_description={{
+            (ocp_rhbk_client_secrets__token_rsp.json.error_description | default(''))
+            if (ocp_rhbk_client_secrets__token_rsp.json is defined) else ''
+          }}
+          uri_msg={{ ocp_rhbk_client_secrets__token_rsp.msg | default('') }}
+          Hint: confirm RHBK is reachable (not 503), vault_rhbk.yml /
+          keycloak-admin-creds match the live admin password, and
+          ocp_rhbk_hostname points at the Keycloak on the same cluster as K8S_AUTH.
+      when: >-
+        (ocp_rhbk_client_secrets__token_rsp.status | default(0) | int) != 200
+        or (ocp_rhbk_client_secrets__token_rsp.json.access_token | default('') | length) == 0
+      no_log: false
 
     - name: Rhbk_get_client_secrets  Extract access token
       ansible.builtin.set_fact:

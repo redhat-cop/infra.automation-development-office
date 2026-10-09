@@ -5,12 +5,10 @@ SETUP_COMPLETE: true
 DATABASE_SECRET_KEY: changeme-secret-key
 SUPER_USERS:
   - {{ ocp_quay_admin_user }}
+# First user is created via POST /api/v1/user/initialize after Quay is up.
+# USER_INITIALIZE in this file is not a Quay config key and does not set the
+# login password.
 FEATURE_USER_INITIALIZE: true
-USER_INITIALIZE:
-  username: {{ ocp_quay_admin_user }}
-  password: {{ ocp_quay_admin_password }}
-  email: "{{ ocp_quay_admin_user }}@example.com"
-  access_token: true
 DB_URI: postgresql://quay:quaypass@postgres-db:5432/quay
 REDIS_HOST: localhost
 BUILDLOGS_REDIS:
@@ -21,8 +19,21 @@ USER_EVENTS_REDIS:
   port: 6379
 DISTRIBUTED_STORAGE_CONFIG:
   default:
+{% if (ocp_quay_storage_backend | default('local') | string | lower) == 'minio' %}
+    - RadosGWStorage
+    - hostname: {{ ocp_quay_s3_hostname }}
+      port: {{ ocp_quay_s3_port | int }}
+      is_secure: {{ ocp_quay_s3_is_secure | default(false) | bool | lower }}
+      access_key: {{ ocp_quay_s3_access_key }}
+      secret_key: {{ ocp_quay_s3_secret_key }}
+      bucket_name: {{ ocp_quay_s3_bucket }}
+      storage_path: /datastorage/registry
+{% else %}
     - LocalStorage
     - storage_path: /datastorage/registry
+{% endif %}
+DISTRIBUTED_STORAGE_PREFERENCE:
+  - default
 # Keep Database as internal auth. Keycloak is an external OIDC login provider.
 # AUTHENTICATION_TYPE: OIDC crashes Quay during migration (Unknown authentication type).
 AUTHENTICATION_TYPE: Database

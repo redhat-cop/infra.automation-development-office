@@ -44,6 +44,15 @@
         storage: "{{ ocp_quay_storage }}"  # noqa: var-naming[no-role-prefix]
       when: (ocp_quay_storage | default('') | string | trim | length) > 0
 
+- name: Normalize Quay storage backend
+  ansible.builtin.set_fact:
+    ocp_quay_storage_backend: >-
+      {{ ocp_quay_storage_backend | default('local') | string | lower }}
+
+- name: Inherit MinIO connection from existing ADO vars
+  ansible.builtin.include_tasks: inherit_minio_vars.yml
+  when: ocp_quay_storage_backend == 'minio'
+
 - name: Assert Quay storage class is set
   ansible.builtin.assert:
     that:
@@ -60,6 +69,7 @@
     state: present
 
 - name: Create PVC for Quay storage
+  when: ocp_quay_storage_backend != 'minio'
   kubernetes.core.k8s:
     definition:
       apiVersion: v1
@@ -73,6 +83,10 @@
           requests:
             storage: "{{ storage_size }}"
         storageClassName: "{{ storage }}"
+
+- name: Ensure Quay blob bucket exists on MinIO
+  ansible.builtin.include_tasks: ensure_minio_bucket.yml
+  when: ocp_quay_storage_backend == 'minio'
 
 - name: Resolve Quay OIDC issuer URL
   ansible.builtin.set_fact:
@@ -295,6 +309,27 @@
     'CREATE EXTENSION' in (ocp_quay_pg_trgm.stdout | default(''))
   failed_when: false
 
+- name: Build Quay pod volumes for local PVC storage
+  ansible.builtin.set_fact:
+    ocp_quay_pod_volumes:
+      - name: config-volume
+        secret:
+          secretName: "{{ ocp_quay_config_secret }}"
+      - name: registry-storage
+        persistentVolumeClaim:
+          claimName: quay-registry-storage
+  when: ocp_quay_storage_backend != 'minio'
+
+- name: Build Quay pod volumes for MinIO object storage
+  ansible.builtin.set_fact:
+    ocp_quay_pod_volumes:
+      - name: config-volume
+        secret:
+          secretName: "{{ ocp_quay_config_secret }}"
+      - name: registry-storage
+        emptyDir: {}
+  when: ocp_quay_storage_backend == 'minio'
+
 - name: Deploy Quay Registry with Redis Sidecar
   kubernetes.core.k8s:
     definition:
@@ -313,16 +348,11 @@
             labels:
               app: quay
           spec:
-            volumes:
-              - name: config-volume
-                secret:
-                  secretName: "{{ ocp_quay_config_secret }}"
-              - name: registry-storage
-                persistentVolumeClaim:
-                  claimName: quay-registry-storage
+            volumes: "{{ ocp_quay_pod_volumes }}"
             containers:
               - name: quay
-                image: quay.io/projectquay/quay:latest
+                image: "{{ ocp_quay_image }}"
+                imagePullPolicy: IfNotPresent
                 ports:
                   - containerPort: 8080
                 volumeMounts:
@@ -331,7 +361,8 @@
                   - name: registry-storage
                     mountPath: /datastorage/registry
               - name: redis
-                image: redis:7-alpine
+                image: "{{ ocp_quay_redis_image }}"
+                imagePullPolicy: IfNotPresent
                 ports:
                   - containerPort: 6379
 
@@ -370,6 +401,9 @@
           # Quay nginx listens on HTTP 8080 in this install path.
           termination: edge
           insecureEdgeTerminationPolicy: Redirect
+
+- name: Create or reset the Quay admin user from form/vault password
+  ansible.builtin.import_tasks: initialize_admin.yml
 
 - name: Show Quay admin console URL
   ansible.builtin.debug:

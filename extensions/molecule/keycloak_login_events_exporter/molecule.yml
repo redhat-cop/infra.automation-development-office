@@ -1,0 +1,22 @@
+---
+dependency:
+  name: shell
+  command: echo Local fixture only
+driver:
+  name: default
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: '${ANSIBLE_COLLECTIONS_PATH}'
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+verifier:
+  name: ansible
+scenario:
+  test_sequence: [dependency, syntax, converge, verify]

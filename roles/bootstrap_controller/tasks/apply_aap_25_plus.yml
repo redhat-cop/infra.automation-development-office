@@ -23,38 +23,45 @@
 # Stale configs/controller (esp. with overwrite_generated=false) often still
 # list old orgs like DEV and would 401-block publish when Contoller OAuth is
 # missing/wrong. Hub publish uses Hub token; org/Galaxy attach runs after.
-- name: AAP 2.5+ | Create organizations directly
-  ansible.controller.organization:
-    name: "{{ item.name }}"
-    description: "{{ item.description | default(omit) }}"
-    # Galaxy/Hub creds attach after credential dispatch — names are not resolvable yet.
-    state: "{{ item.state | default('present') }}"
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
-  loop: "{{ bootstrap_controller_controller_organizations | default([]) }}"
-  when:
-    - bootstrap_controller_controller_organizations | default([]) | length > 0
-    - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
+# Full apply: never PATCH an existing org. AAP 2.5+ gateway returns
+# 400 "Unable to update organization" / "Failed to sync resource" when
+# ansible.controller.organization updates description on an org that
+# already exists (for example ADO).
+- name: AAP 2.5+ | Build organization names to ensure
+  ansible.builtin.set_fact:
+    bootstrap_controller_orgs_to_ensure: >-
+      {{
+        (
+          (
+            bootstrap_controller_controller_organizations
+            | default([])
+            | map(attribute='name')
+            | list
+          )
+          + (
+              [controller_bootstrap_organization]
+              if (controller_bootstrap_organization | default('') | length > 0)
+              else []
+            )
+        )
+        | reject('equalto', '')
+        | reject('equalto', none)
+        | unique
+        | list
+      }}
+  when: not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
 
-- name: AAP 2.5+ | Ensure General organization exists (missing from configs)
-  ansible.controller.organization:
-    name: "{{ controller_bootstrap_organization }}"
-    description: "{{ controller_bootstrap_organization }}"
-    state: present
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
+- name: AAP 2.5+ | Ensure organizations exist without updating
+  ansible.builtin.include_tasks: ensure_controller_organization.yml
+  loop: "{{ bootstrap_controller_orgs_to_ensure | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_ensure_org_loop_name
+  vars:
+    bootstrap_controller_ensure_org_name: "{{ bootstrap_controller_ensure_org_loop_name }}"
+    bootstrap_controller_ensure_org_strict: true
   when:
     - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
-    - controller_bootstrap_organization | default('') | length > 0
-    - >-
-      controller_bootstrap_organization not in
-      (bootstrap_controller_controller_organizations | default([]) | map(attribute='name') | list)
+    - bootstrap_controller_orgs_to_ensure | default([]) | length > 0
 
 # Inventories direct because infra.aap_configuration 4.6.19 stringifies variables
 - name: AAP 2.5+ | Create inventories directly
@@ -258,20 +265,11 @@
     - bootstrap_controller_hub_publish_ado_collection | default(false) | bool
     - bootstrap_controller_hub_collection_artifacts | default([]) | length > 0
 
-# Hub-only: Galaxy credential attach and optional Contoller EE need the General org
+# Hub-only: Galaxy credential attach and optional Contoller EE need the form org
 # before any Controller API work. Hub publish itself uses the Hub API token only.
-- name: AAP 2.5+ | Ensure General organization before Hub/Galaxy Controller work (hub-only)
-  ansible.controller.organization:
-    name: "{{ controller_bootstrap_organization }}"
-    description: "{{ controller_bootstrap_organization }}"
-    state: present
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
-  register: bootstrap_controller_hub_only_org
-  failed_when: false
+# Lookup/create the form org only — never loop stale configs/controller orgs.
+- name: AAP 2.5+ | Ensure form organization before Hub/Galaxy Controller work (hub-only)
+  ansible.builtin.include_tasks: ensure_controller_organization.yml
   when:
     - bootstrap_controller_hub_update_collection_only | default(false) | bool
     - controller_bootstrap_organization | default('') | length > 0
@@ -284,6 +282,15 @@
         bootstrap_controller_hub_push_ee | default(false) | bool
         and bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool
       )
+
+- name: AAP 2.5+ | Map hub-only org ensure result
+  ansible.builtin.set_fact:
+    bootstrap_controller_hub_only_org:
+      failed: "{{ not (bootstrap_controller_ensure_org_ok | default(false) | bool) }}"
+      msg: "{{ bootstrap_controller_ensure_org_msg | default('org ensure skipped') }}"
+  when:
+    - bootstrap_controller_hub_update_collection_only | default(false) | bool
+    - bootstrap_controller_ensure_org_ok is defined
 
 - name: AAP 2.5+ | Ensure Hub namespace exists for ADO collection
   ansible.builtin.include_tasks: ensure_hub_namespace.yml
@@ -417,12 +424,17 @@
     url: "{{ bootstrap_controller_hub_api_host.rstrip('/') }}/api/galaxy/content/{{ bootstrap_controller_hub_publish_repository | default('validated') }}/v3/collections/infra/ado/versions/{{ bootstrap_controller_hub_artifact_coords.version }}/"
     method: GET
     validate_certs: "{{ controller_validate_certs | default(false) }}"
-    status_code: [200, 404]
+    status_code: [200, 404, 500, 502, 503, 504]
     return_content: true
     headers: "{{ bootstrap_controller_hub_uri_headers | default({}) }}"
     user: "{{ bootstrap_controller_hub_uri_user }}"
     password: "{{ bootstrap_controller_hub_uri_password }}"
     force_basic_auth: "{{ bootstrap_controller_hub_uri_force_basic }}"
+  until: >-
+    (bootstrap_controller_hub_ado_existing_check.status | default(0) | int)
+    in [200, 404]
+  retries: "{{ bootstrap_controller_hub_exist_check_retries | default(8) | int }}"
+  delay: "{{ bootstrap_controller_hub_exist_check_delay | default(15) | int }}"
   vars:
     bootstrap_controller_hub_artifact_basename: "{{ __hub_collection_file | basename }}"
     bootstrap_controller_hub_artifact_coords:
@@ -760,12 +772,6 @@
     - bootstrap_controller_hub_update_collection_only | default(false) | bool
     - bootstrap_generate_env_vars_preflight is defined
     - bootstrap_generate_env_vars_preflight.aap.galaxy_setup_enabled | default(false) | bool
-    - >-
-      bootstrap_generate_env_vars_preflight.aap.galaxy_hub_token
-      | default('', true)
-      | string
-      | trim
-      | length > 0
     - >-
       bootstrap_controller_hub_only_org is not defined
       or bootstrap_controller_hub_only_org is skipped
@@ -1437,12 +1443,6 @@
     - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
     - bootstrap_generate_env_vars_preflight is defined
     - bootstrap_generate_env_vars_preflight.aap.galaxy_setup_enabled | default(false) | bool
-    - >-
-      bootstrap_generate_env_vars_preflight.aap.galaxy_hub_token
-      | default('', true)
-      | string
-      | trim
-      | length > 0
 
 - name: AAP 2.5+ | Skip existing execution environments
   ansible.builtin.include_tasks: skip_existing_execution_environments.yml
@@ -1503,6 +1503,21 @@
         var: controller_hosts
         tags: hosts
   when: controller_hosts | default([]) | length > 0
+
+- name: AAP 2.5+ | Apply groups
+  ansible.builtin.include_role:
+    name: infra.aap_configuration.dispatch
+  vars:
+    gateway_configuration_dispatcher_roles: []
+    hub_configuration_dispatcher_roles: []
+    eda_configuration_dispatcher_roles: []
+    controller_configuration_dispatcher_roles:
+      # infra.aap_configuration role name is controller_host_groups;
+      # the list var remains controller_groups.
+      - role: controller_host_groups
+        var: controller_groups
+        tags: groups
+  when: controller_groups | default([]) | length > 0
 
 # Now job templates can see synced playbooks
 - name: AAP 2.5+ | Sanitize generated job template and workflow labels for infra.aap_configuration

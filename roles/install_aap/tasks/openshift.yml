@@ -68,15 +68,22 @@
     aap_ocp_install_reset_delete_platform: "{{ install_aap_reset_delete_platform_effective }}"
 
 - name: Install AAP on OpenShift via infra.aap_utilities.aap_ocp_install
-  ansible.builtin.include_role:
-    name: infra.aap_utilities.aap_ocp_install
-    public: true
   when:
     - install_aap_state_effective == 'present'
     - not (aap_ocp_install_license_only | default(false) | bool)
+  block:
+    - name: Install AAP operator and platform CR
+      ansible.builtin.include_role:
+        name: infra.aap_utilities.aap_ocp_install
+        public: true
+  rescue:
+    - name: Accept gateway-only install when license is deferred
+      ansible.builtin.include_tasks: accept_unlicensed_platform.yml
 
 - name: Activate AAP subscription license when configured
   ansible.builtin.include_tasks: activate_license.yml
   when:
     - install_aap_state_effective == 'present'
-    - (aap_ocp_install_license_mode | default('none') | lower) not in ['', 'none', 'skip']
+    - >-
+      (aap_ocp_install_license_mode | default('none') | lower)
+      not in ['', 'none', 'skip']

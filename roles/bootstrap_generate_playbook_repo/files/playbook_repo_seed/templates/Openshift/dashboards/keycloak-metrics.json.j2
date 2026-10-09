@@ -930,6 +930,128 @@
           "refId": "Last"
         }
       ]
+    },
+    {
+      "type": "table",
+      "title": "Successful logins by username",
+      "description": "From Admin event store via keycloak-login-events exporter. Sorted by newest LOGIN. Requires realm eventsEnabled + exporter deploy.",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 47
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Last seen",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {}
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "namespace": true,
+              "pod": true,
+              "container": true,
+              "endpoint": true,
+              "service": true,
+              "prometheus": true,
+              "prometheus_replica": true
+            },
+            "renameByName": {
+              "username": "Username",
+              "client_id": "client_id",
+              "realm": "realm",
+              "ip": "IP",
+              "Value #Count": "Count",
+              "Value #Last": "Last seen",
+              "Value": "Count"
+            },
+            "indexByName": {
+              "Last seen": 0,
+              "Username": 1,
+              "client_id": 2,
+              "realm": 3,
+              "IP": 4,
+              "Count": 5
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Last seen",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sum by (username, client_id, realm, ip) (keycloak_login_success_events)",
+          "format": "table",
+          "instant": true,
+          "refId": "Count"
+        },
+        {
+          "expr": "max by (username, client_id, realm, ip) (keycloak_login_success_last_timestamp)",
+          "format": "table",
+          "instant": true,
+          "refId": "Last"
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -1018,7 +1140,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenShift — Keycloak Metrics",
+  "title": "OpenShift — Keycloak JVM, HTTP, and login metrics",
   "uid": "ado-keycloak-metrics",
   "version": 4
 }

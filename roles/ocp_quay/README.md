@@ -1,6 +1,9 @@
 # Role: infra.ado.ocp_quay
 
-Ocp Quay automation role. Primary tasks include: Delete Quay namespace; Create Quay Namespace; Create PVC for Quay storage.
+Install or remove Red Hat Quay on OpenShift (namespace, Postgres, registry, route).
+Registry blobs default to a local PVC. Set ``ocp_quay_storage_backend=minio`` to
+store blobs on an already-installed MinIO (S3-compatible RadosGWStorage). This
+role does not install MinIO.
 
 ## Role Author
 
@@ -16,7 +19,22 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
-| `ocp_quay_state` | Desired state used by role tasks when supported. |
+| `state` | `present` or `absent`. |
+| `name_space` | Quay namespace (default `quay-enterprise`). |
+| `ocp_quay_hostname` | Route host. |
+| `ocp_quay_admin_user` | Database admin username. Default `quayadmin`. Created with `POST /api/v1/user/initialize` after Quay is up (not from `config.yaml`). |
+| `ocp_quay_admin_password` | Database admin password from the Quay tab (`vault_ocp_quay_admin_password`). Reused on reruns; existing user password is reset to this value. |
+| `ocp_quay_image` | Quay container image. Default `registry.redhat.io/quay/quay-rhel8:v3.15.4` (not quay.io). |
+| `ocp_quay_redis_image` | Redis sidecar. Default `registry.redhat.io/rhel9/redis-6:latest` (not docker.io). |
+| `storage` | StorageClass for Postgres and, when not using MinIO, the registry PVC. |
+| `ocp_quay_storage_backend` | `local` (PVC LocalStorage) or `minio` (S3-compatible RadosGWStorage). |
+| `ocp_quay_s3_hostname` | MinIO API host. Empty inherits `minio.<namespace>.svc` from MinIO vars. |
+| `ocp_quay_s3_port` | MinIO API port. Empty inherits `minio_api_port` or `9000`. |
+| `ocp_quay_s3_bucket` | Bucket created on MinIO (default `quay`). |
+| `ocp_quay_s3_access_key` / `ocp_quay_s3_secret_key` | MinIO root credentials. Empty inherits `minio_root_user` / `minio_root_password` from `vars_minio.yml` / `vault_minio.yml` when those files exist. |
+| `ocp_quay_s3_minio_namespace` | MinIO namespace. Empty inherits `minio_namespace` or `minio`. |
+| `ocp_quay_minio_mc_image` | Image for the in-cluster bucket Job. Default `registry.redhat.io/ubi9/python-311:latest` (not `quay.io/minio/mc`). |
+| `quay_oidc_enabled` | Enable Keycloak OIDC after install. |
 
 ## 🚀 Role Usage
 
@@ -36,8 +54,10 @@ This role runs tasks such as:
 
 - Delete Quay namespace
 - Create Quay Namespace
-- Create PVC for Quay storage
+- Create PVC for Quay storage (skipped when `ocp_quay_storage_backend=minio`)
+- Create the Quay bucket on MinIO when that backend is selected
 - Set Quay config
+- Create or reset the Database admin via ``/api/v1/user/initialize``
 
 ```bash
 cd roles/ocp_quay

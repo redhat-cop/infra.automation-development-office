@@ -13,12 +13,23 @@
       ansible.builtin.set_fact:
         ocp_wait_operator__namespace: >-
           {{
-            operator_namespace
-            | default(operator_subscription_namespace)
-            | default(name_space)
+            (
+              operator_namespace
+              | default(operator_subscription_namespace, true)
+              | default(name_space, true)
+              | default('', true)
+            )
             | string
             | trim
           }}
+
+    - name: Assert operator wait namespace is set
+      ansible.builtin.assert:
+        that:
+          - (ocp_wait_operator__namespace | length) > 0
+        fail_msg: >-
+          Operator wait namespace is empty. Set operator_namespace,
+          operator_subscription_namespace, or name_space.
 
     # Resolve CSV/deployment match string once. Callers often only set operator_name;
     # aliases alone do nothing when neither substring nor csv_contains exists.
@@ -66,53 +77,110 @@
             kind: ClusterServiceVersion
             namespace: "{{ ocp_wait_operator__namespace }}"
           register: ocp_wait_operator__installed_operator_csvs
+          # CSV names/phases are not secrets. no_log hid the real until error
+          # (selectattr on missing status.phase) and printed "output hidden".
           until: >-
-            (
-              ocp_wait_operator__installed_operator_csvs.resources
-              | default([])
-              | selectattr('metadata.name', 'search', ocp_wait_operator_name_substring)
-              | selectattr('status.phase', 'defined')
-              | selectattr('status.phase', 'equalto', 'Succeeded')
-              | list
-              | length > 0
-            )
-            or (
-              (ocp_wait_operator__csv_match_alt | length) > 0
-              and (
-                ocp_wait_operator__installed_operator_csvs.resources
-                | default([])
-                | selectattr('metadata.name', 'search', ocp_wait_operator__csv_match_alt)
-                | selectattr('status.phase', 'defined')
-                | selectattr('status.phase', 'equalto', 'Succeeded')
-                | list
-                | length > 0
-              )
-            )
+            {% set ns = namespace(ready=false) -%}
+            {% for csv in
+                 (ocp_wait_operator__installed_operator_csvs.resources | default([]))
+            -%}
+              {%- set csv_name = csv.metadata.name | default('') -%}
+              {%- set csv_phase = (
+                    csv.status.phase
+                    if (csv.status is defined and csv.status.phase is defined)
+                    else ''
+                  ) -%}
+              {%- if csv_phase == 'Succeeded'
+                    and (
+                      (
+                        (ocp_wait_operator_name_substring | length) > 0
+                        and ocp_wait_operator_name_substring in csv_name
+                      )
+                      or (
+                        (ocp_wait_operator__csv_match_alt | length) > 0
+                        and ocp_wait_operator__csv_match_alt in csv_name
+                      )
+                    )
+              -%}
+                {%- set ns.ready = true -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ns.ready }}
           retries: "{{ ((operator_install_timeout | default(900) | int) // (operator_poll_interval | default(10) | int)) | int }}"
           delay: "{{ operator_poll_interval | default(10) | int }}"
       rescue:
+        - name: Read Subscriptions in operator wait namespace
+          kubernetes.core.k8s_info:
+            api_version: operators.coreos.com/v1alpha1
+            kind: Subscription
+            namespace: "{{ ocp_wait_operator__namespace }}"
+          register: ocp_wait_operator__subs
+
+        - name: Summarize CSV and Subscription status for failure
+          ansible.builtin.set_fact:
+            ocp_wait_operator__csv_summary: >-
+              {% set ns = namespace(rows=[]) -%}
+              {% for csv in
+                   (ocp_wait_operator__installed_operator_csvs.resources | default([]))
+              -%}
+                {%- set csv_name = csv.metadata.name | default('unknown') -%}
+                {%- set csv_phase = (
+                      csv.status.phase
+                      if (csv.status is defined and csv.status.phase is defined)
+                      else 'unknown'
+                    ) -%}
+                {%- set ns.rows = ns.rows + [csv_name ~ '=' ~ csv_phase] -%}
+              {%- endfor -%}
+              {{ ns.rows }}
+            ocp_wait_operator__sub_summary: >-
+              {% set ns = namespace(rows=[]) -%}
+              {% for sub in (ocp_wait_operator__subs.resources | default([])) -%}
+                {%- set sub_name = sub.metadata.name | default('unknown') -%}
+                {%- set pkg = (
+                      sub.spec.name
+                      if (sub.spec is defined and sub.spec.name is defined)
+                      else ''
+                    ) -%}
+                {%- set channel = (
+                      sub.spec.channel
+                      if (sub.spec is defined and sub.spec.channel is defined)
+                      else ''
+                    ) -%}
+                {%- set sub_state = (
+                      sub.status.state
+                      if (sub.status is defined and sub.status.state is defined)
+                      else 'unknown'
+                    ) -%}
+                {%- set current = (
+                      sub.status.currentCSV
+                      if (sub.status is defined and sub.status.currentCSV is defined)
+                      else ''
+                    ) -%}
+                {%- set installed = (
+                      sub.status.installedCSV
+                      if (sub.status is defined and sub.status.installedCSV is defined)
+                      else ''
+                    ) -%}
+                {%- set ns.rows = ns.rows + [
+                      sub_name ~ ' pkg=' ~ pkg ~ ' ch=' ~ channel
+                      ~ ' state=' ~ sub_state
+                      ~ ' current=' ~ current
+                      ~ ' installed=' ~ installed
+                    ] -%}
+              {%- endfor -%}
+              {{ ns.rows }}
+
         - name: Fail with actionable Operator CSV guidance
           ansible.builtin.fail:
             msg: >-
               No Succeeded ClusterServiceVersion matching
               '{{ ocp_wait_operator_name_substring }}'
               (or hyphen-stripped '{{ ocp_wait_operator__csv_match_alt }}') in
-              namespace '{{ ocp_wait_operator__namespace }}'. CSVs present:
-              {{
-                ocp_wait_operator__installed_operator_csvs.resources
-                | default([])
-                | map(attribute='metadata.name')
-                | list
-              }}
-              (phases:
-              {{
-                ocp_wait_operator__installed_operator_csvs.resources
-                | default([])
-                | map(attribute='status.phase')
-                | list
-              }}).
-              Check Subscription package/channel/source and that
-              operator_namespace matches where the Subscription installs the CSV.
+              namespace '{{ ocp_wait_operator__namespace }}'.
+              CSVs: {{ ocp_wait_operator__csv_summary }}.
+              Subscriptions: {{ ocp_wait_operator__sub_summary }}.
+              Check package/channel/source and that operator_namespace is
+              where the Subscription installs the CSV.
 
     - name: Set fact if Operator CSV is installed
       ansible.builtin.set_fact:

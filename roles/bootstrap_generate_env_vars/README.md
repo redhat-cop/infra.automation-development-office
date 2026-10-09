@@ -20,11 +20,13 @@ Automation Development Office
 | Variable | Description |
 |----------|-------------|
 | `env` | Target environment directory under `group_vars/all`. |
-| `preflight_json` | Optional JSON file containing UI or CLI preflight answers. |
+| `preflight_json` | Optional JSON file containing UI or CLI preflight answers. OpenShift-routed app hostnames inherit `openshift.apps_domain` as `<prefix>.<apps_domain>` unless `component_config.<app>.hostname_manual` is true. A typed apps domain that differs from ``apps.<domain>`` sets ``apps_domain_manual``. ``component_options.quay`` ``minio`` sets ``ocp_quay_storage_backend=minio`` and S3 pointers from Quay form fields (``s3_hostname``, ``s3_access_key``, ``s3_secret_key``, ``s3_bucket``). It does not add the MinIO component. Quay ``admin_user`` / ``admin_password`` write ``ocp_quay_admin_user`` and ``vault_ocp_quay_admin_password``. |
 | `generate_env_vars_base_dir` | Base directory for generated environment variables. |
 | `generate_env_vars_create_dirs` | Creates bootstrap repository directories when true. |
 | `generate_env_vars_encrypt_vault_files` | Encrypts generated vault files when true. |
 | `generate_env_vars_components` | Component list for generated `vars_*.yml` and `vault_*.yml` files. |
+| `bootstrap_generate_env_vars_preflight_ui_openshift_apps` | OpenShift app ids the preflight UI exposes as checkboxes. Selected `component_apps.openshift` values outside this list are ignored for playbook and job-template generation. Includes `ocp_compliance`. |
+| `bootstrap_generate_env_vars_non_ui_openshift_playbook_apps` | Collection playbook apps that are not preflight UI checkboxes. Stale imports in top-level `components[]` are ignored (`gitlab_runner`, `web_terminal`, `ocp_descheduler`). |
 | `generate_env_vars_force` | Allows generated files to be overwritten. |
 | `generate_env_vars_force_overwrite` | Compatibility overwrite flag mapped to `generate_env_vars_force`. |
 | `bootstrap_generate_env_vars_machine_credential_enabled` | Creates an AAP Machine credential when using CLI vars without `preflight_json`. |
@@ -98,7 +100,7 @@ Automation Development Office
 | `bootstrap_generate_env_vars_capsule_selinux_state` | SELinux state for the Capsule patch path (`capsule_install_selinux_state`). Default `enforcing`. |
 | `bootstrap_generate_env_vars_capsule_scenario` | ``satellite-installer`` scenario name (`capsule_install_scenario`). Default `capsule`. |
 | `bootstrap_generate_env_vars_capsule_admin_username` | Satellite admin user for Capsule registration (`capsule_install_admin_username`). Default `admin`. |
-| `bootstrap_generate_env_vars_capsule_pulp_size` | Pulp LV size (`capsule_install_pulp_size`). Default `1500g`. |
+| `bootstrap_generate_env_vars_capsule_pulp_size` | Pulp LV size (`capsule_install_pulp_size`). Default `1500g`. Written only when `component_options.satellite` includes `satellite_capsule_install`. |
 | `bootstrap_generate_env_vars_capsule_pgsql_size` | PostgreSQL LV size (`capsule_install_pgsql_size`). Default `150g`. |
 | `bootstrap_generate_env_vars_capsule_vg_name` | Capsule LVM volume group (`capsule_install_vg_name`). Default `capsule`. |
 | `bootstrap_generate_env_vars_capsule_req_dirs` | Capsule storage mount definitions (`capsule_install_req_dirs`). |
@@ -125,6 +127,9 @@ Stale ``openshift.banner_text`` alone does not select console. When those
 options are omitted, stale generated HTPasswd and banner values are removed. OpenShift
 ``component_apps`` entries that are not in the preflight UI checkbox catalog are
 ignored so leftover import ghosts do not generate playbooks.
+``component_apps.satellite`` is a first-class target-platform group (same flatten
+as OpenShift/RHEL/Patching). Satellite also remains selectable under
+``component_apps.rhel`` and ``component_apps.patching`` for existing JSON.
 
 Preflight `additional_environments` (space/comma-separated names) is combined
 with the primary `environment` value to build AAP survey
@@ -143,7 +148,11 @@ Generated AAP inventories are split by purpose:
   bootstrap jobs.
 - `<org>-RHEL-Inventory` contains RHEL managed hosts supplied through the
   preflight RHEL or Patching form fields (`component_config.rhel` /
-  `component_config.patching`) or CLI vars. The inventory is also created when
+  `component_config.patching`) or CLI vars. Those hosts are also placed in
+  Contoller group ``rhel_servers`` for playbooks that still use that host
+  pattern. ``ADO | Register Host to Satellite`` and ``ADO | RHEL Patch Host``
+  target ``hosts: all`` so Contoller inventory selection (and Limit) works
+  without requiring that group. The inventory is also created when
   only the Patching group is selected, because patching job templates target it,
   and when Satellite ``satellite_client_tools`` is selected (for example
   ``ADO | Register Host to Satellite``) even if dynamic inventory is disabled.
@@ -157,7 +166,9 @@ Generated AAP inventories are split by purpose:
 - `<org>-IDM-Inventory` contains IDM server and replica hosts when IDM is
   selected under RHEL or Patching.
 - `<org>-Satellite-Server-Inventory` contains the Satellite server host when
-  Satellite is selected.
+  Satellite install or OIDC is selected. Client registration, content view, and
+  RHEL/patching-only runs do not create this inventory. Content view uses the
+  local bootstrap inventory.
 
 Additional AAP credentials, the primary AAP Vault credential, the primary AAP
 Machine credential, and Satellite dynamic inventory objects are normalized to
@@ -291,3 +302,11 @@ credential entry to `enabled: false` and `attach_to_org: false` for local Hub
 only operation. Mirror the complete dependency closure into Hub first. Existing
 JSON exports retain their explicit settings; importing an older export can
 re-enable its public source. New Preflight defaults leave public Galaxy disabled.
+
+Galaxy setup (`aap.galaxy_setup_enabled`) creates and attaches Controller Galaxy
+credentials from each enabled `aap.galaxy_credentials[]` entry that has a name
+and URL. The shared `aap.galaxy_hub_token` is optional. A per-credential
+`token` is used when set; otherwise the shared Hub token is used; otherwise the
+credential is created with an empty token so public Galaxy or later token
+updates still work. Hub-only collection publish without Galaxy setup still
+skips these credentials.

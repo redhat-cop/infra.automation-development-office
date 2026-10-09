@@ -12,7 +12,6 @@
     "enabled": true,
     "organization": "Test",
     "galaxy_setup_enabled": true,
-    "galaxy_hub_token": "fixture-not-a-secret",
     "galaxy_credentials": [
       {
         "name": "Local Hub",

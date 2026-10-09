@@ -196,6 +196,26 @@
     - bootstrap_controller_generate_env_vars | default(false) | bool
     - bootstrap_generate_env_vars_preflight is defined
 
+- name: Resolve AAP install target from preflight
+  ansible.builtin.set_fact:
+    bootstrap_controller_aap_install_target: >-
+      {{
+        (
+          bootstrap_controller_preflight_component_config.get('aap', {}).get(
+            'install_target',
+            bootstrap_controller_preflight_pre_installs.get('aap', {}).get(
+              'install_target',
+              'openshift'
+            )
+          )
+          | default('openshift', true)
+          | string
+          | lower
+          | trim
+        )
+      }}
+  when: bootstrap_controller_generate_env_vars | default(false) | bool
+
 - name: Derive full AAP operator install (blocks Contoller apply; license-only does not)
   ansible.builtin.set_fact:
     bootstrap_controller_aap_full_install_during_bootstrap: >-
@@ -205,6 +225,14 @@
         )
         and not (
           bootstrap_controller_aap_license_only | default(false) | bool
+        )
+        and (
+          (
+            bootstrap_controller_aap_install_target
+            | default('openshift')
+            | string
+            | lower
+          ) != 'rhel'
         )
       }}
   when: bootstrap_controller_generate_env_vars | default(false) | bool
@@ -309,12 +337,9 @@
       bootstrap_controller_iscsi_during_bootstrap | default(false) | bool
     )
     or (
-      (
-        bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
-      )
-      and not (
-        bootstrap_controller_aap_license_only | default(false) | bool
-      )
+      bootstrap_controller_aap_full_install_during_bootstrap
+      | default(false)
+      | bool
     )
 
 - name: Optionally create OpenShift admin HTPasswd during bootstrap
@@ -375,7 +400,22 @@
 
 - name: Optionally install AAP on OpenShift during bootstrap
   ansible.builtin.include_tasks: install_aap_on_openshift.yml
-  when: bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
+  when: >-
+    (
+      bootstrap_controller_aap_full_install_during_bootstrap
+      | default(false)
+      | bool
+    )
+    or (
+      (
+        bootstrap_controller_aap_license_only | default(false) | bool
+      )
+      and (
+        bootstrap_controller_aap_install_during_bootstrap
+        | default(false)
+        | bool
+      )
+    )
 
 - name: Check for generated AAP config vars
   ansible.builtin.stat:
@@ -451,7 +491,12 @@
   when:
     - bootstrap_controller_generate_playbooks | default(false) | bool
     - env is defined
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - >-
+      not (
+        bootstrap_controller_aap_full_install_during_bootstrap
+        | default(false)
+        | bool
+      )
 
 - name: Load generated AAP vault vars before repo generation
   ansible.builtin.include_vars:
@@ -462,7 +507,12 @@
     - >-
       bootstrap_controller_aap_vault_before_repo.stat.exists
       | default(false)
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - >-
+      not (
+        bootstrap_controller_aap_full_install_during_bootstrap
+        | default(false)
+        | bool
+      )
 
 - name: Generate playbook repo
   ansible.builtin.include_role:
@@ -473,9 +523,19 @@
         bootstrap_generate_env_vars_playbook_components
         | default(bootstrap_generate_env_vars_components | default(['openshift']))
       }}
+    install_aap_target: >-
+      {{
+        bootstrap_controller_aap_install_target
+        | default('openshift')
+      }}
   when:
     - bootstrap_controller_generate_playbooks | default(false) | bool
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - >-
+      not (
+        bootstrap_controller_aap_full_install_during_bootstrap
+        | default(false)
+        | bool
+      )
 
 - name: Push generated playbooks before AAP config apply
   ansible.builtin.shell: |
@@ -525,7 +585,16 @@
     - bootstrap_controller_generate_playbooks | default(false) | bool
     - bootstrap_controller_apply_aap_configs | default(false) | bool
     - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
-    - not (bootstrap_controller_aap_install_during_bootstrap | default(false) | bool)
+    - >-
+      bootstrap_generate_playbook_repo_git_mode
+      | default(generate_playbook_repo_git_mode | default('manual')) == 'push'
+    - not (bootstrap_controller_force_manual_git | default(false) | bool)
+    - >-
+      not (
+        bootstrap_controller_aap_full_install_during_bootstrap
+        | default(false)
+        | bool
+      )
 
 - name: Generate AAP config files
   ansible.builtin.include_tasks: generate_aap_configs.yml

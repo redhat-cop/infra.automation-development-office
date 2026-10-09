@@ -1,0 +1,13 @@
+---
+minor_changes:
+  - >-
+    infra.ado.gitlab_install - Provision Grafana-style dedicated RHEL
+    PostgreSQL 15 for OpenShift GitLab (reuse ``gitlab-db-secret``, leave an
+    existing alpine StatefulSet in place).
+  - >-
+    infra.ado.ocp_zabbix - Default new OpenShift Zabbix installs to dedicated
+    PostgreSQL; keep MariaDB when that stack already exists or
+    ``zabbix_database_type=mysql``.
+  - >-
+    bootstrap_generate_env_vars - Overlay GitLab and Zabbix
+    ``database_provision`` / Postgres storage fields from preflight JSON.

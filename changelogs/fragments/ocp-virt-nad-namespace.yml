@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_virtualization - Build the bridge NetworkAttachmentDefinition
+    name from the VM namespace. The previous default always wrote
+    ``ado-built-vm/br-ex-network``.

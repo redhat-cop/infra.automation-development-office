@@ -1,0 +1,31 @@
+---
+# yamllint disable rule:line-length
+# Deploy Keycloak Admin LOGIN / LOGIN_ERROR → Prometheus exporter (includes username).
+# Native keycloak_user_events_total does not include username. This role polls the
+# realm user-event store and publishes gauges of the current event window.
+keycloak_login_events_exporter_enabled: true
+keycloak_login_events_exporter_name: keycloak-login-events
+keycloak_login_events_exporter_namespace: grafana
+keycloak_login_events_exporter_image: registry.redhat.io/ubi9/python-311:latest
+keycloak_login_events_keycloak_url: >-
+  {{
+    rhbk_url
+    | default(keycloak_url | default(''), true)
+    | regex_replace('/$', '')
+  }}
+keycloak_login_events_admin_user: >-
+  {{
+    rhbk_admin_user
+    | default(ocp_rhbk_admin_user | default('admin'), true)
+  }}
+keycloak_login_events_admin_password: >-
+  {{
+    rhbk_admin_password
+    | default(ocp_rhbk_admin_password | default(''), true)
+  }}
+keycloak_login_events_realms: >-
+  {{ rhbk_realm | default(ocp_rhbk_realm | default('rhlab'), true) }}
+keycloak_login_events_token_realm: master
+keycloak_login_events_poll_seconds: 60
+keycloak_login_events_enable_realm_store: true
+keycloak_login_events_events_expiration_seconds: 604800

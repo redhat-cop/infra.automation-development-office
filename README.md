@@ -94,8 +94,9 @@ Use this index as the starting point for operators and automation users.
 | [`infra.ado.jira`](roles/jira/README.md) | Create Jira issues and subtasks from track templates for ADO automation workflows. |
 | [`infra.ado.jira_stories`](roles/jira_stories/README.md) | Create and manage Jira stories and optional subtasks from selected track templates. |
 | [`infra.ado.kafka_install`](roles/kafka_install/README.md) | Install the AMQ Streams / Kafka operator and related resources on OpenShift. |
+| [`infra.ado.keycloak_login_events_exporter`](roles/keycloak_login_events_exporter/README.md) | Poll Keycloak/RHBK user events and export login success/failure Prometheus gauges that include username. |
 | [`infra.ado.netbox_oidc`](roles/netbox_oidc/README.md) | Wire NetBox login to Keycloak / RHBK OIDC (client `netbox`). |
-| [`infra.ado.ocp_aap_hub_harden`](roles/ocp_aap_hub_harden/README.md) | Harden AAP Hub for shared-Postgres LWLock stability (replicas/workers/maintenance). |
+| [`infra.ado.ocp_aap_hub_harden`](roles/ocp_aap_hub_harden/README.md) | Separate AAP Hub onto dedicated Postgres (optional), then pin replicas/workers and the stability CronJob. |
 | [`infra.ado.ocp_absent_cleanup`](roles/ocp_absent_cleanup/README.md) | Safe OpenShift absent cleanup gate for Terminating namespaces, stuck finalizers, and leftover OLM/workloads. |
 | [`infra.ado.ocp_acm`](roles/ocp_acm/README.md) | Install ACM MultiClusterHub (wait Running, Fleet Management plug-ins); thorough absent cleanup for stuck uninstall leftovers. |
 | [`infra.ado.ocp_acs`](roles/ocp_acs/README.md) | Install Red Hat Advanced Cluster Security (ACS) Central and related resources on OpenShift. |
@@ -134,14 +135,14 @@ Use this index as the starting point for operators and automation users.
 | [`infra.ado.ocp_operatorgroups`](roles/ocp_operatorgroups/README.md) | Create or delete OperatorGroups used by OpenShift operator installs. |
 | [`infra.ado.ocp_print_crd`](roles/ocp_print_crd/README.md) | Discover an operator Subscription in a namespace and print related CRD and operator info. |
 | [`infra.ado.ocp_pull_secrets`](roles/ocp_pull_secrets/README.md) | Manage the cluster pull-secret (registry auth) for OpenShift. |
-| [`infra.ado.ocp_quay`](roles/ocp_quay/README.md) | Install or remove Red Hat Quay (namespace, PVC, operator) on OpenShift. |
+| [`infra.ado.ocp_quay`](roles/ocp_quay/README.md) | Install or remove Red Hat Quay (namespace, PVC or MinIO object storage, operator) on OpenShift. |
 | [`infra.ado.ocp_rhbk_client_secrets`](roles/ocp_rhbk_client_secrets/README.md) | Fetch RHBK client secrets and materialize them as OpenShift Secrets for components. |
 | [`infra.ado.ocp_routes`](roles/ocp_routes/README.md) | List and print OpenShift Route hostnames for one or more namespaces. |
 | [`infra.ado.ocp_search_dirsrv`](roles/ocp_search_dirsrv/README.md) | Locate a running DirSrv pod for subsequent directory operations. |
 | [`infra.ado.ocp_secret_replicator`](roles/ocp_secret_replicator/README.md) | Replicate a Kubernetes Secret to namespaces and/or HashiCorp Vault. |
 | [`infra.ado.ocp_service_accounts`](roles/ocp_service_accounts/README.md) | Create or delete OpenShift/Kubernetes ServiceAccounts across target namespaces. |
-| [`infra.ado.ocp_virtualization`](roles/ocp_virtualization/README.md) | Build lab Virt VM specs (DataSource + Multus) and create via `infra.openshift_virtualization_ops.vm_provision`. |
-| [`infra.ado.ocp_zabbix`](roles/ocp_zabbix/README.md) | Deploy Zabbix monitoring on OpenShift (MariaDB, Zabbix server, web UI, and Route). |
+| [`infra.ado.ocp_virtualization`](roles/ocp_virtualization/README.md) | Build Virt VM specs (DataSource + Multus) and create the VirtualMachine with `kubernetes.core.k8s` when it is missing. |
+| [`infra.ado.ocp_zabbix`](roles/ocp_zabbix/README.md) | Deploy Zabbix monitoring on OpenShift (dedicated PostgreSQL, Zabbix server, web UI, and Route). |
 | [`infra.ado.ocp_wait_operator`](roles/ocp_wait_operator/README.md) | Wait until an OLM Operator CSV reaches the installed/succeeded state. |
 | [`infra.ado.ocp_wait_pods`](roles/ocp_wait_pods/README.md) | Wait until pods in a namespace are running and ready. |
 | [`infra.ado.rhbk_client`](roles/rhbk_client/README.md) | Manage Red Hat build of Keycloak (RHBK) clients. |

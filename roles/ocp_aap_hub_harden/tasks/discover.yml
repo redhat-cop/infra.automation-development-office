@@ -1,0 +1,118 @@
+---
+# yamllint disable rule:line-length
+# Resolve AAP/Hub CRs and whether Hub already uses dedicated Postgres.
+
+- name: Discover AnsibleAutomationPlatform CRs
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ ocp_aap_hub_harden_namespace | default('', true) }}"
+  register: ocp_aap_hub_harden_aap_list
+  when: (ocp_aap_hub_harden_namespace | default('', true) | length) > 0
+
+- name: Discover AnsibleAutomationPlatform CRs cluster-wide when namespace unset
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+  register: ocp_aap_hub_harden_aap_all
+  when: (ocp_aap_hub_harden_namespace | default('', true) | length) == 0
+
+- name: Resolve AAP namespace and CR name
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_namespace: >-
+      {{
+        ocp_aap_hub_harden_namespace
+        | default('', true)
+        | string
+        | trim
+        or (
+          (
+            ocp_aap_hub_harden_aap_list.resources
+            | default(ocp_aap_hub_harden_aap_all.resources | default([]))
+            | first
+          ).metadata.namespace | default('')
+        )
+      }}
+    ocp_aap_hub_harden_aap_name: >-
+      {{
+        ocp_aap_hub_harden_aap_name
+        | default('', true)
+        | string
+        | trim
+        or (
+          (
+            ocp_aap_hub_harden_aap_list.resources
+            | default(ocp_aap_hub_harden_aap_all.resources | default([]))
+            | first
+          ).metadata.name | default('')
+        )
+      }}
+
+- name: Assert an AAP platform CR was found
+  ansible.builtin.assert:
+    that:
+      - ocp_aap_hub_harden_namespace | length > 0
+      - ocp_aap_hub_harden_aap_name | length > 0
+    fail_msg: >-
+      Could not discover AnsibleAutomationPlatform. Set
+      ocp_aap_hub_harden_namespace and ocp_aap_hub_harden_aap_name.
+
+- name: Read target AnsibleAutomationPlatform
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ ocp_aap_hub_harden_aap_name }}"
+  register: ocp_aap_hub_harden_aap_cr
+
+- name: Discover AutomationHub CRs in the AAP namespace
+  kubernetes.core.k8s_info:
+    api_version: automationhub.ansible.com/v1beta1
+    kind: AutomationHub
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+  register: ocp_aap_hub_harden_hub_list
+
+- name: Resolve AutomationHub CR name
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_automationhub_name: >-
+      {{
+        ocp_aap_hub_harden_automationhub_name
+        | default('', true)
+        | string
+        | trim
+        or (
+          (ocp_aap_hub_harden_hub_list.resources | first).metadata.name
+          | default(ocp_aap_hub_harden_aap_name ~ '-hub')
+        )
+      }}
+
+- name: Read target AutomationHub
+  kubernetes.core.k8s_info:
+    api_version: automationhub.ansible.com/v1beta1
+    kind: AutomationHub
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ ocp_aap_hub_harden_automationhub_name }}"
+  register: ocp_aap_hub_harden_hub_cr
+
+- name: Resolve current Hub postgres secret and dedicated state
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_current_secret: >-
+      {{
+        (
+          (ocp_aap_hub_harden_hub_cr.resources | default([]) | first).spec.postgres_configuration_secret
+          | default(
+            (
+              ocp_aap_hub_harden_aap_cr.resources | default([]) | first
+            ).spec.hub.postgres_configuration_secret
+            | default(''),
+            true
+          )
+        )
+      }}
+    ocp_aap_hub_harden_already_separated: >-
+      {{
+        (
+          (ocp_aap_hub_harden_hub_cr.resources | default([]) | first).spec.postgres_configuration_secret
+          | default('')
+        ) == (ocp_aap_hub_harden_postgres_secret | string)
+      }}

@@ -109,8 +109,8 @@
                       'aap', 'acs', 'acm', 'bookstack', 'cert_manager', 'console',
                       'devspaces', 'dev_hub', 'dirsrv', 'eck', 'gitops', 'gitlab',
                       'grafana', 'kafka', 'minio', 'netbox', 'oadp',
-                      'ocp_virtualization', 'openshift', 'pega', 'quay', 'rhbk',
-                      'zabbix'
+                      'ocp_compliance', 'ocp_virtualization', 'openshift',
+                      'pega', 'quay', 'rhbk', 'zabbix'
                     ])
                   )
               )
@@ -151,6 +151,15 @@
                 | default([])
               )
               if 'provision' in bootstrap_generate_env_vars_preflight_components
+              else []
+            )
+            +
+            (
+              (
+                bootstrap_generate_env_vars_preflight.component_apps.satellite
+                | default([])
+              )
+              if 'satellite' in bootstrap_generate_env_vars_preflight_components
               else []
             )
             +
@@ -459,7 +468,7 @@
             +
             (
               bootstrap_generate_env_vars_preflight_components
-              | difference(['openshift', 'rhel', 'patching', 'provision', 'aws'])
+              | difference(['openshift', 'rhel', 'patching', 'provision', 'aws', 'satellite'])
               | difference(
                   bootstrap_generate_env_vars_preflight_ui_openshift_apps
                   | default([])
@@ -525,6 +534,11 @@
         | length > 0
       )
       or (
+        bootstrap_generate_env_vars_preflight_component_apps.satellite
+        | default([])
+        | length > 0
+      )
+      or (
         bootstrap_generate_env_vars_preflight_component_options.openshift
         | default([])
         | length > 0
@@ -584,6 +598,18 @@
                 'provision' in bootstrap_generate_env_vars_preflight_components
                 and (
                   bootstrap_generate_env_vars_preflight.component_apps.provision
+                  | default([])
+                  | length
+                ) == 0
+              )
+              else []
+            )
+          + (
+              ['satellite']
+              if (
+                'satellite' in bootstrap_generate_env_vars_preflight_components
+                and (
+                  bootstrap_generate_env_vars_preflight.component_apps.satellite
                   | default([])
                   | length
                 ) == 0
@@ -923,24 +949,16 @@
         | default({})
       ).update_default_ingress | default(false) | bool
 
-- name: Skip Contoller API when installing AAP during bootstrap
+- name: Skip Contoller API when installing the AAP operator during bootstrap
   ansible.builtin.set_fact:
     bootstrap_generate_env_vars_use_aap: false
   when:
     - bootstrap_generate_env_vars_preflight is defined
     - >-
       (
-        (
-          bootstrap_generate_env_vars_preflight.pre_installs
-          | default({})
-        ).install_aap | default(false) | bool
-      )
-      or (
-        (
-          bootstrap_generate_env_vars_preflight.component_config.aap
-          | default({})
-        ).install_during_bootstrap | default(false) | bool
-      )
+        bootstrap_generate_env_vars_preflight.pre_installs
+        | default({})
+      ).install_aap | default(false) | bool
 
 # Expand satellite/idm/acs/aws/rhel_system_roles options into keys for playbook/JT
 # selection only. Keep bootstrap_generate_env_vars_components for vars_*.yml.
@@ -1312,6 +1330,68 @@
   ansible.builtin.debug:
     var: bootstrap_generate_env_vars_playbook_components
 
+- name: Include Hub dedicated-Postgres playbook/JT when AAP Tools option is selected
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_playbook_components: >-
+      {{
+        (
+          bootstrap_generate_env_vars_playbook_components
+          | default([])
+          + ['aap_hub_harden']
+        )
+        | unique
+        | list
+      }}
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - >-
+      'dedicated_hub_postgres' in (
+        (
+          bootstrap_generate_env_vars_preflight.component_options
+          | default({})
+        ).aap | default([])
+      )
+
+- name: Include AAP playbook/JT when Install AAP or license attach is requested
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_playbook_components: >-
+      {{
+        (
+          bootstrap_generate_env_vars_playbook_components
+          | default([])
+          + ['aap']
+        )
+        | unique
+        | list
+      }}
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - >-
+      (
+        (
+          bootstrap_generate_env_vars_preflight.pre_installs
+          | default({})
+        ).install_aap | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.pre_installs
+          | default({})
+        ).attach_aap_license | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.pre_installs.aap
+          | default({})
+        ).license_only | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.component_config.aap
+          | default({})
+        ).license_only | default(false) | bool
+      )
+
 - name: Include AAP component vars when Install AAP is requested
   ansible.builtin.set_fact:
     bootstrap_generate_env_vars_components: >-
@@ -1328,6 +1408,24 @@
           bootstrap_generate_env_vars_preflight.pre_installs
           | default({})
         ).install_aap | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.pre_installs
+          | default({})
+        ).attach_aap_license | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.pre_installs.aap
+          | default({})
+        ).license_only | default(false) | bool
+      )
+      or (
+        (
+          bootstrap_generate_env_vars_preflight.component_config.aap
+          | default({})
+        ).license_only | default(false) | bool
       )
       or (
         (
@@ -1691,6 +1789,7 @@
         bootstrap_generate_env_vars_force | bool
         or bootstrap_generate_env_vars_preflight is defined
       }}
+  no_log: true
   when:
     - bootstrap_generate_env_vars_use_aap | bool
 
@@ -1714,6 +1813,7 @@
         bootstrap_generate_env_vars_force | bool
         or bootstrap_generate_env_vars_preflight is defined
       }}
+  no_log: true
   when:
     - bootstrap_generate_env_vars_use_aap | bool
 
@@ -1727,6 +1827,7 @@
         bootstrap_generate_env_vars_force | bool
         or bootstrap_generate_env_vars_preflight is defined
       }}
+  no_log: true
   when:
     - bootstrap_generate_env_vars_use_aap | bool
     - bootstrap_generate_env_vars_enable_jira | default(false) | bool

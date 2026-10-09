@@ -38,6 +38,7 @@ resource, route, and any ADO-managed PostgreSQL resources.
 | `grafana_postgres_image` | PostgreSQL container image. | ❌ | `registry.redhat.io/rhel9/postgresql-15:latest` |
 | `grafana_postgres_database` / `grafana_postgres_user` | DB name and user. | ❌ | `grafana` |
 | `grafana_postgres_password` | Password (generated into Secret when empty on provision). Required for external. | ❌ | generated |
+| `grafana_install_postgres_reset_data` | When `true`, delete `grafana-postgres` Deployment+PVC before recreate (wipes DB). Use after CrashLoopBackOff on NFS. | ❌ | `false` |
 | `grafana_postgres_host` | External host:port when `grafana_database_provision=false`. | ❌ | — |
 | `grafana_postgres_ssl_mode` | Grafana `database.ssl_mode`. | ❌ | `disable` |
 | `grafana_install_validate_certs` | Validate TLS when checking `/api/health`. | ❌ | `false` |

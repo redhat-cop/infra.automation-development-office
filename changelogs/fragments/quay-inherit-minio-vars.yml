@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    ocp_quay - When ``ocp_quay_storage_backend=minio``, load existing
+    ``vars_minio.yml`` / ``vault_minio.yml`` and fill empty S3 host, keys, and
+    namespace from those MinIO vars. Quay and MinIO stay separate installs.
+  - >-
+    bootstrap_generate_env_vars - Quay MinIO object-storage vars inherit
+    ``component_config.minio`` when the Quay S3 fields are empty.

@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Quay MinIO object storage reads host, port,
+    namespace, bucket, access key, and secret key from the Quay preflight
+    fields. It no longer expects the MinIO component form or an empty
+    ``ocp_quay_s3_secret_key`` vault stub.
+  - >-
+    ocp_quay - Assert message for missing S3 vars points at the Quay tab, not
+    at deploying MinIO.

@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_wait_operator - Match Succeeded CSVs with a safe name/phase check
+    instead of ``selectattr('status.phase')`` (that raises when status is
+    missing and, with ``no_log: true``, only showed "output hidden").
+    Failure now prints CSV phases and Subscription state/currentCSV.

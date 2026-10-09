@@ -14,3 +14,18 @@
         that:
           - controller_bootstrap_controller_organizations[0].galaxy_credentials
             == ['Local Hub']
+          - >-
+            controller_bootstrap_controller_credentials
+            | selectattr('name', 'equalto', 'Local Hub')
+            | list
+            | length == 1
+          - >-
+            controller_bootstrap_controller_credentials
+            | selectattr('name', 'equalto', 'Unattached Hub')
+            | list
+            | length == 1
+          - >-
+            controller_bootstrap_controller_credentials
+            | selectattr('name', 'equalto', 'Ansible Galaxy')
+            | list
+            | length == 0

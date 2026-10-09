@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Always copy
+    ``configure-idm-acme-clusterissuer-tasks.yml`` with the cert-manager
+    deploy playbook. Mode pruning still drops the dedicated IdM ACME
+    job-template playbook, but the deploy include must not be left without
+    its sibling file on Contoller.

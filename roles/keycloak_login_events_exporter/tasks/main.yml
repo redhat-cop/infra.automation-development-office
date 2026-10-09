@@ -1,0 +1,222 @@
+---
+# yamllint disable rule:line-length
+- name: Skip Keycloak login-events exporter when disabled
+  ansible.builtin.meta: end_role
+  when: not (keycloak_login_events_exporter_enabled | default(true) | bool)
+
+- name: Assert Keycloak URL and admin password for login-events exporter
+  ansible.builtin.assert:
+    that:
+      - (keycloak_login_events_keycloak_url | default('') | length) > 0
+      - (keycloak_login_events_admin_password | default('') | length) > 0
+    fail_msg: >-
+      Set keycloak_login_events_keycloak_url (or rhbk_url) and
+      rhbk_admin_password / ocp_rhbk_admin_password.
+
+- name: Obtain Keycloak admin token
+  ansible.builtin.uri:
+    url: >-
+      {{ keycloak_login_events_keycloak_url }}/realms/{{ keycloak_login_events_token_realm }}/protocol/openid-connect/token
+    method: POST
+    body_format: form-urlencoded
+    body:
+      client_id: admin-cli
+      username: "{{ keycloak_login_events_admin_user }}"
+      password: "{{ keycloak_login_events_admin_password }}"
+      grant_type: password
+    validate_certs: false
+    status_code: [200]
+  no_log: true
+  register: keycloak_login_events_exporter_token
+  failed_when: false
+
+- name: Fail clearly if Keycloak admin token request failed
+  when: (keycloak_login_events_exporter_token.status | default(0) | int) != 200
+  ansible.builtin.fail:
+    msg: >-
+      Keycloak admin token failed (HTTP
+      {{ keycloak_login_events_exporter_token.status | default('n/a') }}).
+      url={{ keycloak_login_events_keycloak_url }}/realms/{{ keycloak_login_events_token_realm }}/protocol/openid-connect/token
+      user={{ keycloak_login_events_admin_user }}
+      body={{ keycloak_login_events_exporter_token.json | default(keycloak_login_events_exporter_token.msg | default('')) }}.
+      Check rhbk_url / keycloak URL, admin password in vault, and token realm
+      (default master).
+
+- name: Enable realm user-event store for login events (per realm)
+  when: keycloak_login_events_enable_realm_store | bool
+  ansible.builtin.include_tasks: enable_realm_events.yml
+  loop: "{{ keycloak_login_events_realms.split(',') | map('trim') | reject('equalto', '') | list }}"
+  loop_control:
+    loop_var: keycloak_login_events_realm
+
+- name: Ensure exporter namespace exists
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ keycloak_login_events_exporter_namespace }}"
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: Secret for Keycloak admin credentials
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ keycloak_login_events_exporter_name }}"
+        namespace: "{{ keycloak_login_events_exporter_namespace }}"
+        labels:
+          app: "{{ keycloak_login_events_exporter_name }}"
+      type: Opaque
+      stringData:
+        KEYCLOAK_URL: "{{ keycloak_login_events_keycloak_url }}"
+        KEYCLOAK_ADMIN_USER: "{{ keycloak_login_events_admin_user }}"
+        KEYCLOAK_ADMIN_PASSWORD: "{{ keycloak_login_events_admin_password }}"
+        KEYCLOAK_REALMS: "{{ keycloak_login_events_realms }}"
+        KEYCLOAK_TOKEN_REALM: "{{ keycloak_login_events_token_realm }}"
+        POLL_SECONDS: "{{ keycloak_login_events_poll_seconds | string }}"
+        KEYCLOAK_VERIFY_TLS: "false"
+  no_log: true
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: ConfigMap for exporter script
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ keycloak_login_events_exporter_name }}"
+        namespace: "{{ keycloak_login_events_exporter_namespace }}"
+        labels:
+          app: "{{ keycloak_login_events_exporter_name }}"
+      data:
+        export_login_failures.py: "{{ lookup('ansible.builtin.file', role_path ~ '/files/export_login_failures.py') }}"
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: Deploy login-events exporter
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ keycloak_login_events_exporter_name }}"
+        namespace: "{{ keycloak_login_events_exporter_namespace }}"
+        labels:
+          app: "{{ keycloak_login_events_exporter_name }}"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ keycloak_login_events_exporter_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ keycloak_login_events_exporter_name }}"
+          spec:
+            containers:
+              - name: exporter
+                image: "{{ keycloak_login_events_exporter_image }}"
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - exec python3 /app/export_login_failures.py
+                envFrom:
+                  - secretRef:
+                      name: "{{ keycloak_login_events_exporter_name }}"
+                ports:
+                  - name: metrics
+                    containerPort: 8080
+                volumeMounts:
+                  - name: app
+                    mountPath: /app
+                resources:
+                  requests:
+                    cpu: 20m
+                    memory: 64Mi
+                  limits:
+                    cpu: 200m
+                    memory: 256Mi
+                readinessProbe:
+                  httpGet:
+                    path: /metrics
+                    port: metrics
+                  initialDelaySeconds: 5
+                  periodSeconds: 15
+            volumes:
+              - name: app
+                configMap:
+                  name: "{{ keycloak_login_events_exporter_name }}"
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: Service for login-events exporter
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ keycloak_login_events_exporter_name }}"
+        namespace: "{{ keycloak_login_events_exporter_namespace }}"
+        labels:
+          app: "{{ keycloak_login_events_exporter_name }}"
+      spec:
+        selector:
+          app: "{{ keycloak_login_events_exporter_name }}"
+        ports:
+          - name: metrics
+            port: 8080
+            targetPort: metrics
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: ServiceMonitor for login-events exporter
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      metadata:
+        name: "{{ keycloak_login_events_exporter_name }}"
+        namespace: "{{ keycloak_login_events_exporter_namespace }}"
+        labels:
+          app: "{{ keycloak_login_events_exporter_name }}"
+      spec:
+        selector:
+          matchLabels:
+            app: "{{ keycloak_login_events_exporter_name }}"
+        endpoints:
+          - port: metrics
+            path: /metrics
+            interval: 60s
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
+    K8S_AUTH_API_KEY: "{{ token | default('') }}"
+    K8S_AUTH_VERIFY_SSL: "{{ verify_ssl | default(false) | bool }}"
+
+- name: Show exporter target
+  ansible.builtin.debug:
+    msg: >-
+      Deployed {{ keycloak_login_events_exporter_namespace }}/{{ keycloak_login_events_exporter_name }}.
+      Metrics keycloak_login_failure_events and
+      keycloak_login_success_events (username, client_id, realm, ip).
+      Enable the realm event store, then wait for scrape.

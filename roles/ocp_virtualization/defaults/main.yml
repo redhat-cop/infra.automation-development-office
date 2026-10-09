@@ -26,13 +26,9 @@ multus_nad_name: "{{ provision_openshift_virt_multus_nad_name | default('br-ex-n
 multus_network_name: >-
   {{
     provision_openshift_virt_multus_network_name
-    | default('ado-built-vm/br-ex-network')
+    | default(vm_namespace ~ '/' ~ (provision_openshift_virt_multus_nad_name | default('br-ex-network')), true)
   }}
-multus_nad_config: >-
-  {{
-    provision_openshift_virt_multus_nad_config
-    | default('{"cniVersion":"0.3.1","name":"br-ex-network","type":"ovn-k8s-cni-overlay","topology":"localnet","netAttachDefName":"ado-built-vm/br-ex-network"}')
-  }}
+multus_nad_config: "{{ provision_openshift_virt_multus_nad_config | default('', true) }}"
 app_label: "{{ provision_openshift_virt_app_label | default(vm_name) }}"
 vm_start: "{{ provision_openshift_virt_start | default(true) }}"
 # Contoller should not sit on kubevirt_vm wait=true for an hour-long DV clone.

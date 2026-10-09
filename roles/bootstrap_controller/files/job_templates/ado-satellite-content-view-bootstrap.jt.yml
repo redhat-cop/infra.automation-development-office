@@ -4,7 +4,7 @@ controller_templates:
     organization: '{{ bootstrap_controller_organization }}'
     description: Bootstrap - ADO | Satellite Content View
     playbook: playbooks/satellite/ado-manage-content-view-bootstrap.yml
-    inventory: '{{ bootstrap_controller_satellite_inventory_name }}'
+    inventory: '{{ bootstrap_controller_inventory_name }}'
     project: '{{ bootstrap_controller_project_name }}'
     execution_environment: '{{ bootstrap_controller_execution_environment_name }}'  # yamllint disable-line rule:line-length
     credentials:

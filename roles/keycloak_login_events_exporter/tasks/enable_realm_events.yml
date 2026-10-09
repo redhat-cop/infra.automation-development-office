@@ -1,0 +1,56 @@
+---
+# yamllint disable rule:line-length
+- name: Read realm representation
+  ansible.builtin.uri:
+    url: >-
+      {{ keycloak_login_events_keycloak_url }}/admin/realms/{{ keycloak_login_events_realm }}
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_login_events_exporter_token.json.access_token }}"
+    validate_certs: false
+    status_code: [200]
+  no_log: true
+  register: keycloak_login_events_exporter_realm_get
+
+- name: Build realm events payload (keep existing listeners + enable store)
+  ansible.builtin.set_fact:
+    keycloak_login_events_exporter_realm_body: >-
+      {{
+        keycloak_login_events_exporter_realm_get.json
+        | combine({
+            'eventsEnabled': true,
+            'eventsExpiration': (keycloak_login_events_events_expiration_seconds | int),
+            'eventsListeners': (
+              (
+                (keycloak_login_events_exporter_realm_get.json.eventsListeners | default([]))
+                + ['jboss-logging']
+              ) | unique | list
+            ),
+            'enabledEventTypes': (
+              (
+                (keycloak_login_events_exporter_realm_get.json.enabledEventTypes | default([]))
+                + ['LOGIN', 'LOGIN_ERROR', 'LOGOUT', 'REGISTER']
+              ) | unique | list
+            )
+          }, recursive=true)
+      }}
+
+- name: Put realm with user events enabled
+  ansible.builtin.uri:
+    url: >-
+      {{ keycloak_login_events_keycloak_url }}/admin/realms/{{ keycloak_login_events_realm }}
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ keycloak_login_events_exporter_token.json.access_token }}"
+      Content-Type: application/json
+    body_format: json
+    body: "{{ keycloak_login_events_exporter_realm_body }}"
+    validate_certs: false
+    status_code: [204, 200]
+  no_log: true
+
+- name: Show realm events enabled
+  ansible.builtin.debug:
+    msg: >-
+      Realm {{ keycloak_login_events_realm }} eventsEnabled=true
+      (LOGIN/LOGIN_ERROR stored for exporter username labels).

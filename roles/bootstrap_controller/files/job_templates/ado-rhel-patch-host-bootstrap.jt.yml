@@ -10,6 +10,9 @@ controller_templates:
     credentials:
       - '{{ bootstrap_controller_creds }}'
       # ADO_MACHINE_CREDENTIAL
+    ask_inventory_on_launch: true
+    ask_credential_on_launch: true
+    ask_limit_on_launch: true
     related: null
     labels:
       - name: ADO | bootstrap

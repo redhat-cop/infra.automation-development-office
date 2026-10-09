@@ -2,6 +2,7 @@
 collections:
   - name: ansible.utils
   - name: community.general
+  - name: community.crypto
   - name: community.kubernetes
   - name: kubernetes.core
   # redhat.openshift is Red Hat certified (Automation Hub), not on public
@@ -16,9 +17,5 @@ collections:
   - name: infra.aap_configuration
   - name: infra.aap_utilities
   - name: infra.rhacs_configuration
-  # infra.openshift_virtualization_ops is Automation Hub validated (depends on
-  # AH-only redhat.openshift_virtualization). Do not put it in Contoller
-  # collections/requirements.yml — project sync cannot resolve it from Galaxy.
-  # Bundle it on the Contoller EE when using ocp_virtualization → vm_provision.
   - name: community.hashi_vault
   - name: amazon.aws

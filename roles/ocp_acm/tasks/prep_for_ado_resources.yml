@@ -1,0 +1,138 @@
+---
+# yamllint disable rule:line-length
+# Before ADO installs ACM hub resources (MultiClusterHub, console plugins,
+# observability, policies), detect leftover hub poison and clean it.
+# Stale validating webhooks and stuck Uninstalling MCH/MCE commonly break
+# both ACM converge and later ADO OpenShift app installs on the same cluster.
+
+- name: OpenShift ACM | Prep | Read MultiClusterHub leftovers
+  kubernetes.core.k8s_info:
+    api_version: operator.open-cluster-management.io/v1
+    kind: MultiClusterHub
+    name: "{{ ocp_acm_mch_name }}"
+    namespace: "{{ ocp_acm_namespace }}"
+  register: ocp_acm_prep_mch
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Read MultiClusterEngine leftovers
+  kubernetes.core.k8s_info:
+    api_version: multicluster.openshift.io/v1
+    kind: MultiClusterEngine
+    name: "{{ ocp_acm_mce_name }}"
+  register: ocp_acm_prep_mce
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Read MultiClusterObservability leftovers
+  kubernetes.core.k8s_info:
+    api_version: observability.open-cluster-management.io/v1beta2
+    kind: MultiClusterObservability
+    name: "{{ ocp_acm_observability_mco_name | default('observability') }}"
+  register: ocp_acm_prep_mco
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Probe candidate validating webhooks
+  kubernetes.core.k8s_info:
+    api_version: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    name: "{{ item }}"
+  loop: "{{ ocp_acm_stale_validating_webhooks | default([]) }}"
+  register: ocp_acm_prep_webhook_probe
+  failed_when: false
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Summarize leftover ACM state
+  ansible.builtin.set_fact:
+    ocp_acm_prep_mch_phase: >-
+      {{
+        ocp_acm_prep_mch.resources[0].status.phase | default('')
+        if (ocp_acm_prep_mch.resources | default([]) | length) > 0
+        else ''
+      }}
+    ocp_acm_prep_mch_deleting: >-
+      {{
+        (ocp_acm_prep_mch.resources | default([]) | length) > 0
+        and (ocp_acm_prep_mch.resources[0].metadata.deletionTimestamp is defined)
+      }}
+    ocp_acm_prep_mce_phase: >-
+      {{
+        ocp_acm_prep_mce.resources[0].status.phase | default('')
+        if (ocp_acm_prep_mce.resources | default([]) | length) > 0
+        else ''
+      }}
+    ocp_acm_prep_webhook_names: >-
+      {{
+        ocp_acm_prep_webhook_probe.results | default([])
+        | selectattr('resources', 'defined')
+        | selectattr('resources', 'ne', [])
+        | map(attribute='item')
+        | list
+      }}
+    ocp_acm_prep_mco_present: >-
+      {{ (ocp_acm_prep_mco.resources | default([]) | length) > 0 }}
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Decide if cleanup is required
+  ansible.builtin.set_fact:
+    ocp_acm_prep_needs_cleanup: >-
+      {{
+        (ocp_acm_prep_mch_deleting | bool)
+        or ((ocp_acm_prep_mch_phase | lower) == 'uninstalling')
+        or ((ocp_acm_prep_mce_phase | lower) == 'uninstalling')
+        or ((ocp_acm_prep_webhook_names | default([]) | length) > 0)
+        or (
+          (ocp_acm_observability_enabled | default(false) | bool)
+          and (ocp_acm_prep_mco_present | bool)
+          and (ocp_acm_observability_reset_mco | default(false) | bool)
+        )
+      }}
+  changed_when: false
+
+- name: OpenShift ACM | Prep | Announce ADO ACM resource prep
+  ansible.builtin.debug:
+    msg:
+      - >-
+        ADO is installing ACM and will apply hub resources
+        (MultiClusterHub, console plugins, optional observability/policies).
+      - >-
+        Leftover scan: MCH phase='{{ ocp_acm_prep_mch_phase | default('') }}'
+        deleting={{ ocp_acm_prep_mch_deleting }},
+        MCE phase='{{ ocp_acm_prep_mce_phase | default('') }}',
+        webhooks={{ ocp_acm_prep_webhook_names | default([]) | join(',') or 'none' }},
+        MCO present={{ ocp_acm_prep_mco_present }},
+        cleanup_needed={{ ocp_acm_prep_needs_cleanup }}.
+      - >-
+        When cleanup_needed is true, ADO removes stale validating webhooks and
+        finishes stuck Uninstalling MCH/MCE before converge. Stale ACM webhooks
+        also break later ADO OpenShift installs (GitLab, Grafana, Quay, …).
+
+- name: OpenShift ACM | Prep | Clean stale validating webhooks
+  when:
+    - ocp_acm_cleanup_stale_webhooks | default(true) | bool
+    - (ocp_acm_prep_webhook_names | default([]) | length) > 0
+  ansible.builtin.include_tasks: cleanup_stale_webhooks.yml
+
+- name: OpenShift ACM | Prep | Finish stuck uninstall before ADO resources
+  when:
+    - ocp_acm_heal_stuck_uninstall | default(true) | bool
+    - >-
+      (ocp_acm_prep_mch_deleting | bool)
+      or ((ocp_acm_prep_mch_phase | lower) == 'uninstalling')
+      or ((ocp_acm_prep_mce_phase | lower) == 'uninstalling')
+  ansible.builtin.include_tasks: finish_stuck_uninstall.yml
+
+- name: OpenShift ACM | Prep | Reset failed MultiClusterObservability when requested
+  when:
+    - ocp_acm_observability_enabled | default(false) | bool
+    - ocp_acm_observability_reset_mco | default(false) | bool
+    - ocp_acm_prep_mco_present | bool
+  kubernetes.core.k8s:
+    state: absent
+    api_version: observability.open-cluster-management.io/v1beta2
+    kind: MultiClusterObservability
+    name: "{{ ocp_acm_observability_mco_name | default('observability') }}"
+    wait: true
+    wait_timeout: 180
+  failed_when: false

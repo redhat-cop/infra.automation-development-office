@@ -121,9 +121,11 @@
         - jira
         - kafka
         - oadp
+        - ocp_compliance
         - openshift
         - pega
         - quay
+        - minio
         - rhbk
         - rhel
         - satellite
@@ -165,6 +167,78 @@
             sys.exit(1)
 
         print("All job template playbook references are valid.")
+        PY
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify Grafana hostname inherits OpenShift apps domain
+      ansible.builtin.shell: |
+        set -euo pipefail
+        python3 - <<'PY'
+        from pathlib import Path
+        import sys
+        import yaml
+
+        root = Path("{{ playbook_dir }}") / "group_vars" / "all" / "molecule"
+        found = None
+        for path in sorted(root.glob("*.yml")):
+            data = yaml.safe_load(path.read_text()) or {}
+            if data.get("grafana_hostname"):
+                found = data.get("grafana_hostname")
+                break
+            grafana = (data.get("components_env") or {}).get("grafana") or {}
+            if grafana.get("hostname"):
+                found = grafana.get("hostname")
+                break
+        if found != "grafana.apps.example.test":
+            print(f"expected grafana.apps.example.test, found {found!r}")
+            sys.exit(1)
+        print("Grafana hostname inherited openshift.apps_domain")
+        PY
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Verify Quay MinIO option writes object-storage vars
+      ansible.builtin.shell: |
+        set -euo pipefail
+        python3 - <<'PY'
+        from pathlib import Path
+        import sys
+        import yaml
+
+        root = Path("{{ playbook_dir }}") / "group_vars" / "all" / "molecule"
+        data = {}
+        for path in sorted(root.glob("vars_quay.yml")):
+            data = yaml.safe_load(path.read_text()) or {}
+        backend = data.get("ocp_quay_storage_backend") or (
+            (data.get("components_env") or {}).get("quay") or {}
+        ).get("storage_backend")
+        if backend != "minio":
+            print(f"expected ocp_quay_storage_backend=minio, found {backend!r}")
+            sys.exit(1)
+        host = data.get("ocp_quay_s3_hostname")
+        if not host:
+            print("expected ocp_quay_s3_hostname for Quay MinIO option")
+            sys.exit(1)
+        vault = yaml.safe_load((root / "vault_quay.yml").read_text()) or {}
+        if not vault.get("vault_ocp_quay_s3_secret_key"):
+            print("expected vault_ocp_quay_s3_secret_key in vault_quay.yml")
+            sys.exit(1)
+        if data.get("ocp_quay_admin_user") != "quayadmin":
+            print(
+                "expected ocp_quay_admin_user=quayadmin, found "
+                f"{data.get('ocp_quay_admin_user')!r}"
+            )
+            sys.exit(1)
+        if vault.get("vault_ocp_quay_admin_password") != "QuayFormPass1":
+            print(
+                "expected vault_ocp_quay_admin_password from Quay tab, found "
+                f"{vault.get('vault_ocp_quay_admin_password')!r}"
+            )
+            sys.exit(1)
+        print("Quay MinIO option set ocp_quay_storage_backend")
         PY
       args:
         executable: /bin/bash

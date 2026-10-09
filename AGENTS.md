@@ -27,7 +27,9 @@ For product capabilities, implement the portable, repeatable behavior in `infra.
 Every reusable ADO change must be:
 
 - **environment agnostic** — no Chad-lab-specific hosts, routes, credentials, namespaces, storage classes, cluster names, AAP orgs, SCM URLs, or domain names in reusable defaults/tasks/templates;
+- **OpenShift apps domain autofills once** — `fill_derived_route_hostnames` / UI `APP_ROUTE_PREFIXES` write `<prefix>.<apps_domain>` for every routed app. Fields stay editable; a typed override sets `hostname_manual` / `apps_domain_manual`;
 - **repeatable/idempotent** — reruns converge and do not depend on manual cleanup or one-time mutation;
+- **shared primitives stay put** — Controller organization, inventory, project, vault credential, and EE are used by every component. If they already exist, leave them unchanged; do not PATCH an existing AAP 2.5+ org (400). Check dependents before changing apply/generate for those objects;
 - **parameterized** through established vars/preflight schema patterns;
 - **safe for disconnected operation** unless an external dependency is explicit and documented;
 - **compatible with generated bootstrap repos** and Controller/AAP execution patterns already used by the collection.

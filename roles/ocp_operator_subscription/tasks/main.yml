@@ -16,8 +16,17 @@
           else (name_space | default('') | string | trim)
         )
       }}
-    # metadata.name for the Subscription object
-    ocp_operator_subscription_sub_name: "{{ operator_subscription_name | default(operator_name ~ '-sub') }}"
+    # metadata.name for the Subscription object.
+    # Same empty-string rule as namespace above: "" is defined, so
+    # ``| default(operator_name ~ '-sub')`` would keep a blank name.
+    ocp_operator_subscription_sub_name: >-
+      {{
+        (
+          (operator_subscription_name | default('') | string | trim)
+          if ((operator_subscription_name | default('') | string | trim) | length) > 0
+          else ((operator_name | default('') | string | trim) ~ '-sub')
+        )
+      }}
     # Package name (spec.name) is operator_name
     ocp_operator_subscription_pkg_name: "{{ operator_name }}"
     # Always force channel to string
@@ -39,6 +48,7 @@
   ansible.builtin.assert:
     that:
       - ocp_operator_subscription_sub_namespace is defined and (ocp_operator_subscription_sub_namespace | string | trim | length) > 0
+      - ocp_operator_subscription_sub_name is defined and (ocp_operator_subscription_sub_name | string | trim | length) > 0
       - operator_name is defined and (operator_name | string | trim | length) > 0
       - >-
         (state | default('present')) == 'absent'
@@ -52,6 +62,7 @@
       Need: operator_subscription_namespace (or name_space), operator_name;
             for present also operator_channel, operator_source, operator_source_namespace.
       Got: namespace='{{ ocp_operator_subscription_sub_namespace | default('') }}'
+           subscription_name='{{ ocp_operator_subscription_sub_name | default('') }}'
            operator_name='{{ operator_name | default('') }}'
            operator_channel='{{ operator_channel | default('') }}'
            operator_source='{{ operator_source | default('') }}'

@@ -24,6 +24,11 @@
       }}
     controller_hosts: >-
       {{ bootstrap_controller_controller_hosts | default([]) }}
+    controller_groups: >-
+      {{
+        controller_bootstrap_controller_groups
+        | default(bootstrap_controller_controller_groups | default([]))
+      }}
     controller_labels: >-
       {{
         controller_bootstrap_controller_labels

@@ -1,0 +1,13 @@
+---
+minor_changes:
+  - >-
+    install_aap - Leave OpenShift AAP install unlicensed by default
+    (``aap_ocp_install_license_mode: none``). Attach a manifest or RHN
+    subscription later with ``aap_ocp_install_license_only`` or the AAP
+    wizard.
+bugfixes:
+  - >-
+    install_aap - When license is deferred, do not fail the OpenShift
+    install because ``infra.aap_utilities.aap_ocp_install`` is still
+    waiting for controller/hub/eda routes after the platform/gateway
+    route is up.

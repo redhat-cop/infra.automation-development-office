@@ -21,3 +21,5 @@ grafana_install_postgres_port: 5432
 grafana_install_postgres_ssl_mode: disable
 grafana_install_postgres_ready_retries: 60
 grafana_install_postgres_ready_delay: 5
+# When true, delete grafana-postgres Deployment+PVC before recreate (wipes DB).
+grafana_install_postgres_reset_data: false

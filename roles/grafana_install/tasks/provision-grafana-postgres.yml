@@ -149,6 +149,31 @@
         POSTGRESQL_DATABASE: "{{ grafana_install_pg_db_name }}"
   no_log: true
 
+- name: Grafana Postgres | Reset Deployment+PVC when requested
+  when: grafana_install_postgres_reset_data | default(false) | bool
+  block:
+    - name: Grafana Postgres | Delete Deployment for data reset
+      kubernetes.core.k8s:
+        state: absent
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 120
+      failed_when: false
+
+    - name: Grafana Postgres | Delete PVC for data reset
+      kubernetes.core.k8s:
+        state: absent
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: "{{ grafana_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 180
+      failed_when: false
+
 - name: Grafana Postgres | Create PVC
   kubernetes.core.k8s:
     state: present
@@ -197,6 +222,8 @@
         namespace: "{{ name_space }}"
         labels:
           app: "{{ grafana_install_pg_resource_name }}"
+        annotations:
+          ado.infra/postgres-init-revision: "4"
       spec:
         replicas: 1
         selector:
@@ -206,6 +233,8 @@
           metadata:
             labels:
               app: "{{ grafana_install_pg_resource_name }}"
+            annotations:
+              ado.infra/postgres-init-revision: "4"
           spec:
             securityContext:
               fsGroup: 26
@@ -217,17 +246,48 @@
                   - /bin/sh
                   - -ec
                   - |
-                    mkdir -p /var/lib/pgsql/data/userdata
-                    chown -R 26:26 /var/lib/pgsql/data /var/lib/pgsql/data/userdata || true
-                    chmod -R ug+rwX /var/lib/pgsql/data /var/lib/pgsql/data/userdata || true
+                    # PVC is PGDATA (userdata). Same mount for init+postgres.
+                    # Do not mount parent .../data while also creating userdata/
+                    # on the volume — that nests a dir and breaks initdb.
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    chown -R 26:26 "$DATADIR" 2>/dev/null || true
+                    chmod -R ugo+rwX "$DATADIR" 2>/dev/null || true
                 securityContext:
                   runAsUser: 0
                 volumeMounts:
                   - name: data
-                    mountPath: /var/lib/pgsql/data
+                    mountPath: /var/lib/pgsql/data/userdata
             containers:
               - name: postgres
                 image: "{{ grafana_install_pg_image_ref }}"
+                # RHEL image always chmod/chown PGDATA; NFS root_squash returns
+                # EPERM mid-init and leaves userdata non-empty → CrashLoop.
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    set -e
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    mkdir -p "$DATADIR"
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    for f in /usr/share/container-scripts/postgresql/*.sh \
+                             /usr/bin/run-postgresql \
+                             /usr/libexec/s2i/run; do
+                      [ -e "$f" ] || continue
+                      sed -i \
+                        -e 's/\bchmod\b/true #chmod/g' \
+                        -e 's/\bchown\b/true #chown/g' \
+                        "$f" 2>/dev/null || true
+                    done
+                    if [ -x /usr/bin/run-postgresql ]; then
+                      exec /usr/bin/run-postgresql
+                    fi
+                    exec /usr/libexec/s2i/run
                 ports:
                   - containerPort: 5432
                     name: postgres

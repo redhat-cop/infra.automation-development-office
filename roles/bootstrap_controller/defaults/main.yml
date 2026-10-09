@@ -46,6 +46,18 @@ bootstrap_controller_hub_publish_large_bytes: 30000000
 bootstrap_controller_hub_publish_large_verify_retries: 120
 bootstrap_controller_hub_publish_large_verify_delay: 10
 bootstrap_controller_hub_staging_repository: staging
+# Retry skip-if-exists GETs when Hub/route returns 502/503/504.
+bootstrap_controller_hub_exist_check_retries: 8
+bootstrap_controller_hub_exist_check_delay: 15
+# Content repos to treat as "already installed" before uploading a tarball.
+# Red Hat certified collections often exist in rh-certified, not validated.
+bootstrap_controller_hub_pub_exist_repos:
+  - validated
+  - published
+  - rh-certified
+# Private Hub reserves these; do not create or upload into them.
+bootstrap_controller_hub_reserved_namespaces:
+  - redhat
 bootstrap_controller_hub_hostname: ""
 bootstrap_controller_hub_push_ee: false
 bootstrap_controller_hub_ee_source_image: ""
@@ -125,6 +137,7 @@ bootstrap_controller_controller_organizations: []
 bootstrap_controller_controller_inventories: []
 bootstrap_controller_controller_inventory_sources: []
 bootstrap_controller_controller_hosts: []
+bootstrap_controller_controller_groups: []
 bootstrap_controller_controller_execution_environments: []
 bootstrap_controller_controller_credentials: []
 bootstrap_controller_controller_projects: []

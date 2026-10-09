@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Hub skip-if-exists GETs now retry on 502/503/504
+    instead of failing bootstrap when Automation Hub or its route is briefly
+    unavailable (``no healthy upstream``).
+---

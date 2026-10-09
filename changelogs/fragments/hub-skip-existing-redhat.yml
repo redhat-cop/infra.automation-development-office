@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Additional Hub collection publish now skips when
+    the version already exists in ``validated``, ``published``,
+    ``rh-certified``, or pulp, and does not fail when the reserved
+    ``redhat`` namespace or certified collections are already present.
+---

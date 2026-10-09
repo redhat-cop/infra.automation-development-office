@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Derive ``openshift.apps_domain`` as
+    ``apps.<domain>`` from the preflight base infrastructure domain unless
+    ``apps_domain_manual`` is true.

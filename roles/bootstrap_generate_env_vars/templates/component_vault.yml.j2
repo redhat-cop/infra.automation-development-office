@@ -31,9 +31,21 @@ vault_grafana_api_key: ""
 vault_grafana_postgres_password: ""
 
 {% elif component_name == 'satellite' %}
-vault_satellite_service_account_username: "{{ bootstrap_generate_env_vars_satellite_service_account_username | default('') }}"
-vault_satellite_service_account_password: "{{ bootstrap_generate_env_vars_satellite_service_account_password | default('') }}"
-vault_satellite_admin_password: "{{ bootstrap_generate_env_vars_satellite_admin_password | default(bootstrap_generate_env_vars_satellite_service_account_password | default('')) }}"
+{% set satellite_option_names =
+    (
+      bootstrap_generate_env_vars_preflight.component_options.satellite
+      | default([])
+      | map('lower')
+      | list
+    )
+    if bootstrap_generate_env_vars_preflight is defined else []
+%}
+{% set satellite_capsule_option_selected =
+    'satellite_capsule_install' in satellite_option_names
+%}
+vault_satellite_service_account_username: "{{ bootstrap_generate_env_vars_satellite_service_account_username | default('admin', true) }}"
+vault_satellite_service_account_password: "{{ bootstrap_generate_env_vars_satellite_service_account_password | default(bootstrap_generate_env_vars_satellite_admin_password | default(''), true) }}"
+vault_satellite_admin_password: "{{ bootstrap_generate_env_vars_satellite_admin_password | default(bootstrap_generate_env_vars_satellite_service_account_password | default(''), true) }}"
 vault_satellite_rhn_org_id: "{{ bootstrap_generate_env_vars_satellite_rhn_org_id | default('') }}"
 vault_satellite_rhn_activation_key: "{{ bootstrap_generate_env_vars_satellite_rhn_activation_key | default('') }}"
 vault_satellite_oidc_client_secret: "{{ bootstrap_generate_env_vars_satellite_oidc_client_secret | default('') }}"
@@ -42,11 +54,13 @@ vault_rhbk_admin_password: "{{ bootstrap_generate_env_vars_satellite_oidc_admin_
 satellite_install_admin_password: "{% raw %}{{ vault_satellite_admin_password }}{% endraw %}"
 satellite_install_rhn_org_id: "{% raw %}{{ vault_satellite_rhn_org_id }}{% endraw %}"
 satellite_install_rhn_activation_key: "{% raw %}{{ vault_satellite_rhn_activation_key }}{% endraw %}"
+{% if satellite_capsule_option_selected %}
 vault_capsule_activation_key: "{{ bootstrap_generate_env_vars_capsule_activation_key | default('') }}"
 vault_capsule_loadbalancer_activation_key: "{{ bootstrap_generate_env_vars_capsule_loadbalancer_activation_key | default('') }}"
 capsule_install_admin_password: "{% raw %}{{ vault_satellite_admin_password }}{% endraw %}"
 capsule_install_activation_key: "{% raw %}{{ vault_capsule_activation_key }}{% endraw %}"
 capsule_install_loadbalancer_activation_key: "{% raw %}{{ vault_capsule_loadbalancer_activation_key }}{% endraw %}"
+{% endif %}
 satellite_oidc_client_secret: "{% raw %}{{ vault_satellite_oidc_client_secret | default('') }}{% endraw %}"
 satellite_oidc_admin_user: "{% raw %}{{ vault_rhbk_admin_user | default('admin') }}{% endraw %}"
 satellite_oidc_admin_password: "{% raw %}{{ vault_rhbk_admin_password | default('redhat123') }}{% endraw %}"
@@ -88,10 +102,13 @@ htpasswd_pass: ""
 provision_openshift_virt_api_token: "{{ openshift_virt_config.api_token | default(bootstrap_generate_env_vars_openshift_virt_api_token | default(''), true) }}"
 
 {% elif component_name == 'gitlab' %}
+{% set gitlab_cfg = bootstrap_generate_env_vars_preflight.component_config.gitlab | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
 gitlab_tls_crt:
 gitlab_tls_key:
 gitlab_root_user: root
-gitlab_root_password: redhat123
+gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default('redhat123'), true) }}"
+vault_gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default('redhat123'), true) }}"
+gitlab_install_root_password: "{% raw %}{{ vault_gitlab_root_password | default(gitlab_root_password) }}{% endraw %}"
 
 {% elif component_name == 'rhbk' %}
 rhbk_tls_cert:
@@ -251,8 +268,29 @@ zabbix_db_password: zabbixpass123!
 zabbix_admin_password: zabbix
 
 {% elif component_name == 'quay' %}
-quay_admin_user: admin
-quay_admin_password: redhat123
+{% set quay_vault_cfg = bootstrap_generate_env_vars_preflight.component_config.quay | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+{% set quay_vault_opts =
+    (
+      bootstrap_generate_env_vars_preflight.component_options.quay
+      | default([])
+      | map('lower')
+      | list
+    )
+    if bootstrap_generate_env_vars_preflight is defined else []
+%}
+{% set quay_vault_use_minio =
+    ('minio' in quay_vault_opts)
+    or ((quay_vault_cfg.storage_backend | default('local') | string | lower) == 'minio')
+    or ((quay_vault_cfg.use_minio | default(false)) | bool)
+%}
+quay_admin_user: {{ quay_vault_cfg.admin_user | default('quayadmin') | to_json }}
+vault_ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
+ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
+quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
+{% if quay_vault_use_minio %}
+{% set minio_vault_cfg = bootstrap_generate_env_vars_preflight.component_config.minio | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+vault_ocp_quay_s3_secret_key: {{ quay_vault_cfg.s3_secret_key | default(minio_vault_cfg.root_password | default('redhat123')) | to_json }}
+{% endif %}
 
 {% else %}
 # No default vault vars for this component yet.

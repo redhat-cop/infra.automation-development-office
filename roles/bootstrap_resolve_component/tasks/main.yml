@@ -143,7 +143,8 @@
         'operator_source_namespace', 'operator_csv_contains',
         'operator_name_substring', 'operator_subscription_namespace',
         'operator_subscription_name', 'operatorgroup', 'operator_namespace',
-        'operator_starting_csv', 'operator_deployment_pattern'
+        'operator_starting_csv', 'operator_deployment_pattern',
+        'all_namespaces_install'
       ]
       or (vars[item.key] is not defined)
       or ((vars[item.key] | string) == "")

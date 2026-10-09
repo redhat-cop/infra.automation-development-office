@@ -8,7 +8,8 @@ install_aap_state: present
 install_aap_target: ""
 
 # OpenShift (infra.aap_utilities.aap_ocp_install) — pass aap_ocp_install_* vars.
-# ADO lab extras:
+# License is optional. none/skip = install only; attach later with
+# aap_ocp_install_license_only + license_mode manifest|rhn.
 aap_ocp_install_license_mode: none
 aap_ocp_install_license_only: false
 aap_ocp_install_subscription_manifest_path: ""
@@ -22,7 +23,8 @@ aap_ocp_install_rhn_client_secret: ""
 aap_ocp_install_admin_user: admin
 aap_ocp_install_admin_password: ""
 aap_ocp_install_controller_route_host: ""
-aap_ocp_install_reset_database: true
+# Off for greenfield. Turn on only to wipe a leftover Fernet/Postgres mismatch.
+aap_ocp_install_reset_database: false
 aap_ocp_install_reset_delete_platform: true
 
 # RHEL / VM / containerized (infra.aap_utilities.aap_setup_*)

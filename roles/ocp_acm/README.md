@@ -40,6 +40,9 @@ Automation Development Office
 | `ocp_acm_mch_retries` / `ocp_acm_mch_delay` | Wait loop for MCH `status.phase=Running` |
 | `ocp_acm_uninstall_retries` / `ocp_acm_uninstall_delay` | Wait before clearing stuck uninstall finalizers |
 | `ocp_acm_heal_stuck_uninstall` | On present, finish Uninstalling MCH/MCE first (default `true`) |
+| `ocp_acm_prep_for_ado_resources` | On present, detect leftovers, print a message, and clean stale webhooks / stuck uninstall before ADO hub resources (default `true`) |
+| `ocp_acm_observability_reset_mco` | When observability is enabled, delete existing MultiClusterObservability before recreate (default `false`) |
+| `ocp_acm_policy_enabled` | Message flag when ADO ACM policies are in scope (default `false`) |
 | `ocp_acm_absent_cleanup_mce` | On absent, also remove MultiClusterEngine (default `true`) |
 | `ocp_acm_absent_cleanup_clustermanager` | On absent, remove ClusterManager (default `true`) |
 | `ocp_acm_absent_cleanup_local_cluster` | On absent, remove `local-cluster` ManagedCluster (default `true`) |
@@ -99,7 +102,9 @@ roles/ocp_acm/
   tasks/main.yml
   tasks/present.yml
   tasks/absent.yml
+  tasks/prep_for_ado_resources.yml
   tasks/finish_stuck_uninstall.yml
   tasks/cleanup_hub.yml
   tasks/cleanup_stale_webhooks.yml
+  tasks/present_observability.yml
 ```

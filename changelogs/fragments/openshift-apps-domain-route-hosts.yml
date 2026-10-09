@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Derive OpenShift app route hostnames
+    (Grafana, RHBK, GitLab, Quay, Zabbix, and the other routed apps)
+    from ``openshift.apps_domain`` so the domain is typed once.
