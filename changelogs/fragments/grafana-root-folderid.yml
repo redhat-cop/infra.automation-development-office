@@ -1,6 +1,0 @@
----
-bugfixes:
-  - >-
-    grafana_upload_dashboards - Upload root/General boards with
-    ``folderId: 0`` instead of empty ``folderUid`` (Grafana returned
-    ``folder not found``).
