@@ -20,6 +20,12 @@
       {{
         (grafana_install_cr_info.resources[0].spec.config | default({}))
         | combine((grafana_install_config_patch | default({})), recursive=True)
+        | combine({
+            'plugins': {
+              'preinstall_auto_update':
+                grafana_install_plugins_preinstall_auto_update | string
+            }
+          }, recursive=True)
       }}
 
 - name: Patch Grafana CR config

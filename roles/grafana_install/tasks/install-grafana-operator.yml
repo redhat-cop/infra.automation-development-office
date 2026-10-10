@@ -79,6 +79,10 @@
         admin_user: "{{ grafana_install_admin_user }}"
         admin_password: "{{ grafana_install_admin_password }}"
 
+      plugins:
+        preinstall_auto_update: >-
+          {{ grafana_install_plugins_preinstall_auto_update | string }}
+
 # ---------------------------------------------------------
 # Optional OIDC + SMTP fragments (gated; separate JTs when not on install)
 # ---------------------------------------------------------
@@ -313,6 +317,9 @@
   ansible.builtin.set_fact:
     grafana_install_bearer_token: "{{ grafana_install_sa_secret.resources[0].data.token | b64decode }}"
   no_log: true
+
+- name: Drop a leftover bundled-plugin copy init container
+  ansible.builtin.import_tasks: ensure-grafana-bundled-plugins.yml
 
 - name: Wait for Grafana API to be ready (/api/health)
   ansible.builtin.uri:

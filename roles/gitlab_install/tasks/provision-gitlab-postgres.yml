@@ -366,22 +366,18 @@
       delay: "{{ gitlab_install_postgres_ready_delay | default(10) | int }}"
       changed_when: false
   rescue:
-    - name: GitLab Postgres | Collect container logs after wait failure
-      kubernetes.core.k8s_log:
-        namespace: "{{ name_space }}"
-        label_selectors:
-          - app.kubernetes.io/name=gitlab-postgresql
-        container: postgres
-        tail_lines: 80
-      register: gitlab_install_postgres_fail_logs
-      failed_when: false
-
-    - name: GitLab Postgres | Fail with actionable message
+    - name: GitLab Postgres | Fail with pod status after wait failure
       ansible.builtin.fail:
         msg: >-
           GitLab PostgreSQL pod did not become Ready in {{ name_space }}.
-          Recent postgres logs:
-          {{ gitlab_install_postgres_fail_logs.log | default('(no logs)') }}
+          Pod status: {{
+            (
+              gitlab_install_postgres_pods.resources
+              | default([])
+              | map(attribute='status')
+              | list
+            ) | to_nice_json
+          }}
           If the PVC still has leftover data from a prior CrashLoop, re-run with
           -e gitlab_install_postgres_reset_data=true (deletes Deployment+PVC) or
           manually delete pvc/{{ gitlab_install_pg_resource_name }} in {{ name_space }}.

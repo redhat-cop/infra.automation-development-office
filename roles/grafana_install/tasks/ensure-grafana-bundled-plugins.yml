@@ -1,0 +1,110 @@
+---
+# Grafana image plugins stay in /usr/share/grafana/data/plugins-bundled.
+# A leftover copy-bundled-plugins init container duplicates them on the PVC
+# and is not part of this role. Remove it when a previous change left it
+# on the CR or the Deployment. This does not copy Prometheus or any other
+# bundled plugin onto the PVC.
+
+- name: Read Grafana CR for a bundled-plugin copy init container
+  kubernetes.core.k8s_info:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+  register: grafana_install_plugin_cr
+
+- name: Collect Grafana CR init containers
+  ansible.builtin.set_fact:
+    grafana_install_cr_init_containers: >-
+      {{
+        (
+          (
+            (
+              (
+                grafana_install_plugin_cr.resources[0].spec.deployment
+                | default({})
+              ).spec | default({})
+            ).template | default({})
+          ).spec | default({})
+        ).initContainers | default([])
+      }}
+  when: (grafana_install_plugin_cr.resources | default([])) | length > 0
+
+- name: Decide whether the Grafana CR still copies bundled plugins
+  ansible.builtin.set_fact:
+    grafana_install_cr_drops_bundled_copy: >-
+      {{
+        (
+          grafana_install_cr_init_containers | default([])
+          | selectattr('name', 'in', grafana_install_removed_init_containers)
+          | list
+          | length
+        ) > 0
+      }}
+    grafana_install_cr_kept_init_containers: >-
+      {{
+        grafana_install_cr_init_containers | default([])
+        | rejectattr('name', 'in', grafana_install_removed_init_containers)
+        | list
+      }}
+  when: grafana_install_cr_init_containers is defined
+
+- name: Remove bundled-plugin copy init container from the Grafana CR
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: replace
+        path: /spec/deployment/spec/template/spec/initContainers
+        value: "{{ grafana_install_cr_kept_init_containers }}"
+  when: grafana_install_cr_drops_bundled_copy | default(false) | bool
+
+- name: Read Grafana deployment for a bundled-plugin copy init container
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ grafana_install_deployment_name }}"
+    namespace: "{{ name_space }}"
+  register: grafana_install_plugin_deploy
+
+- name: Collect Grafana deployment init containers
+  ansible.builtin.set_fact:
+    grafana_install_deploy_init_containers: >-
+      {{
+        grafana_install_plugin_deploy.resources[0].spec.template.spec.initContainers
+        | default([])
+      }}
+  when: (grafana_install_plugin_deploy.resources | default([])) | length > 0
+
+- name: Decide whether the deployment still copies bundled plugins
+  ansible.builtin.set_fact:
+    grafana_install_deploy_drops_bundled_copy: >-
+      {{
+        (
+          grafana_install_deploy_init_containers | default([])
+          | selectattr('name', 'in', grafana_install_removed_init_containers)
+          | list
+          | length
+        ) > 0
+      }}
+    grafana_install_deploy_kept_init_containers: >-
+      {{
+        grafana_install_deploy_init_containers | default([])
+        | rejectattr('name', 'in', grafana_install_removed_init_containers)
+        | list
+      }}
+  when: grafana_install_deploy_init_containers is defined
+
+- name: Remove bundled-plugin copy init container from the deployment
+  kubernetes.core.k8s_json_patch:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ grafana_install_deployment_name }}"
+    namespace: "{{ name_space }}"
+    patch:
+      - op: replace
+        path: /spec/template/spec/initContainers
+        value: "{{ grafana_install_deploy_kept_init_containers }}"
+  when: grafana_install_deploy_drops_bundled_copy | default(false) | bool

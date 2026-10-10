@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    grafana_install - Set Grafana ``plugins.preinstall_auto_update`` to
+    ``false`` so Grafana 13.2.3 does not rewrite bundled datasource plugins
+    on the read-only image directory. Remove a leftover
+    ``copy-bundled-plugins`` init container instead of copying those plugins
+    onto the PVC.
