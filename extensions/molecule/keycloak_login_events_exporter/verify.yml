@@ -1,0 +1,46 @@
+---
+# yamllint disable rule:line-length
+- name: Confirm exporter role artifacts
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../../../roles/keycloak_login_events_exporter"
+    dashboard: >-
+      {{ playbook_dir }}/../../../roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/templates/Openshift/dashboards/keycloak-metrics.json.j2
+  tasks:
+    - name: Load dashboard seed
+      ansible.builtin.slurp:
+        src: "{{ dashboard }}"
+      register: keycloak_login_events_exporter_dashboard
+
+    - name: Assert success and failure panels are present
+      ansible.builtin.assert:
+        that:
+          - >-
+            'keycloak_login_success_events'
+            in (keycloak_login_events_exporter_dashboard.content | b64decode)
+          - >-
+            'keycloak_login_failure_events'
+            in (keycloak_login_events_exporter_dashboard.content | b64decode)
+          - >-
+            'Successful logins by username'
+            in (keycloak_login_events_exporter_dashboard.content | b64decode)
+        fail_msg: Keycloak dashboard seed is missing login success/failure exporter panels.
+
+    - name: Assert role and playbook seeds exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ role_dir }}/tasks/main.yml"
+        - "{{ role_dir }}/files/export_login_failures.py"
+        - "{{ playbook_dir }}/../../../playbooks/rhbk/ado-rhbk-login-events-exporter.yml"
+        - "{{ playbook_dir }}/../../../roles/bootstrap_generate_playbook_repo/files/playbooks/rhbk/ado-rhbk-login-events-exporter-bootstrap.yml"
+        - "{{ playbook_dir }}/../../../roles/bootstrap_controller/files/job_templates/ado-rhbk-login-events-exporter-bootstrap.jt.yml"
+      register: keycloak_login_events_exporter_paths
+
+    - name: Require all exporter paths
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+        fail_msg: "Missing {{ item.item }}"
+      loop: "{{ keycloak_login_events_exporter_paths.results }}"

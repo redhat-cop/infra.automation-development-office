@@ -115,10 +115,14 @@ components_defaults:
 
     admin_password_secret: controller-admin-password
     component: aap
-    # Lab reinstalls often leave Postgres PVC with rows encrypted under an old
-    # Fernet key while aap-db-fields-encryption-secret is recreated → gateway
-    # CrashLoop InvalidToken / login 503. Wipe DB+encryption secrets when true.
-    aap_ocp_install_reset_database: true
+    # Off for greenfield. Set true (or preflight reset_database) only to wipe
+    # leftover Fernet/Postgres state from a prior AAP in this namespace.
+    aap_ocp_install_reset_database: false
+
+  aap_hub_harden:
+    component: aap_hub_harden
+    name_space: ""
+    ocp_aap_hub_harden_separate_database: true
 
   # aap 2.7
   aap27:
@@ -477,6 +481,8 @@ components_defaults:
     chart_version: "10.3.2"
     gitlab_install_chart_version: "10.3.2"
     gitlab_install_enable_postgresql: false
+    gitlab_install_database_provision: true
+    gitlab_install_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
     gitlab_install_create_route: true
     gitlab_install_root_password: redhat123
     gitlab_install_admin_user: gitlab
@@ -542,6 +548,9 @@ components_defaults:
 
   grafana:
     name_space: grafana
+    operator_namespace: grafana
+    operator_subscription_namespace: grafana
+    all_namespaces_install: false
     operatorgroup: grafana-operator-group
 
     operator_name: grafana-operator
@@ -830,12 +839,23 @@ components_defaults:
     ocp_quay_admin_password: redhat123
     storage_size: 10Gi
     postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
+    ocp_quay_image: registry.redhat.io/quay/quay-rhel8:v3.15.4
+    quay_image: registry.redhat.io/quay/quay-rhel8:v3.15.4
+    ocp_quay_redis_image: registry.redhat.io/rhel9/redis-6:latest
+    quay_redis_image: registry.redhat.io/rhel9/redis-6:latest
     quay_config_secret: quay-config-secret
     ocp_quay_config_secret: quay-config-secret
     quay_oidc_enabled: true
     quay_oidc_client_id: quay
     quay_oidc_service_id: keycloak
     quay_keycloak_realm: rhlab
+    ocp_quay_storage_backend: local
+    quay_storage_backend: local
+    ocp_quay_s3_bucket: quay
+    ocp_quay_s3_hostname: minio.minio.svc
+    ocp_quay_s3_port: 9000
+    ocp_quay_s3_is_secure: false
+    ocp_quay_s3_minio_namespace: minio
 
   dev_hub:
     # Backstage / RHDH CR lives here; operator itself must be AllNamespaces.
@@ -876,9 +896,15 @@ components_defaults:
     zabbix_default_admin_password: zabbix
     zabbix_storage_size: 20Gi
     zabbix_saml_enabled: true
+    zabbix_database_type: postgres
+    zabbix_database_provision: true
     zabbix_mariadb_image: registry.redhat.io/rhel9/mariadb-105:latest
-    zabbix_server_image: zabbix/zabbix-server-mysql:ubuntu-7.0-latest
-    zabbix_web_image: zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest
+    zabbix_server_pgsql_image: zabbix/zabbix-server-pgsql:ubuntu-7.0-latest
+    zabbix_web_pgsql_image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest
+    zabbix_server_mysql_image: zabbix/zabbix-server-mysql:ubuntu-7.0-latest
+    zabbix_web_mysql_image: zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest
+    zabbix_server_image: zabbix/zabbix-server-pgsql:ubuntu-7.0-latest
+    zabbix_web_image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest
     zabbix_db_user: zabbix
     zabbix_db_name: zabbix
 
@@ -946,6 +972,12 @@ components_defaults:
     install_rhbk_metrics_enabled: true
     rhbk_metrics_enabled: true
     install_rhbk_servicemonitor_enabled: true
+
+    # Admin event-store exporter (username labels). Separate from native
+    # keycloak_user_events_total. Default on when RHBK is selected.
+    keycloak_login_events_exporter_enabled: true
+    keycloak_login_events_exporter_namespace: grafana
+    keycloak_login_events_realms: rhlab
 
     # Flattened name — dotted keys are skipped by resolve_component export.
     openshift_oidc_auth:

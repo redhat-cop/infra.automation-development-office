@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Keep ``ocp_compliance`` in the preflight
+    OpenShift app catalog so selecting OpenShift Compliance Operator
+    generates ``playbooks/ocp_compliance/ado-deploy-bootstrap.yml`` for
+    both AAP job templates and the local no-AAP runner.
+  - >-
+    bootstrap_controller - Wire
+    ``ADO | Deploy OpenShift Compliance Operator`` into the OpenShift
+    workflow so AAP and the local no-AAP runner execute the same
+    ``playbooks/ocp_compliance/ado-deploy-bootstrap.yml`` playbook.

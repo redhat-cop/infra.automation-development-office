@@ -19,5 +19,14 @@ grafana_install_postgres_storage_class: ""
 grafana_install_postgres_host: ""
 grafana_install_postgres_port: 5432
 grafana_install_postgres_ssl_mode: disable
+# Grafana 13 rewrites bundled plugins at startup. The image directory is
+# read-only on OpenShift, so leave that rewrite off. Bundled plugins stay
+# in the image; do not copy them onto the PVC.
+grafana_install_plugins_preinstall_auto_update: "false"
+grafana_install_deployment_name: grafana-deployment
+grafana_install_removed_init_containers:
+  - copy-bundled-plugins
 grafana_install_postgres_ready_retries: 60
 grafana_install_postgres_ready_delay: 5
+# When true, delete grafana-postgres Deployment+PVC before recreate (wipes DB).
+grafana_install_postgres_reset_data: false

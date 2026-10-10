@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - >-
+    keycloak_login_events_exporter - New role deploys a Prometheus exporter
+    that polls the Keycloak/RHBK user-event store for ``LOGIN`` and
+    ``LOGIN_ERROR`` and publishes gauges with username labels. Native
+    ``keycloak_user_events_total`` does not include username. Bootstrap
+    ships the playbook, Controller job template, and RHBK workflow node.
+  - >-
+    grafana - OpenShift Keycloak dashboard now includes a Successful logins
+    by username table next to the existing Failed logins table.

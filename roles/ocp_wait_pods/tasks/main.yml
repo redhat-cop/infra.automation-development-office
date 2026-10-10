@@ -4,18 +4,42 @@
     ocp_wait_pods_pod_wait_retries: "{{ ocp_wait_pods_pod_wait_retries | default(20) }}"
     ocp_wait_pods_pod_wait_delay: "{{ ocp_wait_pods_pod_wait_delay | default(10) }}"
 
-- name: Wait for all pods in namespace to be running
-  kubernetes.core.k8s_info:
-    kind: Pod
-    namespace: "{{ name_space }}"
-  register: ocp_wait_pods_pods
-  until: >-
-    ocp_wait_pods_pods.resources | length > 0 and
-    (
-      ocp_wait_pods_pods.resources
-      | selectattr('status.phase', 'equalto', 'Running')
-      | list | length
-      == ocp_wait_pods_pods.resources | length
-    )
-  retries: "{{ ocp_wait_pods_pod_wait_retries }}"
-  delay: "{{ ocp_wait_pods_pod_wait_delay }}"
+- name: Wait for workload pods in namespace
+  block:
+    - name: Wait for workload pods in namespace to be Running or Succeeded
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ name_space }}"
+      register: ocp_wait_pods_pods
+      until: >-
+        (ocp_wait_pods_pods.resources | default([]) | length) > 0
+        and
+        (
+          ocp_wait_pods_pods.resources | default([])
+          | map(attribute='status', default={})
+          | map(attribute='phase', default='Unknown')
+          | reject('in', ['Running', 'Succeeded'])
+          | list | length
+        ) == 0
+      retries: "{{ ocp_wait_pods_pod_wait_retries }}"
+      delay: "{{ ocp_wait_pods_pod_wait_delay }}"
+  rescue:
+    - name: Build compact pod phase summary
+      ansible.builtin.set_fact:
+        ocp_wait_pods_summary: >-
+          {{
+            ocp_wait_pods_summary | default([])
+            + [
+              item.metadata.name ~ '='
+              ~ (item.status.phase | default('Unknown'))
+            ]
+          }}
+      loop: "{{ ocp_wait_pods_pods.resources | default([]) }}"
+      loop_control:
+        label: "{{ item.metadata.name | default('pod') }}"
+
+    - name: Fail when pods did not become Running or Succeeded
+      ansible.builtin.fail:
+        msg: >-
+          Pods in {{ name_space }} did not all reach Running or Succeeded:
+          {{ ocp_wait_pods_summary | default([]) | join(', ') }}

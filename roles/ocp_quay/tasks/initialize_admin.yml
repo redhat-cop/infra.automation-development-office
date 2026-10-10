@@ -1,0 +1,162 @@
+---
+# Quay does not create SUPER_USERS from config.yaml. The first Database
+# user is POST /api/v1/user/initialize after the API is up. Reruns that
+# see an existing user reset that user's password to the vault value.
+
+- name: Require Quay admin password before initialize
+  ansible.builtin.assert:
+    that:
+      - (ocp_quay_admin_user | default('') | string | trim | length) > 0
+      - (ocp_quay_admin_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      ocp_quay_admin_user and ocp_quay_admin_password must be set
+      (Quay tab Admin user / Admin password → vault_quay.yml).
+
+- name: Wait for Quay API on the in-cluster service
+  ansible.builtin.uri:
+    url: "http://quay.{{ name_space }}.svc:8080/api/v1/discovery"
+    method: GET
+    validate_certs: false
+    status_code: [200, 401, 403]
+  register: ocp_quay_api_svc
+  until: (ocp_quay_api_svc.status | default(0) | int) in [200, 401, 403]
+  retries: 40
+  delay: 6
+  failed_when: false
+
+- name: Wait for Quay API on the route
+  when: (ocp_quay_api_svc.status | default(0) | int) not in [200, 401, 403]
+  ansible.builtin.uri:
+    url: "https://{{ ocp_quay_hostname }}/api/v1/discovery"
+    method: GET
+    validate_certs: false
+    status_code: [200, 401, 403]
+  register: ocp_quay_api_route
+  until: (ocp_quay_api_route.status | default(0) | int) in [200, 401, 403]
+  retries: 40
+  delay: 6
+
+- name: Choose Quay API base URL
+  ansible.builtin.set_fact:
+    ocp_quay_api_base: >-
+      {{
+        (
+          'http://quay.' ~ name_space ~ '.svc:8080'
+        )
+        if (ocp_quay_api_svc.status | default(0) | int) in [200, 401, 403]
+        else ('https://' ~ (ocp_quay_hostname | string))
+      }}
+
+- name: Create first Quay admin via initialize API
+  ansible.builtin.uri:
+    url: "{{ ocp_quay_api_base }}/api/v1/user/initialize"
+    method: POST
+    validate_certs: false
+    body_format: json
+    status_code: [200, 201, 204, 400, 409]
+    body:
+      username: "{{ ocp_quay_admin_user }}"
+      password: "{{ ocp_quay_admin_password }}"
+      email: "{{ ocp_quay_admin_user }}@example.com"
+      access_token: true
+  register: ocp_quay_init_user
+  no_log: true
+
+- name: Verify Quay admin password with signin
+  when: (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+  ansible.builtin.uri:
+    url: "{{ ocp_quay_api_base }}/api/v1/signin"
+    method: POST
+    validate_certs: false
+    body_format: json
+    status_code: [200, 201, 400, 401, 403]
+    body:
+      username: "{{ ocp_quay_admin_user }}"
+      password: "{{ ocp_quay_admin_password }}"
+  register: ocp_quay_signin
+  no_log: true
+
+- name: Hash Quay admin password for existing-user reset
+  when:
+    - (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+    - (ocp_quay_signin.status | default(0) | int) not in [200, 201]
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/hash_quay_password.py"
+  environment:
+    QUAY_ADMIN_PASSWORD: "{{ ocp_quay_admin_password }}"
+  register: ocp_quay_pw_hash
+  changed_when: false
+  no_log: true
+
+- name: Find Quay Postgres pod for password reset
+  when:
+    - (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+    - (ocp_quay_signin.status | default(0) | int) not in [200, 201]
+    - (ocp_quay_pw_hash.rc | default(1) | int) == 0
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ name_space }}"
+    label_selectors:
+      - app=postgres-db
+  register: ocp_quay_pg_reset_pods
+
+- name: Reset existing Quay admin password in Postgres
+  when:
+    - (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+    - (ocp_quay_signin.status | default(0) | int) not in [200, 201]
+    - (ocp_quay_pw_hash.rc | default(1) | int) == 0
+    - (ocp_quay_pg_reset_pods.resources | default([]) | length) > 0
+  kubernetes.core.k8s_exec:
+    namespace: "{{ name_space }}"
+    pod: "{{ ocp_quay_pg_reset_pods.resources[0].metadata.name }}"
+    container: postgres-db
+    command:
+      - psql
+      - -U
+      - postgres
+      - -d
+      - quay
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - >-
+        UPDATE "user"
+        SET password = $${{ ocp_quay_pw_hash.stdout | trim }}$$
+        WHERE username = '{{ ocp_quay_admin_user }}';
+  register: ocp_quay_pw_sql
+  no_log: true
+
+- name: Re-check Quay admin signin after password reset
+  when:
+    - (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+    - (ocp_quay_signin.status | default(0) | int) not in [200, 201]
+    - ocp_quay_pw_sql is defined
+  ansible.builtin.uri:
+    url: "{{ ocp_quay_api_base }}/api/v1/signin"
+    method: POST
+    validate_certs: false
+    body_format: json
+    status_code: [200, 201, 400, 401, 403]
+    body:
+      username: "{{ ocp_quay_admin_user }}"
+      password: "{{ ocp_quay_admin_password }}"
+  register: ocp_quay_signin_after
+  no_log: true
+
+- name: Fail when Quay admin login still does not work
+  when:
+    - (ocp_quay_init_user.status | default(0) | int) not in [200, 201, 204]
+    - (ocp_quay_signin.status | default(0) | int) not in [200, 201]
+    - (ocp_quay_signin_after.status | default(0) | int) not in [200, 201]
+  ansible.builtin.fail:
+    msg: >-
+      Quay admin '{{ ocp_quay_admin_user }}' did not sign in with the
+      configured password. Initialize API status
+      {{ ocp_quay_init_user.status | default('none') }}.
+      Set Admin user / Admin password on the Quay tab (stored as
+      vault_ocp_quay_admin_password) and re-run the Quay install
+      playbook. Password must meet Quay complexity (usually 8+
+      characters).

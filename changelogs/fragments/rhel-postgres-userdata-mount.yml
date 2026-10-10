@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    gitlab_install / grafana_install / ocp_zabbix - Mount RHEL PostgreSQL PVC at
+    ``/var/lib/pgsql/data`` for both init and postgres containers. Mounting
+    postgres at ``.../userdata`` while init created ``userdata/`` on the volume
+    caused ``initdb: directory exists but is not empty`` CrashLoopBackOff.
+    Init now clears non-``PG_VERSION`` leftovers so a broken empty volume can
+    re-init.

@@ -309,26 +309,10 @@
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
     - bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool
 
-- name: Hub EE | Create organization for Contoller EE (hub-only / missing org)
-  ansible.controller.organization:
-    name: "{{ item }}"
-    description: "{{ item }}"
-    state: present
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
-  loop: >-
-    {{
-      (
-        [bootstrap_controller_hub_ee_org | default('')]
-        + (bootstrap_controller_controller_organizations | default([]) | map(attribute='name') | list)
-      )
-      | unique
-      | reject('equalto', '')
-      | list
-    }}
+- name: Hub EE | Ensure form organization for Contoller EE (create if missing)
+  ansible.builtin.include_tasks: ensure_controller_organization.yml
+  vars:
+    bootstrap_controller_ensure_org_name: "{{ bootstrap_controller_hub_ee_org }}"
   when:
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
     - bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool
@@ -379,6 +363,7 @@
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
     - bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool
     - bootstrap_controller_hub_ee_org | default('') | length > 0
+    - bootstrap_controller_ensure_org_ok | default(false) | bool
 
 - name: Hub EE | Create Contoller execution environment after push
   ansible.controller.execution_environment:
@@ -397,6 +382,7 @@
   when:
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
     - bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool
+    - bootstrap_controller_ensure_org_ok | default(false) | bool
 
 - name: Hub EE | Summarize push
   ansible.builtin.debug:

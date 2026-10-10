@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Normalize GitLab OpenShift install facts
   ansible.builtin.set_fact:
     gitlab_install_hostname: >-
@@ -19,7 +20,9 @@
         ) | bool
       }}
     gitlab_install_enable_postgresql: >-
-      {{ gitlab_install_enable_postgresql | default(true) | bool }}
+      {{ gitlab_install_enable_postgresql | default(false) | bool }}
+    gitlab_install_database_provision: >-
+      {{ gitlab_install_database_provision | default(true) | bool }}
   changed_when: false
 
 - name: Assert GitLab hostname and root password
@@ -60,25 +63,16 @@
         password: "{{ gitlab_install_root_password }}"
   no_log: true
 
-- name: Create GitLab DB Secret
-  kubernetes.core.k8s:
-    validate_certs: "{{ gitlab_install_validate_certs }}"
-    definition:
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: gitlab-db-secret
-        namespace: "{{ name_space }}"
-      type: Opaque
-      stringData:
-        POSTGRES_USER: "{{ gitlab_install_admin_user | default('gitlab') }}"
-        POSTGRES_PASSWORD: "{{ gitlab_install_admin_password | default(gitlab_install_root_password) }}"
-  no_log: true
-  when: not (gitlab_install_enable_postgresql | bool)
-
 - name: Install GitLab external dependencies for chart 10.x
   ansible.builtin.import_tasks: install-gitlab-external-deps.yml
   when: gitlab_install_chart_version is version('10.0.0', '>=')
+
+- name: Provision dedicated GitLab PostgreSQL for chart 9.x
+  ansible.builtin.import_tasks: provision-gitlab-postgres.yml
+  when:
+    - gitlab_install_chart_version is version('10.0.0', '<')
+    - gitlab_install_database_provision | default(true) | bool
+    - not (gitlab_install_enable_postgresql | bool)
 
 - name: Build GitLab CR base definition
   ansible.builtin.set_fact:
@@ -150,7 +144,7 @@
                 'values': {
                   'global': {
                     'psql': {
-                      'host': gitlab_install_postgres_host | default('gitlab-postgresql'),
+                      'host': gitlab_install_postgres_host | default('gitlab-postgresql', true),
                       'port': 5432,
                       'database': 'gitlabhq_production',
                       'username': gitlab_install_admin_user | default('gitlab'),
@@ -223,7 +217,7 @@
             'spec': {
               'postgresql': {
                 'enabled': false,
-                'host': 'gitlab-postgresql',
+                'host': gitlab_install_postgres_host | default('gitlab-postgresql', true),
                 'username': {
                   'valueFrom': {
                     'secretKeyRef': {

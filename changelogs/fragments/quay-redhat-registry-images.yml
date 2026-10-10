@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_quay - Pull Quay and Redis from ``registry.redhat.io`` instead of
+    ``quay.io/projectquay/quay`` and ``docker.io/redis``. Installing Quay no
+    longer requires access to Quay or Docker Hub.

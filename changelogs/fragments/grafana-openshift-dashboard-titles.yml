@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    grafana_upload_dashboards - Rename seeded OpenShift dashboard titles so
+    the Grafana folder list describes what each board shows (health, capacity,
+    API, certs, Keycloak) instead of leftover community names.

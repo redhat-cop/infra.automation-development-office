@@ -1,0 +1,22 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | Separate AAP Hub onto dedicated Postgres
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: aap_hub_harden
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap_hub_harden.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap_hub_harden.yml"
+  environment:
+    K8S_AUTH_HOST: '{{ host | default(api_host) }}'
+    K8S_AUTH_API_KEY: '{{ token }}'
+    K8S_AUTH_VERIFY_SSL: >-
+      {{ (verify_ssl | bool) | ternary('yes', 'no') }}
+  pre_tasks:
+    - name: ADO | Resolve vars for component from framework defaults + env overrides
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+  roles:
+    - role: infra.ado.ocp_aap_hub_harden

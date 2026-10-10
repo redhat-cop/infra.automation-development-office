@@ -1,3 +1,5 @@
+{% set zabbix_pg = (ocp_zabbix_use_postgres | default(true) | bool) %}
+{% set zabbix_pg_secret = zabbix_postgres_name | default('zabbix-postgres') %}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,14 +17,31 @@ spec:
     spec:
       containers:
         - name: zabbix-web
-          image: {{ zabbix_web_image }}
+          image: {{ ocp_zabbix_web_image | default(zabbix_web_image) }}
           ports:
             - containerPort: 8080
           env:
             - name: ZBX_SERVER_HOST
               value: zabbix-server.{{ name_space }}.svc.cluster.local
             - name: DB_SERVER_HOST
-              value: mariadb.{{ name_space }}.svc.cluster.local
+              value: {{ ocp_zabbix_db_host }}
+{% if zabbix_pg %}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_DATABASE
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ zabbix_pg_secret }}
+                  key: POSTGRESQL_PASSWORD
+{% else %}
             - name: MYSQL_DATABASE
               valueFrom:
                 secretKeyRef:
@@ -38,6 +57,7 @@ spec:
                 secretKeyRef:
                   name: zabbix-mariadb-secret
                   key: mariadb-password
+{% endif %}
             - name: PHP_TZ
               value: UTC
             - name: ZBX_SERVER_NAME

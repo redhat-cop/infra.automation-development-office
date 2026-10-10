@@ -4,9 +4,6 @@
   gather_facts: false
   vars:
     component: aap
-    # Force wipe of stale Fernet key + Postgres PVC. Contoller project vars_aap.yml
-    # often leaves this unset/false so resolve cannot unstick gateway CrashLoop.
-    aap_ocp_install_reset_database: true
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap.yml"
@@ -19,9 +16,6 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.ado.bootstrap_resolve_component
-    - name: ADO | Ensure AAP Fernet/DB reset stays enabled for lab reinstalls
-      ansible.builtin.set_fact:
-        aap_ocp_install_reset_database: true
   roles:
     - role: infra.ado.install_aap
       vars:

@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    infra.ado.bootstrap_controller - Hub-only / Hub EE uses the form
+    organization, looks it up first, and creates it only when missing.
+    An existing org no longer fails the run, and stale extra orgs from
+    leftover Controller YAML are not created.

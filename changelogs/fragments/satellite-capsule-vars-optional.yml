@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Write Capsule install vars only when
+    ``satellite_capsule_install`` is selected. Stop templating
+    ``capsule_install_req_dirs`` against undefined
+    ``capsule_install_pulp_size`` during Satellite-only bootstrap.

@@ -133,6 +133,9 @@
     - var_name: bootstrap_controller_controller_hosts
       dest: controller/hosts.yml
 
+    - var_name: controller_bootstrap_controller_groups
+      dest: controller/groups.yml
+
     - var_name: controller_bootstrap_controller_labels
       dest: controller/labels.yml
 
@@ -144,6 +147,10 @@
     bootstrap_controller_job_template_component_map:
       aap:
         - ado-aap-ocp-install-bootstrap.jt.yml
+        - ado-aap-rhel-install-bootstrap.jt.yml
+
+      aap_hub_harden:
+        - ado-aap-hub-harden-bootstrap.jt.yml
 
       acs:
         - ado-acs-deploy-and-configure-bootstrap.jt.yml
@@ -335,6 +342,7 @@
       rhbk:
         - ado-rhbk-deploy-and-configure-bootstrap.jt.yml
         - ado-install-rhbk-standalone-bootstrap.jt.yml
+        - ado-rhbk-login-events-exporter-bootstrap.jt.yml
 
       rhbk_standalone:
         - ado-install-rhbk-standalone-bootstrap.jt.yml
@@ -403,7 +411,7 @@
         | list
       }}
 
-- name: AAP configs | Skip Install AAP JT when bootstrap installs AAP
+- name: AAP configs | Skip Install AAP JT when bootstrap installs the operator
   ansible.builtin.set_fact:
     bootstrap_controller_job_template_files_selected: >-
       {{
@@ -411,7 +419,33 @@
         | reject('equalto', 'ado-aap-ocp-install-bootstrap.jt.yml')
         | list
       }}
-  when: bootstrap_controller_aap_install_during_bootstrap | default(false) | bool
+  when: >-
+    bootstrap_controller_aap_full_install_during_bootstrap
+    | default(false)
+    | bool
+
+- name: AAP configs | Keep only the selected AAP install target JT
+  ansible.builtin.set_fact:
+    bootstrap_controller_job_template_files_selected: >-
+      {{
+        bootstrap_controller_job_template_files_selected
+        | reject(
+            'equalto',
+            (
+              'ado-aap-ocp-install-bootstrap.jt.yml'
+              if (
+                (
+                  bootstrap_controller_aap_install_target
+                  | default('openshift')
+                  | string
+                  | lower
+                ) == 'rhel'
+              )
+              else 'ado-aap-rhel-install-bootstrap.jt.yml'
+            )
+          )
+        | list
+      }}
 
 - name: >-
     AAP configs | Skip default ingress JT unless update_default_ingress
@@ -1245,6 +1279,7 @@
                 "Deploy OADP",
                 "Deploy Pega",
                 "Deploy OpenShift Descheduler",
+                "Deploy OpenShift Compliance Operator",
             }
             oauth_id = "Configure OAuth/RHBK in OpenShift"
             client_id = "Deploy RHBK Client"
@@ -1293,6 +1328,23 @@
             chain_linear_nodes(kept_by_id, alt_routes_chain)
             chain_linear_nodes(kept_by_id, quay_chain)
             chain_linear_nodes(kept_by_id, minio_chain)
+            minio_wf_id = "MinIO Workflow"
+            quay_wf_id = "Quay Workflow"
+            if minio_wf_id in kept_ids and quay_wf_id in kept_ids:
+                minio_node = kept_by_id[minio_wf_id]
+                minio_edges = list(minio_node.get("success_nodes") or [])
+                if quay_wf_id not in minio_edges:
+                    minio_edges.append(quay_wf_id)
+                minio_node["success_nodes"] = minio_edges
+                for node in kept_nodes:
+                    if node.get("identifier") == minio_wf_id:
+                        continue
+                    for edge_key in edge_keys:
+                        if quay_wf_id in (node.get(edge_key) or []):
+                            node[edge_key] = [
+                                item for item in node[edge_key]
+                                if item != quay_wf_id
+                            ]
             chain_linear_nodes(kept_by_id, dev_hub_chain)
             chain_linear_nodes(kept_by_id, bookstack_chain)
             chain_linear_nodes(kept_by_id, zabbix_chain)

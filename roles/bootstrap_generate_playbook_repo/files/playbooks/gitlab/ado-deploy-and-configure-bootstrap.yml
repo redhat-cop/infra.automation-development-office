@@ -56,6 +56,7 @@
         gitlab_install_root_password: >-
           {{
             gitlab_install_root_password
+            | default(gitlab_root_password)
             | default(root_password)
             | default('redhat123')
           }}
@@ -66,6 +67,7 @@
             gitlab_install_admin_password
             | default(admin_password)
             | default(gitlab_install_root_password)
+            | default(gitlab_root_password)
             | default('redhat123')
           }}
   roles:

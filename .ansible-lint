@@ -78,6 +78,7 @@ mock_roles:
     - infra.ado.jira
     - infra.ado.jira_stories
     - infra.ado.kafka_install
+    - infra.ado.keycloak_login_events_exporter
     - infra.ado.ocp_acm
     - infra.ado.ocp_acs
     - infra.ado.ocp_alt_routes

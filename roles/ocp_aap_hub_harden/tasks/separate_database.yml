@@ -1,0 +1,384 @@
+---
+# yamllint disable rule:line-length
+# Create dedicated Hub Postgres and migrate automationhub off shared PG.
+
+- name: Find candidate Postgres pods in the AAP namespace
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    label_selectors: []
+  register: ocp_aap_hub_harden_pods
+
+- name: Resolve shared Postgres pod and dedicated STS image
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_shared_pg_pod: >-
+      {{
+        (
+          ocp_aap_hub_harden_pods.resources
+          | default([])
+          | selectattr('metadata.name', 'search', 'postgres')
+          | rejectattr('metadata.name', 'search', 'dedicated')
+          | map(attribute='metadata.name')
+          | list
+          | first
+          | default('')
+        )
+      }}
+
+- name: Read shared Postgres StatefulSet for image and storage
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+  register: ocp_aap_hub_harden_sts_list
+
+- name: Resolve Postgres image and storage class
+  vars:
+    _shared_sts: >-
+      {{
+        ocp_aap_hub_harden_sts_list.resources
+        | default([])
+        | selectattr('metadata.name', 'search', 'postgres')
+        | rejectattr('metadata.name', 'search', 'dedicated')
+        | list
+        | first
+        | default({})
+      }}
+    _shared_pvc_name: >-
+      {{
+        (
+          (_shared_sts.spec.volumeClaimTemplates | default([{}]) | first).metadata.name
+          | default('')
+        )
+        ~ '-' ~ (_shared_sts.metadata.name | default(''))
+        ~ '-0'
+      }}
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: PersistentVolumeClaim
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ _shared_pvc_name }}"
+  register: ocp_aap_hub_harden_shared_pvc
+  failed_when: false
+
+- name: Set image, storage class, and shared pod facts
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_postgres_image: >-
+      {{
+        ocp_aap_hub_harden_postgres_image
+        | default('', true)
+        | string
+        | trim
+        or (
+          (
+            ocp_aap_hub_harden_sts_list.resources
+            | default([])
+            | selectattr('metadata.name', 'search', 'postgres')
+            | rejectattr('metadata.name', 'search', 'dedicated')
+            | list
+            | first
+          ).spec.template.spec.containers[0].image
+          | default('')
+        )
+      }}
+    ocp_aap_hub_harden_storage_class: >-
+      {{
+        ocp_aap_hub_harden_storage_class
+        | default('', true)
+        | string
+        | trim
+        or (
+          ocp_aap_hub_harden_shared_pvc.resources[0].spec.storageClassName
+          | default('')
+        )
+      }}
+
+- name: Assert migrate prerequisites
+  ansible.builtin.assert:
+    that:
+      - ocp_aap_hub_harden_shared_pg_pod | length > 0
+      - ocp_aap_hub_harden_postgres_image | length > 0
+      - ocp_aap_hub_harden_storage_class | length > 0
+    fail_msg: >-
+      Need a shared Postgres pod, Postgres image, and storage class
+      (set ocp_aap_hub_harden_storage_class / ocp_aap_hub_harden_postgres_image).
+      shared_pod={{ ocp_aap_hub_harden_shared_pg_pod }}
+      image={{ ocp_aap_hub_harden_postgres_image }}
+      storage_class={{ ocp_aap_hub_harden_storage_class }}
+
+- name: Scale Hub to zero on the AAP CR
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: aap.ansible.com/v1alpha1
+      kind: AnsibleAutomationPlatform
+      metadata:
+        name: "{{ ocp_aap_hub_harden_aap_name }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+      spec:
+        hub:
+          api:
+            replicas: 0
+          content:
+            replicas: 0
+          worker:
+            replicas: 0
+          web:
+            replicas: 0
+
+- name: Find Hub deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+  register: ocp_aap_hub_harden_deploys
+
+- name: Scale Hub deployments to zero
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ item.metadata.name }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+      spec:
+        replicas: 0
+  loop: >-
+    {{
+      ocp_aap_hub_harden_deploys.resources
+      | default([])
+      | selectattr('metadata.name', 'search', 'hub-')
+      | list
+    }}
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Check dedicated Postgres admin secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ ocp_aap_hub_harden_admin_secret }}"
+  register: ocp_aap_hub_harden_admin_present
+
+- name: Create dedicated Postgres admin secret when missing
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp_aap_hub_harden_admin_secret }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+          app.kubernetes.io/part-of: automationhub
+      type: Opaque
+      stringData:
+        password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits'], length=28) }}"
+  no_log: true
+  when: (ocp_aap_hub_harden_admin_present.resources | default([]) | length) == 0
+
+- name: Ensure dedicated Postgres PVC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ ocp_aap_hub_harden_pvc_name }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{ ocp_aap_hub_harden_storage_class }}"
+        resources:
+          requests:
+            storage: "{{ ocp_aap_hub_harden_storage_size }}"
+
+- name: Ensure dedicated Postgres Service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ ocp_aap_hub_harden_service_name }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+      spec:
+        ports:
+          - name: postgres
+            port: 5432
+            targetPort: 5432
+        selector:
+          app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+
+- name: Ensure dedicated Postgres StatefulSet
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: "{{ ocp_aap_hub_harden_sts_name }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+          app.kubernetes.io/part-of: automationhub
+      spec:
+        serviceName: "{{ ocp_aap_hub_harden_service_name }}"
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+              app.kubernetes.io/part-of: automationhub
+          spec:
+            containers:
+              - name: postgres
+                image: "{{ ocp_aap_hub_harden_postgres_image }}"
+                env:
+                  - name: POSTGRESQL_ADMIN_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ ocp_aap_hub_harden_admin_secret }}"
+                        key: password
+                ports:
+                  - name: postgres
+                    containerPort: 5432
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: "{{ ocp_aap_hub_harden_pvc_name }}"
+
+- name: Wait for dedicated Postgres pod
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ ocp_aap_hub_harden_postgres_pod }}"
+  register: ocp_aap_hub_harden_dedicated_pod
+  until: >-
+    (ocp_aap_hub_harden_dedicated_pod.resources | default([]) | length) > 0
+    and (
+      ocp_aap_hub_harden_dedicated_pod.resources[0].status.phase
+      | default('')
+    ) == 'Running'
+  retries: 36
+  delay: 10
+
+- name: Assert Hub postgres secret was found
+  ansible.builtin.assert:
+    that:
+      - ocp_aap_hub_harden_current_secret | length > 0
+    fail_msg: >-
+      AutomationHub has no postgres_configuration_secret. Is Hub installed?
+
+- name: Read current Hub database credentials
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    name: "{{ ocp_aap_hub_harden_current_secret }}"
+  register: ocp_aap_hub_harden_hub_db_secret
+  no_log: true
+
+- name: Decode Hub database credentials
+  ansible.builtin.set_fact:
+    ocp_aap_hub_harden_hub_db: >-
+      {{ ocp_aap_hub_harden_hub_db_secret.resources[0].data.database | b64decode }}
+    ocp_aap_hub_harden_hub_user: >-
+      {{ ocp_aap_hub_harden_hub_db_secret.resources[0].data.username | b64decode }}
+    ocp_aap_hub_harden_hub_password: >-
+      {{ ocp_aap_hub_harden_hub_db_secret.resources[0].data.password | b64decode }}
+  no_log: true
+
+- name: Create Hub role and database on dedicated Postgres
+  kubernetes.core.k8s_exec:
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    pod: "{{ ocp_aap_hub_harden_postgres_pod }}"
+    command: >-
+      bash -lc
+      "psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ ocp_aap_hub_harden_hub_user }}') THEN
+          CREATE ROLE {{ ocp_aap_hub_harden_hub_user }} LOGIN PASSWORD '{{ ocp_aap_hub_harden_hub_password }}';
+        ELSE
+          ALTER ROLE {{ ocp_aap_hub_harden_hub_user }} WITH LOGIN PASSWORD '{{ ocp_aap_hub_harden_hub_password }}';
+        END IF;
+      END$$;
+      SELECT 'ok';
+      SQL
+      psql -U postgres -tc \"SELECT 1 FROM pg_database WHERE datname='{{ ocp_aap_hub_harden_hub_db }}'\" | grep -q 1
+      || psql -U postgres -v ON_ERROR_STOP=1 -c
+      \"CREATE DATABASE {{ ocp_aap_hub_harden_hub_db }} OWNER {{ ocp_aap_hub_harden_hub_user }};\""
+  no_log: true
+
+- name: Dump Hub database from shared Postgres
+  kubernetes.core.k8s_exec:
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    pod: "{{ ocp_aap_hub_harden_shared_pg_pod }}"
+    command: >-
+      bash -lc
+      "pg_dump -U postgres -d {{ ocp_aap_hub_harden_hub_db }} -Fc
+      -f /tmp/automationhub.dump"
+
+- name: Copy dump off the shared Postgres pod
+  kubernetes.core.k8s_cp:
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    pod: "{{ ocp_aap_hub_harden_shared_pg_pod }}"
+    remote_path: /tmp/automationhub.dump
+    local_path: /tmp/ado-automationhub.dump
+    state: from
+
+- name: Copy dump onto the dedicated Postgres pod
+  kubernetes.core.k8s_cp:
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    pod: "{{ ocp_aap_hub_harden_postgres_pod }}"
+    remote_path: /tmp/automationhub.dump
+    local_path: /tmp/ado-automationhub.dump
+    state: to
+
+- name: Restore Hub database onto dedicated Postgres
+  kubernetes.core.k8s_exec:
+    namespace: "{{ ocp_aap_hub_harden_namespace }}"
+    pod: "{{ ocp_aap_hub_harden_postgres_pod }}"
+    command: >-
+      bash -lc
+      "pg_restore -U postgres -d {{ ocp_aap_hub_harden_hub_db }}
+      --no-owner --role={{ ocp_aap_hub_harden_hub_user }}
+      /tmp/automationhub.dump || true"
+
+- name: Ensure unmanaged Hub postgres secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp_aap_hub_harden_postgres_secret }}"
+        namespace: "{{ ocp_aap_hub_harden_namespace }}"
+        labels:
+          app.kubernetes.io/name: "{{ ocp_aap_hub_harden_sts_name }}"
+          app.kubernetes.io/part-of: automationhub
+      type: Opaque
+      stringData:
+        host: "{{ ocp_aap_hub_harden_service_name }}"
+        port: "5432"
+        database: "{{ ocp_aap_hub_harden_hub_db }}"
+        username: "{{ ocp_aap_hub_harden_hub_user }}"
+        password: "{{ ocp_aap_hub_harden_hub_password }}"
+        sslmode: prefer
+        type: unmanaged
+  no_log: true

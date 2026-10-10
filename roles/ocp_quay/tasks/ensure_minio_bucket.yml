@@ -1,0 +1,201 @@
+---
+- name: Assert MinIO credentials are set for Quay object storage
+  ansible.builtin.assert:
+    that:
+      - (ocp_quay_s3_access_key | default('') | string | trim | length) > 0
+      - (ocp_quay_s3_secret_key | default('') | string | trim | length) > 0
+      - (ocp_quay_s3_bucket | default('') | string | trim | length) > 0
+      - (ocp_quay_s3_hostname | default('') | string | trim | length) > 0
+    fail_msg: >-
+      Quay MinIO storage needs ocp_quay_s3_access_key, ocp_quay_s3_secret_key,
+      ocp_quay_s3_bucket, and ocp_quay_s3_hostname. Set those on the Quay tab
+      (Use existing MinIO) and re-run bootstrap. This does not install MinIO.
+
+- name: Build MinIO endpoint for the Quay bucket job
+  ansible.builtin.set_fact:
+    ocp_quay_s3_host_only: >-
+      {{
+        ocp_quay_s3_hostname
+        | string
+        | trim
+        | regex_replace('^https?://', '')
+        | regex_replace('/+$', '')
+      }}
+
+- name: Join MinIO scheme, host, and port
+  ansible.builtin.set_fact:
+    ocp_quay_s3_endpoint: >-
+      {{
+        (
+          'https://'
+          if (ocp_quay_s3_is_secure | default(false) | bool)
+          else 'http://'
+        )
+        ~ ocp_quay_s3_host_only
+        ~ (
+          ''
+          if (ocp_quay_s3_host_only is search(':[0-9]+$'))
+          else (':' ~ (ocp_quay_s3_port | default(9000) | int | string))
+        )
+      }}
+
+- name: Remove previous Quay MinIO bucket jobs
+  kubernetes.core.k8s:
+    state: absent
+    api_version: batch/v1
+    kind: Job
+    name: "{{ item }}"
+    namespace: "{{ ocp_quay_s3_minio_namespace }}"
+    wait: true
+    wait_timeout: 60
+  loop:
+    - quay-minio-mb
+    - minio-bucket
+
+- name: Create Quay MinIO bucket helper Secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: quay-minio-mb
+        namespace: "{{ ocp_quay_s3_minio_namespace }}"
+        labels:
+          app.kubernetes.io/name: quay
+          app.kubernetes.io/component: minio-bucket
+      type: Opaque
+      stringData:
+        MINIO_ROOT_USER: "{{ ocp_quay_s3_access_key }}"
+        MINIO_ROOT_PASSWORD: "{{ ocp_quay_s3_secret_key }}"
+        S3_ENDPOINT: "{{ ocp_quay_s3_endpoint }}"
+        S3_BUCKET: "{{ ocp_quay_s3_bucket }}"
+  no_log: true
+
+- name: Create Quay MinIO bucket helper ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: quay-minio-mb
+        namespace: "{{ ocp_quay_s3_minio_namespace }}"
+        labels:
+          app.kubernetes.io/name: quay
+          app.kubernetes.io/component: minio-bucket
+      data:
+        ensure_minio_bucket.py: >-
+          {{ lookup('ansible.builtin.file', 'ensure_minio_bucket.py') }}
+
+- name: Ensure Quay bucket exists on MinIO
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: quay-minio-mb
+        namespace: "{{ ocp_quay_s3_minio_namespace }}"
+        labels:
+          app.kubernetes.io/name: quay
+          app.kubernetes.io/component: minio-bucket
+      spec:
+        ttlSecondsAfterFinished: 600
+        backoffLimit: 4
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: quay
+              app.kubernetes.io/component: minio-bucket
+          spec:
+            restartPolicy: OnFailure
+            containers:
+              - name: ensure-bucket
+                image: "{{ ocp_quay_minio_mc_image }}"
+                imagePullPolicy: IfNotPresent
+                command:
+                  - python3
+                  - /opt/ensure_minio_bucket.py
+                envFrom:
+                  - secretRef:
+                      name: quay-minio-mb
+                volumeMounts:
+                  - name: script
+                    mountPath: /opt/ensure_minio_bucket.py
+                    subPath: ensure_minio_bucket.py
+                    readOnly: true
+            volumes:
+              - name: script
+                configMap:
+                  name: quay-minio-mb
+                  defaultMode: 292
+
+- name: Wait for Quay MinIO bucket job to succeed
+  kubernetes.core.k8s_info:
+    api_version: batch/v1
+    kind: Job
+    namespace: "{{ ocp_quay_s3_minio_namespace }}"
+    name: quay-minio-mb
+  register: ocp_quay_minio_mb_job
+  until:
+    - ocp_quay_minio_mb_job.resources | default([]) | length > 0
+    - >-
+        (
+          ocp_quay_minio_mb_job.resources[0].status.succeeded
+          | default(0) | int
+        ) >= 1
+        or
+        (
+          ocp_quay_minio_mb_job.resources[0].status.failed
+          | default(0) | int
+        ) >= 1
+  retries: 30
+  delay: 6
+  failed_when: false
+  no_log: true
+
+- name: Set Quay MinIO bucket job success fact
+  ansible.builtin.set_fact:
+    ocp_quay_minio_mb_ok: >-
+      {{
+        (
+          (
+            ocp_quay_minio_mb_job.resources
+            | default([])
+            | first
+            | default({})
+          ).status.succeeded
+          | default(0)
+          | int
+        ) >= 1
+      }}
+
+- name: Collect Quay MinIO bucket job pods
+  when: not (ocp_quay_minio_mb_ok | bool)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ ocp_quay_s3_minio_namespace }}"
+    label_selectors:
+      - job-name=quay-minio-mb
+  register: ocp_quay_minio_mb_pods
+  failed_when: false
+
+- name: Fail when Quay MinIO bucket job did not succeed
+  when: not (ocp_quay_minio_mb_ok | bool)
+  ansible.builtin.fail:
+    msg: >-
+      Quay bucket job quay-minio-mb in namespace
+      {{ ocp_quay_s3_minio_namespace }} did not succeed.
+      The job uses {{ ocp_quay_minio_mc_image }} (registry.redhat.io UBI
+      Python, not quay.io/minio/mc). MinIO endpoint
+      {{ ocp_quay_s3_endpoint }}.
+      Pod status:
+      {{
+        ocp_quay_minio_mb_pods.resources
+        | default([])
+        | map(attribute='status.containerStatuses')
+        | list
+        | to_nice_yaml
+      }}

@@ -33,7 +33,11 @@
   register: install_aap_reset_platform_cr
   failed_when: >-
     install_aap_reset_platform_cr is failed
-    and ('not found' not in (install_aap_reset_platform_cr.msg | default('') | lower))
+    and not (
+      (install_aap_reset_platform_cr.msg | default('') | lower) is search(
+        'not found|notfound|404|403|forbidden|no matches|could not find'
+      )
+    )
 
 - name: List secrets in AAP namespace (encryption keys)
   kubernetes.core.k8s_info:
@@ -41,6 +45,7 @@
     kind: Secret
     namespace: "{{ install_aap_reset_ns }}"
   register: install_aap_reset_secrets
+  failed_when: false
 
 - name: Delete AAP Fernet / DB field encryption secrets
   kubernetes.core.k8s:
@@ -62,6 +67,7 @@
     kind: PersistentVolumeClaim
     namespace: "{{ install_aap_reset_ns }}"
   register: install_aap_reset_pvcs
+  failed_when: false
 
 - name: Delete AAP Postgres PVCs (encrypted rows under old Fernet key)
   kubernetes.core.k8s:

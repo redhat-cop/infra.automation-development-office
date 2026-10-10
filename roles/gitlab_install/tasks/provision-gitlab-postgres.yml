@@ -1,0 +1,383 @@
+---
+# yamllint disable rule:line-length
+# Dedicated in-cluster PostgreSQL for GitLab (Grafana-style RHEL image).
+# Password is stored in Secret gitlab-db-secret and reused on reruns.
+# If a legacy gitlab-postgresql StatefulSet already exists, leave it in place.
+
+- name: GitLab Postgres | Resolve names and storage
+  ansible.builtin.set_fact:
+    gitlab_install_pg_resource_name: >-
+      {{
+        gitlab_install_postgres_name
+        | default('gitlab-postgresql')
+      }}
+    gitlab_install_pg_db_name: >-
+      {{
+        gitlab_install_postgres_database
+        | default('gitlabhq_production')
+      }}
+    gitlab_install_pg_db_user: >-
+      {{
+        gitlab_install_postgres_user
+        | default(gitlab_install_admin_user | default('gitlab'))
+      }}
+    gitlab_install_pg_image_ref: >-
+      {{
+        gitlab_install_postgres_image
+        | default('registry.redhat.io/rhel9/postgresql-15:latest')
+      }}
+    gitlab_install_pg_pvc_size: >-
+      {{
+        gitlab_install_postgres_storage_size
+        | default('10Gi')
+      }}
+    gitlab_install_pg_pvc_class: >-
+      {{
+        gitlab_install_postgres_storage_class
+        | default(gitlab_install_storage_class | default(storage_class | default(storage | default('')), true), true)
+      }}
+
+- name: GitLab Postgres | Require storage class when provisioning
+  ansible.builtin.assert:
+    that:
+      - (gitlab_install_pg_pvc_class | string | trim | length) > 0
+    fail_msg: >-
+      gitlab_install_postgres_storage_class (or gitlab_install_storage_class /
+      storage_class) is required when provisioning dedicated GitLab PostgreSQL.
+  when: gitlab_install_database_provision | default(true) | bool
+
+- name: GitLab Postgres | Lookup existing password Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: gitlab-db-secret
+    namespace: "{{ name_space }}"
+  register: gitlab_install_pg_secret_info
+  failed_when: false
+  no_log: true
+
+- name: GitLab Postgres | Reuse password from existing Secret
+  ansible.builtin.set_fact:
+    gitlab_install_pg_password: >-
+      {{
+        (
+          gitlab_install_pg_secret_info.resources[0].data['POSTGRES_PASSWORD']
+          | default(gitlab_install_pg_secret_info.resources[0].data['POSTGRESQL_PASSWORD'] | default(''))
+        )
+        | b64decode
+      }}
+  when:
+    - (gitlab_install_pg_secret_info.resources | default([]) | length) > 0
+  no_log: true
+  changed_when: false
+
+- name: GitLab Postgres | Use password from vars when Secret missing
+  ansible.builtin.set_fact:
+    gitlab_install_pg_password: >-
+      {{
+        gitlab_install_postgres_password
+        | default(gitlab_install_admin_password | default(''))
+      }}
+  when: >-
+    gitlab_install_pg_password is not defined
+    or (gitlab_install_pg_password | default('') | string | length) == 0
+  no_log: true
+  changed_when: false
+
+- name: GitLab Postgres | Generate password when none provided
+  ansible.builtin.set_fact:
+    gitlab_install_pg_password: >-
+      {{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}
+  when: >-
+    gitlab_install_pg_password is not defined
+    or (gitlab_install_pg_password | default('') | string | length) == 0
+  no_log: true
+  changed_when: false
+
+- name: GitLab Postgres | Create password Secret
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: gitlab-db-secret
+        namespace: "{{ name_space }}"
+        labels:
+          app.kubernetes.io/name: gitlab-postgresql
+          app.kubernetes.io/part-of: gitlab
+      type: Opaque
+      stringData:
+        POSTGRES_USER: "{{ gitlab_install_pg_db_user }}"
+        POSTGRES_PASSWORD: "{{ gitlab_install_pg_password }}"
+        POSTGRESQL_USER: "{{ gitlab_install_pg_db_user }}"
+        POSTGRESQL_PASSWORD: "{{ gitlab_install_pg_password }}"
+        POSTGRESQL_DATABASE: "{{ gitlab_install_pg_db_name }}"
+  no_log: true
+
+- name: GitLab Postgres | Lookup legacy StatefulSet
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    name: "{{ gitlab_install_pg_resource_name }}"
+    namespace: "{{ name_space }}"
+  register: gitlab_install_pg_sts_info
+  failed_when: false
+
+- name: GitLab Postgres | Allow default SA anyuid SCC
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: "{{ gitlab_install_pg_resource_name }}-anyuid"
+        namespace: "{{ name_space }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:openshift:scc:anyuid
+      subjects:
+        - kind: ServiceAccount
+          name: default
+          namespace: "{{ name_space }}"
+  when:
+    - gitlab_install_database_provision | default(true) | bool
+    - (gitlab_install_pg_sts_info.resources | default([]) | length) == 0
+
+- name: GitLab Postgres | Reset Deployment+PVC when requested
+  when:
+    - gitlab_install_database_provision | default(true) | bool
+    - gitlab_install_postgres_reset_data | default(false) | bool
+    - (gitlab_install_pg_sts_info.resources | default([]) | length) == 0
+  block:
+    - name: GitLab Postgres | Delete Deployment for data reset
+      kubernetes.core.k8s:
+        validate_certs: "{{ gitlab_install_validate_certs }}"
+        state: absent
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ gitlab_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 120
+      failed_when: false
+
+    - name: GitLab Postgres | Delete PVC for data reset
+      kubernetes.core.k8s:
+        validate_certs: "{{ gitlab_install_validate_certs }}"
+        state: absent
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: "{{ gitlab_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 180
+      failed_when: false
+
+- name: GitLab Postgres | Create PVC
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ gitlab_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ gitlab_install_pg_resource_name }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{ gitlab_install_pg_pvc_class }}"
+        resources:
+          requests:
+            storage: "{{ gitlab_install_pg_pvc_size }}"
+  when:
+    - gitlab_install_database_provision | default(true) | bool
+    - (gitlab_install_pg_sts_info.resources | default([]) | length) == 0
+
+- name: GitLab Postgres | Create Deployment
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ gitlab_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ gitlab_install_pg_resource_name }}"
+          app.kubernetes.io/name: gitlab-postgresql
+        annotations:
+          ado.infra/postgres-init-revision: "4"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ gitlab_install_pg_resource_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ gitlab_install_pg_resource_name }}"
+              app.kubernetes.io/name: gitlab-postgresql
+            annotations:
+              ado.infra/postgres-init-revision: "4"
+          spec:
+            securityContext:
+              fsGroup: 26
+              fsGroupChangePolicy: OnRootMismatch
+            initContainers:
+              - name: fix-data-perms
+                image: "{{ gitlab_install_pg_image_ref }}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - |
+                    # PVC is PGDATA (userdata). Same mount for init+postgres.
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    chown -R 26:26 "$DATADIR" 2>/dev/null || true
+                    chmod -R ugo+rwX "$DATADIR" 2>/dev/null || true
+                securityContext:
+                  runAsUser: 0
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data/userdata
+            containers:
+              - name: postgres
+                image: "{{ gitlab_install_pg_image_ref }}"
+                # RHEL image always chmod/chown PGDATA; NFS root_squash returns
+                # EPERM mid-init and leaves userdata non-empty → CrashLoop.
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    set -e
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    mkdir -p "$DATADIR"
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    for f in /usr/share/container-scripts/postgresql/*.sh \
+                             /usr/bin/run-postgresql \
+                             /usr/libexec/s2i/run; do
+                      [ -e "$f" ] || continue
+                      sed -i \
+                        -e 's/\bchmod\b/true #chmod/g' \
+                        -e 's/\bchown\b/true #chown/g' \
+                        "$f" 2>/dev/null || true
+                    done
+                    if [ -x /usr/bin/run-postgresql ]; then
+                      exec /usr/bin/run-postgresql
+                    fi
+                    exec /usr/libexec/s2i/run
+                ports:
+                  - containerPort: 5432
+                    name: postgres
+                env:
+                  - name: POSTGRESQL_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: gitlab-db-secret
+                        key: POSTGRESQL_USER
+                  - name: POSTGRESQL_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: gitlab-db-secret
+                        key: POSTGRESQL_PASSWORD
+                  - name: POSTGRESQL_DATABASE
+                    valueFrom:
+                      secretKeyRef:
+                        name: gitlab-db-secret
+                        key: POSTGRESQL_DATABASE
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data/userdata
+                readinessProbe:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -ec
+                      - pg_isready -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                securityContext:
+                  runAsUser: 26
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: "{{ gitlab_install_pg_resource_name }}"
+  when:
+    - gitlab_install_database_provision | default(true) | bool
+    - (gitlab_install_pg_sts_info.resources | default([]) | length) == 0
+
+- name: GitLab Postgres | Create Service
+  when: >-
+    (gitlab_install_database_provision | default(true) | bool)
+    or ((gitlab_install_pg_sts_info.resources | default([]) | length) > 0)
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ gitlab_install_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app.kubernetes.io/name: gitlab-postgresql
+      spec:
+        selector:
+          app.kubernetes.io/name: gitlab-postgresql
+        ports:
+          - name: postgres
+            port: 5432
+            targetPort: 5432
+
+- name: GitLab Postgres | Wait until a pod is Ready
+  when: >-
+    (gitlab_install_database_provision | default(true) | bool)
+    or ((gitlab_install_pg_sts_info.resources | default([]) | length) > 0)
+  block:
+    - name: GitLab Postgres | Poll Ready condition
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ name_space }}"
+        label_selectors:
+          - app.kubernetes.io/name=gitlab-postgresql
+      register: gitlab_install_postgres_pods
+      until: >-
+        (gitlab_install_postgres_pods.resources | default([]) | length > 0)
+        and (
+          (gitlab_install_postgres_pods.resources[0].status.conditions | default([])
+            | selectattr('type', 'equalto', 'Ready')
+            | selectattr('status', 'equalto', 'True')
+            | list | length) > 0
+        )
+      retries: "{{ gitlab_install_postgres_ready_retries | default(36) | int }}"
+      delay: "{{ gitlab_install_postgres_ready_delay | default(10) | int }}"
+      changed_when: false
+  rescue:
+    - name: GitLab Postgres | Fail with pod status after wait failure
+      ansible.builtin.fail:
+        msg: >-
+          GitLab PostgreSQL pod did not become Ready in {{ name_space }}.
+          Pod status: {{
+            (
+              gitlab_install_postgres_pods.resources
+              | default([])
+              | map(attribute='status')
+              | list
+            ) | to_nice_json
+          }}
+          If the PVC still has leftover data from a prior CrashLoop, re-run with
+          -e gitlab_install_postgres_reset_data=true (deletes Deployment+PVC) or
+          manually delete pvc/{{ gitlab_install_pg_resource_name }} in {{ name_space }}.

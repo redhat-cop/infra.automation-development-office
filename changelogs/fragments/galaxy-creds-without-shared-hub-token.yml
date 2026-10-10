@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller / bootstrap_generate_env_vars - Create and attach
+    Controller Galaxy credentials when Galaxy setup is enabled even if the
+    shared Hub token is empty. Per-credential API tokens are used when set.
+  - >-
+    bootstrap_generate_env_vars - Stop writing AAP OAuth and other vault
+    secrets into Ansible task results (``no_log`` on vault templates).

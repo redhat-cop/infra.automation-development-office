@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Skip the pre-apply git commit/push when
+    ``git_mode`` is ``manual`` (auto-push unchecked). That task previously
+    always pushed and failed non-interactive bootstrap runs that left
+    generated content local on purpose.
+  - >-
+    bootstrap_generate_env_vars - Keep ``pause_for_push`` /
+    ``pause_after_generate`` false in generated ``aap_config_vars`` so
+    manual git mode never waits on an interactive pause.

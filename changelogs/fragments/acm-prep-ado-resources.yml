@@ -1,0 +1,8 @@
+---
+minor_changes:
+  - >-
+    ocp_acm - Before MultiClusterHub converge, detect leftover ACM hub state
+    (stuck uninstall, stale validating webhooks), print a clear ADO prep
+    message, and clean up so ACM hub resources and later OpenShift app
+    installs are not poisoned. Optional
+    ``ocp_acm_observability_reset_mco`` deletes prior MultiClusterObservability.

@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - License-only AAP attach no longer skips playbook
+    and job-template generation. Only a full operator install omits
+    ``ado-aap-ocp-install-bootstrap``.
+  - >-
+    bootstrap_generate_env_vars - License-only attach keeps the AAP
+    playbook/JT selector and does not force ``generate_env_vars_use_aap``
+    off the way a greenfield operator install does.

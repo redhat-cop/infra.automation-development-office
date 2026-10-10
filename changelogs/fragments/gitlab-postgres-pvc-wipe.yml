@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    gitlab_install - Wipe the whole PostgreSQL PVC root when ``userdata`` has
+    no ``PG_VERSION`` (recovers leftover files from the prior bad mountPath),
+    chmod for NFS root_squash, surface pod status on Ready wait failure,
+    and add ``gitlab_install_postgres_reset_data`` to delete Deployment+PVC.

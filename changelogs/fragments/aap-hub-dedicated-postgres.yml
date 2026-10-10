@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    infra.ado.ocp_aap_hub_harden - Can create dedicated Hub Postgres, migrate
+    ``automationhub`` off shared Controller PG, then pin workers and the
+    ``aap-hub-stability`` CronJob. Discovers AAP/Hub CR names when unset.
+    Preflight AAP tools option ``dedicated_hub_postgres`` generates the
+    playbook and Controller job template without selecting OpenShift.
+---

@@ -21,6 +21,25 @@
         name: gitlab-postgresql
         namespace: "{{ name_space }}"
 
+- name: Delete PostgreSQL Deployment for GitLab
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: absent
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gitlab-postgresql
+        namespace: "{{ name_space }}"
+
+- name: Delete PostgreSQL PVC for GitLab
+  kubernetes.core.k8s:
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+    state: absent
+    kind: PersistentVolumeClaim
+    name: gitlab-postgresql
+    namespace: "{{ name_space }}"
+
 - name: Delete PostgreSQL Service for GitLab
   kubernetes.core.k8s:
     validate_certs: "{{ gitlab_install_validate_certs }}"

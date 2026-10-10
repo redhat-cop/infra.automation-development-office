@@ -1,0 +1,240 @@
+---
+# yamllint disable rule:line-length
+# Ensure the form/General Contoller organization exists.
+# Lookup first — do not PATCH an existing org (description updates 403/409 on
+# AAP 2.5 gateway when the org already exists). Create only when missing.
+# Hub-only: never fail the play; Hub publish must stay successful.
+
+- name: Ensure organization | Resolve name from form
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_name: >-
+      {{
+        (
+          bootstrap_controller_ensure_org_loop_name
+          | default(bootstrap_controller_ensure_org_name, true)
+          | default(controller_bootstrap_organization, true)
+          | default(bootstrap_controller_organization, true)
+          | default(
+              (
+                (bootstrap_generate_env_vars_preflight.aap.organization | default(''))
+                if (bootstrap_generate_env_vars_preflight is defined)
+                else ''
+              ),
+              true
+            )
+          | default('', true)
+        )
+        | string
+        | trim
+      }}
+    bootstrap_controller_ensure_org_exists: false
+    bootstrap_controller_ensure_org_ok: false
+    bootstrap_controller_ensure_org_lookup_ok: false
+    bootstrap_controller_ensure_org_msg: ""
+
+- name: Ensure organization | Resolve Contoller API URL
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_api_url: >-
+      {{
+        (
+          (
+            controller_host
+            | default(vault_controller_hostname | default(bootstrap_controller_controller_host | default('')), true)
+          )
+          | string
+          | trim
+          | regex_replace('/+$', '')
+        )
+      }}
+    bootstrap_controller_ensure_org_api_path: >-
+      {{
+        bootstrap_controller_aap_effective_api_path
+        | default('/api/controller/v2', true)
+      }}
+
+- name: Ensure organization | Prefix https when host has no scheme
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_api_url: "https://{{ bootstrap_controller_ensure_org_api_url }}"
+  when:
+    - bootstrap_controller_ensure_org_api_url | length > 0
+    - not (bootstrap_controller_ensure_org_api_url | regex_search('^https?://'))
+
+- name: Ensure organization | Skip when form org is empty
+  ansible.builtin.debug:
+    msg: >-
+      No Contoller organization name from the preflight form
+      (aap.organization / controller_bootstrap_organization). Skipping create.
+  when: bootstrap_controller_ensure_org_name | length == 0
+
+- name: Ensure organization | Look up existing org
+  ansible.builtin.uri:
+    url: >-
+      {{
+        bootstrap_controller_ensure_org_api_url
+        ~ bootstrap_controller_ensure_org_api_path
+        ~ '/organizations/?name='
+        ~ (bootstrap_controller_ensure_org_name | urlencode)
+      }}
+    method: GET
+    headers: >-
+      {{
+        {
+          'Authorization':
+          'Bearer ' ~ (
+            controller_oauthtoken
+            | default(vault_controller_oauthtoken | default(''), true)
+          )
+        }
+        if (
+          (
+            controller_oauthtoken
+            | default(vault_controller_oauthtoken | default(''), true)
+          )
+          | string
+          | length
+        ) > 0
+        else {}
+      }}
+    url_username: >-
+      {{
+        controller_username | default(vault_controller_username | default(omit), true)
+        if (
+          (
+            controller_oauthtoken
+            | default(vault_controller_oauthtoken | default(''), true)
+          )
+          | string
+          | length
+        ) == 0
+        else omit
+      }}
+    url_password: >-
+      {{
+        controller_password | default(vault_controller_password | default(omit), true)
+        if (
+          (
+            controller_oauthtoken
+            | default(vault_controller_oauthtoken | default(''), true)
+          )
+          | string
+          | length
+        ) == 0
+        else omit
+      }}
+    force_basic_auth: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    status_code: [200, 401, 403, 404, 500, 502, 503]
+  register: bootstrap_controller_ensure_org_lookup
+  failed_when: false
+  when:
+    - bootstrap_controller_ensure_org_name | length > 0
+    - bootstrap_controller_ensure_org_api_url | length > 0
+
+- name: Ensure organization | Record lookup
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_lookup_ok: >-
+      {{ (bootstrap_controller_ensure_org_lookup.status | default(0) | int) == 200 }}
+    bootstrap_controller_ensure_org_exists: >-
+      {{
+        (bootstrap_controller_ensure_org_lookup.status | default(0) | int) == 200
+        and (
+          (bootstrap_controller_ensure_org_lookup.json.count | default(0) | int) > 0
+          or (
+            (
+              bootstrap_controller_ensure_org_lookup.json.results
+              | default([])
+              | selectattr('name', 'defined')
+              | selectattr('name', 'equalto', bootstrap_controller_ensure_org_name)
+              | list
+              | length
+            ) > 0
+          )
+        )
+      }}
+    bootstrap_controller_ensure_org_msg: >-
+      {{
+        bootstrap_controller_ensure_org_lookup.msg
+        | default(bootstrap_controller_ensure_org_lookup.status | default('no lookup'))
+      }}
+  when: bootstrap_controller_ensure_org_lookup is defined
+
+- name: Ensure organization | Create when missing
+  ansible.controller.organization:
+    name: "{{ bootstrap_controller_ensure_org_name }}"
+    state: present
+    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
+    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
+    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
+    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+  register: bootstrap_controller_ensure_org_create
+  failed_when: false
+  when:
+    - bootstrap_controller_ensure_org_name | length > 0
+    - not (bootstrap_controller_ensure_org_exists | bool)
+    - bootstrap_controller_ensure_org_lookup_ok | bool
+      or (bootstrap_controller_ensure_org_lookup is skipped)
+
+- name: Ensure organization | Treat already-exists create as success
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_ok: >-
+      {{
+        (bootstrap_controller_ensure_org_exists | bool)
+        or (
+          bootstrap_controller_ensure_org_create is defined
+          and bootstrap_controller_ensure_org_create is not skipped
+          and not (bootstrap_controller_ensure_org_create.failed | default(false) | bool)
+        )
+        or (
+          bootstrap_controller_ensure_org_create is defined
+          and bootstrap_controller_ensure_org_create is not skipped
+          and (
+            'already exist' in (bootstrap_controller_ensure_org_create.msg | default('') | lower)
+            or 'already exists' in (bootstrap_controller_ensure_org_create.msg | default('') | lower)
+            or 'unique' in (bootstrap_controller_ensure_org_create.msg | default('') | lower)
+          )
+        )
+      }}
+    bootstrap_controller_ensure_org_msg: >-
+      {{
+        bootstrap_controller_ensure_org_create.msg
+        | default(bootstrap_controller_ensure_org_msg | default(''))
+      }}
+  when: bootstrap_controller_ensure_org_name | length > 0
+
+- name: Ensure organization | Existing form org is enough
+  ansible.builtin.set_fact:
+    bootstrap_controller_ensure_org_ok: true
+    bootstrap_controller_ensure_org_msg: >-
+      Contoller organization '{{ bootstrap_controller_ensure_org_name }}' already exists.
+  when:
+    - bootstrap_controller_ensure_org_exists | bool
+
+- name: Ensure organization | Warn when hub-only cannot ensure org
+  ansible.builtin.debug:
+    msg:
+      - >-
+        Contoller organization '{{ bootstrap_controller_ensure_org_name }}'
+        was not created or confirmed
+        ({{ bootstrap_controller_ensure_org_msg | default('unknown') }}).
+      - >-
+        Hub collection/EE image work is not failed for this. Contoller EE
+        objects that need the org will be skipped. Form org is
+        '{{ bootstrap_controller_ensure_org_name }}'.
+  when:
+    - bootstrap_controller_hub_update_collection_only | default(false) | bool
+    - bootstrap_controller_ensure_org_name | length > 0
+    - not (bootstrap_controller_ensure_org_ok | bool)
+
+- name: Ensure organization | Fail when apply requires a missing org
+  ansible.builtin.fail:
+    msg: >-
+      Contoller organization '{{ bootstrap_controller_ensure_org_name }}'
+      was not created or confirmed
+      ({{ bootstrap_controller_ensure_org_msg | default('unknown') }}).
+      Existing organizations are left unchanged because AAP 2.5+ returns
+      400 Failed to sync resource when an org is PATCHed.
+  when:
+    - bootstrap_controller_ensure_org_strict | default(false) | bool
+    - bootstrap_controller_ensure_org_name | length > 0
+    - not (bootstrap_controller_ensure_org_ok | bool)

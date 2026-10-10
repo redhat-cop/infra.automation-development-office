@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_resolve_component - Grafana registry now sets the same
+    ``operator_namespace`` / ``operator_subscription_namespace`` keys other
+    OpenShift apps already set, so resolve overwrites an ACS/GitOps leak
+    instead of waiting in ``openshift-operators``.
+  - >-
+    ocp_operator_subscription - Treat empty ``operator_subscription_name``
+    as unset and use ``operator_name-sub``, the same empty-string rule this
+    role already uses for subscription namespace.

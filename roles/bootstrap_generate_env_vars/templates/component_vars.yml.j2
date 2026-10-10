@@ -118,13 +118,28 @@ components_env:
     operator_starting_csv: ""
 
 {% elif component_name == 'satellite' %}
+{% set satellite_option_names =
+    (
+      bootstrap_generate_env_vars_preflight.component_options.satellite
+      | default([])
+      | map('lower')
+      | list
+    )
+    if bootstrap_generate_env_vars_preflight is defined else []
+%}
+{% set satellite_capsule_option_selected =
+    'satellite_capsule_install' in satellite_option_names
+%}
 satellite_config_server_url: "{{ bootstrap_generate_env_vars_satellite_server_url | default('') }}"
-{% if bootstrap_generate_env_vars_satellite_service_account_username is defined %}
-satellite_config_username: "{{ bootstrap_generate_env_vars_satellite_service_account_username }}"
+{% set _sat_api_user =
+    bootstrap_generate_env_vars_satellite_service_account_username | default('', true)
+%}
+{% if (_sat_api_user | length) > 0 %}
+satellite_config_username: "{{ _sat_api_user }}"
 {% else %}
-satellite_config_username: "{% raw %}{{ vault_satellite_service_account_username | default(omit) }}{% endraw %}"
+satellite_config_username: "{% raw %}{{ vault_satellite_service_account_username | default('admin') }}{% endraw %}"
 {% endif %}
-satellite_config_password: "{% raw %}{{ vault_satellite_service_account_password | default(omit) }}{% endraw %}"
+satellite_config_password: "{% raw %}{{ vault_satellite_service_account_password | default(vault_satellite_admin_password | default(omit)) }}{% endraw %}"
 satellite_config_admin_password: "{% raw %}{{ vault_satellite_admin_password | default(vault_satellite_service_account_password | default(omit)) }}{% endraw %}"
 satellite_config_organization: "{{ bootstrap_generate_env_vars_satellite_organization | default('') }}"
 satellite_config_validate_certs: {{ bootstrap_generate_env_vars_satellite_validate_certs | default(false) | bool | lower }}
@@ -153,6 +168,7 @@ satellite_install_req_dirs:
 satellite_install_data_disk_min_size: "{{ bootstrap_generate_env_vars_satellite_data_disk_min_size | default('10G', true) }}"
 satellite_install_data_device_name: "{{ bootstrap_generate_env_vars_satellite_data_device_name | default('', true) }}"
 satellite_install_data_device: "{{ bootstrap_generate_env_vars_satellite_data_device | default('/dev', true) }}"
+{% if satellite_capsule_option_selected %}
 capsule_install_deployment_version: "{{ bootstrap_generate_env_vars_capsule_deployment_version | default(bootstrap_generate_env_vars_satellite_deployment_version | default('6.19', true), true) }}"
 capsule_install_location: "{{ bootstrap_generate_env_vars_capsule_location | default(bootstrap_generate_env_vars_satellite_location | default(''), true) }}"
 capsule_install_org_id: "{{ bootstrap_generate_env_vars_capsule_org_id | default(bootstrap_generate_env_vars_satellite_organization | default(''), true) }}"
@@ -177,12 +193,7 @@ capsule_install_data_device: "{{ bootstrap_generate_env_vars_capsule_data_device
 capsule_install_data_device_name: "{{ bootstrap_generate_env_vars_capsule_data_device_name | default('', true) }}"
 capsule_install_vg_name: "{{ bootstrap_generate_env_vars_capsule_vg_name | default('capsule', true) }}"
 capsule_install_req_dirs:
-  - mount_point: /var/lib/pulp
-    lv_name: pulp
-    lv_size: "{{ capsule_install_pulp_size }}"
-  - mount_point: /var/lib/pgsql
-    lv_name: pgsql
-    lv_size: "{{ capsule_install_pgsql_size }}"
+{{ bootstrap_generate_env_vars_capsule_req_dirs | to_nice_yaml(indent=2) | indent(2, true) }}
 capsule_install_lifecycle_environments:
 {{ bootstrap_generate_env_vars_capsule_lifecycle_environments | to_nice_yaml(indent=2) | indent(2, true) }}
 capsule_install_sync_wait_time: {{ bootstrap_generate_env_vars_capsule_sync_wait_time | default(86400) | int }}
@@ -195,12 +206,16 @@ capsule_install_loadbalancer_fqdn: "{{ bootstrap_generate_env_vars_capsule_loadb
 capsule_install_loadbalancer_activation_key: "{% raw %}{{ vault_capsule_loadbalancer_activation_key | default(omit) }}{% endraw %}"
 capsule_install_activation_key: "{% raw %}{{ vault_capsule_activation_key | default(omit) }}{% endraw %}"
 capsule_hostname: "{{ bootstrap_generate_env_vars_capsule_hostname | default('', true) }}"
+{% endif %}
 # Client host registration (infra.ado.rhel_sat_reg)
 satellite_activation_key: "{{ bootstrap_generate_env_vars_satellite_activation_key | default('') }}"
 rhel_sat_reg_satellite_host: "{{ bootstrap_generate_env_vars_satellite_server_url | default('') }}"
 rhel_sat_reg_satellite_org_name: "{{ bootstrap_generate_env_vars_satellite_organization | default('') }}"
-{% if bootstrap_generate_env_vars_satellite_service_account_username is defined %}
-rhel_sat_reg_org_admin_account: "{{ bootstrap_generate_env_vars_satellite_service_account_username }}"
+{% set _sat_reg_user =
+    bootstrap_generate_env_vars_satellite_service_account_username | default('', true)
+%}
+{% if (_sat_reg_user | length) > 0 %}
+rhel_sat_reg_org_admin_account: "{{ _sat_reg_user }}"
 {% else %}
 rhel_sat_reg_org_admin_account: "{% raw %}{{ vault_satellite_service_account_username | default('admin') }}{% endraw %}"
 {% endif %}
@@ -228,9 +243,42 @@ components_env:
     operator_starting_csv: "elasticsearch-eck-operator-certified.v3.0.0"
 
 {% elif component_name == 'quay' %}
+{% set quay_cfg = bootstrap_generate_env_vars_preflight.component_config.quay | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+{% set quay_option_names =
+    (
+      bootstrap_generate_env_vars_preflight.component_options.quay
+      | default([])
+      | map('lower')
+      | list
+    )
+    if bootstrap_generate_env_vars_preflight is defined else []
+%}
+{% set quay_use_minio =
+    ('minio' in quay_option_names)
+    or ((quay_cfg.storage_backend | default('local') | string | lower) == 'minio')
+    or ((quay_cfg.use_minio | default(false)) | bool)
+%}
+{% set minio_cfg = bootstrap_generate_env_vars_preflight.component_config.minio | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+{% set minio_ns = quay_cfg.s3_minio_namespace | default(minio_cfg.namespace | default(minio_cfg.name_space | default('minio'))) %}
 components_env:
   quay:
     storage: synology-nfs-csi
+    storage_backend: {{ 'minio' if quay_use_minio else 'local' }}
+ocp_quay_storage_backend: {{ 'minio' if quay_use_minio else 'local' }}
+quay_storage_backend: {{ 'minio' if quay_use_minio else 'local' }}
+ocp_quay_admin_user: {{ quay_cfg.admin_user | default('quayadmin') | to_json }}
+quay_admin_user: {{ quay_cfg.admin_user | default('quayadmin') | to_json }}
+ocp_quay_admin_password: "{% raw %}{{ vault_ocp_quay_admin_password }}{% endraw %}"
+quay_admin_password: "{% raw %}{{ vault_ocp_quay_admin_password }}{% endraw %}"
+{% if quay_use_minio %}
+ocp_quay_s3_hostname: {{ quay_cfg.s3_hostname | default('minio.' ~ minio_ns ~ '.svc') | to_json }}
+ocp_quay_s3_port: {{ quay_cfg.s3_port | default(minio_cfg.api_port | default(9000)) | int }}
+ocp_quay_s3_is_secure: {{ (quay_cfg.s3_is_secure | default(false)) | bool | lower }}
+ocp_quay_s3_bucket: {{ quay_cfg.s3_bucket | default('quay') | to_json }}
+ocp_quay_s3_minio_namespace: {{ minio_ns | to_json }}
+ocp_quay_s3_access_key: {{ quay_cfg.s3_access_key | default(minio_cfg.root_user | default('minioadmin')) | to_json }}
+ocp_quay_s3_secret_key: "{% raw %}{{ vault_ocp_quay_s3_secret_key }}{% endraw %}"
+{% endif %}
 
 {% elif component_name == 'openshift' %}
 ocp_cert_manager_mode: cert
@@ -383,6 +431,13 @@ components_env:
     ocp_rhbk_hostname: "keycloak.{{ '{{ app_domain }}' }}"
     ocp_rhbk_realm: rhlab
     rhbk_enabled: true
+    rhbk_url: "https://keycloak.{{ '{{ app_domain }}' }}"
+    keycloak_login_events_exporter_enabled: true
+    keycloak_login_events_realms: rhlab
+    keycloak_login_events_exporter_namespace: grafana
+keycloak_login_events_exporter_enabled: true
+keycloak_login_events_realms: rhlab
+rhbk_url: "https://keycloak.{{ '{{ app_domain }}' }}"
 
 {% elif component_name == 'minio' %}
 components_env:

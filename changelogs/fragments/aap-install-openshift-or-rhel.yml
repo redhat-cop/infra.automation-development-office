@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - >-
+    install_aap / preflight - Install AAP can target OpenShift (operator +
+    platform CR) or standalone RHEL (``aap_setup_*``). OpenShift still
+    requires the AAP operator PackageManifest in the cluster catalog.
+---

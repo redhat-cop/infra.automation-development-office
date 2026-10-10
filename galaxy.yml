@@ -28,7 +28,6 @@ tags:
 # environment or Controller project instead:
 #   - ansible.controller (bootstrap_controller; AAP 2.5+ apply paths)
 #   - hashicorp.vault (ocp_secret_replicator)
-#   - infra.openshift_virtualization_ops (ocp_virtualization / vm_provision)
 #   - redhat.openshift (username/password OpenShift login paths)
 #   - redhat.rhel_idm (IdM install, client, trust, DNS, replica roles)
 #   - redhat.rhel_system_roles (rhel_ext_system_roles seed playbooks)

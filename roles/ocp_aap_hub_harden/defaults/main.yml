@@ -1,10 +1,20 @@
 ---
-# Harden AAP Hub against core_apiappstatus LWLock storms on shared Postgres.
-# Idempotent: safe to re-run; re-applies settings the operator may reset.
+# yamllint disable rule:line-length
+# Separate Hub onto dedicated Postgres, then pin workers and CronJob.
+# Idempotent: skip migrate when already on the dedicated secret.
 
-ocp_aap_hub_harden_namespace: aap
-ocp_aap_hub_harden_aap_name: aap
-ocp_aap_hub_harden_automationhub_name: aap-hub
+ocp_aap_hub_harden_namespace: ""
+ocp_aap_hub_harden_aap_name: ""
+ocp_aap_hub_harden_automationhub_name: ""
+# Create dedicated Postgres and migrate when Hub still uses shared Controller DB.
+ocp_aap_hub_harden_separate_database: true
+ocp_aap_hub_harden_sts_name: aap-hub-dedicated-postgres
+ocp_aap_hub_harden_service_name: aap-hub-dedicated-postgres
+ocp_aap_hub_harden_pvc_name: aap-hub-dedicated-postgres-data
+ocp_aap_hub_harden_admin_secret: aap-hub-dedicated-postgres-admin
+ocp_aap_hub_harden_storage_class: ""
+ocp_aap_hub_harden_storage_size: 20Gi
+ocp_aap_hub_harden_postgres_image: ""
 # Dedicated Hub Postgres (permanent separation from Controller DB).
 ocp_aap_hub_harden_postgres_pod: aap-hub-dedicated-postgres-0
 ocp_aap_hub_harden_postgres_db: automationhub

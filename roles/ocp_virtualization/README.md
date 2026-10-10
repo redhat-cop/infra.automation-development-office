@@ -4,10 +4,9 @@ Provision an OpenShift Virtualization VM from a cluster **DataSource** / DV
 (for example the built-in `rhel9` image in `openshift-virtualization-os-images`),
 with optional Multus bridge networking and cloud-init.
 
-VM creation is delegated to validated
-[`infra.openshift_virtualization_ops.vm_provision`](https://github.com/redhat-cop/openshift_virtualization_ops).
-This role builds the lab-specific VirtualMachine spec (DataSource
-`dataVolumeTemplates`, Multus NAD, cloud-init, instance type / preference).
+This role builds the VirtualMachine spec (DataSource `dataVolumeTemplates`,
+Multus NAD, cloud-init, instance type / preference) and applies it with
+`kubernetes.core.k8s` when that VirtualMachine is not already in the namespace.
 
 ## Role Author
 
@@ -16,10 +15,9 @@ Automation Development Office
 ## ✅ Role Requirements
 
 - OpenShift Virtualization (KubeVirt) installed
-- Collections: `kubernetes.core`, `infra.openshift_virtualization_ops`
-  (Automation Hub validated / GitHub; not on public Galaxy)
+- Collection: `kubernetes.core`
 - OpenShift credentials via `K8S_AUTH_*` or `provision_openshift_virt_api_*` /
-  `host` + `token` (mapped into `vm_provision_*`)
+  `host` + `token`
 - A usable DataSource (prefer provided golden images: `rhel9`, `rhel8`, …)
 
 ## 📦 Role Variables
@@ -35,8 +33,8 @@ Automation Development Office
 | `network_mode` | `pod` or `bridge` (use with `multus_network_name` for br-ex) |
 | `vm_state` | `present` or `absent` (absent deletes VM locally) |
 
-`vm_provision` creates only when the VM is missing — it does not patch an existing
-VirtualMachine.
+Create runs only when the VM is missing. An existing VirtualMachine is left
+unchanged.
 
 ## 🚀 Role Usage
 

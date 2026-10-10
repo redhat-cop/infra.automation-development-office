@@ -1,0 +1,75 @@
+---
+# When MinIO was installed by ADO in this env, reuse its group_vars.
+# Quay S3 fields on the form are optional overrides of those values.
+- name: Find existing MinIO group_vars
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/{{ item }}"
+  loop:
+    - vars_minio.yml
+    - vault_minio.yml
+  register: ocp_quay_minio_vars_stat
+  when:
+    - env is defined
+    - playbook_dir is defined
+
+- name: Load existing MinIO group_vars
+  ansible.builtin.include_vars:
+    file: "{{ item.stat.path }}"
+  loop: "{{ ocp_quay_minio_vars_stat.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default(item.stat.path | default('')) }}"
+  when:
+    - item.stat is defined
+    - item.stat.exists | default(false)
+  no_log: "{{ 'vault_minio' in (item.item | default('')) }}"
+
+- name: Resolve MinIO namespace for Quay S3
+  ansible.builtin.set_fact:
+    ocp_quay_s3_minio_namespace: >-
+      {{
+        (
+          ocp_quay_s3_minio_namespace | default('') | string | trim
+        )
+        or (minio_namespace | default(''))
+        or 'minio'
+      }}
+
+- name: Inherit empty Quay S3 settings from MinIO vars
+  ansible.builtin.set_fact:
+    ocp_quay_s3_hostname: >-
+      {{
+        (
+          ocp_quay_s3_hostname | default('') | string | trim
+        )
+        or (
+          (minio_service_name | default('minio'))
+          ~ '.'
+          ~ ocp_quay_s3_minio_namespace
+          ~ '.svc'
+        )
+      }}
+    ocp_quay_s3_port: >-
+      {{
+        ocp_quay_s3_port
+        | default(minio_api_port)
+        | default(9000)
+      }}
+    ocp_quay_s3_access_key: >-
+      {{
+        (
+          ocp_quay_s3_access_key | default('') | string | trim
+        )
+        or (minio_root_user | default('minioadmin'))
+      }}
+    ocp_quay_s3_secret_key: >-
+      {{
+        (
+          ocp_quay_s3_secret_key | default('') | string | trim
+        )
+        or (minio_root_password | default(''))
+      }}
+    ocp_quay_s3_bucket: >-
+      {{
+        (ocp_quay_s3_bucket | default('') | string | trim)
+        or 'quay'
+      }}

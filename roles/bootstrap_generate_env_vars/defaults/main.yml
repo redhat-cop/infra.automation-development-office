@@ -77,6 +77,7 @@ bootstrap_generate_env_vars_preflight_ui_openshift_apps:
   - minio
   - netbox
   - oadp
+  - ocp_compliance
   - ocp_virtualization
   - mtv
   - openshift
@@ -93,7 +94,6 @@ bootstrap_generate_env_vars_non_ui_openshift_playbook_apps:
   - gitlab_runner
   - web_terminal
   - ocp_descheduler
-  - ocp_compliance
 
 # AAP generated object defaults
 bootstrap_generate_env_vars_aap_additional_credentials: []

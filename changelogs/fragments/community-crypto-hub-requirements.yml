@@ -1,0 +1,5 @@
+---
+bugfixes:
+  - bootstrap_generate_playbook_repo - Include ``community.crypto`` in the
+    preflight Hub collection list and Controller requirements.
+    OpenSSH and certificate tasks need it on project sync.

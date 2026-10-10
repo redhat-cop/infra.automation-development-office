@@ -3,6 +3,7 @@
 Install and configure GitLab on OpenShift using the GitLab Operator and Custom Resource (CR).
 
 - Creates Kubernetes Secrets for TLS, root password, and Postgres credentials
+- Provisions dedicated in-cluster PostgreSQL (RHEL `postgresql-15`, Grafana-style Deployment + PVC)
 - Deploys the GitLab Operator CR with required references and settings
 - Supports idempotent updates and safe deletion
 - Uses **Ansible Vault** for storing sensitive secrets (root and DB passwords)
@@ -42,7 +43,14 @@ Install and configure GitLab on OpenShift using the GitLab Operator and Custom R
 | `gitlab_install_admin_user` | GitLab DB/Postgres admin username. Default: `admin`. |
 | `gitlab_install_admin_password` | GitLab DB/Postgres admin password. **Required when `state` is `present`.** |
 | `gitlab_install_root_password` | GitLab root (web UI) password. **Required when `state` is `present`.** |
-| `gitlab_install_chart_version` | GitLab chart version for the operator CR. Default: `9.4.0`. |
+| `gitlab_install_chart_version` | GitLab chart version for the operator CR. Default: `10.3.2`. |
+| `gitlab_install_database_provision` | Provision ADO-managed PostgreSQL (`gitlab-postgresql`). Default: `true`. Set `false` and set `gitlab_install_postgres_host` for an external database. |
+| `gitlab_install_postgres_image` | PostgreSQL container image. Default: `registry.redhat.io/rhel9/postgresql-15:latest`. |
+| `gitlab_install_postgres_storage_size` | PVC size for dedicated PostgreSQL. Default: `10Gi`. |
+| `gitlab_install_postgres_storage_class` | StorageClass for dedicated PostgreSQL. Falls back to `gitlab_install_storage_class` / `storage_class`. |
+| `gitlab_install_postgres_host` | External PostgreSQL host when `gitlab_install_database_provision` is `false`. |
+| `gitlab_install_postgres_password` | Optional PostgreSQL password. Reused from Secret `gitlab-db-secret` on reruns; generated when empty. |
+| `gitlab_install_postgres_reset_data` | When `true`, delete the `gitlab-postgresql` Deployment and PVC before recreate (wipes DB). Use after CrashLoopBackOff from a bad volume. Default: `false`. |
 
 ### Auth via environment (optional)
 
@@ -110,7 +118,8 @@ gitlab_install_root_password: !vault |
 ### Behavior Notes
 
 - All referenced secrets and config are created before the Custom Resource.
-- The chart version defaults to a supported version (`9.4.0`). Override with `gitlab_install_chart_version` if needed.
+- The chart version defaults to a supported version (`10.3.2`). Override with `gitlab_install_chart_version` if needed.
+- Chart 10+ always uses dedicated PostgreSQL. New installs get a Grafana-style RHEL PostgreSQL Deployment; an existing `gitlab-postgresql` StatefulSet is left in place.
 - The operator CR is updated if settings change.
 - Passwords are **never logged** (`no_log: true`).
 - For deletion, the role removes the GitLab CR, PostgreSQL resources, and secrets.
@@ -161,7 +170,9 @@ gitlab_install/
 ├── README.md
 ├── tasks/
 │   ├── delete-gitlab-operator.yml
+│   ├── install-gitlab-external-deps.yml
 │   ├── install-gitlab-operator.yml
+│   ├── provision-gitlab-postgres.yml
 │   └── main.yml
 ├── tests/
 │   ├── inventory

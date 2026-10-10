@@ -4,8 +4,13 @@ Deploy Grafana on OpenShift using the Grafana Operator, including persistent sto
 admin credentials, an optional Keycloak OIDC integration, and an OpenShift Route.
 Optionally use PostgreSQL (`grafana_database_type: postgres`) instead of the default
 embedded SQLite — ADO can provision an in-cluster PostgreSQL 15 Deployment or point
-at an external database. When `state: absent`, the role removes the Grafana custom
-resource, route, and any ADO-managed PostgreSQL resources.
+at an external database. Grafana 13.2.3 on OpenShift keeps bundled datasource
+plugins in the image: the custom resource sets `plugins.preinstall_auto_update`
+to `false`, and a leftover `copy-bundled-plugins` init container is removed.
+That stops the read-only plugin rewrite and the duplicate-plugin warnings.
+Datasource editor registration is not proven by this change. When `state: absent`,
+the role removes the Grafana custom resource, route, and any ADO-managed
+PostgreSQL resources.
 
 ## Role Author
 
@@ -38,9 +43,12 @@ resource, route, and any ADO-managed PostgreSQL resources.
 | `grafana_postgres_image` | PostgreSQL container image. | ❌ | `registry.redhat.io/rhel9/postgresql-15:latest` |
 | `grafana_postgres_database` / `grafana_postgres_user` | DB name and user. | ❌ | `grafana` |
 | `grafana_postgres_password` | Password (generated into Secret when empty on provision). Required for external. | ❌ | generated |
+| `grafana_install_postgres_reset_data` | When `true`, delete `grafana-postgres` Deployment+PVC before recreate (wipes DB). Use after CrashLoopBackOff on NFS. | ❌ | `false` |
 | `grafana_postgres_host` | External host:port when `grafana_database_provision=false`. | ❌ | — |
 | `grafana_postgres_ssl_mode` | Grafana `database.ssl_mode`. | ❌ | `disable` |
 | `grafana_install_validate_certs` | Validate TLS when checking `/api/health`. | ❌ | `false` |
+| `grafana_install_plugins_preinstall_auto_update` | Grafana `plugins.preinstall_auto_update`. `false` stops Grafana 13 from rewriting bundled plugins on the read-only image path. | ❌ | `false` |
+| `grafana_install_removed_init_containers` | Init container names removed from the Grafana CR and Deployment when present. | ❌ | `copy-bundled-plugins` |
 | `grafana_install_route_name` | OpenShift Route name for Grafana. | ❌ | `grafana` |
 | `grafana_install_route_backend_svc` | Backend service name for the Route. | ❌ | `grafana-service` |
 | `grafana_install_route_tls_termination` | Route TLS termination mode. | ❌ | `edge` |

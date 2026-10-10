@@ -1,11 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# yamllint disable rule:line-length
 ---
 state: present
 zabbix_hostname: "{{ hostname | default('') }}"
 zabbix_storage_size: 20Gi
+# postgres (default, Grafana-style dedicated PG) or mysql/mariadb (existing labs).
+zabbix_database_type: postgres
+zabbix_database_provision: true
+zabbix_postgres_name: zabbix-postgres
+zabbix_postgres_image: registry.redhat.io/rhel9/postgresql-15:latest
+zabbix_postgres_storage_size: 10Gi
+zabbix_postgres_storage_class: ""
+zabbix_postgres_password: ""
+zabbix_postgres_host: ""
+zabbix_postgres_ready_retries: 60
+zabbix_postgres_ready_delay: 5
 zabbix_mariadb_image: registry.redhat.io/rhel9/mariadb-105:latest
-zabbix_server_image: zabbix/zabbix-server-mysql:ubuntu-7.0-latest
-zabbix_web_image: zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest
+zabbix_server_pgsql_image: zabbix/zabbix-server-pgsql:ubuntu-7.0-latest
+zabbix_web_pgsql_image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest
+zabbix_server_mysql_image: zabbix/zabbix-server-mysql:ubuntu-7.0-latest
+zabbix_web_mysql_image: zabbix/zabbix-web-nginx-mysql:ubuntu-7.0-latest
+zabbix_server_image: zabbix/zabbix-server-pgsql:ubuntu-7.0-latest
+zabbix_web_image: zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest
 zabbix_db_user: zabbix
 zabbix_db_name: zabbix
 zabbix_db_root_password: rootpass123!

@@ -62,6 +62,10 @@
         operator_source_namespace: openshift-marketplace
         operator_csv_contains: grafana-operator
         operator_name_substring: grafana-operator
+        name_space: grafana
+        operator_namespace: grafana
+        operator_subscription_namespace: grafana
+        all_namespaces_install: false
     - name: ADO | Install operator/instance only (OIDC/email are separate optional JTs)
       ansible.builtin.set_fact:
         grafana_install_scope: install

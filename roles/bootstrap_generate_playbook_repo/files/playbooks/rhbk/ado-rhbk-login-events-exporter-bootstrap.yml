@@ -1,0 +1,36 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | Keycloak login events exporter
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: rhbk
+    keycloak_login_events_exporter_enabled: true
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
+  environment:
+    K8S_AUTH_HOST: "{{ host | default(api_host) }}"
+    K8S_AUTH_API_KEY: "{{ token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ (verify_ssl | bool) | ternary('yes', 'no') }}"
+  pre_tasks:
+    - name: ADO | RHBK API pre_tasks
+      ansible.builtin.import_tasks: ado-rhbk-api-pre_tasks.yml
+    - name: ADO | Resolve Keycloak URL from RHBK hostname
+      ansible.builtin.set_fact:
+        rhbk_url: >-
+          {{
+            rhbk_url
+            | default(
+                'https://'
+                ~ (
+                  rhbk_hostname
+                  | default(ocp_rhbk_hostname | default(rhbk_host | default('')), true)
+                ),
+                true
+              )
+            | regex_replace('/$', '')
+          }}
+  roles:
+    - role: infra.ado.keycloak_login_events_exporter

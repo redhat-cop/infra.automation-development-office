@@ -1,6 +1,6 @@
 ---
-# Build lab VM (DataSource + Multus/cloud-init), then create via validated
-# infra.openshift_virtualization_ops.vm_provision.
+# Build the VirtualMachine spec (DataSource + Multus/cloud-init) and apply it
+# with kubernetes.core.k8s when that VM is not already in the namespace.
 
 - name: Ensure required variables are defined
   ansible.builtin.assert:
@@ -35,25 +35,17 @@
           {{
             (
               multus_nad_config
-              | default(
-                  '{'
-                  ~ '"cniVersion":"0.3.1",'
-                  ~ '"name":"br-ex-network",'
-                  ~ '"type":"ovn-k8s-cni-overlay",'
-                  ~ '"topology":"localnet",'
-                  ~ '"netAttachDefName":"'
-                  ~ vm_namespace
-                  ~ '/br-ex-network"}'
-                )
-            )
-            if (
-              (
-                multus_nad_config
-                | default('')
-              ) is string
-            )
-            else (
-              multus_nad_config | to_json
+              if (multus_nad_config | default('') | length) > 0
+              else (
+                '{'
+                ~ '"cniVersion":"0.3.1",'
+                ~ '"name":"br-ex-network",'
+                ~ '"type":"ovn-k8s-cni-overlay",'
+                ~ '"topology":"localnet",'
+                ~ '"netAttachDefName":"'
+                ~ vm_namespace
+                ~ '/br-ex-network"}'
+              )
             )
           }}
   when: (network_mode | default('masquerade') | lower) in ['bridge', 'multus']
@@ -295,9 +287,19 @@
     ocp_virtualization_vm_provision_request:
       - "{{ ocp_virtualization_vm_definition }}"
 
-- name: Provision VirtualMachine via infra.openshift_virtualization_ops.vm_provision
-  ansible.builtin.include_role:
-    name: infra.openshift_virtualization_ops.vm_provision
+- name: Check whether VirtualMachine already exists
+  kubernetes.core.k8s_info:
+    api_version: kubevirt.io/v1
+    kind: VirtualMachine
+    name: "{{ vm_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: ocp_virtualization_existing_vm
+
+- name: Create VirtualMachine when it does not exist
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ ocp_virtualization_vm_definition }}"
+  when: (ocp_virtualization_existing_vm.resources | default([]) | length) == 0
 
 - name: Short status check (does not wait for full disk clone)
   kubernetes.core.k8s_info:
@@ -314,8 +316,7 @@
 - name: Report VM status (clone may still be importing in background)
   ansible.builtin.debug:
     msg: >-
-      Created VM {{ vm_name }} in {{ vm_namespace }} via
-      infra.openshift_virtualization_ops.vm_provision
+      Created VM {{ vm_name }} in {{ vm_namespace }}
       (status={{ ocp_virtualization_vm_status.resources[0].status.printableStatus | default('Pending') }}).
       Root disk DataVolume {{ vm_name }}-rootdisk is populated from DataSource
       {{ source_name }} asynchronously — Contoller job no longer blocks on the clone.

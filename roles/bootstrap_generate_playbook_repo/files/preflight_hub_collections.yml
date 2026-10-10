@@ -3,8 +3,10 @@
 # Controller project collections/requirements.yml (Hub source-of-truth mode).
 #
 # hub_publish: considered when bootstrap_controller_hub_publish_preflight_collections
-# is true. Upload is skipped when the version already exists in validated unless
-# force_when_exists is true (infra.ado also respects hub_force_ado_collection_update).
+# is true. Upload is skipped when the version already exists in validated,
+# published, rh-certified, or pulp. The reserved ``redhat`` namespace is never
+# created or overwritten. force_when_exists is true only for infra.ado
+# (hub_force_ado_collection_update).
 #
 # controller_requirements: listed in git collections/requirements.yml when Hub is
 # the Controller collection source (no vendored trees in git).
@@ -61,6 +63,14 @@ collections:
     name: community.general
     namespace: community
     collection: general
+    controller_requirements: true
+    hub_publish: true
+    force_when_exists: false
+
+  - tarball_glob: community-crypto-*.tar.gz
+    name: community.crypto
+    namespace: community
+    collection: crypto
     controller_requirements: true
     hub_publish: true
     force_when_exists: false

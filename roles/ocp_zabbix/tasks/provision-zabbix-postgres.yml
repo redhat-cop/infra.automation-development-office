@@ -1,0 +1,293 @@
+---
+# yamllint disable rule:line-length
+# Dedicated in-cluster PostgreSQL for Zabbix (Grafana-style RHEL image).
+# Password is stored in Secret zabbix-postgres and reused on reruns.
+
+- name: Zabbix Postgres | Resolve names and storage
+  ansible.builtin.set_fact:
+    ocp_zabbix_pg_resource_name: >-
+      {{
+        zabbix_postgres_name
+        | default('zabbix-postgres')
+      }}
+    ocp_zabbix_pg_db_name: "{{ zabbix_db_name | default('zabbix') }}"
+    ocp_zabbix_pg_db_user: "{{ zabbix_db_user | default('zabbix') }}"
+    ocp_zabbix_pg_image_ref: >-
+      {{
+        zabbix_postgres_image
+        | default('registry.redhat.io/rhel9/postgresql-15:latest')
+      }}
+    ocp_zabbix_pg_pvc_size: >-
+      {{
+        zabbix_postgres_storage_size
+        | default(zabbix_storage_size | default('10Gi'))
+      }}
+    ocp_zabbix_pg_pvc_class: >-
+      {{
+        zabbix_postgres_storage_class
+        | default(storage_class | default(storage | default('')), true)
+      }}
+  changed_when: false
+
+- name: Zabbix Postgres | Require storage class when provisioning
+  ansible.builtin.assert:
+    that:
+      - (ocp_zabbix_pg_pvc_class | string | trim | length) > 0
+    fail_msg: >-
+      zabbix_postgres_storage_class (or storage_class / storage) is required
+      when zabbix_database_type=postgres and zabbix_database_provision=true.
+
+- name: Zabbix Postgres | Lookup existing password Secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ ocp_zabbix_pg_resource_name }}"
+    namespace: "{{ name_space }}"
+  register: ocp_zabbix_pg_secret_info
+  failed_when: false
+  no_log: true
+
+- name: Zabbix Postgres | Reuse password from existing Secret
+  ansible.builtin.set_fact:
+    ocp_zabbix_pg_password: >-
+      {{
+        ocp_zabbix_pg_secret_info.resources[0].data['POSTGRESQL_PASSWORD']
+        | b64decode
+      }}
+  when:
+    - (ocp_zabbix_pg_secret_info.resources | default([]) | length) > 0
+    - >-
+      (
+        ocp_zabbix_pg_secret_info.resources[0].data['POSTGRESQL_PASSWORD']
+        | default('')
+        | string
+        | length
+      ) > 0
+  no_log: true
+  changed_when: false
+
+- name: Zabbix Postgres | Use password from vars when Secret missing
+  ansible.builtin.set_fact:
+    ocp_zabbix_pg_password: "{{ zabbix_postgres_password | default(zabbix_db_password | default('')) }}"
+  when:
+    - ocp_zabbix_pg_password is not defined
+      or (ocp_zabbix_pg_password | default('') | string | length) == 0
+    - >-
+      (
+        zabbix_postgres_password
+        | default(zabbix_db_password)
+        | default('')
+        | string
+        | length
+      ) > 0
+  no_log: true
+  changed_when: false
+
+- name: Zabbix Postgres | Generate password when none provided
+  ansible.builtin.set_fact:
+    ocp_zabbix_pg_password: >-
+      {{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}
+  when: >-
+    ocp_zabbix_pg_password is not defined
+    or (ocp_zabbix_pg_password | default('') | string | length) == 0
+  no_log: true
+  changed_when: false
+
+- name: Zabbix Postgres | Create password Secret
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ ocp_zabbix_pg_resource_name }}"
+          app.kubernetes.io/name: zabbix-postgres
+          app.kubernetes.io/part-of: zabbix
+      type: Opaque
+      stringData:
+        POSTGRESQL_USER: "{{ ocp_zabbix_pg_db_user }}"
+        POSTGRESQL_PASSWORD: "{{ ocp_zabbix_pg_password }}"
+        POSTGRESQL_DATABASE: "{{ ocp_zabbix_pg_db_name }}"
+  no_log: true
+
+- name: Zabbix Postgres | Allow default SA anyuid SCC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: "{{ ocp_zabbix_pg_resource_name }}-anyuid"
+        namespace: "{{ name_space }}"
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:openshift:scc:anyuid
+      subjects:
+        - kind: ServiceAccount
+          name: default
+          namespace: "{{ name_space }}"
+
+- name: Zabbix Postgres | Create PVC
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ ocp_zabbix_pg_resource_name }}"
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: "{{ ocp_zabbix_pg_pvc_class }}"
+        resources:
+          requests:
+            storage: "{{ ocp_zabbix_pg_pvc_size }}"
+
+- name: Zabbix Postgres | Create Deployment
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ ocp_zabbix_pg_resource_name }}"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ ocp_zabbix_pg_resource_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ ocp_zabbix_pg_resource_name }}"
+          spec:
+            securityContext:
+              fsGroup: 26
+              fsGroupChangePolicy: OnRootMismatch
+            initContainers:
+              - name: fix-data-perms
+                image: "{{ ocp_zabbix_pg_image_ref }}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - |
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    chown -R 26:26 "$DATADIR" 2>/dev/null || true
+                    chmod -R ugo+rwX "$DATADIR" 2>/dev/null || true
+                securityContext:
+                  runAsUser: 0
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data/userdata
+            containers:
+              - name: postgres
+                image: "{{ ocp_zabbix_pg_image_ref }}"
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    set -e
+                    DATADIR=/var/lib/pgsql/data/userdata
+                    mkdir -p "$DATADIR"
+                    if [ ! -f "$DATADIR/PG_VERSION" ]; then
+                      find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                    fi
+                    for f in /usr/share/container-scripts/postgresql/*.sh \
+                             /usr/bin/run-postgresql \
+                             /usr/libexec/s2i/run; do
+                      [ -e "$f" ] || continue
+                      sed -i \
+                        -e 's/\bchmod\b/true #chmod/g' \
+                        -e 's/\bchown\b/true #chown/g' \
+                        "$f" 2>/dev/null || true
+                    done
+                    if [ -x /usr/bin/run-postgresql ]; then
+                      exec /usr/bin/run-postgresql
+                    fi
+                    exec /usr/libexec/s2i/run
+                ports:
+                  - containerPort: 5432
+                    name: postgres
+                env:
+                  - name: POSTGRESQL_USER
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ ocp_zabbix_pg_resource_name }}"
+                        key: POSTGRESQL_USER
+                  - name: POSTGRESQL_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ ocp_zabbix_pg_resource_name }}"
+                        key: POSTGRESQL_PASSWORD
+                  - name: POSTGRESQL_DATABASE
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ ocp_zabbix_pg_resource_name }}"
+                        key: POSTGRESQL_DATABASE
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/pgsql/data/userdata
+                readinessProbe:
+                  exec:
+                    command:
+                      - /bin/sh
+                      - -ec
+                      - pg_isready -U "$POSTGRESQL_USER" -d "$POSTGRESQL_DATABASE"
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                securityContext:
+                  runAsUser: 26
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: "{{ ocp_zabbix_pg_resource_name }}"
+
+- name: Zabbix Postgres | Create Service
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        labels:
+          app: "{{ ocp_zabbix_pg_resource_name }}"
+      spec:
+        selector:
+          app: "{{ ocp_zabbix_pg_resource_name }}"
+        ports:
+          - name: postgres
+            port: 5432
+            targetPort: 5432
+
+- name: Zabbix Postgres | Wait until Deployment is available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ ocp_zabbix_pg_resource_name }}"
+    namespace: "{{ name_space }}"
+  register: ocp_zabbix_pg_deploy
+  until: >-
+    (ocp_zabbix_pg_deploy.resources | default([]) | length) > 0
+    and (
+      ocp_zabbix_pg_deploy.resources[0].status.availableReplicas
+      | default(0)
+      | int
+    ) >= 1
+  retries: "{{ zabbix_postgres_ready_retries | default(60) | int }}"
+  delay: "{{ zabbix_postgres_ready_delay | default(5) | int }}"
+  changed_when: false

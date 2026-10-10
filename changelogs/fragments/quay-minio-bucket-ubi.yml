@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    ocp_quay - Create the Quay MinIO bucket with
+    ``registry.redhat.io/ubi9/python-311`` instead of
+    ``quay.io/minio/mc:latest``, which disconnected clusters cannot pull.
+    Credentials stay in a Secret so a failed wait no longer dumps the Job
+    spec (and MinIO password) into playbook output.
