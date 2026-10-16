@@ -1,0 +1,160 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_metallb_install/tasks/main.yml
+#
+# Install the MetalLB Operator, create the MetalLB instance, and
+# configure address pools and advertisements.
+
+# ── Operator install ─────────────────────────────────────────────────
+
+- name: MetalLB | Install MetalLB Operator
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_operator_subscription
+  vars:
+    name_space: "{{ ocp_metallb_namespace }}"
+    operator_subscription_namespace: "{{ ocp_metallb_namespace }}"
+    operatorgroup: metallb-operator
+    operator_name: "{{ ocp_metallb_operator_name }}"
+    operator_channel: "{{ ocp_metallb_operator_channel }}"
+    operator_source: "{{ ocp_metallb_operator_source }}"
+    operator_source_namespace: "{{ ocp_metallb_operator_source_namespace }}"
+    all_namespaces_install: false
+    state: present
+
+- name: MetalLB | Wait for operator readiness
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_wait_operator
+  vars:
+    name_space: "{{ ocp_metallb_namespace }}"
+    operator_namespace: "{{ ocp_metallb_namespace }}"
+    operator_name: "{{ ocp_metallb_operator_name }}"
+    operator_deployment_pattern: metallb
+    state: present
+
+# ── MetalLB instance ─────────────────────────────────────────────────
+
+- name: MetalLB | Create MetalLB instance
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: MetalLB
+      metadata:
+        name: "{{ ocp_metallb_instance_name }}"
+        namespace: "{{ ocp_metallb_namespace }}"
+
+- name: MetalLB | Wait for MetalLB ready
+  kubernetes.core.k8s_info:
+    api_version: metallb.io/v1beta1
+    kind: MetalLB
+    name: "{{ ocp_metallb_instance_name }}"
+    namespace: "{{ ocp_metallb_namespace }}"
+  register: ocp_metallb_instance
+  until: >-
+    (ocp_metallb_instance.resources | default([]) | length) > 0
+    and (
+      ocp_metallb_instance.resources[0].status.conditions
+      | default([])
+      | selectattr('type', 'defined')
+      | selectattr('type', 'equalto', 'Available')
+      | selectattr('status', 'defined')
+      | selectattr('status', 'equalto', 'True')
+      | list | length
+    ) > 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: MetalLB | Instance ready
+  ansible.builtin.debug:
+    msg: >-
+      MetalLB instance '{{ ocp_metallb_instance_name }}' is Available
+      in namespace {{ ocp_metallb_namespace }}.
+
+# ── IPAddressPools ───────────────────────────────────────────────────
+
+- name: MetalLB | Create IPAddressPools
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: IPAddressPool
+      metadata:
+        name: "{{ pool.name }}"
+        namespace: "{{ ocp_metallb_namespace }}"
+      spec:
+        addresses: "{{ pool.addresses }}"
+        autoAssign: "{{ pool.auto_assign | default(true) | bool }}"
+  loop: "{{ ocp_metallb_config.address_pools | default([]) }}"
+  loop_control:
+    loop_var: pool
+    label: "{{ pool.name }}"
+
+# ── L2 Advertisements ───────────────────────────────────────────────
+
+- name: MetalLB | Create L2Advertisements
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: L2Advertisement
+      metadata:
+        name: "{{ advert.name }}"
+        namespace: "{{ ocp_metallb_namespace }}"
+      spec:
+        ipAddressPools: "{{ advert.ip_address_pools | default([]) }}"
+        nodeSelectors: "{{ advert.node_selectors | default(omit) }}"
+        interfaces: "{{ advert.interfaces | default(omit) }}"
+  loop: "{{ ocp_metallb_config.l2_advertisements | default([]) }}"
+  loop_control:
+    loop_var: advert
+    label: "{{ advert.name }}"
+
+# ── BGP Peers ────────────────────────────────────────────────────────
+
+- name: MetalLB | Create BGPPeers
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta2
+      kind: BGPPeer
+      metadata:
+        name: "{{ peer.name }}"
+        namespace: "{{ ocp_metallb_namespace }}"
+      spec:
+        myASN: "{{ peer.my_asn }}"
+        peerASN: "{{ peer.peer_asn }}"
+        peerAddress: "{{ peer.peer_address }}"
+        password: "{{ peer.password | default(omit) }}"
+  loop: "{{ ocp_metallb_config.bgp_peers | default([]) }}"
+  loop_control:
+    loop_var: peer
+    label: "{{ peer.name }}"
+  when: ocp_metallb_config.bgp_peers | default([]) | length > 0
+
+# ── BGP Advertisements ───────────────────────────────────────────────
+
+- name: MetalLB | Create BGPAdvertisements
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: metallb.io/v1beta1
+      kind: BGPAdvertisement
+      metadata:
+        name: "{{ advert.name }}"
+        namespace: "{{ ocp_metallb_namespace }}"
+      spec:
+        ipAddressPools: "{{ advert.ip_address_pools | default([]) }}"
+        communities: "{{ advert.communities | default(omit) }}"
+        aggregationLength: "{{ advert.aggregation_length | default(omit) }}"
+  loop: "{{ ocp_metallb_config.bgp_advertisements | default([]) }}"
+  loop_control:
+    loop_var: advert
+    label: "{{ advert.name }}"
+  when: ocp_metallb_config.bgp_advertisements | default([]) | length > 0
+
+- name: MetalLB | Configuration complete
+  ansible.builtin.debug:
+    msg: >-
+      MetalLB configured. Address pools:
+      {{ ocp_metallb_config.address_pools | default([]) | map(attribute='name') | list }}.

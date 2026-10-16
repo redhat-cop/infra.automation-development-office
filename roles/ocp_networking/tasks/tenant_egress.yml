@@ -1,0 +1,24 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/tenant_egress.yml
+#
+# Apply egress resources for a single tenant.
+# Called in a loop from main.yml with loop_var: tenant.
+
+- name: "Tenant {{ tenant.tenant_name }} | Apply EgressIP"
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_egress
+  vars:
+    ocp_egress_resources:
+      - kind: EgressIP
+        name: "{{ tenant.tenant_name }}-egressip"
+        spec:
+          egressIPs: "{{ tenant.connectivity.egress_ip.addresses }}"
+          namespaceSelector:
+            matchLabels: "{{ tenant.connectivity.egress_ip.namespace_selector | default({'tenant': tenant.tenant_name}) }}"
+  when:
+    - tenant.connectivity is defined
+    - tenant.connectivity.egress_ip is defined
+    - tenant.connectivity.egress_ip.enabled | default(false) | bool
+    - tenant.connectivity.egress_ip.addresses is defined
+    - tenant.connectivity.egress_ip.addresses | length > 0

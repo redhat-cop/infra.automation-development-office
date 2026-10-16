@@ -88,11 +88,14 @@
 
 - name: Create or delete namespace
   kubernetes.core.k8s:
-    api_version: v1
-    kind: Namespace
-    name: "{{ ocp_namespace_effective }}"
     state: "{{ state | default('present') }}"
     validate_certs: "{{ validate_certs | default(omit) }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ ocp_namespace_effective }}"
+        labels: "{{ ocp_namespace_labels | default({}) }}"
     # Short wait on delete: ACM conversion errors can leave NS Terminating forever.
     wait: "{{ (state | default('present')) == 'absent' }}"
     wait_timeout: "{{ ocp_namespace_delete_wait_timeout | default(45) | int }}"

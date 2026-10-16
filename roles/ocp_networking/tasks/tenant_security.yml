@@ -1,0 +1,312 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/tenant_security.yml
+#
+# Apply namespace-scoped security policies for a single tenant.
+# Called in a loop from main.yml with loop_var: tenant.
+#
+# Note: tenant data comes from the raw preflight config (nested security
+# objects), not from generateAnsibleVars (which flattens them).
+
+- name: "Tenant {{ tenant.tenant_name }} | Build security policy list"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: []
+  changed_when: false
+
+# ── NetworkPolicy ────────────────────────────────────────────────────
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate default-deny NetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': 'NetworkPolicy',
+           'apiVersion': 'networking.k8s.io/v1',
+           'name': tenant.tenant_name ~ '-default-deny',
+           'namespace': ns.name,
+           'spec': {
+             'podSelector': {},
+             'policyTypes': (['Ingress'] if tenant.security.network_policy.template == 'default-deny-ingress'
+                             else ['Ingress', 'Egress'])
+           }
+         }] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.network_policy is defined
+    - tenant.security.network_policy.enabled | default(false) | bool
+    - tenant.security.network_policy.template | default('') in ['default-deny-ingress', 'default-deny-all']
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate allow-within-tenant NetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': 'NetworkPolicy',
+           'apiVersion': 'networking.k8s.io/v1',
+           'name': tenant.tenant_name ~ '-allow-tenant',
+           'namespace': ns.name,
+           'spec': {
+             'podSelector': {},
+             'policyTypes': ['Ingress'],
+             'ingress': [{
+               'from': (tenant.namespaces | default([]) | map(attribute='name')
+                        | map('regex_replace', '^(.*)$', '{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "\\1"}}}')
+                        | map('from_json') | list)
+             }]
+           }
+         }] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.network_policy is defined
+    - tenant.security.network_policy.enabled | default(false) | bool
+    - tenant.security.network_policy.template | default('') == 'allow-within-tenant'
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate allow-from-namespaces NetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [
+           {
+             'kind': 'NetworkPolicy',
+             'apiVersion': 'networking.k8s.io/v1',
+             'name': tenant.tenant_name ~ '-default-deny',
+             'namespace': ns.name,
+             'spec': {
+               'podSelector': {},
+               'policyTypes': ['Ingress']
+             }
+           },
+           {
+             'kind': 'NetworkPolicy',
+             'apiVersion': 'networking.k8s.io/v1',
+             'name': tenant.tenant_name ~ '-allow-from-ns',
+             'namespace': ns.name,
+             'spec': {
+               'podSelector': {},
+               'policyTypes': ['Ingress'],
+               'ingress': [{
+                 'from': [{'namespaceSelector': {'matchLabels': (tenant.security.network_policy.allowed_namespace_selector | default({}))}}]
+               }]
+             }
+           }
+         ] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.network_policy is defined
+    - tenant.security.network_policy.enabled | default(false) | bool
+    - tenant.security.network_policy.template | default('') == 'allow-from-namespaces'
+    - tenant.security.network_policy.allowed_namespace_selector | default({}) | length > 0
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Build custom NetworkPolicy for {{ ns.name }}"
+  ansible.builtin.include_tasks: build_custom_np.yml
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  vars:
+    _custom_np_rules: "{{ tenant.security.network_policy.custom_rules }}"
+    _custom_np_kind: NetworkPolicy
+    _custom_np_api: networking.k8s.io/v1
+    _custom_np_name: "{{ tenant.tenant_name }}-custom"
+    _custom_np_ns: "{{ ns.name }}"
+    _custom_np_annot: {}
+    _custom_np_pod_sel: "{{ tenant.security.network_policy.pod_selector | default({}) }}"
+  when:
+    - tenant.security.network_policy is defined
+    - tenant.security.network_policy.enabled | default(false) | bool
+    - tenant.security.network_policy.template | default('') == 'custom'
+    - tenant.security.network_policy.custom_rules is defined
+    - tenant.security.network_policy.custom_rules | length > 0
+
+# ── MultiNetworkPolicy ───────────────────────────────────────────────
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate default-deny MultiNetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': 'MultiNetworkPolicy',
+           'apiVersion': 'k8s.cni.cncf.io/v1beta1',
+           'name': tenant.tenant_name ~ '-mnp-default-deny',
+           'namespace': ns.name,
+           'annotations': {
+             'k8s.v1.cni.cncf.io/policy-for': ns.name ~ '/' ~ ((tenant.networks | default([]) | first | default({})).name | default(''))
+           },
+           'spec': {
+             'podSelector': {},
+             'policyTypes': (['Ingress'] if tenant.security.multi_network_policy.template == 'default-deny-ingress'
+                             else ['Ingress', 'Egress'])
+           }
+         }] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.multi_network_policy is defined
+    - tenant.security.multi_network_policy.enabled | default(false) | bool
+    - tenant.security.multi_network_policy.template | default('') in ['default-deny-ingress', 'default-deny-all']
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate allow-within-tenant MultiNetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': 'MultiNetworkPolicy',
+           'apiVersion': 'k8s.cni.cncf.io/v1beta1',
+           'name': tenant.tenant_name ~ '-mnp-allow-tenant',
+           'namespace': ns.name,
+           'annotations': {
+             'k8s.v1.cni.cncf.io/policy-for': ns.name ~ '/' ~ ((tenant.networks | default([]) | first | default({})).name | default(''))
+           },
+           'spec': {
+             'podSelector': {},
+             'policyTypes': ['Ingress'],
+             'ingress': [{
+               'from': (tenant.namespaces | default([]) | map(attribute='name')
+                        | map('regex_replace', '^(.*)$', '{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "\\1"}}}')
+                        | map('from_json') | list)
+             }]
+           }
+         }] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.multi_network_policy is defined
+    - tenant.security.multi_network_policy.enabled | default(false) | bool
+    - tenant.security.multi_network_policy.template | default('') == 'allow-same-tenant'
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate allow-from-namespaces MultiNetworkPolicy"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [
+           {
+             'kind': 'MultiNetworkPolicy',
+             'apiVersion': 'k8s.cni.cncf.io/v1beta1',
+             'name': tenant.tenant_name ~ '-mnp-default-deny',
+             'namespace': ns.name,
+             'annotations': {
+               'k8s.v1.cni.cncf.io/policy-for': ns.name ~ '/' ~ ((tenant.networks | default([]) | first | default({})).name | default(''))
+             },
+             'spec': {
+               'podSelector': {},
+               'policyTypes': ['Ingress']
+             }
+           },
+           {
+             'kind': 'MultiNetworkPolicy',
+             'apiVersion': 'k8s.cni.cncf.io/v1beta1',
+             'name': tenant.tenant_name ~ '-mnp-allow-from-ns',
+             'namespace': ns.name,
+             'annotations': {
+               'k8s.v1.cni.cncf.io/policy-for': ns.name ~ '/' ~ ((tenant.networks | default([]) | first | default({})).name | default(''))
+             },
+             'spec': {
+               'podSelector': {},
+               'policyTypes': ['Ingress'],
+               'ingress': [{
+                 'from': [{'namespaceSelector': {'matchLabels': (tenant.security.multi_network_policy.allowed_namespace_selector | default({}))}}]
+               }]
+             }
+           }
+         ] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  when:
+    - tenant.security.multi_network_policy is defined
+    - tenant.security.multi_network_policy.enabled | default(false) | bool
+    - tenant.security.multi_network_policy.template | default('') == 'allow-from-namespaces'
+    - tenant.security.multi_network_policy.allowed_namespace_selector | default({}) | length > 0
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Build custom MultiNetworkPolicy for {{ ns.name }}"
+  ansible.builtin.include_tasks: build_custom_np.yml
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  vars:
+    _custom_np_rules: "{{ tenant.security.multi_network_policy.custom_rules }}"
+    _custom_np_kind: MultiNetworkPolicy
+    _custom_np_api: k8s.cni.cncf.io/v1beta1
+    _custom_np_name: "{{ tenant.tenant_name }}-mnp-custom"
+    _custom_np_ns: "{{ ns.name }}"
+    _custom_np_annot:
+      k8s.v1.cni.cncf.io/policy-for: "{{ ns.name }}/{{ (tenant.networks | default([]) | first | default({})).name | default('') }}"
+    _custom_np_pod_sel: "{{ tenant.security.multi_network_policy.pod_selector | default({}) }}"
+  when:
+    - tenant.security.multi_network_policy is defined
+    - tenant.security.multi_network_policy.enabled | default(false) | bool
+    - tenant.security.multi_network_policy.template | default('') == 'custom'
+    - tenant.security.multi_network_policy.custom_rules is defined
+    - tenant.security.multi_network_policy.custom_rules | length > 0
+
+# ── EgressFirewall ───────────────────────────────────────────────────
+
+- name: "Tenant {{ tenant.tenant_name }} | Generate EgressFirewall"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': 'EgressFirewall',
+           'apiVersion': 'k8s.ovn.org/v1',
+           'name': 'default',
+           'namespace': ns.name,
+           'spec': {
+             'egress': _ef_rules
+           }
+         }] }}
+  loop: "{{ tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns.name }}"
+  vars:
+    _ef_rules: >-
+      {% set result = [] -%}
+      {% for rule in (tenant.security.egress_firewall.rules | default([])) -%}
+        {% set entry = {'type': rule.type | default('Allow')} -%}
+        {% if rule.to_type | default('cidr') == 'dns' -%}
+          {% set entry = entry | combine({'to': {'dnsName': rule.dns_name | default('')}}) -%}
+        {% else -%}
+          {% set entry = entry | combine({'to': {'cidrSelector': rule.cidr_selector | default('')}}) -%}
+        {% endif -%}
+        {% set ports = [] -%}
+        {% for p in (rule.ports | default([])) -%}
+          {% if p.port | default('') | string | length > 0 -%}
+            {% set port_val = (p.port | int) if (p.port | string | regex_search('^[0-9]+$')) else p.port -%}
+            {% set _ = ports.append({'protocol': p.protocol | default('TCP'), 'port': port_val}) -%}
+          {% endif -%}
+        {% endfor -%}
+        {% if ports | length > 0 -%}
+          {% set entry = entry | combine({'ports': ports}) -%}
+        {% endif -%}
+        {% set _ = result.append(entry) -%}
+      {% endfor -%}
+      {{ result }}
+  when:
+    - tenant.security.egress_firewall is defined
+    - tenant.security.egress_firewall.enabled | default(false) | bool
+    - tenant.security.egress_firewall.rules is defined
+    - tenant.security.egress_firewall.rules | length > 0
+  changed_when: false
+
+# ── Apply all collected policies ─────────────────────────────────────
+
+- name: "Tenant {{ tenant.tenant_name }} | Apply security policies"
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_network_policy
+  vars:
+    ocp_network_policy_resources: "{{ ocp_networking_tenant_security_resources }}"
+  when: ocp_networking_tenant_security_resources | length > 0

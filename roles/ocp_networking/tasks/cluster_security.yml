@@ -1,0 +1,34 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/cluster_security.yml
+#
+# Apply cluster-scoped security policies:
+#   - AdminNetworkPolicy (cluster-admin precedence rules)
+#   - BaselineAdminNetworkPolicy (default baseline)
+
+- name: Cluster Security | Apply AdminNetworkPolicy resources
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_network_policy
+  vars:
+    ocp_network_policy_resources: >-
+      {{ ocp_networking_cluster_security.admin_network_policies | default([])
+         | map('combine', {'kind': 'AdminNetworkPolicy',
+                           'apiVersion': 'policy.networking.k8s.io/v1alpha1'})
+         | list }}
+  when:
+    - ocp_networking_cluster_security.admin_network_policies is defined
+    - ocp_networking_cluster_security.admin_network_policies | length > 0
+
+- name: Cluster Security | Apply BaselineAdminNetworkPolicy
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_network_policy
+  vars:
+    ocp_network_policy_resources:
+      - kind: BaselineAdminNetworkPolicy
+        apiVersion: policy.networking.k8s.io/v1alpha1
+        name: "{{ ocp_networking_cluster_security.baseline_admin_network_policy.name }}"
+        spec: "{{ ocp_networking_cluster_security.baseline_admin_network_policy.spec }}"
+  when:
+    - ocp_networking_cluster_security.baseline_admin_network_policy is defined
+    - ocp_networking_cluster_security.baseline_admin_network_policy is not none
+    - ocp_networking_cluster_security.baseline_admin_network_policy.name is defined

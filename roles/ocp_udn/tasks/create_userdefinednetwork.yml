@@ -1,0 +1,41 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_udn/tasks/create_userdefinednetwork.yml
+#
+# Create a namespace-scoped UserDefinedNetwork in each target namespace.
+
+- name: "UDN {{ udn_net.name }} | Build Layer2 spec"
+  ansible.builtin.set_fact:
+    ocp_udn_full_spec:
+      topology: Layer2
+      layer2:
+        role: "{{ udn_net.role | default('Secondary') }}"
+        subnets: "{{ udn_net.subnets | default([]) | map(attribute='cidr') | list }}"
+        ipamLifecycle: "{{ udn_net.ipam.lifecycle | default('Persistent') }}"
+  when: (udn_net.topology | default('Layer2')) == 'Layer2'
+  changed_when: false
+
+- name: "UDN {{ udn_net.name }} | Build Layer3 spec"
+  ansible.builtin.set_fact:
+    ocp_udn_full_spec:
+      topology: Layer3
+      layer3:
+        role: "{{ udn_net.role | default('Secondary') }}"
+        subnets: "{{ udn_net.subnets | default([]) }}"
+  when: (udn_net.topology | default('Layer2')) == 'Layer3'
+  changed_when: false
+
+- name: "UDN {{ udn_net.name }} | Create UserDefinedNetwork"
+  kubernetes.core.k8s:
+    state: "{{ ocp_udn_state }}"
+    definition:
+      apiVersion: k8s.ovn.org/v1
+      kind: UserDefinedNetwork
+      metadata:
+        name: "{{ udn_net.name }}"
+        namespace: "{{ ns }}"
+      spec: "{{ ocp_udn_full_spec }}"
+  loop: "{{ udn_net.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns }}/{{ udn_net.name }}"

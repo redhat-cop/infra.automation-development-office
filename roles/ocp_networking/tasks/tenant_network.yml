@@ -1,0 +1,50 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/tenant_network.yml
+#
+# Process all network definitions for a single tenant.
+# Called in a loop from main.yml with loop_var: tenant.
+
+- name: "Tenant {{ tenant.tenant_name }} | Build network list"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_networks: "{{ tenant.networks | default([]) }}"
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Resolve physical network references"
+  ansible.builtin.set_fact:
+    ocp_networking_resolved_networks: >-
+      {{
+        ocp_networking_tenant_networks | map('combine',
+          {'_physical': ocp_networking_physical_networks
+            | selectattr('name', 'equalto', item.physical_network | default(''))
+            | first
+            | default({})
+          }
+        ) | list
+      }}
+  loop: "{{ ocp_networking_tenant_networks }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.physical_network is defined and item.physical_network
+  changed_when: false
+
+- name: "Tenant {{ tenant.tenant_name }} | Create network resources"
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_udn
+  vars:
+    ocp_udn_networks:
+      - name: "{{ net.name }}"
+        scope: "{{ net.scope | default('namespace') }}"
+        resource_type: "{{ net.resource_type | default('UserDefinedNetwork') }}"
+        role: "{{ net.role | default('Secondary') }}"
+        topology: "{{ net.topology | default('Layer2') }}"
+        namespaces: "{{ tenant.namespaces | map(attribute='name') | list }}"
+        namespace_selector: "{{ net.namespace_selector | default({}) }}"
+        subnets: "{{ net.subnets | default([]) }}"
+        ipam: "{{ net.ipam | default({}) }}"
+        physical_network: "{{ net.physical_network | default(omit) }}"
+        join_subnets: "{{ net.join_subnets | default([]) }}"
+  loop: "{{ ocp_networking_tenant_networks }}"
+  loop_control:
+    loop_var: net
+    label: "{{ net.name }}"

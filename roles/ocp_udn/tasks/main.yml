@@ -1,0 +1,16 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_udn/tasks/main.yml
+#
+# Create or delete UserDefinedNetwork / ClusterUserDefinedNetwork /
+# NetworkAttachmentDefinition resources based on ocp_udn_networks list.
+
+- name: UDN | Process network definitions
+  ansible.builtin.include_tasks: "create_{{ udn_net.resource_type | lower | regex_replace('[^a-z]', '_') }}.yml"
+  loop: "{{ ocp_udn_networks }}"
+  loop_control:
+    loop_var: udn_net
+    label: "{{ udn_net.name }} ({{ udn_net.resource_type }})"
+  when:
+    - udn_net.resource_type is defined
+    - udn_net.resource_type in ['UserDefinedNetwork', 'ClusterUserDefinedNetwork', 'NetworkAttachmentDefinition']

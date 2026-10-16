@@ -1,0 +1,41 @@
+---
+doc_changes:
+  - >-
+    ocp_networking - Documented the five-phase execution order, the nested
+    PreFlight tenant schema, the valid ``network_policy`` and
+    ``multi_network_policy`` template values, the ``egress_firewall`` rule
+    shape, and the cluster security schema. Corrected the documented
+    ``ocp_networking_ocp_version`` default (``4.17`` to ``4.18``), replaced the
+    invalid ``template: default-deny`` usage example, and listed the
+    ``create_tenant_namespaces.yml`` and ``build_custom_np.yml`` task files
+    that were missing from the role structure.
+  - >-
+    ocp_udn - Added a resource_type/topology support matrix, documented that
+    Layer2 and Localnet flatten ``subnets`` to CIDR strings while Layer3 is
+    passed through verbatim, and explained the ``ipam.lifecycle`` default and
+    its role in virtual machine live migration.
+  - >-
+    ocp_network_policy - Documented the supported kinds and their resolved API
+    versions, the ``namespace``-based routing between the namespaced and
+    cluster-scoped code paths, and the ``force: true`` replace semantics.
+  - >-
+    ocp_egress - Documented the egress-assignable node label required by
+    EgressIP, first-match rule ordering for EgressFirewall, and the
+    ``tenant`` namespace label the default ``namespaceSelector`` relies on.
+  - >-
+    ocp_nmstate_install - Documented the generated bridge and bond desired
+    state, the interface-naming requirement across selected nodes, and the
+    ``nodenetworkstate``/``nncp``/``nnce`` verification commands.
+  - >-
+    ocp_metallb_install - Documented that ``ocp_metallb_config.enabled`` gates
+    the caller rather than the role itself, that an IPAddressPool without a
+    matching advertisement is unroutable, and the address-range prerequisites.
+  - >-
+    Added ``ocp_egress``, ``ocp_metallb_install``, ``ocp_network_policy``,
+    ``ocp_networking``, ``ocp_nmstate_install``, and ``ocp_udn`` to the
+    collection README role index, where they were missing.
+  - >-
+    Replaced the ``molecule test -s <role>`` instructions in the six
+    networking role READMEs, which referenced scenarios that do not exist, with
+    a note that coverage is still outstanding and requires a live
+    OVN-Kubernetes cluster.

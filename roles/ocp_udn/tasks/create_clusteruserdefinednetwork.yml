@@ -1,0 +1,50 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_udn/tasks/create_clusteruserdefinednetwork.yml
+#
+# Create a cluster-scoped ClusterUserDefinedNetwork with
+# namespaceSelector.
+
+- name: "CUDN {{ udn_net.name }} | Build Layer2 network spec"
+  ansible.builtin.set_fact:
+    ocp_udn_cudn_network_spec:
+      topology: Layer2
+      layer2:
+        role: "{{ udn_net.role | default('Secondary') }}"
+        subnets: "{{ udn_net.subnets | default([]) | map(attribute='cidr') | list }}"
+        ipamLifecycle: "{{ udn_net.ipam.lifecycle | default('Persistent') }}"
+  when: (udn_net.topology | default('Layer2')) == 'Layer2'
+  changed_when: false
+
+- name: "CUDN {{ udn_net.name }} | Build Layer3 network spec"
+  ansible.builtin.set_fact:
+    ocp_udn_cudn_network_spec:
+      topology: Layer3
+      layer3:
+        role: "{{ udn_net.role | default('Secondary') }}"
+        subnets: "{{ udn_net.subnets | default([]) }}"
+  when: (udn_net.topology | default('Layer2')) == 'Layer3'
+  changed_when: false
+
+- name: "CUDN {{ udn_net.name }} | Build Localnet network spec"
+  ansible.builtin.set_fact:
+    ocp_udn_cudn_network_spec:
+      topology: Localnet
+      localnet:
+        role: "{{ udn_net.role | default('Secondary') }}"
+        subnets: "{{ udn_net.subnets | default([]) | map(attribute='cidr') | list }}"
+        physicalNetworkName: "{{ udn_net.physical_network | default('') }}"
+  when: (udn_net.topology | default('Layer2')) == 'Localnet'
+  changed_when: false
+
+- name: "CUDN {{ udn_net.name }} | Create ClusterUserDefinedNetwork"
+  kubernetes.core.k8s:
+    state: "{{ ocp_udn_state }}"
+    definition:
+      apiVersion: k8s.ovn.org/v1
+      kind: ClusterUserDefinedNetwork
+      metadata:
+        name: "{{ udn_net.name }}"
+      spec:
+        namespaceSelector: "{{ udn_net.namespace_selector | default({}) }}"
+        network: "{{ ocp_udn_cudn_network_spec }}"

@@ -1,0 +1,16 @@
+---
+# List of network definitions to create.
+# Each item:
+#   name: network-name
+#   scope: namespace | cluster
+#   resource_type: UserDefinedNetwork | ClusterUserDefinedNetwork | NetworkAttachmentDefinition
+#   role: Primary | Secondary
+#   topology: Layer2 | Layer3 | Localnet
+#   namespaces: [list of target namespaces for namespace-scoped resources]
+#   namespace_selector: {matchLabels: {}}  (for ClusterUserDefinedNetwork)
+#   subnets: [{cidr: "10.0.0.0/24", host_subnet: 0}]
+#   ipam: {lifecycle: Persistent}
+#   physical_network: null | physical network name for Localnet
+#   join_subnets: []  (Layer3 join subnets)
+ocp_udn_networks: []
+ocp_udn_state: present
