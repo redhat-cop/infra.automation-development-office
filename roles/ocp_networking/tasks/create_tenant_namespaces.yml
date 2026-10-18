@@ -10,7 +10,7 @@
 
 - name: "Determine if tenant has Primary networks {{ ns_tenant.tenant_name }}"
   ansible.builtin.set_fact:
-    _ns_tenant_has_primary: >-
+    ocp_networking_ns_tenant_has_primary: >-
       {{ ns_tenant.networks | default([])
          | selectattr('role', 'defined')
          | selectattr('role', 'equalto', 'Primary')
@@ -24,7 +24,7 @@
     name_space: "{{ ns_item.name }}"
     ocp_namespace_labels: >-
       {{ (ns_item.labels | default({}))
-         | combine((_ns_tenant_has_primary | bool)
+         | combine((ocp_networking_ns_tenant_has_primary | bool)
                    | ternary({'k8s.ovn.org/primary-user-defined-network': ''}, {})) }}
     ocp_namespace_state: present
   loop: "{{ ns_tenant.namespaces | default([]) }}"

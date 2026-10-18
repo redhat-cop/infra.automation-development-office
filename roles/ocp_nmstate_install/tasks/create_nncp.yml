@@ -19,7 +19,7 @@
 
 - name: "Build bridge desired state for NNCP {{ physical_net.name }}"
   ansible.builtin.set_fact:
-    ocp_nmstate_nncp_desired_state:
+    ocp_nmstate_install_nncp_desired_state:
       interfaces:
         - name: "{{ physical_net.bridge }}"
           type: linux-bridge
@@ -40,7 +40,7 @@
 
 - name: "Build bond desired state for NNCP {{ physical_net.name }}"
   ansible.builtin.set_fact:
-    ocp_nmstate_nncp_desired_state:
+    ocp_nmstate_install_nncp_desired_state:
       interfaces:
         - name: "{{ physical_net.bridge }}"
           type: linux-bridge
@@ -76,18 +76,18 @@
         name: "{{ physical_net.name }}"
       spec:
         nodeSelector: "{{ physical_net.node_selector | default({'node-role.kubernetes.io/worker': ''}) }}"
-        desiredState: "{{ ocp_nmstate_nncp_desired_state }}"
+        desiredState: "{{ ocp_nmstate_install_nncp_desired_state }}"
 
 - name: "Wait for NNCP Available {{ physical_net.name }}"
   kubernetes.core.k8s_info:
     api_version: nmstate.io/v1
     kind: NodeNetworkConfigurationPolicy
     name: "{{ physical_net.name }}"
-  register: ocp_nmstate_nncp_status
+  register: ocp_nmstate_install_nncp_status
   until: >-
-    (ocp_nmstate_nncp_status.resources | default([]) | length) > 0
+    (ocp_nmstate_install_nncp_status.resources | default([]) | length) > 0
     and (
-      ocp_nmstate_nncp_status.resources[0].status.conditions
+      ocp_nmstate_install_nncp_status.resources[0].status.conditions
       | default([])
       | selectattr('type', 'defined')
       | selectattr('type', 'equalto', 'Available')
