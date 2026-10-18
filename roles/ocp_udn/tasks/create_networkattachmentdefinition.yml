@@ -1,0 +1,50 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_udn/tasks/create_networkattachmentdefinition.yml
+#
+# Create NetworkAttachmentDefinition resources in target namespaces.
+# Used for secondary networks that require a NAD (bridge, localnet,
+# SR-IOV, etc.) rather than a UDN/CUDN.
+
+- name: "NAD {{ udn_net.name }} | Build NAD config for Localnet"
+  ansible.builtin.set_fact:
+    ocp_udn_nad_config:
+      cniVersion: "0.3.1"
+      name: "{{ udn_net.name }}"
+      type: ovn-k8s-cni-overlay
+      topology: localnet
+      netAttachDefName: "{{ ns }}/{{ udn_net.name }}"
+      subnets: "{{ udn_net.subnets | default([]) | map(attribute='cidr') | join(',') }}"
+  loop: "{{ udn_net.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns }}/{{ udn_net.name }}"
+  when: udn_net.topology | default('') == 'Localnet'
+  changed_when: false
+
+- name: "NAD {{ udn_net.name }} | Build NAD config for Bridge"
+  ansible.builtin.set_fact:
+    ocp_udn_nad_config:
+      cniVersion: "0.3.1"
+      name: "{{ udn_net.name }}"
+      type: bridge
+      bridge: "{{ udn_net.physical_network | default('br1') }}"
+      ipam: "{{ udn_net.ipam | default({}) }}"
+  when: udn_net.topology | default('') == 'Bridge'
+  changed_when: false
+
+- name: "NAD {{ udn_net.name }} | Create NetworkAttachmentDefinition"
+  kubernetes.core.k8s:
+    state: "{{ ocp_udn_state }}"
+    definition:
+      apiVersion: k8s.cni.cncf.io/v1
+      kind: NetworkAttachmentDefinition
+      metadata:
+        name: "{{ udn_net.name }}"
+        namespace: "{{ ns }}"
+      spec:
+        config: "{{ ocp_udn_nad_config | to_json }}"
+  loop: "{{ udn_net.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns
+    label: "{{ ns }}/{{ udn_net.name }}"

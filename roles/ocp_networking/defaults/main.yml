@@ -1,0 +1,17 @@
+---
+# OpenShift Networking configuration from preflight
+ocp_networking_enabled: false
+ocp_networking_ocp_version: "4.18"
+ocp_networking_network_provider: "OVNKubernetes"
+ocp_networking_tenants: []
+ocp_networking_cluster_security: {}
+ocp_networking_physical_networks: []
+ocp_networking_ingress: {}
+ocp_networking_load_balancing: {}
+
+# Internal flags — set false to skip phases during incremental runs
+ocp_networking_validate_provider: true
+ocp_networking_create_namespaces: true
+ocp_networking_apply_network_resources: true
+ocp_networking_apply_security_policies: true
+ocp_networking_apply_egress_resources: true

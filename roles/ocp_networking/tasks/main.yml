@@ -1,0 +1,101 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/main.yml
+#
+# Orchestrates the full OpenShift networking workflow based on preflight
+# configuration.  Each phase is gated by a boolean flag so callers can
+# run subsets during incremental or test passes.
+
+- name: OpenShift Networking | Validate network provider compatibility
+  ansible.builtin.assert:
+    that:
+      - ocp_networking_network_provider == 'OVNKubernetes'
+    fail_msg: >-
+      UDN/CUDN resources require the OVN-Kubernetes network provider.
+      Current provider: {{ ocp_networking_network_provider }}.
+      Verify that the target cluster uses OVN-Kubernetes before enabling
+      UserDefinedNetwork or ClusterUserDefinedNetwork resources.
+    quiet: true
+  when: ocp_networking_validate_provider | bool
+
+# ── Phase 1: Infrastructure operators ────────────────────────────────
+# Install operators required by the selected networking configuration
+# before creating any network resources.
+
+- name: OpenShift Networking | Process physical networks requiring NMState
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_nmstate_install
+  vars:
+    ocp_nmstate_physical_networks: >-
+      {{ ocp_networking_physical_networks
+         | selectattr('managed_by_nmstate', 'equalto', true)
+         | list }}
+  when:
+    - ocp_networking_physical_networks
+      | selectattr('managed_by_nmstate', 'equalto', true)
+      | list | length > 0
+
+- name: OpenShift Networking | Process MetalLB configuration
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_metallb_install
+  vars:
+    ocp_metallb_config: "{{ ocp_networking_load_balancing.metallb }}"
+  when:
+    - ocp_networking_load_balancing.metallb is defined
+    - ocp_networking_load_balancing.metallb.enabled | default(false) | bool
+
+# ── Phase 2: Namespaces ──────────────────────────────────────────────
+# Create tenant namespaces with required labels before network resources
+# reference them.  When a tenant has a Primary UDN, OVN-Kubernetes requires
+# the label k8s.ovn.org/primary-user-defined-network on the namespace AT
+# creation time (the admission policy blocks adding it later).
+
+- name: OpenShift Networking | Create tenant namespaces
+  ansible.builtin.include_tasks: create_tenant_namespaces.yml
+  loop: "{{ ocp_networking_tenants }}"
+  loop_control:
+    loop_var: ns_tenant
+    label: "{{ ns_tenant.tenant_name }}"
+  when: ocp_networking_create_namespaces | bool
+
+# ── Phase 3: Network resources ───────────────────────────────────────
+# Create UDN / CUDN / NAD resources for each tenant network.
+
+- name: OpenShift Networking | Process tenant networks
+  ansible.builtin.include_tasks: tenant_network.yml
+  loop: "{{ ocp_networking_tenants }}"
+  loop_control:
+    loop_var: tenant
+    label: "{{ tenant.tenant_name }}"
+  when: ocp_networking_apply_network_resources | bool
+
+# ── Phase 4: Security policies ───────────────────────────────────────
+
+- name: OpenShift Networking | Apply cluster-level admin network policies
+  ansible.builtin.include_tasks: cluster_security.yml
+  when: ocp_networking_apply_security_policies | bool
+
+- name: OpenShift Networking | Apply tenant security policies
+  ansible.builtin.include_tasks: tenant_security.yml
+  loop: "{{ ocp_networking_tenants }}"
+  loop_control:
+    loop_var: tenant
+    label: "{{ tenant.tenant_name }}"
+  when: ocp_networking_apply_security_policies | bool
+
+# ── Phase 5: Egress resources ────────────────────────────────────────
+
+- name: OpenShift Networking | Apply egress resources
+  ansible.builtin.include_tasks: tenant_egress.yml
+  loop: "{{ ocp_networking_tenants }}"
+  loop_control:
+    loop_var: tenant
+    label: "{{ tenant.tenant_name }}"
+  when: ocp_networking_apply_egress_resources | bool
+
+- name: OpenShift Networking | Complete
+  ansible.builtin.debug:
+    msg: >-
+      OpenShift Networking configuration applied.
+      Tenants: {{ ocp_networking_tenants | map(attribute='tenant_name') | list }}.
+      Physical networks: {{ ocp_networking_physical_networks | map(attribute='name') | list }}.

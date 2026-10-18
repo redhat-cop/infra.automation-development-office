@@ -1,0 +1,18 @@
+---
+galaxy_info:
+  author: Automation Development Office
+  description: >-
+    Manage OpenShift egress resources — EgressIP and EgressFirewall.
+  company: Automation Development Office
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - openshift
+    - networking
+    - egress
+dependencies: []

@@ -1,0 +1,64 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_network_policy/tasks/main.yml
+#
+# Apply network security policy resources.
+
+- name: Network Policy | Resolve API versions
+  ansible.builtin.set_fact:
+    ocp_network_policy_api_versions:
+      NetworkPolicy: "networking.k8s.io/v1"
+      AdminNetworkPolicy: "policy.networking.k8s.io/v1alpha1"
+      BaselineAdminNetworkPolicy: "policy.networking.k8s.io/v1alpha1"
+      MultiNetworkPolicy: "k8s.cni.cncf.io/v1beta1"
+      EgressFirewall: "k8s.ovn.org/v1"
+  changed_when: false
+
+- name: Network Policy | Validate resource kinds
+  ansible.builtin.assert:
+    that:
+      - item.kind is defined
+      - item.kind in ocp_network_policy_api_versions
+      - item.name is defined
+    fail_msg: >-
+      Invalid network policy resource: kind={{ item.kind | default('MISSING') }},
+      name={{ item.name | default('MISSING') }}.
+      Supported kinds: {{ ocp_network_policy_api_versions.keys() | list }}.
+    quiet: true
+  loop: "{{ ocp_network_policy_resources }}"
+  loop_control:
+    label: "{{ item.kind | default('?') }}/{{ item.name | default('?') }}"
+
+- name: Network Policy | Apply namespace-scoped policies
+  kubernetes.core.k8s:
+    state: "{{ ocp_network_policy_state }}"
+    force: true
+    definition:
+      apiVersion: "{{ item.apiVersion | default(ocp_network_policy_api_versions[item.kind]) }}"
+      kind: "{{ item.kind }}"
+      metadata:
+        name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+        annotations: "{{ item.annotations | default(omit) }}"
+      spec: "{{ item.spec }}"
+  loop: "{{ ocp_network_policy_resources | selectattr('namespace', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.namespace }}/{{ item.name }} ({{ item.kind }})"
+
+- name: Network Policy | Apply cluster-scoped policies
+  kubernetes.core.k8s:
+    state: "{{ ocp_network_policy_state }}"
+    force: true
+    definition:
+      apiVersion: "{{ item.apiVersion | default(ocp_network_policy_api_versions[item.kind]) }}"
+      kind: "{{ item.kind }}"
+      metadata:
+        name: "{{ item.name }}"
+      spec: "{{ item.spec }}"
+  loop: >-
+    {{ ocp_network_policy_resources
+       | rejectattr('namespace', 'defined')
+       | list }}
+  loop_control:
+    label: "{{ item.name }} ({{ item.kind }})"
+  when: item.kind in ['AdminNetworkPolicy', 'BaselineAdminNetworkPolicy']

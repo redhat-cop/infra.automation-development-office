@@ -1,0 +1,14 @@
+---
+# List of policy resources to apply.
+# Each item must include: kind, name, spec.
+# Namespace is required for namespace-scoped kinds.
+# apiVersion is set automatically per kind if omitted.
+#
+# Supported kinds:
+#   NetworkPolicy          (networking.k8s.io/v1)
+#   AdminNetworkPolicy     (policy.networking.k8s.io/v1alpha1)
+#   BaselineAdminNetworkPolicy (policy.networking.k8s.io/v1alpha1)
+#   MultiNetworkPolicy     (k8s.cni.cncf.io/v1beta1)
+#   EgressFirewall         (k8s.ovn.org/v1)
+ocp_network_policy_resources: []
+ocp_network_policy_state: present

@@ -1,0 +1,34 @@
+---
+# yamllint disable rule:line-length
+# create_tenant_namespaces.yml
+#
+# Called once per tenant (loop_var: ns_tenant).
+# Merges the k8s.ovn.org/primary-user-defined-network label into the
+# namespace labels when the tenant has at least one Primary-role network.
+# OCP ValidatingAdmissionPolicy requires this label at namespace creation
+# time — it cannot be added after the namespace exists.
+
+- name: "{{ ns_tenant.tenant_name }} | Determine if tenant has Primary networks"
+  ansible.builtin.set_fact:
+    _ns_tenant_has_primary: >-
+      {{ ns_tenant.networks | default([])
+         | selectattr('role', 'defined')
+         | selectattr('role', 'equalto', 'Primary')
+         | list | length > 0 }}
+  changed_when: false
+
+- name: "{{ ns_tenant.tenant_name }} | Create namespaces"
+  ansible.builtin.include_role:
+    name: infra.ado.ocp_namespace
+  vars:
+    name_space: "{{ ns_item.name }}"
+    ocp_namespace_labels: >-
+      {{ (ns_item.labels | default({}))
+         | combine((_ns_tenant_has_primary | bool)
+                   | ternary({'k8s.ovn.org/primary-user-defined-network': ''}, {})) }}
+    ocp_namespace_state: present
+  loop: "{{ ns_tenant.namespaces | default([]) }}"
+  loop_control:
+    loop_var: ns_item
+    label: "{{ ns_item.name }}"
+  when: ns_item.create | default(true) | bool

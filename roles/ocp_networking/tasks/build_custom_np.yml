@@ -1,0 +1,102 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_networking/tasks/build_custom_np.yml
+#
+# Transform preflight custom rules (K8s-aligned structure) into a single
+# NetworkPolicy or MultiNetworkPolicy and append to the resource list.
+#
+# Custom rules use the K8s-aligned format:
+#   { direction, peers: [{type, cidr, except, namespace_selector, pod_selector}], ports: [{protocol, port, endPort}] }
+#
+# Expected variables:
+#   _custom_np_rules      – list of custom rule dicts
+#   _custom_np_kind       – 'NetworkPolicy' or 'MultiNetworkPolicy'
+#   _custom_np_api        – apiVersion string
+#   _custom_np_name       – resource name
+#   _custom_np_ns         – target namespace
+#   _custom_np_annot      – annotations dict (use {} for none)
+#   _custom_np_pod_sel    – policy-level podSelector labels (use {} for all pods)
+
+- name: "Custom {{ _custom_np_kind }} | Init rule lists"
+  ansible.builtin.set_fact:
+    _cnp_ingress: []
+    _cnp_egress: []
+  changed_when: false
+
+- name: "Custom {{ _custom_np_kind }} | Transform rule"
+  ansible.builtin.set_fact:
+    _cnp_ingress: "{{ (_cnp_ingress + [_built]) if rule.direction | default('ingress') == 'ingress' else _cnp_ingress }}"
+    _cnp_egress: "{{ (_cnp_egress + [_built]) if rule.direction | default('ingress') == 'egress' else _cnp_egress }}"
+  loop: "{{ _custom_np_rules }}"
+  loop_control:
+    loop_var: rule
+    label: "{{ rule.direction | default('ingress') }}"
+  vars:
+    _peers: >-
+      {% set result = [] -%}
+      {% for peer in (rule.peers | default([])) -%}
+        {% if peer.type | default('') == 'ipBlock' and peer.cidr | default('') | length > 0 -%}
+          {% set ip = {'cidr': peer.cidr} -%}
+          {% if peer.except | default([]) | length > 0 -%}
+            {% set ip = ip | combine({'except': peer.except}) -%}
+          {% endif -%}
+          {% set _ = result.append({'ipBlock': ip}) -%}
+        {% elif peer.type | default('') == 'clusterPods' -%}
+          {% set entry = {} -%}
+          {% if peer.namespace_selector | default({}) | length > 0 -%}
+            {% set entry = entry | combine({'namespaceSelector': {'matchLabels': peer.namespace_selector}}) -%}
+          {% else -%}
+            {% set entry = entry | combine({'namespaceSelector': {}}) -%}
+          {% endif -%}
+          {% if peer.pod_selector | default({}) | length > 0 -%}
+            {% set entry = entry | combine({'podSelector': {'matchLabels': peer.pod_selector}}) -%}
+          {% endif -%}
+          {% set _ = result.append(entry) -%}
+        {% elif peer.type | default('') == 'sameNamespace' -%}
+          {% if peer.pod_selector | default({}) | length > 0 -%}
+            {% set _ = result.append({'podSelector': {'matchLabels': peer.pod_selector}}) -%}
+          {% else -%}
+            {% set _ = result.append({'podSelector': {}}) -%}
+          {% endif -%}
+        {% endif -%}
+      {% endfor -%}
+      {{ result }}
+    _ports: >-
+      {% set result = [] -%}
+      {% for p in (rule.ports | default([])) -%}
+        {% if p.port | default('') | string | length > 0 -%}
+          {% set port_val = (p.port | int) if (p.port | string | regex_search('^[0-9]+$')) else p.port -%}
+          {% set entry = {'protocol': p.protocol | default('TCP'), 'port': port_val} -%}
+          {% if p.endPort | default('') | string | regex_search('^[0-9]+$') -%}
+            {% set entry = entry | combine({'endPort': p.endPort | int}) -%}
+          {% endif -%}
+          {% set _ = result.append(entry) -%}
+        {% endif -%}
+      {% endfor -%}
+      {{ result }}
+    _dir_key: "{{ 'from' if rule.direction | default('ingress') == 'ingress' else 'to' }}"
+    _built: >-
+      {{
+        ({_dir_key: _peers} if _peers | length > 0 else {})
+        | combine({'ports': _ports} if _ports | length > 0 else {})
+      }}
+  changed_when: false
+
+- name: "Custom {{ _custom_np_kind }} | Append policy to resources"
+  ansible.builtin.set_fact:
+    ocp_networking_tenant_security_resources: >-
+      {{ ocp_networking_tenant_security_resources + [{
+           'kind': _custom_np_kind,
+           'apiVersion': _custom_np_api,
+           'name': _custom_np_name,
+           'namespace': _custom_np_ns,
+           'annotations': _custom_np_annot if (_custom_np_annot | default({}) | length > 0) else omit,
+           'spec': ({'podSelector': ({'matchLabels': _custom_np_pod_sel} if (_custom_np_pod_sel | default({}) | length > 0) else {}),
+                     'policyTypes': _ptypes}
+                    | combine({'ingress': _cnp_ingress} if _cnp_ingress | length > 0 else {})
+                    | combine({'egress': _cnp_egress} if _cnp_egress | length > 0 else {}))
+         }] }}
+  vars:
+    _ptypes: "{{ (['Ingress'] if _cnp_ingress | length > 0 else []) + (['Egress'] if _cnp_egress | length > 0 else []) }}"
+  when: (_cnp_ingress | length > 0) or (_cnp_egress | length > 0)
+  changed_when: false

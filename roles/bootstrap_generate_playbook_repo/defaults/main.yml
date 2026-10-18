@@ -50,6 +50,7 @@ bootstrap_generate_playbook_repo_component_map:
     - ocp_compliance
     - ocp_descheduler
     - ocp_virtualization
+    - openshift_networking
     - mtv
     - openshift
     - quay
@@ -608,6 +609,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: ocp_virtualization
+
+  - src: openshift_networking/ado-deploy-networking-bootstrap.yml
+    dest: playbooks/openshift_networking/ado-deploy-networking-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: openshift_networking
 
   - src: mtv/ado-deploy-bootstrap.yml
     dest: playbooks/mtv/ado-deploy-bootstrap.yml

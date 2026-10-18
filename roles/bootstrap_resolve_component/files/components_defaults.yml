@@ -1235,3 +1235,38 @@ components_defaults:
       client_id: minio
       claim_name: policy
       policy_value: consoleAdmin
+
+  # ── OpenShift Networking ──────────────────────────────────────────
+  # Centralized networking orchestration — no operator of its own;
+  # coordinates NMState, MetalLB, UDN, etc.
+  openshift_networking:
+    name_space: ""
+    component_name: openshift_networking
+    component_display_name: "OpenShift Networking"
+    skip_operator_install: true
+
+  # Kubernetes NMState Operator — physical node networking
+  kubernetes_nmstate:
+    name_space: openshift-nmstate
+    operator_namespace: openshift-nmstate
+    operatorgroup: kubernetes-nmstate-operator
+    operator_name: kubernetes-nmstate-operator
+    operator_channel: stable
+    operator_source: redhat-operators
+    operator_source_namespace: openshift-marketplace
+    operator_deployment_pattern: nmstate
+    all_namespaces_install: true
+    component_name: kubernetes_nmstate
+
+  # MetalLB Operator — bare-metal LoadBalancer services
+  metallb:
+    name_space: metallb-system
+    operator_namespace: metallb-system
+    operatorgroup: metallb-operator
+    operator_name: metallb-operator
+    operator_channel: stable
+    operator_source: redhat-operators
+    operator_source_namespace: openshift-marketplace
+    operator_deployment_pattern: metallb
+    all_namespaces_install: false
+    component_name: metallb

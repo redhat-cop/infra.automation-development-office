@@ -1,0 +1,9 @@
+minor_changes:
+  - ocp_networking - New role for centralized OpenShift networking management with tenant networks, security policies, and dependency orchestration.
+  - ocp_nmstate_install - New role for Kubernetes NMState Operator lifecycle and NodeNetworkConfigurationPolicy management.
+  - ocp_metallb_install - New role for MetalLB Operator lifecycle with IPAddressPool, L2Advertisement, BGPPeer, and BGPAdvertisement support.
+  - ocp_udn - New role for UserDefinedNetwork, ClusterUserDefinedNetwork, and NetworkAttachmentDefinition management.
+  - ocp_network_policy - New role for NetworkPolicy, AdminNetworkPolicy, BaselineAdminNetworkPolicy, MultiNetworkPolicy, and EgressFirewall management.
+  - ocp_egress - New role for EgressIP and EgressFirewall management.
+  - bootstrap_resolve_component - Added component defaults for openshift_networking, kubernetes_nmstate, and metallb.
+  - bootstrap_generate_env_vars - Added openshift_networking to preflight UI OpenShift apps and component vars template.

@@ -1,0 +1,106 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_nmstate_install/tasks/create_nncp.yml
+#
+# Generate and apply a NodeNetworkConfigurationPolicy for one physical
+# network definition.  Called in a loop with loop_var: physical_net.
+#
+# WARNING: Incorrect NNCP configuration can disrupt node connectivity.
+# This task will NEVER automatically modify the primary management
+# interface or br-ex unless the caller explicitly configures it.
+
+- name: "NNCP {{ physical_net.name }} | Safety warning"
+  ansible.builtin.debug:
+    msg: >-
+      CAUTION: Applying NNCP '{{ physical_net.name }}' will modify host
+      networking on selected nodes. Bridge: {{ physical_net.bridge | default('UNSET') }}.
+      Interfaces: {{ physical_net.interface_config.interfaces | default([]) }}.
+      Review the desired state before proceeding in production.
+
+- name: "NNCP {{ physical_net.name }} | Build bridge desired state"
+  ansible.builtin.set_fact:
+    ocp_nmstate_nncp_desired_state:
+      interfaces:
+        - name: "{{ physical_net.bridge }}"
+          type: linux-bridge
+          state: up
+          ipv4:
+            enabled: false
+          bridge:
+            options:
+              stp:
+                enabled: false
+            port: "{{ physical_net.interface_config.interfaces
+                      | default([])
+                      | map('regex_replace', '^(.*)$', '{\"name\": \"\\1\"}')
+                      | map('from_json')
+                      | list }}"
+  when: physical_net.interface_config.type | default('bridge') == 'bridge'
+  changed_when: false
+
+- name: "NNCP {{ physical_net.name }} | Build bond desired state"
+  ansible.builtin.set_fact:
+    ocp_nmstate_nncp_desired_state:
+      interfaces:
+        - name: "{{ physical_net.bridge }}"
+          type: linux-bridge
+          state: up
+          ipv4:
+            enabled: false
+          bridge:
+            options:
+              stp:
+                enabled: false
+            port:
+              - name: "{{ physical_net.name }}-bond"
+        - name: "{{ physical_net.name }}-bond"
+          type: bond
+          state: up
+          link-aggregation:
+            mode: "{{ physical_net.interface_config.bond_mode | default('balance-rr') }}"
+            port: "{{ physical_net.interface_config.interfaces
+                      | default([])
+                      | map('regex_replace', '^(.*)$', '{\"name\": \"\\1\"}')
+                      | map('from_json')
+                      | list }}"
+  when: physical_net.interface_config.type | default('bridge') == 'bond'
+  changed_when: false
+
+- name: "NNCP {{ physical_net.name }} | Apply NodeNetworkConfigurationPolicy"
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: nmstate.io/v1
+      kind: NodeNetworkConfigurationPolicy
+      metadata:
+        name: "{{ physical_net.name }}"
+      spec:
+        nodeSelector: "{{ physical_net.node_selector | default({'node-role.kubernetes.io/worker': ''}) }}"
+        desiredState: "{{ ocp_nmstate_nncp_desired_state }}"
+
+- name: "NNCP {{ physical_net.name }} | Wait for NNCP Available"
+  kubernetes.core.k8s_info:
+    api_version: nmstate.io/v1
+    kind: NodeNetworkConfigurationPolicy
+    name: "{{ physical_net.name }}"
+  register: ocp_nmstate_nncp_status
+  until: >-
+    (ocp_nmstate_nncp_status.resources | default([]) | length) > 0
+    and (
+      ocp_nmstate_nncp_status.resources[0].status.conditions
+      | default([])
+      | selectattr('type', 'defined')
+      | selectattr('type', 'equalto', 'Available')
+      | selectattr('status', 'defined')
+      | selectattr('status', 'equalto', 'True')
+      | list | length
+    ) > 0
+  retries: "{{ ocp_nmstate_nncp_wait_retries }}"
+  delay: "{{ ocp_nmstate_nncp_wait_delay }}"
+  changed_when: false
+
+- name: "NNCP {{ physical_net.name }} | Applied successfully"
+  ansible.builtin.debug:
+    msg: >-
+      NodeNetworkConfigurationPolicy '{{ physical_net.name }}' is Available.
+      Bridge '{{ physical_net.bridge }}' configured on selected nodes.

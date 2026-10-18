@@ -38,6 +38,7 @@ generate_env_vars_components:  # noqa: var-naming[no-role-prefix]
   - bookstack
   - netbox
   - rhbk
+  - openshift_networking
   - gitlab_runner
   - web_terminal
 
@@ -86,6 +87,7 @@ bootstrap_generate_env_vars_preflight_ui_openshift_apps:
   - pega
   - quay
   - rhbk
+  - openshift_networking
   - zabbix
 
 # Playbook apps that exist in the collection but are not preflight UI

@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: Automation Development Office
+  description: >-
+    Install Kubernetes NMState Operator, create NMState instance, and
+    apply NodeNetworkConfigurationPolicy resources for physical networking.
+  company: Automation Development Office
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - openshift
+    - networking
+    - nmstate
+dependencies: []

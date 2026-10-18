@@ -1,0 +1,33 @@
+---
+# yamllint disable rule:line-length
+# roles/ocp_egress/tasks/main.yml
+#
+# Apply EgressIP and EgressFirewall resources.
+# Note: Only one EgressFirewall per namespace is allowed.
+
+- name: Egress | Apply EgressIP resources
+  kubernetes.core.k8s:
+    state: "{{ ocp_egress_state }}"
+    definition:
+      apiVersion: k8s.ovn.org/v1
+      kind: EgressIP
+      metadata:
+        name: "{{ item.name }}"
+      spec: "{{ item.spec }}"
+  loop: "{{ ocp_egress_resources | selectattr('kind', 'equalto', 'EgressIP') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Egress | Apply EgressFirewall resources
+  kubernetes.core.k8s:
+    state: "{{ ocp_egress_state }}"
+    definition:
+      apiVersion: k8s.ovn.org/v1
+      kind: EgressFirewall
+      metadata:
+        name: "{{ item.name }}"
+        namespace: "{{ item.namespace }}"
+      spec: "{{ item.spec }}"
+  loop: "{{ ocp_egress_resources | selectattr('kind', 'equalto', 'EgressFirewall') | list }}"
+  loop_control:
+    label: "{{ item.namespace | default('') }}/{{ item.name }}"

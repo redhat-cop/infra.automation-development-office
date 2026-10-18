@@ -1,0 +1,10 @@
+---
+# List of egress resources to apply.
+# Each item must include: kind, name, spec.
+# Namespace is required for EgressFirewall.
+#
+# Supported kinds:
+#   EgressIP       (k8s.ovn.org/v1)
+#   EgressFirewall (k8s.ovn.org/v1)
+ocp_egress_resources: []
+ocp_egress_state: present

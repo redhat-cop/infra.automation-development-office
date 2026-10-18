@@ -1,0 +1,14 @@
+---
+ocp_metallb_namespace: metallb-system
+ocp_metallb_operator_name: metallb-operator
+ocp_metallb_operator_channel: stable
+ocp_metallb_operator_source: redhat-operators
+ocp_metallb_operator_source_namespace: openshift-marketplace
+ocp_metallb_instance_name: metallb
+ocp_metallb_config:
+  enabled: false
+  address_pools: []
+  l2_advertisements: []
+  bgp_peers: []
+  bgp_advertisements: []
+ocp_metallb_wait_timeout: 300
