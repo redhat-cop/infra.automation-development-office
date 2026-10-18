@@ -1,6 +1,7 @@
 ---
 trivial:
   - |
-    ocp_networking / ocp_metallb_install - Align internal set_fact and register
-    names with role prefixes and keep Jinja out of the middle of task names so
-    ansible-lint ``var-naming`` / ``name[template]`` pass in CI.
+    ocp_networking / ocp_metallb_install / ocp_nmstate_install / ocp_udn -
+    Align internal set_fact and register names with role prefixes and keep
+    Jinja out of the middle of task names so ansible-lint ``var-naming`` /
+    ``name[template]`` pass in CI.
