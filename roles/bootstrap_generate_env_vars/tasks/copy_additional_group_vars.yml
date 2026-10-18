@@ -1,0 +1,68 @@
+---
+- name: Record additional group_vars copy flag
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_create_extra_group_vars: >-
+      {{
+        (
+          bootstrap_generate_env_vars_preflight
+          | default({})
+        ).additional_environments_create_group_vars
+        | default(false)
+        | bool
+      }}
+
+- name: Select additional environments that get group_vars copies
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_extra_env_raw: >-
+      {{
+        (
+          bootstrap_generate_env_vars_preflight
+          | default({})
+        ).additional_environments
+        | default([])
+      }}
+    bootstrap_generate_env_vars_extra_group_vars_envs: []
+  when:
+    - bootstrap_generate_env_vars_create_extra_group_vars | bool
+
+- name: Normalize additional environment names for group_vars copies
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_extra_group_vars_envs: >-
+      {{
+        (
+          bootstrap_generate_env_vars_extra_env_raw
+          if bootstrap_generate_env_vars_extra_env_raw is not string
+          else (
+            bootstrap_generate_env_vars_extra_env_raw
+            | regex_replace('[\\s,]+', ' ')
+            | trim
+            | split(' ')
+          )
+        )
+        | map('string')
+        | map('trim')
+        | reject('equalto', '')
+        | reject('equalto', 'none')
+        | reject('equalto', bootstrap_generate_env_vars_env | string)
+        | unique
+        | list
+      }}
+  when:
+    - bootstrap_generate_env_vars_create_extra_group_vars | bool
+
+- name: Create group_vars for selected additional environments
+  ansible.builtin.copy:
+    src: "{{ bootstrap_generate_env_vars_env_dir }}/"
+    dest: >-
+      {{
+        (
+          bootstrap_generate_env_vars_base_dir
+          | default(generate_env_vars_base_dir | default('group_vars/all'))
+        )
+      }}/{{ item }}/
+    remote_src: true
+    mode: preserve
+  loop: "{{ bootstrap_generate_env_vars_extra_group_vars_envs }}"
+  when:
+    - bootstrap_generate_env_vars_create_extra_group_vars | bool
+    - bootstrap_generate_env_vars_extra_group_vars_envs | length > 0

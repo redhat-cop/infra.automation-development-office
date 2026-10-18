@@ -1,0 +1,7 @@
+---
+apiVersion: v1alpha1
+kind: AgentConfig
+metadata:
+  name: example
+rendezvousIP: 192.0.2.10
+hosts: []

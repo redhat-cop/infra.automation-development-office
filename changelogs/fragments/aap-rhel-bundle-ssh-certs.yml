@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - install_aap - Standalone RHEL install can override the bundle directory,
+    use a local tarball, SSH to the VM with a user and password or private
+    key, and pass ``gateway_tls_cert`` / ``gateway_tls_key`` paths into the
+    installer inventory.

@@ -1,0 +1,8 @@
+---
+# Directory that holds an exported installation bundle.
+# The role reads this directory and does not rewrite its YAML.
+ocp_disconnected_install_bundle_dir: ""
+
+# Stable id for this attempt. Empty generates a new id.
+# Reuse the same id to rerun without a second run directory.
+ocp_disconnected_install_run_id: ""

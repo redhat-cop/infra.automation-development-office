@@ -1,0 +1,9 @@
+---
+- name: Remove the staged fixture bundle
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Delete the ephemeral bundle
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/bundle"
+        state: absent

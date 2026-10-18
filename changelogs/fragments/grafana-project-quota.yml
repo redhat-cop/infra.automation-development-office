@@ -1,0 +1,4 @@
+---
+minor_changes:
+  - grafana_upload_dashboards - Renamed the projects dashboard to
+    Openshift Project Quota and made the namespace list searchable.

@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - ocp_disconnected_install - Validate an exported disconnected
+    OpenShift agent bundle, copy installer YAML into a per-run working
+    directory, and write an atomic status file. Mirroring and boot
+    media are later milestones.

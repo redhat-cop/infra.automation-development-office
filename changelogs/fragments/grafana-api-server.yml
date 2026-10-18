@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - grafana_upload_dashboards - Renamed the API server dashboard to
+    Openshift API Server and removed the unused terraform and oncall
+    annotation toggles.

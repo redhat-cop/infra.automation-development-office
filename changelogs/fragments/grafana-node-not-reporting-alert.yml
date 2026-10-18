@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - grafana_upload_alerts - Keep a paused per-node rule for a kubelet
+    that stops reporting, so it no longer disappears inside the NotReady
+    count. The rule stays paused until it is turned on.

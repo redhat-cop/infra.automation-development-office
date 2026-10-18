@@ -1,0 +1,103 @@
+{
+  "uid": "ado-node-noreport-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "Node not reporting ({{ grafana_upload_alerts_datasource_name }})",
+  "condition": "C",
+  "data": [
+    {
+      "refId": "A",
+      "queryType": "",
+      "relativeTimeRange": {
+        "from": 600,
+        "to": 0
+      },
+      "datasourceUid": "{{ grafana_upload_alerts_datasource_uid }}",
+      "model": {
+        "editorMode": "code",
+        "expr": "kube_node_status_condition{condition=\"Ready\",status=\"unknown\"} == 1",
+        "instant": true,
+        "intervalMs": 1000,
+        "legendFormat": "{{ '{{' }} node {{ '}}' }}",
+        "maxDataPoints": 43200,
+        "refId": "A"
+      }
+    },
+    {
+      "refId": "B",
+      "queryType": "",
+      "relativeTimeRange": {
+        "from": 600,
+        "to": 0
+      },
+      "datasourceUid": "__expr__",
+      "model": {
+        "datasource": {
+          "type": "__expr__",
+          "uid": "__expr__"
+        },
+        "expression": "A",
+        "reducer": "last",
+        "refId": "B",
+        "settings": {
+          "mode": "dropNN"
+        },
+        "type": "reduce"
+      }
+    },
+    {
+      "refId": "C",
+      "queryType": "",
+      "relativeTimeRange": {
+        "from": 600,
+        "to": 0
+      },
+      "datasourceUid": "__expr__",
+      "model": {
+        "datasource": {
+          "type": "__expr__",
+          "uid": "__expr__"
+        },
+        "expression": "B",
+        "refId": "C",
+        "type": "threshold",
+        "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                0
+              ],
+              "type": "gt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "C"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "last"
+            },
+            "type": "query"
+          }
+        ]
+      }
+    }
+  ],
+  "isPaused": true,
+  "noDataState": "OK",
+  "execErrState": "Error",
+  "for": "1m",
+  "annotations": {
+    "summary": "Node {{ '{{' }} $labels.node {{ '}}' }} is not reporting. Its kubelet has stopped posting status.",
+    "description": "Node {{ '{{' }} $labels.node {{ '}}' }} on {{ grafana_upload_alerts_datasource_name }} is Unknown. It is still listed, but it is not sending Ready, NotReady, or pressure updates."
+  },
+  "labels": {
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
+  },
+  "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
+  "orgID": 1
+}

@@ -1,0 +1,286 @@
+---
+# yamllint disable rule:line-length
+- name: Skip email setup when no recipient is set
+  ansible.builtin.meta: end_host
+  when:
+    - (grafana_alert_email_to | default('') | string | trim | length) == 0
+    - not (grafana_alert_send_test | default(false) | bool)
+
+- name: Require an email recipient before sending tests
+  ansible.builtin.assert:
+    that:
+      - (grafana_alert_email_to | default('') | string | trim | length) > 0
+    fail_msg: Set grafana_alert_email_to before grafana_alert_send_test.
+  when: grafana_alert_send_test | default(false) | bool
+
+- name: Set ADO alert contact point name
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_contact_name: >-
+      {{
+        grafana_alert_contact_name
+        | default('ADO OpenShift alerts')
+      }}
+
+- name: List Grafana contact points
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/contact-points"
+    method: GET
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {'Authorization': 'Bearer ' ~ grafana_api_key}
+        if (grafana_api_key | default('') | length) > 0
+        else {}
+      }}
+    status_code: [200]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  register: grafana_upload_alerts_contacts
+
+- name: Find existing ADO contact point
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_contact_uid: >-
+      {{
+        (
+          grafana_upload_alerts_contacts.json | default([])
+          | selectattr('name', 'defined')
+          | selectattr('name', 'equalto', grafana_upload_alerts_contact_name)
+          | map(attribute='uid')
+          | list
+          | first
+        ) | default('')
+      }}
+
+- name: Build email contact point body
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_contact_body:
+      name: "{{ grafana_upload_alerts_contact_name }}"
+      type: email
+      settings:
+        addresses: "{{ grafana_alert_email_to | string | trim }}"
+        singleEmail: true
+      disableResolveMessage: false
+
+- name: Update ADO email contact point
+  ansible.builtin.uri:
+    url: >-
+      {{
+        grafana_upload_alerts_url
+        ~ '/api/v1/provisioning/contact-points/'
+        ~ grafana_upload_alerts_contact_uid
+      }}
+    method: PUT
+    body_format: json
+    body: "{{ grafana_upload_alerts_contact_body }}"
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+      }}
+    status_code: [200, 202]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when: grafana_upload_alerts_contact_uid | length > 0
+
+- name: Create ADO email contact point
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/contact-points"
+    method: POST
+    body_format: json
+    body: "{{ grafana_upload_alerts_contact_body }}"
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+      }}
+    status_code: [200, 201, 202]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when: grafana_upload_alerts_contact_uid | length == 0
+
+- name: Read Grafana notification policy
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/policies"
+    method: GET
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {'Authorization': 'Bearer ' ~ grafana_api_key}
+        if (grafana_api_key | default('') | length) > 0
+        else {}
+      }}
+    status_code: [200]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  register: grafana_upload_alerts_policy_raw
+
+- name: Build ADO notification route
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_email_route:
+      receiver: "{{ grafana_upload_alerts_contact_name }}"
+      object_matchers:
+        - ["ado", "=", "openshift-default"]
+      continue: false
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 4h
+    grafana_upload_alerts_route_present: >-
+      {{
+        (
+          grafana_upload_alerts_policy_raw.json.routes | default([])
+          | selectattr('receiver', 'defined')
+          | selectattr('receiver', 'equalto', grafana_upload_alerts_contact_name)
+          | list
+          | length
+        ) > 0
+      }}
+
+- name: Assemble notification policy
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_policy: >-
+      {{
+        (grafana_upload_alerts_policy_raw.json | default({}))
+        | combine({
+            'group_by': (
+              grafana_upload_alerts_policy_raw.json.group_by
+              | default(['grafana_folder', 'alertname'])
+            ),
+            'receiver': (
+              grafana_upload_alerts_contact_name
+              if (
+                grafana_upload_alerts_policy_raw.json.receiver
+                | default('')
+                | string
+                | trim
+                | length
+              ) == 0
+              else grafana_upload_alerts_policy_raw.json.receiver
+            ),
+            'routes': (
+              grafana_upload_alerts_policy_raw.json.routes | default([])
+              if grafana_upload_alerts_route_present | bool
+              else (
+                (grafana_upload_alerts_policy_raw.json.routes | default([]))
+                + [grafana_upload_alerts_email_route]
+              )
+            )
+          })
+      }}
+
+- name: Update Grafana notification policy
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/policies"
+    method: PUT
+    body_format: json
+    body: "{{ grafana_upload_alerts_policy }}"
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+      }}
+    status_code: [200, 202]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+
+- name: Build test alert names
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_test_names: >-
+      {{
+        grafana_upload_alerts_uploaded_titles
+        | default([])
+        | map('regex_replace', ' \(.*\)$', '')
+        | unique
+        | list
+      }}
+    grafana_upload_alerts_test_clusters: >-
+      {{
+        grafana_upload_alerts_prometheus_datasources
+        | map(attribute='name')
+        | list
+        | join(', ')
+      }}
+    grafana_upload_alerts_receiver_name: >-
+      {{
+        grafana_upload_alerts_contact_name
+        | b64encode
+        | regex_replace('=+$', '')
+        | trim
+      }}
+  when: grafana_alert_send_test | default(false) | bool
+
+- name: Send one test email per OpenShift alert
+  ansible.builtin.uri:
+    url: >-
+      {{
+        grafana_upload_alerts_url
+        ~ '/apis/notifications.alerting.grafana.app/v1beta1/namespaces/default/receivers/'
+        ~ grafana_upload_alerts_receiver_name
+        ~ '/test'
+      }}
+    method: POST
+    body_format: json
+    body:
+      integration:
+        type: email
+        settings:
+          addresses: "{{ grafana_alert_email_to | string | trim }}"
+          singleEmail: true
+        disableResolveMessage: false
+      alert:
+        labels:
+          alertname: "{{ item }}"
+          ado: openshift-default
+        annotations:
+          summary: >-
+            ADO test alert for {{ item }}.
+            Rules are installed on {{ grafana_upload_alerts_test_clusters }}.
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {'Content-Type': 'application/json'}
+      }}
+    status_code: [200, 202]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  loop: "{{ grafana_upload_alerts_test_names }}"
+  loop_control:
+    label: "{{ item }}"
+  when: grafana_alert_send_test | default(false) | bool

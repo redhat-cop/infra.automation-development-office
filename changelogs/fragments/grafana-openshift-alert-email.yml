@@ -1,0 +1,5 @@
+---
+minor_changes:
+  - grafana_upload_alerts - Upload each OpenShift alert rule to every
+    selected Prometheus datasource and route ``ado=openshift-default``
+    alerts to an optional email contact point.
