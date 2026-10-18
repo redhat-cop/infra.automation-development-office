@@ -1,0 +1,21 @@
+---
+collections:
+  - name: ansible.utils
+  - name: community.general
+  - name: community.crypto
+  - name: community.kubernetes
+  - name: kubernetes.core
+  # redhat.openshift is Red Hat certified (Automation Hub), not on public
+  # Galaxy. Token-auth AAP installs use kubernetes.core only; username/password
+  # OpenShift login still needs redhat.openshift from AH at runtime.
+  - name: community.grafana
+  # freeipa.ansible_freeipa kept for topology segment tasks.
+  # redhat.rhel_idm is Red Hat certified (Automation Hub), not on public Galaxy.
+  # IdM install/client/trust roles use it at runtime from AH; CI Galaxy install
+  # must not require it (same pattern as redhat.openshift above).
+  - name: freeipa.ansible_freeipa
+  - name: infra.aap_configuration
+  - name: infra.aap_utilities
+  - name: infra.rhacs_configuration
+  - name: community.hashi_vault
+  - name: amazon.aws
