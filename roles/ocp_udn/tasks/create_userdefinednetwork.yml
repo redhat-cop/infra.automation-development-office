@@ -4,7 +4,7 @@
 #
 # Create a namespace-scoped UserDefinedNetwork in each target namespace.
 
-- name: "UDN {{ udn_net.name }} | Build Layer2 spec"
+- name: "Build Layer2 spec for UDN {{ udn_net.name }}"
   ansible.builtin.set_fact:
     ocp_udn_full_spec:
       topology: Layer2
@@ -15,7 +15,7 @@
   when: (udn_net.topology | default('Layer2')) == 'Layer2'
   changed_when: false
 
-- name: "UDN {{ udn_net.name }} | Build Layer3 spec"
+- name: "Build Layer3 spec for UDN {{ udn_net.name }}"
   ansible.builtin.set_fact:
     ocp_udn_full_spec:
       topology: Layer3
@@ -25,7 +25,7 @@
   when: (udn_net.topology | default('Layer2')) == 'Layer3'
   changed_when: false
 
-- name: "UDN {{ udn_net.name }} | Create UserDefinedNetwork"
+- name: "Create UserDefinedNetwork {{ udn_net.name }}"
   kubernetes.core.k8s:
     state: "{{ ocp_udn_state }}"
     definition:

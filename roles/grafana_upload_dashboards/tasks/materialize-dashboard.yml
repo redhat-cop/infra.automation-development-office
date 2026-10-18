@@ -7,13 +7,20 @@
 
 - name: Render Jinja dashboard template
   ansible.builtin.template:
-    src: "{{ grafana_dashboard_item.template | default(grafana_dashboard_item.path) }}"
+    src: >-
+      {{
+        grafana_dashboard_item.template
+        | default(grafana_dashboard_item.path)
+      }}
     dest: "/tmp/grafana-dashboards/{{ grafana_dashboard_item.name }}.raw.json"
     mode: "0644"
   when: >
     (grafana_dashboard_item.template is defined)
     or (
-      (grafana_dashboard_item.path | default('') | basename | regex_search('\\.json\\.j2$')) is not none
+      (
+        grafana_dashboard_item.path | default('') | basename
+        | regex_search('\\.json\\.j2$')
+      ) is not none
     )
   vars:
     grafana_dashboard: "{{ grafana_dashboard_item.name }}"
@@ -28,7 +35,10 @@
     grafana_dashboard_item.path is defined
     and (grafana_dashboard_item.template is not defined)
     and (
-      (grafana_dashboard_item.path | basename | regex_search('\\.json\\.j2$')) is none
+      (
+        grafana_dashboard_item.path | basename
+        | regex_search('\\.json\\.j2$')
+      ) is none
     )
 
 - name: Adapt dashboard for folder (pin / multi / none)
@@ -43,17 +53,39 @@
       - --mode
       - "{{ grafana_dashboard_item.datasource_mode | default('none') }}"
       - --datasource
-      - "{{ grafana_dashboard_item.datasource | default(grafana_datasource | default('OpenshiftProd')) }}"
+      - >-
+        {{
+          grafana_dashboard_item.datasource
+          | default(grafana_datasource | default(''))
+        }}
+      - --datasource-names
+      - >-
+        {{
+          (
+            (
+              [grafana_datasource]
+              if (grafana_datasource | default('') | length) > 0
+              else []
+            )
+            + (
+              grafana_datasources | default([])
+              | selectattr('name', 'defined')
+              | map(attribute='name')
+              | reject('equalto', '')
+              | list
+            )
+          ) | unique | join(',')
+        }}
       - --datasource-uid
       - >-
         {{
           grafana_upload_dashboards_uid_by_name[
             grafana_dashboard_item.datasource
-            | default(grafana_datasource | default('OpenshiftProd'))
+            | default(grafana_datasource | default(''))
           ]
           | default(
               grafana_dashboard_item.datasource
-              | default(grafana_datasource | default('OpenshiftProd')),
+              | default(grafana_datasource | default('')),
               true
             )
         }}
@@ -72,11 +104,11 @@
       "datasource": {"type": "prometheus", "uid": "{{
         grafana_upload_dashboards_uid_by_name[
           grafana_dashboard_item.datasource
-          | default(grafana_datasource | default('OpenshiftProd'))
+          | default(grafana_datasource | default(''))
         ]
         | default(
             grafana_dashboard_item.datasource
-            | default(grafana_datasource | default('OpenshiftProd')),
+            | default(grafana_datasource | default('${datasource}')),
             true
           )
       }}"}

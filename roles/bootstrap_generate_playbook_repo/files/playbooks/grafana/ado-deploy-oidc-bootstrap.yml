@@ -7,6 +7,7 @@
     grafana_install_scope: oidc
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_rhbk.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_rhbk.yml"

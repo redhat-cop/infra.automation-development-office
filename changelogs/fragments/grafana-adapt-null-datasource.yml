@@ -3,4 +3,5 @@ bugfixes:
   - >-
     grafana_upload_dashboards - Bind ``datasource: null`` panels to the folder
     Prometheus target (or ``${datasource}``) so Alert Analysis and other
-    community boards honor the K8S dropdown instead of showing No data.
+    community boards honor the K8S dropdown instead of staying on the
+    default cluster.

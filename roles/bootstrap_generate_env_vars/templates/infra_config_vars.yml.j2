@@ -5,10 +5,10 @@
 {% set resolved_skip_tls = preflight_openshift.skip_tls_verify | default(true) | bool %}
 ---
 # Shared OpenShift API connection vars for all component playbooks.
-# Playbooks set K8S_AUTH_* from host/token/verify_ssl in this file.
+# Playbooks set K8S_AUTH_* from host/verify_ssl here. The API token is
+# vault_openshift.yml (token), not this file.
 api_host: "{{ resolved_api_host }}"
 host: "{{ resolved_api_host }}"
-token: "{{ preflight_openshift.token | default('', true) }}"
 domain: "{{ generate_env_vars_base_domain | default(bootstrap_generate_env_vars_base_domain | default(''), true) }}"
 app_domain: "{{ resolved_app_domain }}"
 apps_domain: "{{ resolved_app_domain }}"

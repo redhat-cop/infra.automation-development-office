@@ -30,6 +30,11 @@
             file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
           failed_when: false
 
+        - name: Load vault_openshift
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
+          failed_when: false
+
         - name: Load vault_grafana
           ansible.builtin.include_vars:
             file: "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_grafana.yml"

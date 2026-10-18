@@ -24,6 +24,13 @@ grafana_install_postgres_ssl_mode: disable
 # in the image; do not copy them onto the PVC.
 grafana_install_plugins_preinstall_auto_update: "false"
 grafana_install_deployment_name: grafana-deployment
+# Operator default is a 1Gi limit and a 3 second readiness timeout.
+# A busy Grafana sits on that limit and fails /api/health.
+grafana_install_cpu_request: 100m
+grafana_install_memory_request: 512Mi
+grafana_install_memory_limit: 2Gi
+grafana_install_readiness_timeout_seconds: 10
+grafana_install_readiness_failure_threshold: 3
 grafana_install_removed_init_containers:
   - copy-bundled-plugins
 grafana_install_postgres_ready_retries: 60

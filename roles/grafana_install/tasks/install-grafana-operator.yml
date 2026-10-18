@@ -321,6 +321,9 @@
 - name: Drop a leftover bundled-plugin copy init container
   ansible.builtin.import_tasks: ensure-grafana-bundled-plugins.yml
 
+- name: Set Grafana memory and readiness probe
+  ansible.builtin.import_tasks: ensure-grafana-resources.yml
+
 - name: Wait for Grafana API to be ready (/api/health)
   ansible.builtin.uri:
     url: "https://{{ grafana_install_hostname }}/api/health"

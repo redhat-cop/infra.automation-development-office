@@ -8,7 +8,7 @@
 # OCP ValidatingAdmissionPolicy requires this label at namespace creation
 # time — it cannot be added after the namespace exists.
 
-- name: "{{ ns_tenant.tenant_name }} | Determine if tenant has Primary networks"
+- name: "Determine if tenant has Primary networks {{ ns_tenant.tenant_name }}"
   ansible.builtin.set_fact:
     _ns_tenant_has_primary: >-
       {{ ns_tenant.networks | default([])
@@ -17,7 +17,7 @@
          | list | length > 0 }}
   changed_when: false
 
-- name: "{{ ns_tenant.tenant_name }} | Create namespaces"
+- name: "Create namespaces for tenant {{ ns_tenant.tenant_name }}"
   ansible.builtin.include_role:
     name: infra.ado.ocp_namespace
   vars:

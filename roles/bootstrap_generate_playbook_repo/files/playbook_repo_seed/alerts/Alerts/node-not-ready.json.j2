@@ -1,6 +1,6 @@
 {
-  "uid": "ado-node-not-ready",
-  "title": "Node not Ready or degraded",
+  "uid": "ado-node-not-ready-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "Node not Ready or degraded ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -13,7 +13,7 @@
       "datasourceUid": "{{ grafana_upload_alerts_datasource_uid }}",
       "model": {
         "editorMode": "code",
-        "expr": "count(kube_node_status_condition{condition=\"Ready\",status!=\"true\"} == 1) + count(kube_node_status_condition{condition=~\"MemoryPressure|DiskPressure|PIDPressure\",status=\"true\"} == 1)",
+        "expr": "(count(kube_node_status_condition{condition=\"Ready\",status=\"false\"} == 1) or vector(0)) + (count(kube_node_status_condition{condition=~\"MemoryPressure|DiskPressure|PIDPressure\",status=\"true\"} == 1) or vector(0))",
         "instant": true,
         "intervalMs": 1000,
         "maxDataPoints": 43200,
@@ -85,12 +85,13 @@
   "execErrState": "Error",
   "for": "5m",
   "annotations": {
-    "summary": "A node is not Ready, or it reports MemoryPressure, DiskPressure, or PIDPressure."
+    "summary": "A node is NotReady, or it reports MemoryPressure, DiskPressure, or PIDPressure. A node that stopped reporting is a separate alert."
   },
   "labels": {
-    "ado": "openshift-default"
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
   },
   "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
-  "ruleGroup": "openshift-default",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
   "orgID": 1
 }

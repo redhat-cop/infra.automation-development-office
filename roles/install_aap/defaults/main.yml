@@ -30,6 +30,10 @@ aap_ocp_install_reset_delete_platform: true
 # RHEL / VM / containerized (infra.aap_utilities.aap_setup_*)
 # Set aap_setup_prep_inv_nodes / aap_setup_prep_inv_vars / secrets as documented
 # by infra.aap_utilities. Optionally skip download when the tarball is local.
+# aap_setup_down_dest_dir and aap_setup_prep_working_dir override /var/tmp.
+# aap_setup_prep_installer_file is an existing tarball on the RHEL host.
+# aap_setup_ssh_user plus aap_setup_ssh_password or aap_setup_ssh_private_key
+# tells the bootstrap playbook to SSH to aap_setup_ssh_host.
 install_aap_rhel_download: true
 install_aap_rhel_prepare: true
 install_aap_rhel_install: true

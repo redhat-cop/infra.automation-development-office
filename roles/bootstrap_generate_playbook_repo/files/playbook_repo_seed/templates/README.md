@@ -45,12 +45,12 @@ become `OpenShift Prod — …` / `OpenShift Infra — …`.
 | `openshift_cluster_health.json.j2` | OpenShift — Cluster health and node readiness | `bekvxj0fqfi80a` |
 | `openshift-cluster-metrics.json.j2` | OpenShift — Cluster operators, alerts, and capacity | `dxkdT-eWz` |
 | `openshift-cluster-resource-overview.json.j2` | OpenShift — Cluster CPU, memory, disk, and network | `ado-ocp-resource-overview` |
-| `openshift-cluster-details.json.j2` | OpenShift — Cluster node and workload detail | `icjpCppik` |
+| `openshift-cluster-details.json.j2` | Openshift Node Workloads (pods, deployments, and containers running on the selected node, and the CPU, memory, and network they use) | `icjpCppik` |
 | `Openshift-Cluster-Overview.json.j2` | OpenShift — Cluster overview | `ado-openshift-cluster-overview-json` |
-| `openshift-projects.json.j2` | OpenShift — Project quotas and usage | `000000011` |
-| `openshift-api-monitoring.json.j2` | OpenShift — API server health and latency | `k8s_system_apisrv` |
-| `openshift-k8s-dashboard.json.j2` | OpenShift — Namespace and node resource drill-down | `ado-ocp-k8s-dashboard` |
-| `openshift-node-full-exporter.json.j2` | OpenShift — Node OS CPU, memory, disk, and network | `rYdddlPWk` |
+| `openshift-projects.json.j2` | Openshift Project Quota (namespace CPU, memory, and pod count used against the hard limit) | `000000011` |
+| `openshift-api-monitoring.json.j2` | Openshift API Server (latency, errors, and health of the API processes) | `k8s_system_apisrv` |
+| `openshift-k8s-dashboard.json.j2` | Openshift Node and Cluster Health | `ado-ocp-k8s-dashboard` |
+| `openshift-node-full-exporter.json.j2` | Openshift Node and Cluster Drilldown Health | `rYdddlPWk` |
 | `openshift-pod-cluster-montitoring.json.j2` | OpenShift — Pod and cluster Prometheus monitoring | `AAOMjeHmk` |
 | `openshift-user-metrics.json.j2` | OpenShift — Grafana self-metrics | `isFoa0z7k` |
 | `cert-manager-expiry.json.j2` | OpenShift — Certificate expiry | `ado-cert-manager-expiry` |

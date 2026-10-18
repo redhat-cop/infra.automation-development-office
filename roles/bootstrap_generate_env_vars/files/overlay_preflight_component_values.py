@@ -525,11 +525,6 @@ GRAFANA_BUILTIN_DASHBOARDS = (
         "file": "kubernetes-compute-resources-cluster.json.j2",
     },
     {
-        "id": "kubernetes-compute-resources-namespace-pods",
-        "folder_names": ["Infrastucture", "Infrastructure"],
-        "file": "kubernetes-compute-resources-namespace-pods.json.j2",
-    },
-    {
         "id": "kubernetes-compute-resources-node-pods",
         "folder_names": ["Infrastucture", "Infrastructure"],
         "file": "kubernetes-compute-resources-node-pods.json.j2",
@@ -1059,6 +1054,18 @@ def merge_component(component, cfg):
             "rhn_subscription_id",
             "rhn_client_id",
             "rhn_client_secret",
+            "install_target",
+            "standalone_hostname",
+            "standalone_database_hostname",
+            "aap_setup_containerized",
+            "aap_setup_down_type",
+            "aap_setup_bundle_dir",
+            "aap_setup_bundle_file",
+            "aap_setup_ssh_user",
+            "aap_gateway_cert_path",
+            "aap_gateway_key_path",
+            "aap_setup_custom_ca_path",
+            "aap_setup_ssh_private_key",
         }
         for aap_key in aap_role_only_keys:
             passthrough_public_values.pop(aap_key, None)
@@ -3010,6 +3017,60 @@ def merge_component(component, cfg):
                     ),
                     True,
                 )
+                bundle_dir = str(
+                    first_present(
+                        public_values.get("aap_setup_bundle_dir"),
+                        pre_aap.get("aap_setup_bundle_dir"),
+                    )
+                    or ""
+                ).strip()
+                bundle_file = str(
+                    first_present(
+                        public_values.get("aap_setup_bundle_file"),
+                        pre_aap.get("aap_setup_bundle_file"),
+                    )
+                    or ""
+                ).strip()
+                if bundle_dir:
+                    vars_data["aap_setup_down_dest_dir"] = bundle_dir
+                    vars_data["aap_setup_working_dir"] = bundle_dir
+                    vars_data["aap_setup_prep_working_dir"] = bundle_dir
+                if bundle_file:
+                    vars_data["aap_setup_prep_installer_file"] = bundle_file
+                    vars_data["install_aap_rhel_download"] = False
+                ssh_user = str(
+                    first_present(
+                        public_values.get("aap_setup_ssh_user"),
+                        pre_aap.get("aap_setup_ssh_user"),
+                    )
+                    or ""
+                ).strip()
+                if standalone_host:
+                    vars_data["aap_setup_ssh_host"] = standalone_host
+                if ssh_user:
+                    vars_data["aap_setup_ssh_user"] = ssh_user
+                ssh_password = first_present(
+                    secret_values.get("aap_setup_ssh_password"),
+                    pre_aap.get("aap_setup_ssh_password"),
+                )
+                if ssh_password:
+                    vault_data["aap_setup_ssh_password"] = ssh_password
+                    vault_data_changed = True
+                    vars_data["aap_setup_ssh_password"] = vault_ref(
+                        "aap_setup_ssh_password"
+                    )
+                ssh_key = first_present(
+                    secret_values.get("aap_setup_ssh_private_key_secret"),
+                    pre_aap.get("aap_setup_ssh_private_key_secret"),
+                    public_values.get("aap_setup_ssh_private_key"),
+                    pre_aap.get("aap_setup_ssh_private_key"),
+                )
+                if ssh_key:
+                    vault_data["aap_setup_ssh_private_key"] = ssh_key
+                    vault_data_changed = True
+                    vars_data["aap_setup_ssh_private_key"] = vault_ref(
+                        "aap_setup_ssh_private_key"
+                    )
                 if standalone_host:
                     vars_data["aap_setup_prep_inv_nodes"] = {
                         "automationcontroller": {standalone_host: ""},
@@ -3021,12 +3082,27 @@ def merge_component(component, cfg):
                     public_values["hostname"] = standalone_host
                     if standalone_db:
                         public_values["standalone_database_hostname"] = standalone_db
+                inv_all = {}
                 if admin_password is not None:
-                    vars_data["aap_setup_prep_inv_vars"] = {
-                        "all": {
-                            "admin_password": vault_ref("aap_admin_password"),
-                        }
-                    }
+                    inv_all["admin_password"] = vault_ref("aap_admin_password")
+                if vars_data.get("aap_setup_containerized"):
+                    inv_all["bundle_install"] = "true"
+                for src_key, inv_key in (
+                    ("aap_gateway_cert_path", "gateway_tls_cert"),
+                    ("aap_gateway_key_path", "gateway_tls_key"),
+                    ("aap_setup_custom_ca_path", "custom_ca_cert"),
+                ):
+                    inv_value = str(
+                        first_present(
+                            public_values.get(src_key),
+                            pre_aap.get(src_key),
+                        )
+                        or ""
+                    ).strip()
+                    if inv_value:
+                        inv_all[inv_key] = inv_value
+                if inv_all:
+                    vars_data["aap_setup_prep_inv_vars"] = {"all": inv_all}
             skip_tls_verify = as_bool(
                 openshift_values.get("skip_tls_verify"),
                 True,

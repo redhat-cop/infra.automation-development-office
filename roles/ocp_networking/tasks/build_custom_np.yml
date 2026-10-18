@@ -17,13 +17,13 @@
 #   _custom_np_annot      – annotations dict (use {} for none)
 #   _custom_np_pod_sel    – policy-level podSelector labels (use {} for all pods)
 
-- name: "Custom {{ _custom_np_kind }} | Init rule lists"
+- name: "Init rule lists for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
     _cnp_ingress: []
     _cnp_egress: []
   changed_when: false
 
-- name: "Custom {{ _custom_np_kind }} | Transform rule"
+- name: "Transform rule for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
     _cnp_ingress: "{{ (_cnp_ingress + [_built]) if rule.direction | default('ingress') == 'ingress' else _cnp_ingress }}"
     _cnp_egress: "{{ (_cnp_egress + [_built]) if rule.direction | default('ingress') == 'egress' else _cnp_egress }}"
@@ -82,7 +82,7 @@
       }}
   changed_when: false
 
-- name: "Custom {{ _custom_np_kind }} | Append policy to resources"
+- name: "Append policy to resources for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{

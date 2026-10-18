@@ -149,6 +149,12 @@ mock_roles:
     - infra.ado.acs_report
     - infra.ado.vm_image_management
 mock_modules:
+    # Lint production does not install collection deps. These playbooks call
+    # amazon.aws, which is declared in galaxy.yml.
+    - amazon.aws.ec2_instance
+    - amazon.aws.ec2_instance_info
+    - amazon.aws.s3_bucket
+    - amazon.aws.s3_bucket_info
     - kubernetes.core.helm_info
     - community.general.keycloak_clientsecret_info
     - community.general.keycloak_clientsecret_regenerate

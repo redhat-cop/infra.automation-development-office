@@ -1,6 +1,6 @@
 {
-  "uid": "ado-node-cpu-high",
-  "title": "Node CPU above 85 percent",
+  "uid": "ado-node-cpu-high-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "Node CPU above 85 percent ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -88,9 +88,10 @@
     "summary": "At least one node has CPU busy above 85 percent for 10 minutes."
   },
   "labels": {
-    "ado": "openshift-default"
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
   },
   "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
-  "ruleGroup": "openshift-default",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
   "orgID": 1
 }

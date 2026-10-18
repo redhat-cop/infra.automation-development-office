@@ -1,6 +1,6 @@
 {
-  "uid": "ado-namespace-service-unready",
-  "title": "Namespace has running pods but a Service has no endpoints",
+  "uid": "ado-ns-unready-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "Namespace has running pods but a Service has no endpoints ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -88,9 +88,10 @@
     "summary": "A namespace still has Running pods, and at least one Service in that namespace has no ready endpoints. This is the portable stand-in for a route that looks down."
   },
   "labels": {
-    "ado": "openshift-default"
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
   },
   "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
-  "ruleGroup": "openshift-default",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
   "orgID": 1
 }

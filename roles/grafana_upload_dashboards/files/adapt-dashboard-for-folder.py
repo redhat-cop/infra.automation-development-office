@@ -53,15 +53,35 @@ def load(path: str) -> dict:
     return json.loads(text)
 
 
-def ensure_k8s_var(dash: dict, *, pinned: str | None = None, hide: int = 0) -> None:
+def datasource_regex(names: list[str]) -> str:
+    """Empty regex lists every Prometheus datasource. Names come from vars."""
+    cleaned = [name for name in names if str(name).strip()]
+    if not cleaned:
+        return ""
+    body = "|".join(re.escape(name) for name in cleaned)
+    if len(cleaned) == 1:
+        return f"/^{body}$/"
+    return f"/^({body})$/"
+
+
+def ensure_k8s_var(
+    dash: dict,
+    *,
+    pinned: str | None = None,
+    names: list[str] | None = None,
+    hide: int = 0,
+) -> None:
     templating = dash.setdefault("templating", {})
     others = [v for v in templating.get("list", []) if v.get("name") != "datasource"]
     var = json.loads(json.dumps(K8S_VAR))
     var["hide"] = hide
-    if pinned:
-        var["current"] = {"selected": True, "text": pinned, "value": pinned}
-        var["regex"] = f"/^{re.escape(pinned)}$/"
-        var["query"] = "prometheus"
+    chosen = [pinned] if pinned else [name for name in (names or []) if str(name).strip()]
+    var["regex"] = datasource_regex(chosen)
+    var["query"] = "prometheus"
+    if chosen:
+        var["current"] = {"selected": True, "text": chosen[0], "value": chosen[0]}
+    else:
+        var["current"] = {}
     others.insert(0, var)
     templating["list"] = others
 
@@ -169,6 +189,11 @@ def main() -> int:
     parser.add_argument("--mode", choices=("pin", "multi", "none"), default="none")
     parser.add_argument("--datasource", default="")
     parser.add_argument(
+        "--datasource-names",
+        default="",
+        help="Comma-separated Grafana datasource names for the Cluster dropdown",
+    )
+    parser.add_argument(
         "--datasource-uid",
         default="",
         help="Grafana datasource uid (defaults to --datasource name)",
@@ -188,8 +213,13 @@ def main() -> int:
     if uid_suffix and not uid_suffix.startswith("-"):
         uid_suffix = f"-{uid_suffix}"
 
-    ds_name = str(args.datasource or "").strip() or "OpenshiftProd"
+    ds_name = str(args.datasource or "").strip()
     ds_uid = str(args.datasource_uid or "").strip() or ds_name
+    ds_names = [
+        name.strip()
+        for name in str(args.datasource_names or "").split(",")
+        if name.strip()
+    ]
 
     if args.mode == "none":
         # Legacy placeholders only — do not clobber unrelated prometheus UIDs.
@@ -209,7 +239,7 @@ def main() -> int:
         apply_uid(dash, "")
         apply_title(dash, "", "multi")
         rewrite_prometheus_ds(dash, pinned=None, all_prometheus=True)
-        ensure_k8s_var(dash, pinned=None, hide=0)
+        ensure_k8s_var(dash, names=ds_names or ([ds_name] if ds_name else []), hide=0)
 
     open(args.dest, "w", encoding="utf-8").write(json.dumps(dash, indent=2) + "\n")
     return 0
