@@ -1,0 +1,224 @@
+---
+- name: Require a bundle directory
+  ansible.builtin.assert:
+    that:
+      - ocp_disconnected_install_bundle_dir | length > 0
+    fail_msg: >-
+      Set ocp_disconnected_install_bundle_dir to the exported
+      installation bundle.
+
+- name: Load bundle manifest
+  ansible.builtin.include_vars:
+    file: "{{ ocp_disconnected_install_bundle_dir }}/manifest.yaml"
+    name: ocp_disconnected_install_manifest
+
+- name: Reject a bundle this role cannot validate
+  ansible.builtin.assert:
+    that:
+      - ocp_disconnected_install_manifest.schema_version | int == 1
+      - >-
+        ocp_disconnected_install_manifest.kind
+        == 'OpenShiftDisconnectedInstallBundle'
+      - ocp_disconnected_install_manifest.install.method == 'agent'
+      - ocp_disconnected_install_manifest.install.media in ['iso', 'pxe']
+      - >-
+        ocp_disconnected_install_manifest.registry.mode
+        in ['existing', 'direct', 'offline']
+    fail_msg: >-
+      manifest.yaml must be schema_version 1, kind
+      OpenShiftDisconnectedInstallBundle, method agent,
+      media iso or pxe, and registry.mode existing, direct,
+      or offline.
+
+- name: Reject offline mirror transfer until that stage exists
+  ansible.builtin.assert:
+    that:
+      - ocp_disconnected_install_manifest.registry.mode != 'offline'
+    fail_msg: >-
+      registry.mode offline is not implemented.
+      Use existing or direct.
+
+- name: Require a registry URL for direct mirroring
+  ansible.builtin.assert:
+    that:
+      - >-
+        ocp_disconnected_install_manifest.registry.url
+        | default('')
+        | length > 0
+    fail_msg: registry.mode direct requires registry.url in manifest.yaml.
+  when:
+    - ocp_disconnected_install_manifest.registry.mode == 'direct'
+
+- name: Checksum authoritative bundle files
+  ansible.builtin.stat:
+    path: >-
+      {{
+        ocp_disconnected_install_bundle_dir
+      }}/{{ item }}
+    checksum_algorithm: sha256
+    get_checksum: true
+  loop:
+    - install-config.yaml
+    - agent-config.yaml
+    - imageset-config.yaml
+  register: ocp_disconnected_install_checksums
+
+- name: Compare checksums to the manifest
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - >-
+        item.stat.checksum
+        == ocp_disconnected_install_manifest.checksums[item.item]
+    fail_msg: >-
+      {{ item.item }} is missing or its checksum does not match
+      manifest.yaml. The role does not rewrite bundle YAML.
+  loop: "{{ ocp_disconnected_install_checksums.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Choose a run id
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_run_id: >-
+      {{
+        lookup('pipe', 'date -u +%Y%m%dT%H%M%SZ')
+        ~ '-' ~ (100000 | random)
+      }}
+  when: ocp_disconnected_install_run_id | length == 0
+  changed_when: false
+
+- name: Set this attempt's directory
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_run_dir: >-
+      {{
+        ocp_disconnected_install_bundle_dir
+      }}/runs/{{ ocp_disconnected_install_run_id }}
+  changed_when: false
+
+- name: Look for an existing status file
+  ansible.builtin.stat:
+    path: "{{ ocp_disconnected_install_run_dir }}/status.json"
+  register: ocp_disconnected_install_status_stat
+
+- name: Read an existing status file
+  ansible.builtin.slurp:
+    src: "{{ ocp_disconnected_install_run_dir }}/status.json"
+  register: ocp_disconnected_install_status_slurp
+  when: ocp_disconnected_install_status_stat.stat.exists
+
+- name: Remember when this run id already finished
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_prior_status: >-
+      {{
+        ocp_disconnected_install_status_slurp.content
+        | b64decode
+        | from_json
+      }}
+  when: ocp_disconnected_install_status_stat.stat.exists
+  changed_when: false
+
+- name: Default this run to not yet complete
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_already_complete: false
+  changed_when: false
+
+- name: Mark this run id complete when status says so
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_already_complete: true
+  when:
+    - ocp_disconnected_install_status_stat.stat.exists
+    - >-
+      (ocp_disconnected_install_prior_status | default({})).state
+      == 'complete'
+    - >-
+      (ocp_disconnected_install_prior_status | default({})).stage
+      == 'bundle_ready'
+    - >-
+      (ocp_disconnected_install_prior_status | default({})).run_id
+      == ocp_disconnected_install_run_id
+  changed_when: false
+
+- name: Create the run working directory
+  ansible.builtin.file:
+    path: "{{ ocp_disconnected_install_run_dir }}/install-dir/manifests"
+    state: directory
+    mode: "0750"
+  when: not ocp_disconnected_install_already_complete | bool
+
+- name: Copy installer YAML into the run working directory
+  ansible.builtin.copy:
+    src: >-
+      {{ ocp_disconnected_install_bundle_dir }}/{{ item }}
+    dest: >-
+      {{ ocp_disconnected_install_run_dir }}/install-dir/{{ item }}
+    remote_src: true
+    mode: preserve
+  loop:
+    - install-config.yaml
+    - agent-config.yaml
+  when: not ocp_disconnected_install_already_complete | bool
+
+- name: Detect extra manifests
+  ansible.builtin.stat:
+    path: "{{ ocp_disconnected_install_bundle_dir }}/manifests"
+  register: ocp_disconnected_install_manifests_dir
+
+- name: Copy extra manifests into the working directory
+  ansible.builtin.copy:
+    src: "{{ ocp_disconnected_install_bundle_dir }}/manifests/"
+    dest: "{{ ocp_disconnected_install_run_dir }}/install-dir/manifests/"
+    remote_src: true
+    mode: preserve
+  when:
+    - not ocp_disconnected_install_already_complete | bool
+    - ocp_disconnected_install_manifests_dir.stat.isdir | default(false)
+
+- name: Record the run clock
+  ansible.builtin.set_fact:
+    ocp_disconnected_install_clock: >-
+      {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}
+  when: not ocp_disconnected_install_already_complete | bool
+  changed_when: false
+
+- name: Write a sanitized run log
+  ansible.builtin.copy:
+    dest: "{{ ocp_disconnected_install_run_dir }}/ansible.log"
+    mode: "0640"
+    content: |
+      run_id={{ ocp_disconnected_install_run_id }}
+      stage=bundle_ready state=complete
+      at={{ ocp_disconnected_install_clock }}
+      Checksums match manifest.yaml.
+      Bundle YAML was not modified.
+      Working copies are in install-dir.
+  when: not ocp_disconnected_install_already_complete | bool
+
+- name: Write status to a temporary file
+  ansible.builtin.copy:
+    dest: "{{ ocp_disconnected_install_run_dir }}/status.json.tmp"
+    mode: "0640"
+    content: |
+      {
+        "schema_version": 1,
+        "run_id": {{ ocp_disconnected_install_run_id | to_json }},
+        "stage": "bundle_ready",
+        "state": "complete",
+        "started_at": {{ ocp_disconnected_install_clock | to_json }},
+        "updated_at": {{ ocp_disconnected_install_clock | to_json }},
+        "message": "Bundle checksums match. Installer files were not modified.",
+        "bundle_schema_version": 1
+      }
+  register: ocp_disconnected_install_status_write
+  when: not ocp_disconnected_install_already_complete | bool
+
+- name: Publish status atomically
+  ansible.builtin.command:
+    argv:
+      - mv
+      - -f
+      - "{{ ocp_disconnected_install_run_dir }}/status.json.tmp"
+      - "{{ ocp_disconnected_install_run_dir }}/status.json"
+  when:
+    - not ocp_disconnected_install_already_complete | bool
+    - ocp_disconnected_install_status_write.changed
+  changed_when: true

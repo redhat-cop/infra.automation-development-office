@@ -24,6 +24,9 @@ Automation Development Office.
 | `grafana_alerts_enabled` | When false, role ends without uploading. |
 | `grafana_api_key` | Optional Bearer token. |
 | `grafana_admin_user` / `grafana_admin_password` | Basic auth when API key unset. |
+| `grafana_alert_datasource_names` | Prometheus datasource names, list or comma-separated. Blank uses every Prometheus datasource. |
+| `grafana_alert_email_to` | Email addresses for the ADO OpenShift contact point. Blank skips email routing. |
+| `grafana_alert_send_test` | When true, post one short-lived test alert per rule type. |
 
 ## 🚀 Role Usage
 
@@ -56,5 +59,7 @@ grafana_upload_alerts/
 └── tasks/
     ├── main.yml
     ├── collect-folder-alerts.yml
-    └── upload-alert-file.yml
+    ├── upload-datasource-alerts.yml
+    ├── upload-alert-file.yml
+    └── configure-alert-email.yml
 ```

@@ -9,6 +9,7 @@
     # GitLab bootstrap-sample historically names these vault_dirsrv / vars_dirsrv
     # (not vault_389ds). Load those so passwords under dirsrv: are available.
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_dirsrv.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_dirsrv.yml"
   environment:

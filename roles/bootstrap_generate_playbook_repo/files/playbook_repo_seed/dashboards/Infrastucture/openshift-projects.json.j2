@@ -105,7 +105,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum (kube_resourcequota{resource=\"requests.cpu\",type=\"used\",namespace=~\"^$Namespace$\"}) * 1000",
+          "expr": "sum (kube_resourcequota{resource=\"requests.cpu\",type=\"used\",namespace=~\"^${Namespace:raw}$\"}) * 1000",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace }} (used)",
@@ -113,7 +113,7 @@
           "step": 240
         },
         {
-          "expr": "sum (kube_resourcequota{resource=\"requests.cpu\",type=\"hard\",namespace=~\"^$Namespace$\"}) * 1000",
+          "expr": "sum (kube_resourcequota{resource=\"requests.cpu\",type=\"hard\",namespace=~\"^${Namespace:raw}$\"}) * 1000",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace }} (requests)",
@@ -121,7 +121,7 @@
           "step": 240
         },
         {
-          "expr": "sum (kube_resourcequota{resource=\"limits.cpu\",type=\"hard\",namespace=~\"^$Namespace$\"}) * 1000",
+          "expr": "sum (kube_resourcequota{resource=\"limits.cpu\",type=\"hard\",namespace=~\"^${Namespace:raw}$\"}) * 1000",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace }} (limit)",
@@ -216,7 +216,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m]))",
+          "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m]))",
           "format": "time_series",
           "interval": "10s",
           "intervalFactor": 1,
@@ -309,7 +309,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum (kube_resourcequota{resource=\"requests.memory\",type=\"used\",namespace=~\"^$Namespace$\"}) ",
+          "expr": "sum (kube_resourcequota{resource=\"requests.memory\",type=\"used\",namespace=~\"^${Namespace:raw}$\"}) ",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace }} (used)",
@@ -317,7 +317,7 @@
           "step": 240
         },
         {
-          "expr": "sum (kube_resourcequota{resource=\"requests.memory\",type=\"hard\",namespace=~\"^$Namespace$\"}) ",
+          "expr": "sum (kube_resourcequota{resource=\"requests.memory\",type=\"hard\",namespace=~\"^${Namespace:raw}$\"}) ",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace  }} (requests)",
@@ -325,7 +325,7 @@
           "step": 240
         },
         {
-          "expr": "sum (kube_resourcequota{resource=\"limits.memory\",type=\"hard\",namespace=~\"^$Namespace$\"}) ",
+          "expr": "sum (kube_resourcequota{resource=\"limits.memory\",type=\"hard\",namespace=~\"^${Namespace:raw}$\"}) ",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ $Namespace }} (limit)",
@@ -421,7 +421,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"})",
+          "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"})",
           "format": "time_series",
           "interval": "10s",
           "intervalFactor": 1,
@@ -520,7 +520,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum (rate (container_network_receive_bytes_total{namespace=~\"^$Namespace$\"}[2m]))",
+          "expr": "sum (rate (container_network_receive_bytes_total{namespace=~\"^${Namespace:raw}$\"}[2m]))",
           "format": "time_series",
           "interval": "10s",
           "intervalFactor": 1,
@@ -530,7 +530,7 @@
           "step": 10
         },
         {
-          "expr": "- sum (rate (container_network_transmit_bytes_total{namespace=~\"^$Namespace$\"}[2m]))",
+          "expr": "- sum (rate (container_network_transmit_bytes_total{namespace=~\"^${Namespace:raw}$\"}[2m]))",
           "format": "time_series",
           "interval": "10s",
           "intervalFactor": 1,
@@ -638,7 +638,7 @@
           "steppedLine": true,
           "targets": [
             {
-              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (pod_name)",
+              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (pod_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -739,7 +739,7 @@
           "steppedLine": true,
           "targets": [
             {
-              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",container_name!=\"POD\",namespace=~\"^$Namespace$\"}[2m])) by (container_name, pod_name)",
+              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name=~\"^k8s_.*\",container_name!=\"POD\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (container_name, pod_name)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -750,7 +750,7 @@
               "step": 10
             },
             {
-              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, name, image)",
+              "expr": "sum (rate (container_cpu_usage_seconds_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, name, image)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -761,7 +761,7 @@
               "step": 10
             },
             {
-              "expr": "sum (rate (container_cpu_usage_seconds_total{rkt_container_name!=\"\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, rkt_container_name)",
+              "expr": "sum (rate (container_cpu_usage_seconds_total{rkt_container_name!=\"\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, rkt_container_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -873,7 +873,7 @@
           "steppedLine": true,
           "targets": [
             {
-              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}) by (pod_name)",
+              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}) by (pod_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -971,7 +971,7 @@
           "steppedLine": true,
           "targets": [
             {
-              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",container_name!=\"POD\",namespace=~\"^$Namespace$\"}) by (container_name, pod_name)",
+              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name=~\"^k8s_.*\",container_name!=\"POD\",namespace=~\"^${Namespace:raw}$\"}) by (container_name, pod_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -981,7 +981,7 @@
               "step": 10
             },
             {
-              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^$Namespace$\"}) by (fqdn, name, image)",
+              "expr": "sum (container_memory_working_set_bytes{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}) by (fqdn, name, image)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -991,7 +991,7 @@
               "step": 10
             },
             {
-              "expr": "sum (container_memory_working_set_bytes{rkt_container_name!=\"\",namespace=~\"^$Namespace$\"}) by (fqdn, rkt_container_name)",
+              "expr": "sum (container_memory_working_set_bytes{rkt_container_name!=\"\",namespace=~\"^${Namespace:raw}$\"}) by (fqdn, rkt_container_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -1103,7 +1103,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (pod_name)",
+              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (pod_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -1113,7 +1113,7 @@
               "step": 10
             },
             {
-              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (pod_name)",
+              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (pod_name)",
               "format": "time_series",
               "interval": "10s",
               "intervalFactor": 1,
@@ -1211,7 +1211,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (container_name, pod_name)",
+              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (container_name, pod_name)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1222,7 +1222,7 @@
               "step": 10
             },
             {
-              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (container_name, pod_name)",
+              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name=~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (container_name, pod_name)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1233,7 +1233,7 @@
               "step": 10
             },
             {
-              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, name, image)",
+              "expr": "sum (rate (container_network_receive_bytes_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, name, image)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1244,7 +1244,7 @@
               "step": 10
             },
             {
-              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, name, image)",
+              "expr": "- sum (rate (container_network_transmit_bytes_total{image!=\"\",name!~\"^k8s_.*\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, name, image)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1255,7 +1255,7 @@
               "step": 10
             },
             {
-              "expr": "sum (rate (container_network_transmit_bytes_total{rkt_container_name!=\"\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, rkt_container_name)",
+              "expr": "sum (rate (container_network_transmit_bytes_total{rkt_container_name!=\"\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, rkt_container_name)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1266,7 +1266,7 @@
               "step": 10
             },
             {
-              "expr": "- sum (rate (container_network_transmit_bytes_total{rkt_container_name!=\"\",namespace=~\"^$Namespace$\"}[2m])) by (fqdn, rkt_container_name)",
+              "expr": "- sum (rate (container_network_transmit_bytes_total{rkt_container_name!=\"\",namespace=~\"^${Namespace:raw}$\"}[2m])) by (fqdn, rkt_container_name)",
               "format": "time_series",
               "hide": false,
               "interval": "10s",
@@ -1352,22 +1352,29 @@
       {
         "allValue": ".*",
         "current": {},
-        "datasource": "${DS_OPENSHIFT}",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
         "hide": 0,
         "includeAll": true,
-        "label": null,
+        "label": "Namespace",
         "multi": false,
         "name": "Namespace",
         "options": [],
-        "query": "label_values(namespace)",
-        "refresh": 1,
+        "query": {
+          "query": "label_values(kube_pod_info, namespace)",
+          "refId": "namespace-Variable-Query"
+        },
+        "refresh": 2,
         "regex": "",
-        "sort": 0,
+        "sort": 1,
         "tagValuesQuery": "",
         "tags": [],
         "tagsQuery": "",
         "type": "query",
-        "useTags": false
+        "useTags": false,
+        "definition": "label_values(kube_pod_info, namespace)"
       }
     ]
   },
@@ -1401,7 +1408,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "K8/Openshift Projects",
+  "title": "Openshift Project Quota (namespace CPU, memory, and pod count used against the hard limit)",
   "uid": "000000011",
   "version": 11
 }

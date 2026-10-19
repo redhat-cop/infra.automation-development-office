@@ -1,6 +1,6 @@
 {
-  "uid": "ado-crashloop-pods",
-  "title": "More than 5 pods in CrashLoopBackOff",
+  "uid": "ado-crashloop-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "More than 5 pods in CrashLoopBackOff ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -88,9 +88,10 @@
     "summary": "More than 5 containers are waiting in CrashLoopBackOff."
   },
   "labels": {
-    "ado": "openshift-default"
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
   },
   "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
-  "ruleGroup": "openshift-default",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
   "orgID": 1
 }

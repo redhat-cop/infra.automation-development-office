@@ -135,7 +135,10 @@ Preflight `additional_environments` (space/comma-separated names) is combined
 with the primary `environment` value to build AAP survey
 `environment_choices`. Empty / `none` means only the primary environment is
 offered. The old hardcoded `dev/test/preprod/prod` survey list is not used when
-choices are generated from preflight.
+choices are generated from preflight. Set
+`additional_environments_create_group_vars` to `true` to also copy
+`group_vars/all/<environment>` into each other selected name. The primary
+environment directory is not copied onto itself.
 
 When IdM AD Trust is selected, this role overlays IdM AD trust settings into
 `vars_idm.yml` / IdM vault secrets (including

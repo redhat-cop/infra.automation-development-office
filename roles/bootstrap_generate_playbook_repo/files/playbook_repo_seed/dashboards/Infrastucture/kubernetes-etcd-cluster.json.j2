@@ -90,7 +90,7 @@
       "pluginVersion": "8.5.20",
       "targets": [
         {
-          "expr": "sum(etcd_server_has_leader{cluster=\"$cluster\",job=\"etcd\"})",
+          "expr": "sum(etcd_server_has_leader{job=\"etcd\",pod=~\"etcd-${node:raw}\"})",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "",
@@ -158,7 +158,7 @@
           "step": 2
         },
         {
-          "expr": "rpc_rate:grpc_server_handled_total:sum_rate{cluster=\"$cluster\"}",
+          "expr": "rpc_rate:grpc_server_handled_total:sum_rate{pod=~\"etcd-${node:raw}\"}",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 2,
@@ -256,7 +256,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "active_streams_watch:grpc_server_handled_total:sum{cluster=\"$cluster\"}",
+          "expr": "active_streams_watch:grpc_server_handled_total:sum{pod=~\"etcd-${node:raw}\"}",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "Watch Streams",
@@ -265,7 +265,7 @@
           "step": 4
         },
         {
-          "expr": "active_streams_lease:grpc_server_handled_total:sum{cluster=\"$cluster\"}",
+          "expr": "active_streams_lease:grpc_server_handled_total:sum{pod=~\"etcd-${node:raw}\"}",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
@@ -364,7 +364,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "etcd_mvcc_db_total_size_in_bytes{cluster=\"$cluster\",job=\"etcd\"}",
+          "expr": "etcd_mvcc_db_total_size_in_bytes{job=\"etcd\",pod=~\"etcd-${node:raw}\"}",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
@@ -460,7 +460,7 @@
       "steppedLine": true,
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket{cluster=\"$cluster\",job=\"etcd\"}[$__rate_interval])) by (instance, le))",
+          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])) by (pod, le))",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
@@ -470,7 +470,7 @@
           "step": 4
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket{cluster=\"$cluster\",job=\"etcd\"}[$__rate_interval])) by (instance, le))",
+          "expr": "histogram_quantile(0.99, sum(rate(etcd_disk_backend_commit_duration_seconds_bucket{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])) by (pod, le))",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} DB fsync",
@@ -565,7 +565,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "process_resident_memory_bytes{cluster=\"$cluster\",job=\"etcd\"}",
+          "expr": "process_resident_memory_bytes{job=\"etcd\",pod=~\"etcd-${node:raw}\"}",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} Resident Memory",
@@ -662,7 +662,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(etcd_network_client_grpc_received_bytes_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval])",
+          "expr": "rate(etcd_network_client_grpc_received_bytes_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} Client Traffic In",
@@ -759,7 +759,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "rate(etcd_network_client_grpc_sent_bytes_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval])",
+          "expr": "rate(etcd_network_client_grpc_sent_bytes_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} Client Traffic Out",
@@ -856,7 +856,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(etcd_network_peer_received_bytes_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval])) by (instance)",
+          "expr": "sum(rate(etcd_network_peer_received_bytes_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])) by (pod)",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} Peer Traffic In",
@@ -954,7 +954,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(etcd_network_peer_sent_bytes_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval])) by (instance)",
+          "expr": "sum(rate(etcd_network_peer_sent_bytes_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval])) by (pod)",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
@@ -1050,7 +1050,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(etcd_server_proposals_failed_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval]))",
+          "expr": "sum(rate(etcd_server_proposals_failed_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval]))",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "Proposal Failure Rate",
@@ -1059,7 +1059,7 @@
           "step": 2
         },
         {
-          "expr": "sum(etcd_server_proposals_pending{cluster=\"$cluster\", job=\"etcd\"})",
+          "expr": "sum(etcd_server_proposals_pending{job=\"etcd\",pod=~\"etcd-${node:raw}\"})",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "Proposal Pending Total",
@@ -1068,7 +1068,7 @@
           "step": 2
         },
         {
-          "expr": "sum(rate(etcd_server_proposals_committed_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval]))",
+          "expr": "sum(rate(etcd_server_proposals_committed_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval]))",
           "intervalFactor": 2,
           "legendFormat": "Proposal Commit Rate",
           "metric": "etcd_server_proposals_committed_total",
@@ -1076,7 +1076,7 @@
           "step": 2
         },
         {
-          "expr": "sum(rate(etcd_server_proposals_applied_total{cluster=\"$cluster\", job=\"etcd\"}[$__rate_interval]))",
+          "expr": "sum(rate(etcd_server_proposals_applied_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[$__rate_interval]))",
           "intervalFactor": 2,
           "legendFormat": "Proposal Apply Rate",
           "refId": "D",
@@ -1174,7 +1174,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "changes(etcd_server_leader_changes_seen_total{cluster=\"$cluster\", job=\"etcd\"}[1d])",
+          "expr": "changes(etcd_server_leader_changes_seen_total{job=\"etcd\",pod=~\"etcd-${node:raw}\"}[1d])",
           "interval": "",
           "intervalFactor": 2,
           "legendFormat": "{{instance}} Total Leader Elections Per Day",
@@ -1256,30 +1256,33 @@
         "type": "datasource"
       },
       {
-        "allValue": null,
+        "allValue": ".*",
         "current": {
-          "selected": false,
-          "text": "",
-          "value": ""
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
         },
-        "datasource": "{{ grafana_datasource }}",
-        "definition": "label_values(etcd_server_has_leader,cluster)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(etcd_server_has_leader, pod)",
         "description": null,
         "error": null,
         "hide": 0,
-        "includeAll": false,
-        "label": "Cluster",
+        "includeAll": true,
+        "label": "Node",
         "multi": false,
-        "name": "cluster",
+        "name": "node",
         "options": [],
         "query": {
-          "query": "label_values(etcd_server_has_leader,cluster)",
+          "query": "label_values(etcd_server_has_leader, pod)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
-        "regex": "",
+        "regex": "/etcd-(.+)/",
         "skipUrlSync": false,
-        "sort": 2,
+        "sort": 1,
         "tagValuesQuery": "",
         "tagsQuery": "",
         "type": "query",
@@ -1315,7 +1318,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "Kubernetes / etcd Cluster",
+  "title": "Openshift etcd (database size, disk sync, and leader elections)",
   "uid": "4374ac7478b04293bb0032cbbe04118d",
   "version": 1
 }

@@ -68,26 +68,52 @@
   register: grafana_upload_alerts_ds_list
   when: (grafana_upload_alerts_work_items | length) > 0
 
-- name: Use the first Prometheus datasource for default alerts
+- name: Normalize datasource name filter
   ansible.builtin.set_fact:
-    grafana_upload_alerts_datasource_uid: >-
+    grafana_upload_alerts_datasource_names: >-
       {{
         (
-          grafana_upload_alerts_ds_list.json
-          | default([])
-          | selectattr('type', 'defined')
-          | selectattr('type', 'equalto', 'prometheus')
-          | map(attribute='uid')
+          grafana_alert_datasource_names.split(',')
+          | map('trim')
+          | reject('equalto', '')
           | list
-          | first
-        ) | default('')
+        )
+        if (
+          grafana_alert_datasource_names is defined
+          and grafana_alert_datasource_names is string
+        )
+        else (grafana_alert_datasource_names | default([]))
+      }}
+    grafana_upload_alerts_uploaded_titles: []
+
+- name: Select Prometheus datasources for OpenShift alerts
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_prometheus_datasources: >-
+      {{
+        grafana_upload_alerts_ds_list.json
+        | default([])
+        | selectattr('type', 'defined')
+        | selectattr('type', 'equalto', 'prometheus')
+        | list
       }}
   when: (grafana_upload_alerts_work_items | length) > 0
 
-- name: Assert a Prometheus datasource exists for alert rules
+- name: Limit alerts to named Prometheus datasources
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_prometheus_datasources: >-
+      {{
+        grafana_upload_alerts_prometheus_datasources
+        | selectattr('name', 'in', grafana_upload_alerts_datasource_names)
+        | list
+      }}
+  when:
+    - (grafana_upload_alerts_work_items | length) > 0
+    - (grafana_upload_alerts_datasource_names | length) > 0
+
+- name: Assert Prometheus datasources exist for alert rules
   ansible.builtin.assert:
     that:
-      - grafana_upload_alerts_datasource_uid | default('') | length > 0
+      - grafana_upload_alerts_prometheus_datasources | length > 0
     fail_msg: >-
       grafana_upload_alerts needs a Prometheus datasource in Grafana
       before the default OpenShift alert rules can be uploaded.
@@ -133,10 +159,14 @@
     label: "{{ item }}"
   when: (grafana_upload_alerts_work_items | length) > 0
 
-- name: Materialize and upload each alert file
-  ansible.builtin.include_tasks: upload-alert-file.yml
-  loop: "{{ grafana_upload_alerts_work_items }}"
+- name: Upload alert rules for each Prometheus datasource
+  ansible.builtin.include_tasks: upload-datasource-alerts.yml
+  loop: "{{ grafana_upload_alerts_prometheus_datasources }}"
   loop_control:
-    loop_var: grafana_alert_item
-    label: "{{ grafana_alert_item.name | default('alert') }}"
+    loop_var: grafana_upload_alerts_ds
+    label: "{{ grafana_upload_alerts_ds.name | default('prometheus') }}"
+  when: (grafana_upload_alerts_work_items | length) > 0
+
+- name: Configure alert email and send tests
+  ansible.builtin.include_tasks: configure-alert-email.yml
   when: (grafana_upload_alerts_work_items | length) > 0

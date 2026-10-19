@@ -1515,6 +1515,13 @@
     loop_var: component_name
   when: component_name not in ['ec2_ami_copy', 'ec2_instance', 's3_bucket_policy']
 
+- name: Write vault_openshift.yml when OpenShift is not a selected component
+  ansible.builtin.template:
+    src: vault_openshift.yml.j2
+    dest: "{{ bootstrap_generate_env_vars_env_dir }}/vault_openshift.yml"
+    mode: "0600"
+    force: false
+
 - name: Remove legacy per-component ec2_ami_copy vault file after template pass
   ansible.builtin.file:
     path: >-
@@ -2045,3 +2052,7 @@
   when:
     - bootstrap_generate_env_vars_encrypt_vault_files | bool
     - bootstrap_generate_env_vars_temp_vault_password_file.path is defined
+
+- name: Copy group_vars for selected additional environments
+  ansible.builtin.include_tasks:
+    file: copy_additional_group_vars.yml

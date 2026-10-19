@@ -93,6 +93,10 @@ vault_aws_secret_access_key: ""
 vault_aws_session_token: ""
 
 {% elif component_name == 'openshift' %}
+{% set preflight_openshift = (bootstrap_generate_env_vars_preflight | default(generate_env_vars_preflight | default({}))).openshift | default({}) %}
+# API token stays in this vault. infra_config_vars.yml keeps only the host.
+token: "{{ preflight_openshift.token | default('', true) }}"
+openshift_token: "{{ preflight_openshift.token | default('', true) }}"
 # HTPasswd users come from preflight overlay (openshift.htpasswd_users) — no silent defaults.
 htpasswd_users: []
 htpasswd_pass: ""

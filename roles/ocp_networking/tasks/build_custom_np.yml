@@ -17,26 +17,16 @@
 #   _custom_np_annot      – annotations dict (use {} for none)
 #   _custom_np_pod_sel    – policy-level podSelector labels (use {} for all pods)
 
-- name: Init custom NetworkPolicy rule lists
+- name: "Init rule lists for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
     ocp_networking_cnp_ingress: []
     ocp_networking_cnp_egress: []
   changed_when: false
 
-- name: Transform custom NetworkPolicy rule
+- name: "Transform rule for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
-    ocp_networking_cnp_ingress: >-
-      {{
-        (ocp_networking_cnp_ingress + [_built])
-        if rule.direction | default('ingress') == 'ingress'
-        else ocp_networking_cnp_ingress
-      }}
-    ocp_networking_cnp_egress: >-
-      {{
-        (ocp_networking_cnp_egress + [_built])
-        if rule.direction | default('ingress') == 'egress'
-        else ocp_networking_cnp_egress
-      }}
+    ocp_networking_cnp_ingress: "{{ (ocp_networking_cnp_ingress + [_built]) if rule.direction | default('ingress') == 'ingress' else ocp_networking_cnp_ingress }}"
+    ocp_networking_cnp_egress: "{{ (ocp_networking_cnp_egress + [_built]) if rule.direction | default('ingress') == 'egress' else ocp_networking_cnp_egress }}"
   loop: "{{ _custom_np_rules }}"
   loop_control:
     loop_var: rule
@@ -92,7 +82,7 @@
       }}
   changed_when: false
 
-- name: Append custom NetworkPolicy to resources
+- name: "Append policy to resources for custom {{ _custom_np_kind }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -107,12 +97,6 @@
                     | combine({'egress': ocp_networking_cnp_egress} if ocp_networking_cnp_egress | length > 0 else {}))
          }] }}
   vars:
-    _ptypes: >-
-      {{
-        (['Ingress'] if ocp_networking_cnp_ingress | length > 0 else [])
-        + (['Egress'] if ocp_networking_cnp_egress | length > 0 else [])
-      }}
-  when: >-
-    (ocp_networking_cnp_ingress | length > 0)
-    or (ocp_networking_cnp_egress | length > 0)
+    _ptypes: "{{ (['Ingress'] if ocp_networking_cnp_ingress | length > 0 else []) + (['Egress'] if ocp_networking_cnp_egress | length > 0 else []) }}"
+  when: (ocp_networking_cnp_ingress | length > 0) or (ocp_networking_cnp_egress | length > 0)
   changed_when: false

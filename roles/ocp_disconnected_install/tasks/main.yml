@@ -1,0 +1,9 @@
+---
+- name: Validate the exported installation bundle
+  ansible.builtin.include_tasks:
+    file: validate_bundle.yml
+    apply:
+      tags:
+        - validate
+  tags:
+    - validate

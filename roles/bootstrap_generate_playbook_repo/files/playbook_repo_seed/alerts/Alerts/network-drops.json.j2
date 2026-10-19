@@ -1,6 +1,6 @@
 {
-  "uid": "ado-network-drops",
-  "title": "Network drops or errors on a node or pod",
+  "uid": "ado-net-drops-{{ grafana_upload_alerts_datasource_slug }}",
+  "title": "Network drops or errors on a node or pod ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -88,9 +88,10 @@
     "summary": "A node or pod is dropping or erroring packets. Default metrics do not include round-trip latency."
   },
   "labels": {
-    "ado": "openshift-default"
+    "ado": "openshift-default",
+    "cluster": "{{ grafana_upload_alerts_datasource_name }}"
   },
   "folderUID": "{{ grafana_upload_alerts_folder_uid }}",
-  "ruleGroup": "openshift-default",
+  "ruleGroup": "openshift-{{ grafana_upload_alerts_datasource_slug }}",
   "orgID": 1
 }

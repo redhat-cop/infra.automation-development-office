@@ -1,0 +1,6 @@
+---
+- name: Validate an exported disconnected OpenShift install bundle
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: infra.ado.ocp_disconnected_install

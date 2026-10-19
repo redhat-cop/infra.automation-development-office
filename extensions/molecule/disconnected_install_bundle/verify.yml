@@ -1,0 +1,58 @@
+---
+- name: Check the run left the export unchanged
+  hosts: localhost
+  gather_facts: false
+  vars:
+    bundle_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/bundle"
+    run_dir: "{{ bundle_dir }}/runs/molecule-1"
+    secret_marker: ZmFrZTpmYWtl
+    install_checksum: >-
+      3cdc36931fd6d048fd68365cc9c0e50fe7537da9050728170f7080d476f5f887
+  tasks:
+    - name: Read status and log
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ run_dir }}/status.json"
+        - "{{ run_dir }}/ansible.log"
+      register: run_files
+
+    - name: Parse status
+      ansible.builtin.set_fact:
+        run_status: >-
+          {{ run_files.results[0].content | b64decode | from_json }}
+        run_log: "{{ run_files.results[1].content | b64decode }}"
+
+    - name: Status is complete and free of the fixture secret
+      ansible.builtin.assert:
+        that:
+          - run_status.state == 'complete'
+          - run_status.stage == 'bundle_ready'
+          - run_status.run_id == 'molecule-1'
+          - secret_marker not in (run_files.results[0].content | b64decode)
+          - secret_marker not in run_log
+
+    - name: Exported install-config checksum is unchanged
+      ansible.builtin.stat:
+        path: "{{ bundle_dir }}/install-config.yaml"
+        checksum_algorithm: sha256
+        get_checksum: true
+      register: exported_install_config
+
+    - name: Working copy exists and the export still matches the manifest
+      ansible.builtin.assert:
+        that:
+          - exported_install_config.stat.checksum == install_checksum
+        fail_msg: >-
+          The role modified or replaced the exported
+          install-config.yaml.
+
+    - name: Working copy is present
+      ansible.builtin.stat:
+        path: "{{ run_dir }}/install-dir/install-config.yaml"
+      register: working_copy
+
+    - name: Installer working directory was created
+      ansible.builtin.assert:
+        that:
+          - working_copy.stat.exists

@@ -1,0 +1,32 @@
+---
+minor_changes:
+  - grafana_upload_dashboards - Renamed the node capacity dashboard to
+    Openshift Node and Cluster Health, show Ready, NotReady, or Unknown for
+    every node, add a cluster summary across the top, and add per-node
+    storage and network charts. The node table uses readable headers,
+    drops the extra label columns, highlights a node that is not Ready,
+    and colors filesystem, memory, and CPU percent. A node name opens
+    Openshift Node and Cluster Drilldown Health for that node. The
+    storage and network section includes current bandwidth and packet
+    drops for the selected node. Cluster operators, API, etcd, ingress,
+    kubelet latency, and firing alerts are on this dashboard too.
+    The pod memory table uses short column names and wider headers
+    so Node, Namespace, Container, Pod, CPU, and memory fit.
+    Memory request and limit show on each pod container, and the
+    percent stays blank when there is no limit. The container-name
+    rollup was the same numbers summed together, so it is removed.
+    Container runtime latency uses the current CRI-O summary metric.
+    Pod restart counts are the total since the container started,
+    shown as a whole number. The namespace dropdown can be typed
+    to search, and the pod table has one row per container.
+    Upstream Update and GitHub links are removed, and translated
+    panel titles use American English. The pod table drops the
+    Namespace column, leads with Pod, and puts every metric for a
+    container on one row. Column titles are Pod, Container, Node,
+    CPU percent, CPU used, CPU request, CPU limit, Memory percent,
+    Memory used, RSS percent, RSS, Memory request, Memory limit,
+    Disk, and Restarts. Filter the Pod header to search.
+    The Cluster dropdown lists datasource names from
+    ``grafana_datasource`` and ``grafana_datasources`` instead of
+    assuming Openshift-Prod and Openshift-Dev. Leave both empty to
+    list every Prometheus datasource.

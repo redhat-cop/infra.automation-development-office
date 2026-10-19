@@ -1,0 +1,6 @@
+{% set preflight_openshift = (bootstrap_generate_env_vars_preflight | default(generate_env_vars_preflight | default({}))).openshift | default({}) %}
+---
+# OpenShift API token for playbooks that load this vault with
+# infra_config_vars.yml. Encrypted with the other vault files.
+token: "{{ preflight_openshift.token | default('', true) }}"
+openshift_token: "{{ preflight_openshift.token | default('', true) }}"

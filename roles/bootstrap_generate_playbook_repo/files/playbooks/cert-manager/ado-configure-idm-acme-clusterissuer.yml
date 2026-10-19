@@ -7,6 +7,7 @@
     component: cert_manager
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
   environment:
@@ -18,7 +19,7 @@
       ansible.builtin.fail:
         msg:
           - host/token missing for env={{ env }}.
-          - 'Expected vault_{{ component }}.yml / infra_config_vars.yml to define:'
+          - 'Expected vault_openshift.yml / infra_config_vars.yml to define:'
           - '  host or api_host: https://api....:6443'
           - '  token: <long bearer token>'
       when: >-

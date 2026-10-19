@@ -50,7 +50,7 @@
   ],
   "panels": [
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -62,7 +62,7 @@
       "type": "row"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing.",
       "fieldConfig": {
         "defaults": {
@@ -128,7 +128,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing with the severity level: critical.",
       "fieldConfig": {
         "defaults": {
@@ -194,7 +194,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing with the severity level: warning.",
       "fieldConfig": {
         "defaults": {
@@ -249,7 +249,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"warning\"}) or vector(0)",
           "interval": "",
@@ -261,7 +261,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing with the severity level: moderate.",
       "fieldConfig": {
         "defaults": {
@@ -316,7 +316,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"moderate\"}) or vector(0)",
           "interval": "",
@@ -328,7 +328,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing with the severity level: low.",
       "fieldConfig": {
         "defaults": {
@@ -383,7 +383,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"low\"}) or vector(0)",
           "interval": "",
@@ -395,7 +395,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "description": "Total number of alerts that are firing with the severity level: important.",
       "fieldConfig": {
         "defaults": {
@@ -450,7 +450,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(ALERTS{alertstate=\"firing\",severity=\"important\"}) or vector(0)",
           "interval": "",
@@ -462,7 +462,7 @@
       "type": "stat"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -551,7 +551,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -642,7 +642,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -766,7 +766,7 @@
     },
     {
       "collapsed": false,
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -777,7 +777,7 @@
       "panels": [],
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "refId": "A"
         }
       ],
@@ -785,7 +785,7 @@
       "type": "row"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -838,7 +838,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(sum_over_time(ALERTS{alertstate=\"firing\",severity=~\"$severity\"}[$__range])) by (alertname)",
           "interval": "",
@@ -851,7 +851,7 @@
       "type": "bargauge"
     },
     {
-      "datasource": null,
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -904,7 +904,7 @@
       "pluginVersion": "11.1.0",
       "targets": [
         {
-          "datasource": null,
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "exemplar": true,
           "expr": "sum(sum_over_time(ALERTS{alertstate=\"firing\", cluster!=\"\",severity=~\"$severity\"}[$__range])) by (cluster)",
           "interval": "",
@@ -950,7 +950,7 @@
             "$__all"
           ]
         },
-        "datasource": null,
+        "datasource": {"type": "prometheus", "uid": "${datasource}"},
         "definition": "label_values(ALERTS, severity)",
         "description": "Policy severity level",
         "hide": 0,

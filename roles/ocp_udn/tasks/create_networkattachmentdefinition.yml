@@ -6,7 +6,7 @@
 # Used for secondary networks that require a NAD (bridge, localnet,
 # SR-IOV, etc.) rather than a UDN/CUDN.
 
-- name: Build NAD config for Localnet
+- name: "Build Localnet NAD config {{ udn_net.name }}"
   ansible.builtin.set_fact:
     ocp_udn_nad_config:
       cniVersion: "0.3.1"
@@ -22,7 +22,7 @@
   when: udn_net.topology | default('') == 'Localnet'
   changed_when: false
 
-- name: Build NAD config for Bridge
+- name: "Build Bridge NAD config {{ udn_net.name }}"
   ansible.builtin.set_fact:
     ocp_udn_nad_config:
       cniVersion: "0.3.1"
@@ -33,7 +33,7 @@
   when: udn_net.topology | default('') == 'Bridge'
   changed_when: false
 
-- name: Create NetworkAttachmentDefinition
+- name: "Create NetworkAttachmentDefinition {{ udn_net.name }}"
   kubernetes.core.k8s:
     state: "{{ ocp_udn_state }}"
     definition:

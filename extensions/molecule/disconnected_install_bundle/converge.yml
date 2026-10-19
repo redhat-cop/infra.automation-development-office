@@ -1,0 +1,18 @@
+---
+- name: Validate the fixture installation bundle
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Stage the fixture outside the git tree
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/files/bundle/"
+        dest: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/bundle/"
+        mode: "0644"
+
+    - name: Run bundle validation
+      ansible.builtin.include_role:
+        name: ocp_disconnected_install
+      vars:
+        ocp_disconnected_install_bundle_dir: >-
+          {{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/bundle
+        ocp_disconnected_install_run_id: molecule-1

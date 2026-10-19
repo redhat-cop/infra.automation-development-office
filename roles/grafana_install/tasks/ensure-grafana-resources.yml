@@ -1,0 +1,112 @@
+---
+# Keep the Grafana container's memory and readiness probe on the CR.
+# Patch only those fields so SMTP env and volumes already on the
+# container stay in place.
+
+- name: Read Grafana custom resource for container resources
+  kubernetes.core.k8s_info:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+  register: grafana_install_resource_cr
+
+- name: Collect Grafana containers from the custom resource
+  ansible.builtin.set_fact:
+    grafana_install_resource_containers: >-
+      {{
+        (
+          (
+            (
+              (
+                (grafana_install_resource_cr.resources | first).spec
+                | default({})
+              ).deployment | default({})
+            ).spec | default({})
+          ).template | default({})
+        ).spec | default({})
+      ).containers | default([])
+      }}
+  when: (grafana_install_resource_cr.resources | default([]) | length) > 0
+
+- name: Find the Grafana container index
+  ansible.builtin.set_fact:
+    grafana_install_resource_container_index: >-
+      {{
+        grafana_install_resource_containers
+        | map(attribute='name')
+        | list
+        | index('grafana')
+      }}
+  when:
+    - grafana_install_resource_containers is defined
+    - >-
+      grafana_install_resource_containers
+      | selectattr('name', 'equalto', 'grafana')
+      | list
+      | length > 0
+
+- name: Set Grafana container memory and readiness probe
+  ansible.builtin.set_fact:
+    grafana_install_container_resources:
+      requests:
+        cpu: "{{ grafana_install_cpu_request }}"
+        memory: "{{ grafana_install_memory_request }}"
+      limits:
+        memory: "{{ grafana_install_memory_limit }}"
+    grafana_install_container_readiness:
+      httpGet:
+        path: /api/health
+        port: 3000
+        scheme: HTTP
+      timeoutSeconds: "{{ grafana_install_readiness_timeout_seconds | int }}"
+      periodSeconds: 10
+      failureThreshold: >-
+        {{ grafana_install_readiness_failure_threshold | int }}
+      successThreshold: 1
+
+- name: Add a Grafana container when the custom resource has none
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: /spec/deployment
+        value:
+          spec:
+            strategy:
+              type: Recreate
+            template:
+              spec:
+                containers:
+                  - name: grafana
+                    resources: "{{ grafana_install_container_resources }}"
+                    readinessProbe: "{{ grafana_install_container_readiness }}"
+  when:
+    - grafana_install_resource_containers is defined
+    - grafana_install_resource_containers | length == 0
+
+- name: Set memory and readiness on the existing Grafana container
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: /spec/deployment/spec/strategy
+        value:
+          type: Recreate
+      - op: add
+        path: >-
+          /spec/deployment/spec/template/spec/containers/{{
+          grafana_install_resource_container_index }}/resources
+        value: "{{ grafana_install_container_resources }}"
+      - op: add
+        path: >-
+          /spec/deployment/spec/template/spec/containers/{{
+          grafana_install_resource_container_index }}/readinessProbe
+        value: "{{ grafana_install_container_readiness }}"
+  when: grafana_install_resource_container_index is defined

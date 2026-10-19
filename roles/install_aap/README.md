@@ -32,6 +32,11 @@ Automation Development Office
 | `aap_ocp_install_license_only` | When `true`, skip operator install and only run license attach. |
 | `aap_ocp_install_reset_database` | When `true`, wipe leftover AAP Fernet secrets and Postgres PVCs before install. Default `false` (greenfield). Missing CR / 403 is skipped, not a hard fail. |
 | `aap_setup_*` | Pass-through to `aap_setup_download` / `prepare` / `install`. |
+| `aap_setup_down_dest_dir` / `aap_setup_prep_working_dir` | Directory on the RHEL host for the setup tarball. Default `/var/tmp`. |
+| `aap_setup_prep_installer_file` | Existing tarball on the RHEL host. When set, skip the portal download. |
+| `aap_setup_ssh_user` | SSH user for the install host. When set, the bootstrap playbook connects to `aap_setup_ssh_host` instead of inventory host `bastion`. |
+| `aap_setup_ssh_password` | SSH password. Also used as the become password. Ignored for SSH login when a private key is set. |
+| `aap_setup_ssh_private_key` | Private key contents. Written on the control node and used to SSH to the install host. |
 | `install_aap_rhel_download` | Run download role (default `true`). |
 | `install_aap_rhel_prepare` | Run prepare role (default `true`). |
 | `install_aap_rhel_install` | Run install role (default `true`). |
@@ -81,12 +86,23 @@ Automation Development Office
         aap_setup_prep_inv_vars:
           all:
             admin_password: "{{ vault_aap_admin_password }}"
+            gateway_tls_cert: /etc/pki/aap/tls.crt
+            gateway_tls_key: /etc/pki/aap/tls.key
+            bundle_install: "true"
+        aap_setup_down_dest_dir: /var/tmp/aap-setup
+        aap_setup_prep_working_dir: /var/tmp/aap-setup
 ```
+
+`gateway_tls_cert` and `gateway_tls_key` are paths on the RHEL host. Setup
+reads them from the installer inventory before it installs. A local bundle
+file is `aap_setup_prep_installer_file` on that same host.
 
 Contoller bootstrap calls this role from
 `ado-aap-ocp-install-bootstrap.yml` (OpenShift) or
-`ado-aap-rhel-install-bootstrap.yml` (standalone RHEL, inventory host
-`bastion`). Prefer `infra.aap_utilities.*` directly only when you do not need
+`ado-aap-rhel-install-bootstrap.yml` (standalone RHEL). With
+`aap_setup_ssh_user` set, that playbook SSHes to the RHEL hostname. Without
+it, the play still targets inventory host `bastion`. Prefer
+`infra.aap_utilities.*` directly only when you do not need
 ADO reset/license helpers.
 
 When `aap_ocp_install_license_mode` is `none`/`skip`, a live platform/gateway

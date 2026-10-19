@@ -1,0 +1,15 @@
+---
+apiVersion: mirror.openshift.io/v2alpha1
+kind: ImageSetConfiguration
+metadata:
+  name: example
+mirror:
+  platform:
+    channels:
+      - name: stable-4.21
+        type: ocp
+        minVersion: 4.21.8
+        maxVersion: 4.21.8
+    graph: true
+  operators: []
+  additionalImages: []

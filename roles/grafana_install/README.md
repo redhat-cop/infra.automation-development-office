@@ -48,6 +48,11 @@ PostgreSQL resources.
 | `grafana_postgres_ssl_mode` | Grafana `database.ssl_mode`. | ❌ | `disable` |
 | `grafana_install_validate_certs` | Validate TLS when checking `/api/health`. | ❌ | `false` |
 | `grafana_install_plugins_preinstall_auto_update` | Grafana `plugins.preinstall_auto_update`. `false` stops Grafana 13 from rewriting bundled plugins on the read-only image path. | ❌ | `false` |
+| `grafana_install_memory_request` | Memory request for the Grafana container. | ❌ | `512Mi` |
+| `grafana_install_memory_limit` | Memory limit for the Grafana container. | ❌ | `2Gi` |
+| `grafana_install_cpu_request` | CPU request for the Grafana container. | ❌ | `100m` |
+| `grafana_install_readiness_timeout_seconds` | Seconds `/api/health` may take before the readiness probe fails. | ❌ | `10` |
+| `grafana_install_readiness_failure_threshold` | Consecutive readiness failures before the pod is NotReady. | ❌ | `3` |
 | `grafana_install_removed_init_containers` | Init container names removed from the Grafana CR and Deployment when present. | ❌ | `copy-bundled-plugins` |
 | `grafana_install_route_name` | OpenShift Route name for Grafana. | ❌ | `grafana` |
 | `grafana_install_route_backend_svc` | Backend service name for the Route. | ❌ | `grafana-service` |

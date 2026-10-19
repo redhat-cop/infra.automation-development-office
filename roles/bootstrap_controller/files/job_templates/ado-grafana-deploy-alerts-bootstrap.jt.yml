@@ -1,7 +1,7 @@
 ---
 controller_templates:
   - name: ADO | Deploy Grafana Alerts
-    description: Bootstrap - Upload Grafana alert rules from folder/git sources
+    description: Bootstrap - Upload OpenShift alert rules for each Prometheus datasource
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/grafana/ado-deploy-alerts-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'
@@ -35,3 +35,22 @@ controller_templates:
           variable: env
           choices: '{{ bootstrap_controller_environment_choices }}'
           default: '{{ bootstrap_controller_default_environment }}'
+        - question_name: ADO | Alert email recipients
+          question_description: Comma-separated addresses. Blank skips the contact point.
+          required: false
+          type: text
+          variable: grafana_alert_email_to
+          default: ''
+        - question_name: ADO | Send test alert emails?
+          question_description: Send one test email per OpenShift alert rule.
+          required: true
+          type: multiplechoice
+          variable: grafana_alert_send_test
+          choices: "false\ntrue"
+          default: 'false'
+        - question_name: ADO | Prometheus datasource names
+          question_description: Comma-separated names. Blank uses every Prometheus datasource.
+          required: false
+          type: text
+          variable: grafana_alert_datasource_names
+          default: ''

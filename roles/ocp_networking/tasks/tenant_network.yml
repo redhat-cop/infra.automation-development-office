@@ -5,12 +5,12 @@
 # Process all network definitions for a single tenant.
 # Called in a loop from main.yml with loop_var: tenant.
 
-- name: Build tenant network list
+- name: "Build network list for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_networks: "{{ tenant.networks | default([]) }}"
   changed_when: false
 
-- name: Resolve tenant physical network references
+- name: "Resolve physical network references for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_resolved_networks: >-
       {{
@@ -28,7 +28,7 @@
   when: item.physical_network is defined and item.physical_network
   changed_when: false
 
-- name: Create tenant network resources
+- name: "Create network resources for tenant {{ tenant.tenant_name }}"
   ansible.builtin.include_role:
     name: infra.ado.ocp_udn
   vars:

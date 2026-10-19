@@ -1,6 +1,75 @@
 ---
+- name: ADO | Prepare SSH to the RHEL AAP host
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    component: aap
+    install_aap_target: rhel
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap.yml"
+  tasks:
+    - name: ADO | Resolve component vars
+      ansible.builtin.include_role:
+        name: infra.ado.bootstrap_resolve_component
+
+    - name: Require the VM hostname, SSH user, and a password or private key
+      ansible.builtin.assert:
+        that:
+          - aap_setup_ssh_host | default('') | length > 0
+          - aap_setup_ssh_user | default('') | length > 0
+          - >-
+            (aap_setup_ssh_password | default('') | length > 0)
+            or (aap_setup_ssh_private_key | default('') | length > 0)
+        fail_msg: >-
+          Standalone AAP install needs the RHEL / VM hostname
+          (aap_setup_ssh_host), an SSH user, and an SSH password or
+          private key. The AAP route hostname is not the install target.
+
+    - name: Write the SSH private key used to reach the install host
+      ansible.builtin.copy:
+        content: "{{ aap_setup_ssh_private_key }}\n"
+        dest: /tmp/aap-setup-ssh.key
+        mode: "0600"
+      no_log: true
+      when: aap_setup_ssh_private_key | default('') | length > 0
+
+    - name: Add the RHEL install host from preflight SSH settings
+      ansible.builtin.add_host:
+        name: aap_rhel_install
+        groups: aap_rhel_install
+        ansible_host: "{{ aap_setup_ssh_host }}"
+        ansible_user: "{{ aap_setup_ssh_user }}"
+        ansible_ssh_private_key_file: "{{ aap_rhel_ssh_key | default(omit) }}"
+        ansible_password: "{{ aap_rhel_ssh_pass | default(omit) }}"
+        ansible_become_password: "{{ aap_rhel_become_pass | default(omit) }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new"
+      no_log: true
+      vars:
+        aap_rhel_ssh_key: >-
+          {{
+            '/tmp/aap-setup-ssh.key'
+            if (aap_setup_ssh_private_key | default('') | length > 0)
+            else omit
+          }}
+        aap_rhel_ssh_pass: >-
+          {{
+            omit
+            if (aap_setup_ssh_private_key | default('') | length > 0)
+            else aap_setup_ssh_password
+          }}
+        aap_rhel_become_pass: >-
+          {{
+            aap_setup_ssh_password
+            if (aap_setup_ssh_password | default('') | length > 0)
+            else omit
+          }}
+
 - name: ADO | Install AAP on RHEL (validated aap_utilities setup roles)
-  hosts: bastion
+  hosts: aap_rhel_install
   gather_facts: false
   become: true
   vars:
@@ -8,10 +77,11 @@
     install_aap_target: rhel
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap.yml"
   pre_tasks:
-    - name: ADO | Resolve vars for component from framework defaults + env overrides
+    - name: ADO | Resolve component vars
       ansible.builtin.include_role:
         name: infra.ado.bootstrap_resolve_component
   roles:

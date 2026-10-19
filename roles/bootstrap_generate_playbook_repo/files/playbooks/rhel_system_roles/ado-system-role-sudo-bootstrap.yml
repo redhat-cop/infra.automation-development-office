@@ -9,6 +9,7 @@
     system_role_name: sudo
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_rhel.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_rhel_system_roles.yml"
   tasks:

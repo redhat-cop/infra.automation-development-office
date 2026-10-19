@@ -1,0 +1,38 @@
+---
+dependency:
+  name: shell
+  command: echo "No extra collections required"
+
+driver:
+  name: default
+
+platforms:
+  - name: localhost
+    managed: false
+
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+    cleanup: cleanup.yml
+  env:
+    # Covers a scenario dir with and without the molecule/ symlink.
+    # yamllint disable-line rule:line-length
+    ANSIBLE_ROLES_PATH: "${MOLECULE_SCENARIO_DIRECTORY}/../../../roles:${MOLECULE_SCENARIO_DIRECTORY}/../../../../roles:${ANSIBLE_ROLES_PATH}"
+    ANSIBLE_STDOUT_CALLBACK: default
+
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - converge
+    - idempotence
+    - verify
+    - cleanup

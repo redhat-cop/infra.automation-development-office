@@ -1,0 +1,23 @@
+---
+- name: Set datasource facts for this alert pass
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_datasource_uid: "{{ grafana_upload_alerts_ds.uid }}"
+    grafana_upload_alerts_datasource_name: "{{ grafana_upload_alerts_ds.name }}"
+    grafana_upload_alerts_datasource_slug: >-
+      {{
+        grafana_upload_alerts_ds.uid
+        | regex_replace('[^A-Za-z0-9]', '')
+        | truncate(16, true, '')
+      }}
+
+- name: Upload alert files for this datasource
+  ansible.builtin.include_tasks: upload-alert-file.yml
+  loop: "{{ grafana_upload_alerts_work_items }}"
+  loop_control:
+    loop_var: grafana_alert_item
+    label: >-
+      {{
+        grafana_upload_alerts_datasource_name
+        ~ ' '
+        ~ (grafana_alert_item.name | default('alert'))
+      }}

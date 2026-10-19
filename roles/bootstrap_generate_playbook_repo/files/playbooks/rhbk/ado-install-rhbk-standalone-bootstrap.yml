@@ -18,6 +18,11 @@
         file: "{{ playbook_dir }}/../../group_vars/all/{{ env | default('prod') }}/infra_config_vars.yml"
       failed_when: false
 
+    - name: Load vault_openshift
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../../group_vars/all/{{ env | default('prod') }}/vault_openshift.yml"
+      failed_when: false
+
     - name: Load optional RHBK vault/vars when present
       ansible.builtin.include_vars:
         file: "{{ item }}"

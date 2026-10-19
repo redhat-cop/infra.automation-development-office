@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Ensure alerts temp dir
   ansible.builtin.file:
     path: /tmp/grafana-alerts
@@ -26,12 +27,27 @@
     remote_src: true
   when: (grafana_alert_item.path | basename | regex_search('\\.json\\.j2$')) is none
 
-- name: POST alert rule group to Grafana API
+- name: Load rendered alert rule
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_rule: >-
+      {{
+        lookup(
+          'ansible.builtin.file',
+          '/tmp/grafana-alerts/' ~ grafana_alert_item.name ~ '.json'
+        ) | from_json
+      }}
+
+- name: Update alert rule in Grafana
   ansible.builtin.uri:
-    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/alert-rules"
-    method: POST
+    url: >-
+      {{
+        grafana_upload_alerts_url
+        ~ '/api/v1/provisioning/alert-rules/'
+        ~ grafana_upload_alerts_rule.uid
+      }}
+    method: PUT
     body_format: json
-    body: "{{ lookup('ansible.builtin.file', '/tmp/grafana-alerts/' ~ grafana_alert_item.name ~ '.json') | from_json }}"
+    body: "{{ grafana_upload_alerts_rule }}"
     url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
     url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
     force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
@@ -39,11 +55,49 @@
       {{
         {
           'Authorization': 'Bearer ' ~ grafana_api_key,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
         }
         if (grafana_api_key | default('') | length) > 0
-        else {'Content-Type': 'application/json'}
+        else {
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
       }}
-    status_code: [200, 201, 202, 409]
+    status_code: [200, 201, 202, 404]
     validate_certs: "{{ grafana_validate_certs | default(false) }}"
-  failed_when: false
+  register: grafana_upload_alerts_put
+
+- name: Create alert rule in Grafana
+  ansible.builtin.uri:
+    url: "{{ grafana_upload_alerts_url }}/api/v1/provisioning/alert-rules"
+    method: POST
+    body_format: json
+    body: "{{ grafana_upload_alerts_rule }}"
+    url_username: "{{ grafana_upload_alerts_user if (grafana_api_key | default('') | length) == 0 else omit }}"
+    url_password: "{{ grafana_upload_alerts_password if (grafana_api_key | default('') | length) == 0 else omit }}"
+    force_basic_auth: "{{ (grafana_api_key | default('') | length) == 0 }}"
+    headers: >-
+      {{
+        {
+          'Authorization': 'Bearer ' ~ grafana_api_key,
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+        if (grafana_api_key | default('') | length) > 0
+        else {
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true'
+        }
+      }}
+    status_code: [200, 201, 202]
+    validate_certs: "{{ grafana_validate_certs | default(false) }}"
+  when: grafana_upload_alerts_put.status | default(0) | int == 404
+
+- name: Record uploaded alert title
+  ansible.builtin.set_fact:
+    grafana_upload_alerts_uploaded_titles: >-
+      {{
+        grafana_upload_alerts_uploaded_titles
+        + [grafana_upload_alerts_rule.title]
+      }}

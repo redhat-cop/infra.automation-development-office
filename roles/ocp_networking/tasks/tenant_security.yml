@@ -8,14 +8,14 @@
 # Note: tenant data comes from the raw preflight config (nested security
 # objects), not from generateAnsibleVars (which flattens them).
 
-- name: Build tenant security policy list
+- name: "Build security policy list for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: []
   changed_when: false
 
 # ── NetworkPolicy ────────────────────────────────────────────────────
 
-- name: Generate tenant default-deny NetworkPolicy
+- name: "Generate default-deny NetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -39,7 +39,7 @@
     - tenant.security.network_policy.template | default('') in ['default-deny-ingress', 'default-deny-all']
   changed_when: false
 
-- name: Generate tenant allow-within-tenant NetworkPolicy
+- name: "Generate allow-within-tenant NetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -67,7 +67,7 @@
     - tenant.security.network_policy.template | default('') == 'allow-within-tenant'
   changed_when: false
 
-- name: Generate tenant allow-from-namespaces NetworkPolicy
+- name: "Generate allow-from-namespaces NetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [
@@ -106,7 +106,7 @@
     - tenant.security.network_policy.allowed_namespace_selector | default({}) | length > 0
   changed_when: false
 
-- name: Build tenant custom NetworkPolicy
+- name: "Build custom NetworkPolicy {{ tenant.tenant_name ~ '/' ~ ns.name }}"
   ansible.builtin.include_tasks: build_custom_np.yml
   loop: "{{ tenant.namespaces | default([]) }}"
   loop_control:
@@ -129,7 +129,7 @@
 
 # ── MultiNetworkPolicy ───────────────────────────────────────────────
 
-- name: Generate tenant default-deny MultiNetworkPolicy
+- name: "Generate default-deny MultiNetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -156,7 +156,7 @@
     - tenant.security.multi_network_policy.template | default('') in ['default-deny-ingress', 'default-deny-all']
   changed_when: false
 
-- name: Generate tenant allow-within-tenant MultiNetworkPolicy
+- name: "Generate allow-within-tenant MultiNetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -187,7 +187,7 @@
     - tenant.security.multi_network_policy.template | default('') == 'allow-same-tenant'
   changed_when: false
 
-- name: Generate tenant allow-from-namespaces MultiNetworkPolicy
+- name: "Generate allow-from-namespaces MultiNetworkPolicy for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [
@@ -232,7 +232,7 @@
     - tenant.security.multi_network_policy.allowed_namespace_selector | default({}) | length > 0
   changed_when: false
 
-- name: Build tenant custom MultiNetworkPolicy
+- name: "Build custom MultiNetworkPolicy {{ tenant.tenant_name ~ '/' ~ ns.name }}"
   ansible.builtin.include_tasks: build_custom_np.yml
   loop: "{{ tenant.namespaces | default([]) }}"
   loop_control:
@@ -256,7 +256,7 @@
 
 # ── EgressFirewall ───────────────────────────────────────────────────
 
-- name: Generate tenant EgressFirewall
+- name: "Generate EgressFirewall for tenant {{ tenant.tenant_name }}"
   ansible.builtin.set_fact:
     ocp_networking_tenant_security_resources: >-
       {{ ocp_networking_tenant_security_resources + [{
@@ -304,7 +304,7 @@
 
 # ── Apply all collected policies ─────────────────────────────────────
 
-- name: Apply tenant security policies
+- name: "Apply security policies for tenant {{ tenant.tenant_name }}"
   ansible.builtin.include_role:
     name: infra.ado.ocp_network_policy
   vars:

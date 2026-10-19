@@ -7,6 +7,7 @@
     component: aap_hub_harden
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap_hub_harden.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap_hub_harden.yml"
   environment:
