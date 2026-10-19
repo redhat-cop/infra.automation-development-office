@@ -4,6 +4,157 @@ Infra Ado Collection Release Notes
 
 .. contents:: Topics
 
+v2.1.0
+======
+
+Minor Changes
+-------------
+
+- ado-preflight-ui - OpenShift GitLab form shows Root password field (default ``redhat123``) like Grafana/Quay admin password.
+- bootstrap - Wire EC2 instance create/delete/modify/info under the ``aws``
+  component (``ec2_instance``). Seed playbooks import collection FQCNs
+  ``infra.ado.aws.ec2.ado_ec2_instance_*``, share ``vault_aws.yml``, and
+  generate Contoller job templates. Collection playbook files use
+  underscores so FQCNs are addressable (dashes are invalid in collection
+  playbook names).
+- bootstrap - Wire S3 bucket policy set / set-from-file / info under the
+  ``aws`` component (``s3_bucket_policy``). Seed playbooks import collection
+  FQCNs ``infra.ado.aws.s3.ado_s3_bucket_policy_*``, share ``vault_aws.yml``,
+  seed a Jinja sample policy (``policies/allow_list_and_read.json``), and
+  generate Contoller job templates.
+- bootstrap_controller - When the operator explicitly selects both MinIO and Quay, run Quay after MinIO so the bucket and API exist before Quay starts.
+- bootstrap_controller - ``ADO | RHEL Patch Host`` now prompts for inventory, credential, and limit on launch (same as Register Host to Satellite).
+- bootstrap_generate_env_vars - Added openshift_networking to preflight UI OpenShift apps and component vars template.
+- bootstrap_generate_env_vars - Honor preflight ``component_options.quay`` ``minio`` by setting Quay object-storage vars and copying existing MinIO credentials. The option does not add the MinIO component.
+- bootstrap_generate_env_vars - OpenShift apps domain and route hostnames still autofill from the base domain, but a typed override is kept via ``apps_domain_manual`` / ``hostname_manual`` instead of being overwritten.
+- bootstrap_generate_env_vars - Optional ``additional_environments_create_group_vars`` copies the generated ``group_vars/all/<environment>`` tree into each other selected additional environment. Job template survey choices stay the same when the flag is off.
+- bootstrap_generate_env_vars - Overlay GitLab and Zabbix ``database_provision`` / Postgres storage fields from preflight JSON.
+- bootstrap_generate_env_vars - Quay MinIO object-storage vars inherit ``component_config.minio`` when the Quay S3 fields are empty.
+- bootstrap_generate_env_vars - Treat ``component_apps.satellite`` as a first-class target-platform group so Satellite-only preflight JSON expands the same way as OpenShift, RHEL, and Patching.
+- bootstrap_resolve_component - Added component defaults for openshift_networking, kubernetes_nmstate, and metallb.
+- grafana - OpenShift Keycloak dashboard now includes a Successful logins by username table next to the existing Failed logins table.
+- grafana_manage_folders - Default Grafana folders are Applications, Security, and Infrastucture. Each dashboards path defaults to ``dashboards/<folder name>`` and stays editable. Alert paths are no longer part of those folder rows. The shipped OpenShift dashboards upload into Infrastucture and the RHACS dashboard into Security when ``grafana_include_builtin_dashboards`` is true. Extra dashboard sources use one of those folder names. Alert upload starts from a separate ``Alerts`` folder at ``alerts/Alerts``. When Keycloak is selected and populated, the Grafana OIDC issuer URL is filled from the Keycloak hostname and realm. Pre-canned dashboards can be chosen one by one. The copied files are the lab dashboards under ``dashboards/<folder name>``. ``builtin_dashboards`` limits which of those files upload. Default OpenShift alert rules ship in ``alerts/Alerts`` for node readiness, node CPU, CrashLoopBackOff, a namespace whose Service has no endpoints, node or pod memory, and network drops or errors.
+- grafana_upload_alerts - Keep a paused per-node rule for a kubelet that stops reporting, so it no longer disappears inside the NotReady count. The rule stays paused until it is turned on.
+- grafana_upload_alerts - Upload each OpenShift alert rule to every selected Prometheus datasource and route ``ado=openshift-default`` alerts to an optional email contact point.
+- grafana_upload_dashboards - Add pod and container filesystem and PVC usage to the Openshift Pod/Namespace Health dashboard. Container filesystem usage is red from 1 GiB. The PVC table lists every claim by requested size. Fill percent is red from 80 and is omitted when the kubelet reports the shared NFS export instead of the claim.
+- grafana_upload_dashboards - Rename seeded OpenShift dashboard titles so the Grafana folder list describes what each board shows (health, capacity, API, certs, Keycloak) instead of leftover community names.
+- grafana_upload_dashboards - Renamed the API server dashboard to Openshift API Server and removed the unused terraform and oncall annotation toggles.
+- grafana_upload_dashboards - Renamed the cluster detail dashboard to Openshift Node Workloads.
+- grafana_upload_dashboards - Renamed the etcd dashboard to Openshift etcd and replaced the empty cluster dropdown with a node selector.
+- grafana_upload_dashboards - Renamed the node capacity dashboard to Openshift Node and Cluster Health, show Ready, NotReady, or Unknown for every node, add a cluster summary across the top, and add per-node storage and network charts. The node table uses readable headers, drops the extra label columns, highlights a node that is not Ready, and colors filesystem, memory, and CPU percent. A node name opens Openshift Node and Cluster Drilldown Health for that node. The storage and network section includes current bandwidth and packet drops for the selected node. Cluster operators, API, etcd, ingress, kubelet latency, and firing alerts are on this dashboard too. The pod memory table uses short column names and wider headers so Node, Namespace, Container, Pod, CPU, and memory fit. Memory request and limit show on each pod container, and the percent stays blank when there is no limit. The container-name rollup was the same numbers summed together, so it is removed. Container runtime latency uses the current CRI-O summary metric. Pod restart counts are the total since the container started, shown as a whole number. The namespace dropdown can be typed to search, and the pod table has one row per container. Upstream Update and GitHub links are removed, and translated panel titles use American English. The pod table drops the Namespace column, leads with Pod, and puts every metric for a container on one row. Column titles are Pod, Container, Node, CPU percent, CPU used, CPU request, CPU limit, Memory percent, Memory used, RSS percent, RSS, Memory request, Memory limit, Disk, and Restarts. Filter the Pod header to search. The Cluster dropdown lists datasource names from ``grafana_datasource`` and ``grafana_datasources`` instead of assuming Openshift-Prod and Openshift-Dev. Leave both empty to list every Prometheus datasource.
+- grafana_upload_dashboards - Renamed the node pod dashboard to Openshift Pod/Namespace Health, added namespace and pod search, and linked each node pod count to the pods on that node. Namespace and pod search no longer blank the charts, and the cluster dropdown is gone. Namespace pod headlines now live on that same dashboard.
+- grafana_upload_dashboards - Renamed the projects dashboard to Openshift Project Quota and made the namespace list searchable.
+- infra.ado.gitlab_install - Provision Grafana-style dedicated RHEL PostgreSQL 15 for OpenShift GitLab (reuse ``gitlab-db-secret``, leave an existing alpine StatefulSet in place).
+- infra.ado.ocp_aap_hub_harden - Can create dedicated Hub Postgres, migrate ``automationhub`` off shared Controller PG, then pin workers and the ``aap-hub-stability`` CronJob. Discovers AAP/Hub CR names when unset. Preflight AAP tools option ``dedicated_hub_postgres`` generates the playbook and Controller job template without selecting OpenShift.
+- infra.ado.ocp_zabbix - Default new OpenShift Zabbix installs to dedicated PostgreSQL; keep MariaDB when that stack already exists or ``zabbix_database_type=mysql``.
+- install_aap - Leave OpenShift AAP install unlicensed by default (``aap_ocp_install_license_mode: none``). Attach a manifest or RHN subscription later with ``aap_ocp_install_license_only`` or the AAP wizard.
+- install_aap - Standalone RHEL install can override the bundle directory, use a local tarball, SSH to the VM with a user and password or private key, and pass ``gateway_tls_cert`` / ``gateway_tls_key`` paths into the installer inventory.
+- install_aap / preflight - Install AAP can target OpenShift (operator + platform CR) or standalone RHEL (``aap_setup_*``). OpenShift still requires the AAP operator PackageManifest in the cluster catalog.
+- keycloak_login_events_exporter - New role deploys a Prometheus exporter that polls the Keycloak/RHBK user-event store for ``LOGIN`` and ``LOGIN_ERROR`` and publishes gauges with username labels. Native ``keycloak_user_events_total`` does not include username. Bootstrap ships the playbook, Controller job template, and RHBK workflow node.
+- molecule - Add ``integration_ec2_instance`` fakecloud scenario that runs
+  create/info/modify/delete through the bootstrap promote +
+  ``import_playbook`` path (same entry Contoller uses after seed generation).
+- molecule - Add ``integration_s3_bucket_policy`` fakecloud scenario that
+  runs set / set-from-file / info through the bootstrap promote +
+  ``import_playbook`` path, plus ``integration_bootstrap_s3_bucket_policy``
+  for preflight → generated content.
+- ocp_acm - Before MultiClusterHub converge, detect leftover ACM hub state (stuck uninstall, stale validating webhooks), print a clear ADO prep message, and clean up so ACM hub resources and later OpenShift app installs are not poisoned. Optional ``ocp_acm_observability_reset_mco`` deletes prior MultiClusterObservability.
+- ocp_devspaces - Added exporter-only playbook ``playbooks/devspaces/ado-devspaces-status-exporter.yml`` and ``status_exporter`` tag so a script refresh does not rerun the full Dev Spaces install.
+- ocp_disconnected_install - Validate an exported disconnected OpenShift agent bundle, copy installer YAML into a per-run working directory, and write an atomic status file. Mirroring and boot media are later milestones.
+- ocp_egress - New role for EgressIP and EgressFirewall management.
+- ocp_metallb_install - New role for MetalLB Operator lifecycle with IPAddressPool, L2Advertisement, BGPPeer, and BGPAdvertisement support.
+- ocp_network_policy - New role for NetworkPolicy, AdminNetworkPolicy, BaselineAdminNetworkPolicy, MultiNetworkPolicy, and EgressFirewall management.
+- ocp_networking - New role for centralized OpenShift networking management with tenant networks, security policies, and dependency orchestration.
+- ocp_nmstate_install - New role for Kubernetes NMState Operator lifecycle and NodeNetworkConfigurationPolicy management.
+- ocp_quay - Add ``ocp_quay_storage_backend=minio`` so registry blobs use an already-installed MinIO (S3-compatible RadosGWStorage) instead of a local PVC. The role does not deploy MinIO.
+- ocp_quay - When ``ocp_quay_storage_backend=minio``, load existing ``vars_minio.yml`` / ``vault_minio.yml`` and fill empty S3 host, keys, and namespace from those MinIO vars. Quay and MinIO stay separate installs.
+- ocp_udn - New role for UserDefinedNetwork, ClusterUserDefinedNetwork, and NetworkAttachmentDefinition management.
+- playbooks/aws/ec2 - Avoid play-level empty defaults that overrode host
+  facts promoted before ``import_playbook``; add optional
+  ``ec2_instance_filters`` on create for match/idempotency control
+  (needed for fakecloud).
+- playbooks/aws/s3 - Add portable S3 bucket policy collection playbooks with
+  optional endpoint/path-style support for fakecloud and disconnected labs.
+
+Bugfixes
+--------
+
+- bootstrap_controller - AAP 2.5+ apply now dispatches inventory groups via ``infra.aap_configuration.controller_host_groups`` (correct role name). Emitting ``rhel_servers`` after the Patch Host host-pattern fix incorrectly called a non-existent ``controller_groups`` role and failed bootstrap with ``ERROR! the role 'controller_groups' was not found``.
+- bootstrap_controller - Additional Hub collection publish now skips when the version already exists in ``validated``, ``published``, ``rh-certified``, or pulp, and does not fail when the reserved ``redhat`` namespace or certified collections are already present.
+- bootstrap_controller - Hub skip-if-exists GETs now retry on 502/503/504 instead of failing bootstrap when Automation Hub or its route is briefly unavailable (``no healthy upstream``).
+- bootstrap_controller - License-only AAP attach no longer skips playbook and job-template generation. Only a full operator install omits ``ado-aap-ocp-install-bootstrap``.
+- bootstrap_controller - Satellite content-view job template now uses the local bootstrap inventory instead of ``<org>-Satellite-Server-Inventory``. That server inventory is only created for Satellite install or OIDC, so RHEL / patching / Satellite client runs no longer fail looking for a missing Satellite inventory.
+- bootstrap_controller - Skip the pre-apply git commit/push when ``git_mode`` is ``manual`` (auto-push unchecked). That task previously always pushed and failed non-interactive bootstrap runs that left generated content local on purpose.
+- bootstrap_controller - Stop PATCHing existing Controller organizations on AAP 2.5+. Lookup first and create only when missing so bootstrap no longer fails with ``Unable to update organization 400`` / ``Failed to sync resource``.
+- bootstrap_controller - Wire ``ADO | Deploy OpenShift Compliance Operator`` into the OpenShift workflow so AAP and the local no-AAP runner execute the same ``playbooks/ocp_compliance/ado-deploy-bootstrap.yml`` playbook.
+- bootstrap_controller / bootstrap_generate_env_vars - Create Contoller inventory group ``rhel_servers`` for generated RHEL hosts so system-role, STIG, and compliance playbooks that still use that group pattern continue to work.
+- bootstrap_controller / bootstrap_generate_env_vars - Create and attach Controller Galaxy credentials when Galaxy setup is enabled even if the shared Hub token is empty. Per-credential API tokens are used when set.
+- bootstrap_generate_env_vars - Derive AAP, ECK/Kibana, Kafka, and GitOps route hostnames from ``openshift.apps_domain`` the same way as Grafana and Quay so the apps domain is typed once.
+- bootstrap_generate_env_vars - Derive OpenShift app route hostnames (Grafana, RHBK, GitLab, Quay, Zabbix, and the other routed apps) from ``openshift.apps_domain`` so the domain is typed once.
+- bootstrap_generate_env_vars - Derive ``openshift.apps_domain`` as ``apps.<domain>`` from the preflight base infrastructure domain unless ``apps_domain_manual`` is true.
+- bootstrap_generate_env_vars - Keep ``ocp_compliance`` in the preflight OpenShift app catalog so selecting OpenShift Compliance Operator generates ``playbooks/ocp_compliance/ado-deploy-bootstrap.yml`` for both AAP job templates and the local no-AAP runner.
+- bootstrap_generate_env_vars - Keep ``pause_for_push`` / ``pause_after_generate`` false in generated ``aap_config_vars`` so manual git mode never waits on an interactive pause.
+- bootstrap_generate_env_vars - License-only attach keeps the AAP playbook/JT selector and does not force ``generate_env_vars_use_aap`` off the way a greenfield operator install does.
+- bootstrap_generate_env_vars - Quay MinIO object storage reads host, port, namespace, bucket, access key, and secret key from the Quay preflight fields. It no longer expects the MinIO component form or an empty ``ocp_quay_s3_secret_key`` vault stub.
+- bootstrap_generate_env_vars - Quay ``component_options.quay`` ``minio`` points at an existing MinIO and no longer auto-selects or deploys the MinIO component.
+- bootstrap_generate_env_vars - Stop writing AAP OAuth and other vault secrets into Ansible task results (``no_log`` on vault templates).
+- bootstrap_generate_env_vars - Store the OpenShift API token in ``vault_openshift.yml`` instead of ``infra_config_vars.yml``.
+- bootstrap_generate_env_vars - Write Capsule install vars only when ``satellite_capsule_install`` is selected. Stop templating ``capsule_install_req_dirs`` against undefined ``capsule_install_pulp_size`` during Satellite-only bootstrap.
+- bootstrap_generate_env_vars / ado-preflight-ui - Client Satellite Registration now collects Satellite API hostname, organization, username, and password when Satellite Server Install is not selected. When Server Install is selected, those values inherit from the server tab (admin password fills the API password when service-account credentials are empty). Empty service-account username no longer overwrites the ``admin`` fallback used by ``infra.ado.rhel_sat_reg``.
+- bootstrap_generate_env_vars / gitlab_install - Wire OpenShift GitLab ``component_config.gitlab.root_password`` into ``vault_gitlab.yml`` / ``gitlab_install_root_password`` (was only collected for Standalone).
+- bootstrap_generate_playbook_repo - Always copy ``configure-idm-acme-clusterissuer-tasks.yml`` with the cert-manager deploy playbook. Mode pruning still drops the dedicated IdM ACME job-template playbook, but the deploy include must not be left without its sibling file on Contoller.
+- bootstrap_generate_playbook_repo - Include ``community.crypto`` in the preflight Hub collection list and Controller requirements. OpenSSH and certificate tasks need it on project sync.
+- bootstrap_generate_playbook_repo - ``ADO | RHEL Patch Host`` now targets ``hosts: all`` so Contoller inventory selection works. Previously the playbook required a ``rhel_servers`` group that bootstrap never created, so changing the JT inventory still produced ``Could not match supplied host pattern, ignoring: rhel_servers``.
+- bootstrap_resolve_component - Grafana registry now sets the same ``operator_namespace`` / ``operator_subscription_namespace`` keys other OpenShift apps already set, so resolve overwrites an ACS/GitOps leak instead of waiting in ``openshift-operators``.
+- ci - Mock ``amazon.aws`` EC2 and S3 modules so production ansible-lint can resolve the AWS playbooks without installing collection dependencies.
+- ci - Mock ``infra.ado.ocp_disconnected_install`` so offline ansible-lint can syntax-check the disconnected install bundle playbook.
+- gitlab_install - Wipe the whole PostgreSQL PVC root when ``userdata`` has no ``PG_VERSION`` (recovers leftover files from the prior bad mountPath), chmod for NFS root_squash, surface pod status on Ready wait failure, and add ``gitlab_install_postgres_reset_data`` to delete Deployment+PVC.
+- gitlab_install / grafana_install / ocp_zabbix - Mount RHEL PostgreSQL PVC at ``/var/lib/pgsql/data`` for both init and postgres containers. Mounting postgres at ``.../userdata`` while init created ``userdata/`` on the volume caused ``initdb: directory exists but is not empty`` CrashLoopBackOff. Init now clears non-``PG_VERSION`` leftovers so a broken empty volume can re-init.
+- gitlab_install / ocp_zabbix - Bind ``anyuid`` to the dedicated Postgres ServiceAccount instead of the namespace ``default`` account.
+- grafana_install - Raise the Grafana memory limit to 2Gi and allow ``/api/health`` 10 seconds to answer, so a busy Grafana stays Ready.
+- grafana_install - Set Grafana ``plugins.preinstall_auto_update`` to ``false`` so Grafana 13.2.3 does not rewrite bundled datasource plugins on the read-only image directory. Remove a leftover ``copy-bundled-plugins`` init container instead of copying those plugins onto the PVC.
+- grafana_install / gitlab_install / ocp_zabbix - Use Quay-proven RHEL PostgreSQL pattern on NFS: mount PVC at ``/var/lib/pgsql/data/userdata`` for init and postgres, strip entrypoint ``chmod``/``chown`` (NFS root_squash), and wipe non-``PG_VERSION`` leftovers before initdb. Add ``grafana_install_postgres_reset_data`` like GitLab.
+- grafana_upload_dashboards - Bind ``datasource: null`` panels to the folder Prometheus target (or ``${datasource}``) so Alert Analysis and other community boards honor the K8S dropdown instead of staying on the default cluster.
+- grafana_upload_dashboards - Removed the cert-manager expiry notes and the hardcoded application-name list. The dashboard now lists each cert-manager certificate once, with issuer and Ready status. The dashboard also shows cert-manager, ClusterIssuer, and ACME request status so a Ready issuer is separate from a failed order.
+- infra.ado.bootstrap_controller - Hub-only / Hub EE uses the form organization, looks it up first, and creates it only when missing. An existing org no longer fails the run, and stale extra orgs from leftover Controller YAML are not created.
+- install_aap - Do not force a database wipe on every OpenShift AAP install. Default ``aap_ocp_install_reset_database`` is false. When a reset is requested, treat a missing AnsibleAutomationPlatform CR or 403/Forbidden as skip so greenfield installs do not fail.
+- install_aap - RHEL install play targets the VM in ``aap_setup_ssh_host`` instead of falling back to inventory host ``bastion`` or the AAP route ``hostname``, which skipped the install with no matching hosts.
+- install_aap - When license is deferred, do not fail the OpenShift install because ``infra.aap_utilities.aap_ocp_install`` is still waiting for controller/hub/eda routes after the platform/gateway route is up.
+- keycloak_login_events_exporter - Skip the role with a task ``when`` instead of ``meta: end_role``, which ansible-core 2.17 rejects.
+- ocp_aap_hub_harden - ``pg_restore`` must succeed before Hub is pointed at dedicated Postgres. The dedicated-database secret and maintenance CronJob are applied only when separation is enabled or Hub is already on that secret.
+- ocp_devspaces - Status exporter now probes the CheCode editor container and common extension directories. The old ``tooling-container`` + ``/checode/remote/extensions``-only scrape left Grafana plugin / CheCode extension tables empty on Running workspaces.
+- ocp_metallb_install - Prefix the MetalLB status register with the role name so ansible-lint ``var-naming[no-role-prefix]`` passes.
+- ocp_networking - Load ``vault_openshift.yml`` in the networking bootstrap playbook so the OpenShift API token is available after it moved out of ``infra_config_vars.yml``.
+- ocp_networking - Prefix internal task variables with the role name so ansible-lint ``var-naming[no-role-prefix]`` passes.
+- ocp_networking - Put Jinja only at the end of task names so production ansible-lint ``name[template]`` passes for the networking roles.
+- ocp_nmstate_install - Prefix NNCP state variables with the role name so ansible-lint ``var-naming[no-role-prefix]`` passes.
+- ocp_operator_subscription - Treat empty ``operator_subscription_name`` as unset and use ``operator_name-sub``, the same empty-string rule this role already uses for subscription namespace.
+- ocp_quay - Assert message for missing S3 vars points at the Quay tab, not at deploying MinIO.
+- ocp_quay - Create the Quay Database admin with ``POST /api/v1/user/initialize`` using the Quay tab password (``vault_ocp_quay_admin_password``). ``USER_INITIALIZE`` in ``config.yaml`` is not a Quay setting and never set the login password. Reruns reset an existing admin password to the vault value. Vault no longer hardcodes username ``admin``.
+- ocp_quay - Create the Quay MinIO bucket with ``registry.redhat.io/ubi9/python-311`` instead of ``quay.io/minio/mc:latest``, which disconnected clusters cannot pull. Credentials stay in a Secret so a failed wait no longer dumps the Job spec (and MinIO password) into playbook output.
+- ocp_quay - Hash the existing admin password with libcrypt and store it in ``password_hash``. Empty MinIO host, port, namespace, and access-key placeholders inherit ``vars_minio.yml``.
+- ocp_quay - Pull Quay and Redis from ``registry.redhat.io`` instead of ``quay.io/projectquay/quay`` and ``docker.io/redis``. Installing Quay no longer requires access to Quay or Docker Hub.
+- ocp_rhbk_client_secrets - Surface Keycloak admin token HTTP status and error fields when password grant fails instead of a fully censored ``no_log`` fatal, so operators can distinguish 503 (RHBK down) from 401 (bad admin password).
+- ocp_virtualization - Build the bridge NetworkAttachmentDefinition name from the VM namespace. The previous default always wrote ``ado-built-vm/br-ex-network``.
+- ocp_virtualization - Create the VirtualMachine with ``kubernetes.core.k8s`` when it is missing. The validated ``infra.openshift_virtualization_ops`` collection has no ``vm_provision`` role, so the previous include failed every Controller job.
+- ocp_wait_operator - Match Succeeded CSVs with a safe name/phase check instead of ``selectattr('status.phase')`` (that raises when status is missing and, with ``no_log: true``, only showed "output hidden"). Failure now prints CSV phases and Subscription state/currentCSV.
+- ocp_wait_pods - Treat ``Succeeded`` Job pods as healthy and fail with a compact name/phase list instead of dumping full Pod objects.
+
+Documentation Changes
+---------------------
+
+- Added ``ocp_egress``, ``ocp_metallb_install``, ``ocp_network_policy``, ``ocp_networking``, ``ocp_nmstate_install``, and ``ocp_udn`` to the collection README role index, where they were missing.
+- README - Document AWS collection playbooks (EC2 instance and S3 bucket
+  policy), shared ``vault_aws.yml`` bootstrap apps, and fakecloud Molecule
+  coverage pointers.
+- Replaced the ``molecule test -s <role>`` instructions in the six networking role READMEs, which referenced scenarios that do not exist, with a note that coverage is still outstanding and requires a live OVN-Kubernetes cluster.
+- ocp_egress - Documented the egress-assignable node label required by EgressIP, first-match rule ordering for EgressFirewall, and the ``tenant`` namespace label the default ``namespaceSelector`` relies on.
+- ocp_metallb_install - Documented that ``ocp_metallb_config.enabled`` gates the caller rather than the role itself, that an IPAddressPool without a matching advertisement is unroutable, and the address-range prerequisites.
+- ocp_network_policy - Documented the supported kinds and their resolved API versions, the ``namespace``-based routing between the namespaced and cluster-scoped code paths, and the ``force: true`` replace semantics.
+- ocp_networking - Documented the five-phase execution order, the nested PreFlight tenant schema, the valid ``network_policy`` and ``multi_network_policy`` template values, the ``egress_firewall`` rule shape, and the cluster security schema. Corrected the documented ``ocp_networking_ocp_version`` default (``4.17`` to ``4.18``), replaced the invalid ``template: default-deny`` usage example, and listed the ``create_tenant_namespaces.yml`` and ``build_custom_np.yml`` task files that were missing from the role structure.
+- ocp_nmstate_install - Documented the generated bridge and bond desired state, the interface-naming requirement across selected nodes, and the ``nodenetworkstate``/``nncp``/``nnce`` verification commands.
+- ocp_udn - Added a resource_type/topology support matrix, documented that Layer2 and Localnet flatten ``subnets`` to CIDR strings while Layer3 is passed through verbatim, and explained the ``ipam.lifecycle`` default and its role in virtual machine live migration.
+
 v2.0.0
 ======
 

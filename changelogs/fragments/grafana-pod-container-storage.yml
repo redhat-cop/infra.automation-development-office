@@ -1,7 +1,0 @@
----
-minor_changes:
-  - grafana_upload_dashboards - Add pod and container filesystem and PVC
-    usage to the Openshift Pod/Namespace Health dashboard. Container
-    filesystem usage is red from 1 GiB. The PVC table lists every claim
-    by requested size. Fill percent is red from 80 and is omitted when
-    the kubelet reports the shared NFS export instead of the claim.

@@ -1,4 +1,0 @@
----
-bugfixes:
-  - grafana_install - Raise the Grafana memory limit to 2Gi and allow
-    ``/api/health`` 10 seconds to answer, so a busy Grafana stays Ready.

@@ -1,7 +1,0 @@
----
-minor_changes:
-  - grafana_upload_dashboards - Renamed the node pod dashboard to
-    Openshift Pod/Namespace Health, added namespace and pod search, and
-    linked each node pod count to the pods on that node. Namespace and
-    pod search no longer blank the charts, and the cluster dropdown is
-    gone. Namespace pod headlines now live on that same dashboard.
