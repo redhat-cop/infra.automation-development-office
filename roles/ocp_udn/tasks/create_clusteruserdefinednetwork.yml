@@ -5,7 +5,7 @@
 # Create a cluster-scoped ClusterUserDefinedNetwork with
 # namespaceSelector.
 
-- name: "CUDN {{ udn_net.name }} | Build Layer2 network spec"
+- name: Build CUDN Layer2 network spec
   ansible.builtin.set_fact:
     ocp_udn_cudn_network_spec:
       topology: Layer2
@@ -16,7 +16,7 @@
   when: (udn_net.topology | default('Layer2')) == 'Layer2'
   changed_when: false
 
-- name: "CUDN {{ udn_net.name }} | Build Layer3 network spec"
+- name: Build CUDN Layer3 network spec
   ansible.builtin.set_fact:
     ocp_udn_cudn_network_spec:
       topology: Layer3
@@ -26,7 +26,7 @@
   when: (udn_net.topology | default('Layer2')) == 'Layer3'
   changed_when: false
 
-- name: "CUDN {{ udn_net.name }} | Build Localnet network spec"
+- name: Build CUDN Localnet network spec
   ansible.builtin.set_fact:
     ocp_udn_cudn_network_spec:
       topology: Localnet
@@ -37,7 +37,7 @@
   when: (udn_net.topology | default('Layer2')) == 'Localnet'
   changed_when: false
 
-- name: "CUDN {{ udn_net.name }} | Create ClusterUserDefinedNetwork"
+- name: Create ClusterUserDefinedNetwork
   kubernetes.core.k8s:
     state: "{{ ocp_udn_state }}"
     definition:

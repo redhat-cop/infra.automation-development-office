@@ -49,11 +49,11 @@
     kind: MetalLB
     name: "{{ ocp_metallb_instance_name }}"
     namespace: "{{ ocp_metallb_namespace }}"
-  register: ocp_metallb_instance
+  register: ocp_metallb_install_instance
   until: >-
-    (ocp_metallb_instance.resources | default([]) | length) > 0
+    (ocp_metallb_install_instance.resources | default([]) | length) > 0
     and (
-      ocp_metallb_instance.resources[0].status.conditions
+      ocp_metallb_install_instance.resources[0].status.conditions
       | default([])
       | selectattr('type', 'defined')
       | selectattr('type', 'equalto', 'Available')

@@ -9,7 +9,7 @@
 # This task will NEVER automatically modify the primary management
 # interface or br-ex unless the caller explicitly configures it.
 
-- name: "NNCP {{ physical_net.name }} | Safety warning"
+- name: Emit NNCP safety warning
   ansible.builtin.debug:
     msg: >-
       CAUTION: Applying NNCP '{{ physical_net.name }}' will modify host
@@ -17,9 +17,9 @@
       Interfaces: {{ physical_net.interface_config.interfaces | default([]) }}.
       Review the desired state before proceeding in production.
 
-- name: "NNCP {{ physical_net.name }} | Build bridge desired state"
+- name: Build NNCP bridge desired state
   ansible.builtin.set_fact:
-    ocp_nmstate_nncp_desired_state:
+    ocp_nmstate_install_nncp_desired_state:
       interfaces:
         - name: "{{ physical_net.bridge }}"
           type: linux-bridge
@@ -38,9 +38,9 @@
   when: physical_net.interface_config.type | default('bridge') == 'bridge'
   changed_when: false
 
-- name: "NNCP {{ physical_net.name }} | Build bond desired state"
+- name: Build NNCP bond desired state
   ansible.builtin.set_fact:
-    ocp_nmstate_nncp_desired_state:
+    ocp_nmstate_install_nncp_desired_state:
       interfaces:
         - name: "{{ physical_net.bridge }}"
           type: linux-bridge
@@ -66,7 +66,7 @@
   when: physical_net.interface_config.type | default('bridge') == 'bond'
   changed_when: false
 
-- name: "NNCP {{ physical_net.name }} | Apply NodeNetworkConfigurationPolicy"
+- name: Apply NodeNetworkConfigurationPolicy
   kubernetes.core.k8s:
     state: present
     definition:
@@ -76,18 +76,18 @@
         name: "{{ physical_net.name }}"
       spec:
         nodeSelector: "{{ physical_net.node_selector | default({'node-role.kubernetes.io/worker': ''}) }}"
-        desiredState: "{{ ocp_nmstate_nncp_desired_state }}"
+        desiredState: "{{ ocp_nmstate_install_nncp_desired_state }}"
 
-- name: "NNCP {{ physical_net.name }} | Wait for NNCP Available"
+- name: Wait for NNCP Available
   kubernetes.core.k8s_info:
     api_version: nmstate.io/v1
     kind: NodeNetworkConfigurationPolicy
     name: "{{ physical_net.name }}"
-  register: ocp_nmstate_nncp_status
+  register: ocp_nmstate_install_nncp_status
   until: >-
-    (ocp_nmstate_nncp_status.resources | default([]) | length) > 0
+    (ocp_nmstate_install_nncp_status.resources | default([]) | length) > 0
     and (
-      ocp_nmstate_nncp_status.resources[0].status.conditions
+      ocp_nmstate_install_nncp_status.resources[0].status.conditions
       | default([])
       | selectattr('type', 'defined')
       | selectattr('type', 'equalto', 'Available')
@@ -99,7 +99,7 @@
   delay: "{{ ocp_nmstate_nncp_wait_delay }}"
   changed_when: false
 
-- name: "NNCP {{ physical_net.name }} | Applied successfully"
+- name: Report NNCP applied successfully
   ansible.builtin.debug:
     msg: >-
       NodeNetworkConfigurationPolicy '{{ physical_net.name }}' is Available.

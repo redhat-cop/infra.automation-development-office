@@ -51,11 +51,11 @@
     api_version: nmstate.io/v1
     kind: NMState
     name: "{{ ocp_nmstate_instance_name }}"
-  register: ocp_nmstate_instance
+  register: ocp_nmstate_install_instance
   until: >-
-    (ocp_nmstate_instance.resources | default([]) | length) > 0
+    (ocp_nmstate_install_instance.resources | default([]) | length) > 0
     and (
-      ocp_nmstate_instance.resources[0].status.conditions
+      ocp_nmstate_install_instance.resources[0].status.conditions
       | default([])
       | selectattr('type', 'defined')
       | selectattr('type', 'equalto', 'Available')

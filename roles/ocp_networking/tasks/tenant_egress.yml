@@ -5,7 +5,7 @@
 # Apply egress resources for a single tenant.
 # Called in a loop from main.yml with loop_var: tenant.
 
-- name: "Tenant {{ tenant.tenant_name }} | Apply EgressIP"
+- name: Apply tenant EgressIP
   ansible.builtin.include_role:
     name: infra.ado.ocp_egress
   vars:
