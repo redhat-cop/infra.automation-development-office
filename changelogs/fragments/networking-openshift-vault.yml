@@ -1,0 +1,5 @@
+---
+bugfixes:
+  - ocp_networking - Load ``vault_openshift.yml`` in the networking bootstrap
+    playbook so the OpenShift API token is available after it moved out of
+    ``infra_config_vars.yml``.
