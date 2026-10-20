@@ -1,5 +1,0 @@
----
-minor_changes:
-  - grafana_upload_dashboards - Renamed the etcd dashboard to
-    Openshift etcd and replaced the empty cluster dropdown with a
-    node selector.

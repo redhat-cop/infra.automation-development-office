@@ -1,4 +1,0 @@
----
-minor_changes:
-  - grafana_upload_dashboards - Renamed the cluster detail dashboard to
-    Openshift Node Workloads.
