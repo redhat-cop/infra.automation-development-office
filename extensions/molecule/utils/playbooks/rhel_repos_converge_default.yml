@@ -7,7 +7,7 @@
   tasks:
     - name: Enable test-repo-disabled with file-edit method
       ansible.builtin.include_role:
-        name: infra.ado.rhel_repos
+        name: infra.automation_development_office.rhel_repos
       vars:
         repos_action: "enable"
         repos_to_enable: "test-repo-disabled"
@@ -22,7 +22,7 @@
   tasks:
     - name: Disable test-repo-enabled with file-edit method
       ansible.builtin.include_role:
-        name: infra.ado.rhel_repos
+        name: infra.automation_development_office.rhel_repos
       vars:
         repos_action: "disable"
         repos_to_disable: "test-repo-enabled"
@@ -38,7 +38,7 @@
   tasks:
     - name: Enable test-repo-yum with yum_repository method
       ansible.builtin.include_role:
-        name: infra.ado.rhel_repos
+        name: infra.automation_development_office.rhel_repos
       vars:
         repos_action: "enable"
         repos_to_enable: "test-repo-yum"

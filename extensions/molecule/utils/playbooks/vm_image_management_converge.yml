@@ -34,4 +34,4 @@
   #     creates: "{{ vm_image_management_test_root }}/{{ vm_image_management_base_name }}"
 
   roles:
-    - role: infra.ado.vm_image_management
+    - role: infra.automation_development_office.vm_image_management

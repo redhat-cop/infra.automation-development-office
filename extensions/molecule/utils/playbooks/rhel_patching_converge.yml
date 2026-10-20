@@ -7,7 +7,7 @@
   tasks:
     - name: Run rhel_patching role with discovery-only settings
       ansible.builtin.include_role:
-        name: infra.ado.rhel_patching
+        name: infra.automation_development_office.rhel_patching
       vars:
         rhel_patching_reboot: false
         rhel_patching_update_cache: true
@@ -33,7 +33,7 @@
   tasks:
     - name: Run rhel_patching role with targeted package list
       ansible.builtin.include_role:
-        name: infra.ado.rhel_patching
+        name: infra.automation_development_office.rhel_patching
       vars:
         rhel_patching_reboot: false
         rhel_patching_update_cache: false

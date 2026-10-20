@@ -47,4 +47,4 @@
         mode: "0644"
 
   roles:
-    - role: infra.ado.bootstrap_controller
+    - role: infra.automation_development_office.bootstrap_controller

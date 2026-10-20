@@ -10,6 +10,8 @@
     aap_configuration_test_root: "{{ aap_configuration_scenario_dir }}"
     aap_configuration_role_configs_candidates:
       - "{{ repo_root }}/roles/aap_configuration/configs"
+      - "{{ repo_root }}/.ansible/collections/ansible_collections/infra/automation_development_office/roles/aap_configuration/configs"
+      - "{{ lookup('env', 'HOME') }}/.ansible/collections/ansible_collections/infra/automation_development_office/roles/aap_configuration/configs"
       - "{{ repo_root }}/.ansible/collections/ansible_collections/infra/ado/roles/aap_configuration/configs"
       - "{{ lookup('env', 'HOME') }}/.ansible/collections/ansible_collections/infra/ado/roles/aap_configuration/configs"
 

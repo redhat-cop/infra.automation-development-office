@@ -21,7 +21,7 @@
     - name: ADO | Promote vars for imported delete playbook
       ansible.builtin.include_tasks: "{{ ec2_instance_molecule_promote_tasks }}"
 
-- ansible.builtin.import_playbook: infra.ado.aws.ec2.ado_ec2_instance_delete
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.ec2.ado_ec2_instance_delete
 
 - name: Destroy - remove ec2_instance scenario artifacts
   hosts: localhost

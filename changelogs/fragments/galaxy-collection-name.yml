@@ -7,3 +7,6 @@ breaking_changes:
     ``ansible-galaxy collection install infra.automation_development_office``
     (or the matching Automation Hub path). Existing ``infra.ado`` installs
     are a different collection name and are not upgraded in place.
+    bootstrap_controller includes sibling roles as
+    ``infra.automation_development_office.bootstrap_generate_env_vars`` and
+    ``infra.automation_development_office.bootstrap_generate_playbook_repo``.

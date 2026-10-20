@@ -7,7 +7,7 @@
   tasks:
     - name: Include rhel_cron role to remove all special schedules # noqa: var-naming[no-role-prefix]
       ansible.builtin.include_role:
-        name: infra.ado.rhel_cron
+        name: infra.automation_development_office.rhel_cron
       vars:
         rhel_cron_type: special
         rhel_cron_state: absent

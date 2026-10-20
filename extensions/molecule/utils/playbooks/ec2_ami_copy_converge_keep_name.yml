@@ -24,7 +24,7 @@
           {{ ec2_ami_copy_molecule_source_ami_raw.content | b64decode | trim }}
 
     - name: Copy AMI to destination region without setting name
-      infra.ado.ec2_ami_copy:
+      infra.automation_development_office.ec2_ami_copy:
         source_region: "{{ ec2_ami_copy_molecule_source_region }}"
         region: "{{ ec2_ami_copy_molecule_dest_region }}"
         source_image_id: "{{ ec2_ami_copy_molecule_source_ami }}"

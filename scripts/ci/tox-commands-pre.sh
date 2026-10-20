@@ -70,7 +70,14 @@ if [[ "${test_type}" == "sanity" ]]; then
   if [[ ! -d "${site_packages}" ]]; then
     site_packages="${env_dir}/lib64/python${py_ver}/site-packages"
   fi
-  collection_path="${site_packages}/ansible_collections/infra/ado"
+  galaxy_file="${repo_root}/galaxy.yml"
+  collection_namespace="$(grep '^namespace:' "${galaxy_file}" | awk -F: '{print $2}' | xargs)"
+  collection_name="$(grep '^name:' "${galaxy_file}" | awk -F: '{print $2}' | xargs)"
+  if [[ -z "${collection_namespace}" || -z "${collection_name}" ]]; then
+    echo "ERROR: could not read namespace and name from ${galaxy_file}" >&2
+    exit 1
+  fi
+  collection_path="${site_packages}/ansible_collections/${collection_namespace}/${collection_name}"
   if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
     echo "::group::Initialize the collection to avoid ansible #68499"
   fi

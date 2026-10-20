@@ -27,4 +27,4 @@
     aap_build_ee_ansible_runner: "2.4"
 
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
