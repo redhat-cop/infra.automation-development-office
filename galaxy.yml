@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
-name: "ado"
-version: 1.4.1
+name: "automation_development_office"
+version: 2.1.1
 readme: README.md
 authors:
   - Automation Development Office
