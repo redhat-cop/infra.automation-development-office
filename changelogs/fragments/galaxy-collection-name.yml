@@ -1,0 +1,9 @@
+---
+breaking_changes:
+  - >-
+    galaxy.yml - Publish the collection as
+    ``infra.automation_development_office`` instead of ``infra.ado``.
+    Install with
+    ``ansible-galaxy collection install infra.automation_development_office``
+    (or the matching Automation Hub path). Existing ``infra.ado`` installs
+    are a different collection name and are not upgraded in place.
