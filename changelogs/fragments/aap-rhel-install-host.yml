@@ -1,5 +1,0 @@
----
-bugfixes:
-  - install_aap - RHEL install play targets the VM in ``aap_setup_ssh_host``
-    instead of falling back to inventory host ``bastion`` or the AAP route
-    ``hostname``, which skipped the install with no matching hosts.

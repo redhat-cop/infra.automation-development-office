@@ -1,6 +1,0 @@
----
-bugfixes:
-  - ocp_networking - Put Jinja only at the end of task names so production
-    ansible-lint ``name[template]`` passes for the networking roles.
-  - ci - Mock ``amazon.aws`` EC2 and S3 modules so production ansible-lint
-    can resolve the AWS playbooks without installing collection dependencies.
