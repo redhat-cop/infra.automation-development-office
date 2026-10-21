@@ -1,6 +1,6 @@
 # Molecule scenario: gitlab_install
 
-This scenario validates the `infra.ado.gitlab_install` role using the
+This scenario validates the `infra.automation_development_office.gitlab_install` role using the
 extension-level Molecule layout.
 
 ## Scenario flow

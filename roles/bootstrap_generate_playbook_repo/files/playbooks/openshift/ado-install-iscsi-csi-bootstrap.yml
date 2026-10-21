@@ -15,7 +15,7 @@
     K8S_AUTH_VERIFY_SSL: >-
       {{ (verify_ssl | default(false) | bool) | ternary('yes', 'no') }}
   roles:
-    - role: infra.ado.ocp_iscsi_storage
+    - role: infra.automation_development_office.ocp_iscsi_storage
       vars:
         ocp_iscsi_storage_connection:
           host: "{{ host }}"

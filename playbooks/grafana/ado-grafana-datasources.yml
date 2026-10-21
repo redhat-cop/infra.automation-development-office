@@ -47,7 +47,7 @@
 
     - name: Resolve component defaults when available
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
       vars:
         component: grafana
       when: grafana_resolve_component | default(true) | bool
@@ -64,4 +64,4 @@
           grafana_admin_password (survey / extra_vars / vault_grafana.yml).
 
   roles:
-    - role: infra.ado.grafana_create_datasource
+    - role: infra.automation_development_office.grafana_create_datasource

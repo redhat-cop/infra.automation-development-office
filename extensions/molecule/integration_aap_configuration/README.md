@@ -1,6 +1,6 @@
 # Molecule scenario: integration_aap_configuration
 
-This scenario validates wiring for the `infra.ado.aap_configuration` role in
+This scenario validates wiring for the `infra.automation_development_office.aap_configuration` role in
 the normalized extension-level Molecule layout.
 
 ## Scenario flow

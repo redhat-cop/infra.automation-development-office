@@ -17,4 +17,4 @@
       ansible.builtin.set_fact:
         rhbk_enabled: "{{ rhbk_enabled | default(realm_enabled | default(true)) | bool }}"
   roles:
-    - role: infra.ado.rhbk_realm
+    - role: infra.automation_development_office.rhbk_realm

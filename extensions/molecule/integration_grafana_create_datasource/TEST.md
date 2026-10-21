@@ -3,7 +3,7 @@
 ## Purpose
 
 Validate extension-level Molecule scenario wiring for
-`infra.ado.grafana_create_datasource`.
+`infra.automation_development_office.grafana_create_datasource`.
 
 ## Sequence
 

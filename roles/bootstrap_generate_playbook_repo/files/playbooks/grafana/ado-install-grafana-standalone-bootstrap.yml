@@ -37,4 +37,4 @@
         - "{{ playbook_dir }}/../../group_vars/all/{{ env | default('prod') }}/vars_grafana.yml"
       failed_when: false
   roles:
-    - role: infra.ado.install_grafana
+    - role: infra.automation_development_office.install_grafana

@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_repos
+# Role: infra.automation_development_office.rhel_repos
 
 Manages repository enable and disable operations on Red Hat Enterprise Linux systems.
 
@@ -19,7 +19,7 @@ Repository inputs are comma-separated strings today (for example,
 implemented yet.
 
 > **Migration:** This role was renamed from `platform_repos`. Use
-> `infra.ado.rhel_repos` and `rhel_repos_*` variables instead of
+> `infra.automation_development_office.rhel_repos` and `rhel_repos_*` variables instead of
 > `ado.platform.repos` / `platform_repos_*`.
 
 ## 📦 Role Variables
@@ -58,7 +58,7 @@ explicitly requested.
     repos_action: "enable"
     repos_to_enable: "rhel-8-for-x86_64-appstream-rpms,rhel-8-for-x86_64-baseos-rpms"
   roles:
-    - role: infra.ado.rhel_repos
+    - role: infra.automation_development_office.rhel_repos
 ```
 
 ### Disable repositories (auto method)
@@ -71,7 +71,7 @@ explicitly requested.
     repos_action: "disable"
     repos_to_disable: "rhel-8-for-x86_64-appstream-rpms,rhel-8-for-x86_64-baseos-rpms"
   roles:
-    - role: infra.ado.rhel_repos
+    - role: infra.automation_development_office.rhel_repos
 ```
 
 ### Enable with explicit method and cleanup
@@ -86,7 +86,7 @@ explicitly requested.
     repos_enable_method: "rhsm_repository"
     rhel_repos_clean_cache: true
   roles:
-    - role: infra.ado.rhel_repos
+    - role: infra.automation_development_office.rhel_repos
 ```
 
 ### Disable with file-edit fallback
@@ -101,7 +101,7 @@ explicitly requested.
     repos_disable_method: "file-edit"
     rhel_repos_backup_files: true
   roles:
-    - role: infra.ado.rhel_repos
+    - role: infra.automation_development_office.rhel_repos
 ```
 
 ## 🧪 Role Molecule Testing

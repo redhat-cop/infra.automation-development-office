@@ -16,7 +16,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Skip when update_default_ingress is disabled
       ansible.builtin.meta: end_play
       when: not (update_default_ingress | default(false) | bool)
@@ -34,4 +34,4 @@
             | bool
           }}
   roles:
-    - role: infra.ado.ocp_default_ingress_cert
+    - role: infra.automation_development_office.ocp_default_ingress_cert

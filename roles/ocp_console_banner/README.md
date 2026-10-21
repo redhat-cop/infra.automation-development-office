@@ -46,14 +46,14 @@ Chad Elliott
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Resolve_component | Debug key winners
       ansible.builtin.debug:
         msg:
           - console_banner_text (final) = {{ console_banner_text | default('UNDEF') }}
           - bootstrap_resolve_component_selected.console_banner_text = {{ bootstrap_resolve_component_selected.console_banner_text | default('UNDEF') }}
   roles:
-    - role: infra.ado.ocp_console_banner
+    - role: infra.automation_development_office.ocp_console_banner
 ```
 
 ## Behavior Notes

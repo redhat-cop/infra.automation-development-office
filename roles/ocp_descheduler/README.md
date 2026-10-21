@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_descheduler
+# Role: infra.automation_development_office.ocp_descheduler
 
 Ocp Descheduler automation role. Primary tasks include: Create/Delete Kube Descheduler Instance; Kube descheduler task.
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_descheduler
+    - role: infra.automation_development_office.ocp_descheduler
 ```
 
 ## 🧪 Role Molecule Testing

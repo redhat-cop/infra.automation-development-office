@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_pull_secrets
+# Role: infra.automation_development_office.ocp_pull_secrets
 
 Ocp Pull Secrets automation role. Primary tasks include: Assert state is provided via -e or AAP survey; Normalize state; Set defaults for pull secret target.
 
@@ -40,7 +40,7 @@ Automation Development Office
     K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'') }}'
   pre_tasks: null
   roles:
-    - role: infra.ado.ocp_pull_secrets
+    - role: infra.automation_development_office.ocp_pull_secrets
 ```
 
 ## 🧪 Role Molecule Testing

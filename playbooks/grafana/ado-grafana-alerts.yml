@@ -75,7 +75,7 @@
 
     - name: Resolve component defaults when available
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
       vars:
         component: grafana
       when: grafana_resolve_component | default(true) | bool
@@ -99,4 +99,4 @@
           or grafana_folders with alerts_path.
 
   roles:
-    - role: infra.ado.grafana_upload_alerts
+    - role: infra.automation_development_office.grafana_upload_alerts

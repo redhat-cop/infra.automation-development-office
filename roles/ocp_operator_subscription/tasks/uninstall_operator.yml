@@ -84,7 +84,7 @@
 # Shared absent gate: catch Failed CSVs / Terminating leftovers this operator left.
 - name: Subscription | Run ocp_absent_cleanup gate
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - "{{ ocp_operator_subscription_sub_namespace }}"

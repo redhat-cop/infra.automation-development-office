@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-# FQCN: infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file
+# FQCN: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file
 # Create an S3 bucket if needed and set its policy from a JSON/Jinja file.
 #
 # Required:

@@ -53,7 +53,7 @@
 
     - name: Run ocp_compliance_profiles role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.ocp_compliance_profiles
+        name: infra.automation_development_office.ocp_compliance_profiles
       vars:
         ocp_compliance_profiles_manage_profile: "{{ ocp_compliance_profiles_manage_profile_env }}"
         ocp_compliance_profiles_profile: >-

@@ -1,5 +1,5 @@
 ---
-# Seed playbook: call redhat.rhel_system_roles.metrics directly (no infra.ado wrapper).
+# Seed playbook: call redhat.rhel_system_roles.metrics directly (no infra.automation_development_office wrapper).
 - name: ADO | RHEL System Role | metrics
   hosts: rhel_servers
   become: true

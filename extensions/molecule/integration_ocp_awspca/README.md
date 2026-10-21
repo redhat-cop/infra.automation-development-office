@@ -1,6 +1,6 @@
 # Molecule scenario: integration_ocp_awspca
 
-This scenario validates wiring for the `infra.ado.ocp_awspca` role in the
+This scenario validates wiring for the `infra.automation_development_office.ocp_awspca` role in the
 normalized extension-level Molecule layout.
 
 ## Scenario flow

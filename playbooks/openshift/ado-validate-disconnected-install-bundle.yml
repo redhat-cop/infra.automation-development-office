@@ -3,4 +3,4 @@
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_disconnected_install
+    - role: infra.automation_development_office.ocp_disconnected_install

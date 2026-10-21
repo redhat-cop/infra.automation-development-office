@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_operator_defaults
+# Role: infra.automation_development_office.ocp_operator_defaults
 
 Ocp Operator Defaults automation role. Primary tasks include: Get list of all PackageManifests; Build list of matching operators; Fail if no matching operators found.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_operator_defaults
+    - role: infra.automation_development_office.ocp_operator_defaults
 ```
 
 ## 🧪 Role Molecule Testing

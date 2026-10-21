@@ -31,7 +31,7 @@ Chad Elliott
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_compliance_profiles
+    - role: infra.automation_development_office.ocp_compliance_profiles
       vars:
         ocp_compliance_profiles_manage_profile: create
         ocp_compliance_profiles_profile: custom-hardening

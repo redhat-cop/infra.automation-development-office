@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_egress
+# Role: infra.automation_development_office.ocp_egress
 
 Apply or remove OpenShift egress resources — EgressIP (cluster-scoped) and
 EgressFirewall (namespace-scoped). Both are OVN-Kubernetes CRDs served by
@@ -77,7 +77,7 @@ Restrict egress from a namespace to one internal range, denying the rest:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_egress
+    - role: infra.automation_development_office.ocp_egress
       vars:
         ocp_egress_resources:
           - kind: EgressFirewall

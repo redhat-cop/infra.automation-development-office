@@ -8,8 +8,8 @@
 Index of all Modules
 ====================
 
-infra.ado
+infra.automation_development_office
 ---------
 
-* :ansplugin:`infra.ado.sample_action#module` -- A custom action plugin for Ansible.
-* :ansplugin:`infra.ado.sample_module#module` -- A custom module plugin for Ansible.
+* :ansplugin:`infra.automation_development_office.sample_action#module` -- A custom action plugin for Ansible.
+* :ansplugin:`infra.automation_development_office.sample_module#module` -- A custom module plugin for Ansible.

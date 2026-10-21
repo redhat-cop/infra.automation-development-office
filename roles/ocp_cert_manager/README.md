@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_cert_manager
+# Role: infra.automation_development_office.ocp_cert_manager
 
 Ocp Cert Manager automation role. Primary tasks include: AWS PCA | Prepare intermediate CA material (key/csr/cert) when enabled; Create root CA secret; Create ClusterIssuer or Issuer.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_cert_manager
+    - role: infra.automation_development_office.ocp_cert_manager
 ```
 
 ## 🧪 Role Molecule Testing

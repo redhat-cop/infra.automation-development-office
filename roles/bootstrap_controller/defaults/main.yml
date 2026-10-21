@@ -29,7 +29,7 @@ bootstrap_controller_aap_smoke_test_poll_delay: 5
 bootstrap_controller_aap_smoke_test_poll_retries: 60
 
 # When true (from preflight component_config.aap.install_during_bootstrap),
-# bootstrap runs infra.ado.install_aap (openshift → aap_utilities.aap_ocp_install)
+# bootstrap runs infra.automation_development_office.install_aap (openshift → aap_utilities.aap_ocp_install)
 # before apply_aap_configs and omits
 # the Install AAP on OpenShift job template.
 bootstrap_controller_aap_install_during_bootstrap: false
@@ -75,7 +75,7 @@ bootstrap_controller_hub_ee_push_retries: 5
 bootstrap_controller_hub_ee_push_delay: 30
 bootstrap_controller_hub_publish_ado_collection: false
 # Opt-in: publish selected preflight tarball collections to Hub validated when missing.
-# Never forced. infra.ado uses hub_force_ado_collection_update only.
+# Never forced. infra.automation_development_office uses hub_force_ado_collection_update only.
 bootstrap_controller_hub_publish_preflight_collections: false
 bootstrap_controller_hub_preflight_collection_names: []
 bootstrap_controller_hub_force_ado_collection_update: false

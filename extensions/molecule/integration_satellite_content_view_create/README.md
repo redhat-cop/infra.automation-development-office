@@ -1,6 +1,6 @@
 # Molecule scenario: integration_satellite_content_view_create
 
-This scenario validates the `infra.ado.satellite_content_view` role **create**
+This scenario validates the `infra.automation_development_office.satellite_content_view` role **create**
 action using the extension-level Molecule layout.
 
 ## Scenario flow

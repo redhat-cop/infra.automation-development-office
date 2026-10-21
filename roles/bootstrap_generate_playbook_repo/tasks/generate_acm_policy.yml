@@ -5,7 +5,7 @@
     name: bootstrap_acm_delivery
 - name: Delivery | Render ACM policy files
   ansible.builtin.include_role:
-    name: infra.ado.ocp_acm_policy
+    name: infra.automation_development_office.ocp_acm_policy
   when: bootstrap_acm_delivery.ocp_acm_policy_enabled | default(false) | bool
   vars:
     ocp_acm_policy_output_dir: >-

@@ -1,4 +1,4 @@
-# Role: infra.ado.acs_report
+# Role: infra.automation_development_office.acs_report
 
 Generate Red Hat Advanced Cluster Security (RHACS) vulnerability reports from
 Central's workload export API. The role uses ``ansible.builtin.get_url`` (Python
@@ -50,7 +50,7 @@ Mode summary:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.acs_report
+    - role: infra.automation_development_office.acs_report
       vars:
         acs_report_mode: rhsource
         acs_report_show_sev: true

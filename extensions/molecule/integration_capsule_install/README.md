@@ -1,6 +1,6 @@
 # Molecule scenario: integration_capsule_install
 
-This scenario validates wiring for the `infra.ado.capsule_install` role in the
+This scenario validates wiring for the `infra.automation_development_office.capsule_install` role in the
 normalized extension-level Molecule layout.
 
 ## Scenario flow

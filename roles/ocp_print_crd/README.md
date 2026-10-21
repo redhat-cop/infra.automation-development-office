@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_print_crd
+# Role: infra.automation_development_office.ocp_print_crd
 
 Ocp Print Crd automation role. Primary tasks include: Print CRD; Assert required input; Discover Subscriptions in {{ name_space }}.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_print_crd
+    - role: infra.automation_development_office.ocp_print_crd
 ```
 
 ## 🧪 Role Molecule Testing

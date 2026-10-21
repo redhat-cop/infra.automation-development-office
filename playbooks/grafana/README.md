@@ -108,7 +108,7 @@ grafana_folders:
 
 ## CLI smoke test
 
-From a machine with `infra.ado` installed and network to Grafana:
+From a machine with `infra.automation_development_office` installed and network to Grafana:
 
 ```bash
 ansible-playbook playbooks/grafana/ado-grafana-folders.yml \
@@ -121,7 +121,7 @@ ansible-playbook playbooks/grafana/ado-grafana-folders.yml \
 
 After `ansible-galaxy collection install` / Hub sync:
 
-`ansible_collections/infra/ado/playbooks/grafana/`
+`ansible_collections/infra/automation_development_office/playbooks/grafana/`
 
 Bootstrap-seeded copies (same roles) also live under the generated repo as
 `playbooks/grafana/ado-deploy-*-bootstrap.yml` if you prefer those for SCM.

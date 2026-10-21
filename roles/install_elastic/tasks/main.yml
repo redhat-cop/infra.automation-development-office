@@ -35,7 +35,7 @@
 # Install OperatorGroup + Subscription via shared OLM role
 - name: ECK  Install operator (OperatorGroup + Subscription)
   ansible.builtin.include_role:
-    name: infra.ado.ocp_operator_subscription
+    name: infra.automation_development_office.ocp_operator_subscription
 
 # If startingCSV not pinned, look up currentCSV for the selected channel
 - name: ECK  Lookup currentCSV for channel when operator_starting_csv not provided

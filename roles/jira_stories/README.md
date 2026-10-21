@@ -1,4 +1,4 @@
-# Role: infra.ado.jira_stories
+# Role: infra.automation_development_office.jira_stories
 
 Jira Stories automation role. Primary tasks include: Jira | Normalize legacy and CLI vars; Jira | Validate required vars; Jira | Build list of template files for selected track.
 
@@ -41,9 +41,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.jira_stories
+    - role: infra.automation_development_office.jira_stories
 ```
 
 ## 🧪 Role Molecule Testing

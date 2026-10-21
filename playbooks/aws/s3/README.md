@@ -9,9 +9,9 @@ Collection path: `playbooks/aws/s3/`.
 
 | Playbook | Collection FQCN | Purpose |
 | --- | --- | --- |
-| `ado_s3_bucket_policy_set.yml` | `infra.ado.aws.s3.ado_s3_bucket_policy_set` | Create bucket + set inline policy |
-| `ado_s3_bucket_policy_set_from_file.yml` | `infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file` | Create bucket + set policy from JSON/Jinja file |
-| `ado_s3_bucket_policy_info.yml` | `infra.ado.aws.s3.ado_s3_bucket_policy_info` | Read bucket policy |
+| `ado_s3_bucket_policy_set.yml` | `infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set` | Create bucket + set inline policy |
+| `ado_s3_bucket_policy_set_from_file.yml` | `infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file` | Create bucket + set policy from JSON/Jinja file |
+| `ado_s3_bucket_policy_info.yml` | `infra.automation_development_office.aws.s3.ado_s3_bucket_policy_info` | Read bucket policy |
 
 Sample policy (Jinja-templated): `policies/allow_list_and_read.json`.
 
@@ -36,7 +36,7 @@ For fakecloud / custom endpoints set `s3_bucket_endpoint_url` or
 ## Example
 
 ```bash
-ansible-playbook infra.ado.aws.s3.ado_s3_bucket_policy_set \
+ansible-playbook infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set \
   -e s3_bucket_name=my-bucket \
   -e s3_bucket_aws_account_id=111122223333 \
   -e s3_bucket_reader_role_name=AppReader

@@ -13,4 +13,4 @@
     - name: ADO | RHBK API pre_tasks
       ansible.builtin.import_tasks: ado-rhbk-api-pre_tasks.yml
   roles:
-    - role: infra.ado.rhbk_manage_idp
+    - role: infra.automation_development_office.rhbk_manage_idp

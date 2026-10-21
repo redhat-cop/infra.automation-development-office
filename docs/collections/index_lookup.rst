@@ -8,7 +8,7 @@
 Index of all Lookup Plugins
 ===========================
 
-infra.ado
+infra.automation_development_office
 ---------
 
-* :ansplugin:`infra.ado.sample_lookup#lookup` -- A custom lookup plugin for Ansible.
+* :ansplugin:`infra.automation_development_office.sample_lookup#lookup` -- A custom lookup plugin for Ansible.

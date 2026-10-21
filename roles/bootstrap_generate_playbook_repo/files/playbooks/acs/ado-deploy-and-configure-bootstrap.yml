@@ -16,20 +16,20 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Map ACS namespaces
       ansible.builtin.set_fact:
         bootstrap_generate_playbook_repo_operator_namespace: '{{ operator_namespace | default(acs.operator_namespace | default(''openshift-operators'')) }}'
         bootstrap_generate_playbook_repo_acs_namespace: '{{ acs_namespace | default(acs.namespace | default(''stackrox'')) }}'
   roles:
-    - role: infra.ado.ocp_namespace
+    - role: infra.automation_development_office.ocp_namespace
       vars:
         name_space: '{{ bootstrap_generate_playbook_repo_operator_namespace }}'
-    - role: infra.ado.ocp_operator_subscription
+    - role: infra.automation_development_office.ocp_operator_subscription
       vars:
         name_space: '{{ bootstrap_generate_playbook_repo_operator_namespace }}'
-    - role: infra.ado.ocp_acs
-    - role: infra.ado.ocp_wait_pods
+    - role: infra.automation_development_office.ocp_acs
+    - role: infra.automation_development_office.ocp_wait_pods
       vars:
         name_space: '{{ bootstrap_generate_playbook_repo_acs_namespace }}'
-    - role: infra.ado.acs_upload_policies
+    - role: infra.automation_development_office.acs_upload_policies

@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-# FQCN: infra.ado.aws.s3.ado_s3_bucket_policy_info
+# FQCN: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_info
 # Read the resource policy on one S3 bucket (amazon.aws.s3_bucket_info).
 #
 # Required:

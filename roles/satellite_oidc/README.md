@@ -1,9 +1,9 @@
-# Role: infra.ado.satellite_oidc
+# Role: infra.automation_development_office.satellite_oidc
 
 Wire a Red Hat Satellite server to Keycloak / Red Hat build of Keycloak (RHBK)
 for OpenID Connect login.
 
-The role creates the confidential OIDC client with `infra.ado.rhbk_client`
+The role creates the confidential OIDC client with `infra.automation_development_office.rhbk_client`
 (default client id `ado-satellite` in realm `rhlab`), fetches the client secret,
 enables Foreman Keycloak on the Satellite host, and applies Satellite OIDC
 settings (`authorize_login_delegation`, issuer, audience, JWKS, logout URL).
@@ -22,7 +22,7 @@ Automation Development Office
 - Target host: Red Hat Satellite server
 - Privileged access on the Satellite host (`become: true`) for
   `satellite-installer`, Apache, and Hammer
-- Required collections: `infra.ado` (`rhbk_client`), `community.general`
+- Required collections: `infra.automation_development_office` (`rhbk_client`), `community.general`
 - Keycloak admin credentials when creating or fetching the client secret
 - Satellite administrator credentials for Hammer OIDC settings
 
@@ -31,7 +31,7 @@ Automation Development Office
 | Variable | Description |
 |----------|-------------|
 | `satellite_oidc_state` | `present` or `absent`. Default `present`. |
-| `satellite_oidc_create_client` | Create/update the Keycloak client with `infra.ado.rhbk_client`. Default `true`. |
+| `satellite_oidc_create_client` | Create/update the Keycloak client with `infra.automation_development_office.rhbk_client`. Default `true`. |
 | `satellite_oidc_configure_satellite` | Enable OIDC on the Satellite host. Default `true`. |
 | `satellite_oidc_client_id` | Keycloak client id. Default `ado-satellite`. |
 | `satellite_oidc_realm` | Keycloak realm. Default `rhlab`. |
@@ -64,7 +64,7 @@ from the RHBK bootstrap vars are accepted as fallbacks.
     - group_vars/all/{{ env }}/vault_satellite.yml
     - group_vars/all/{{ env }}/vars_satellite.yml
   roles:
-    - role: infra.ado.satellite_oidc
+    - role: infra.automation_development_office.satellite_oidc
 ```
 
 Sign in at `https://<satellite>/users/extlogin` after the role completes.

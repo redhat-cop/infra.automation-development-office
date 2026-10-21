@@ -5,10 +5,10 @@ the same way Contoller/bootstrap users invoke them after seed generation:
 
 1. Promote facts with the seed ``promote-ec2-instance-facts.yml`` tasks
 2. ``import_playbook`` collection FQCNs:
-   - ``infra.ado.aws.ec2.ado_ec2_instance_create`` (twice for idempotency)
-   - ``infra.ado.aws.ec2.ado_ec2_instance_info``
-   - ``infra.ado.aws.ec2.ado_ec2_instance_modify``
-   - ``infra.ado.aws.ec2.ado_ec2_instance_delete`` (destroy)
+   - ``infra.automation_development_office.aws.ec2.ado_ec2_instance_create`` (twice for idempotency)
+   - ``infra.automation_development_office.aws.ec2.ado_ec2_instance_info``
+   - ``infra.automation_development_office.aws.ec2.ado_ec2_instance_modify``
+   - ``infra.automation_development_office.aws.ec2.ado_ec2_instance_delete`` (destroy)
 
 Listed in ``extensions/molecule/fakecloud_scenarios.txt`` so CI starts fakecloud.
 

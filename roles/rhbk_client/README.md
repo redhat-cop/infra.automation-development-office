@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_client
+# Role: infra.automation_development_office.rhbk_client
 
 Rhbk Client automation role. Primary tasks include: Create RHBK Client; Delete RHBK client; Assert required inputs are set.
 
@@ -44,9 +44,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.rhbk_client
+    - role: infra.automation_development_office.rhbk_client
 ```
 
 #### ado-manage-entraid-idp.yml
@@ -61,7 +61,7 @@ Automation Development Office
     - group_vars/all/{{ env }}/vault_{{ component }}.yml
     - group_vars/all/{{ env }}/vars_{{ component }}.yml
   roles:
-    - role: infra.ado.rhbk_client
+    - role: infra.automation_development_office.rhbk_client
 ```
 
 ## 🧪 Role Molecule Testing

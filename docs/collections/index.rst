@@ -10,7 +10,7 @@ Collection Index
 
 These are the collections documented here.
 
-* :anscollection:`infra.ado <infra.ado>`
+* :anscollection:`infra.automation_development_office <infra.automation_development_office>`
 
 .. toctree::
     :maxdepth: 1

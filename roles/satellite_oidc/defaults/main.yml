@@ -32,4 +32,4 @@ satellite_oidc_oidc_algorithm: RS256
 # Foreman validates the Keycloak access token. RHBK sets aud to "account"
 # and azp to the client id, so include both unless overridden.
 satellite_oidc_audience: []
-satellite_oidc_rhbk_client_role: infra.ado.rhbk_client
+satellite_oidc_rhbk_client_role: infra.automation_development_office.rhbk_client

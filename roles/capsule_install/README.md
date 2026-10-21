@@ -87,7 +87,7 @@ Define the Capsule installation configuration in your playbook or inventory usin
     capsule_install_activation_key: "capsule-rhel9"
     capsule_install_location: AWS
   roles:
-    - role: infra.ado.capsule_install
+    - role: infra.automation_development_office.capsule_install
 ```
 
 ### Example 2: Run preliminary check and Capsule registration
@@ -117,7 +117,7 @@ Define the Capsule installation configuration in your playbook or inventory usin
       - "{{ ansible_fqdn }}_cert_key.pem"
       - ca_cert_bundle.pem
   roles:
-    - role: infra.ado.capsule_install
+    - role: infra.automation_development_office.capsule_install
 ```
 
 ## 🧪 Role Molecule Testing

@@ -34,7 +34,7 @@ Chad Elliott
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_compliance_scan
+    - role: infra.automation_development_office.ocp_compliance_scan
       vars:
         ocp_compliance_scan_schedule_scan: true
         ocp_compliance_scan_run_scan: true

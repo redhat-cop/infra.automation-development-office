@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_wait_operator
+# Role: infra.automation_development_office.ocp_wait_operator
 
 Ocp Wait Operator automation role. Primary tasks include: Wait for Operator CSV to appear; Set fact if Operator CSV is installed; Debug operator installation status.
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_wait_operator
+    - role: infra.automation_development_office.ocp_wait_operator
 ```
 
 ## 🧪 Role Molecule Testing

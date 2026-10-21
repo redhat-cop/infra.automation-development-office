@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_devspaces
+# Role: infra.automation_development_office.ocp_devspaces
 
 Ocp Devspaces automation role. Primary tasks include: Delete Devspaces instance using Operator; Resolve DevSpaces namespaces; Wait for Dev Spaces CSV to reach 'Succeeded.
 
@@ -32,7 +32,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_devspaces
+    - role: infra.automation_development_office.ocp_devspaces
 ```
 
 Exporter-only (does not install Dev Spaces):

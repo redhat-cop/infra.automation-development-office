@@ -1,6 +1,6 @@
 # Molecule scenario: kafka_install
 
-This scenario validates the `infra.ado.kafka_install` role using the
+This scenario validates the `infra.automation_development_office.kafka_install` role using the
 extension-level Molecule layout.
 
 ## Scenario flow

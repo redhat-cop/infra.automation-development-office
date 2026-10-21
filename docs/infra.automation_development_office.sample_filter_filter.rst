@@ -1,8 +1,8 @@
-.. _infra.ado.sample_filter_filter:
+.. _infra.automation_development_office.sample_filter_filter:
 
 
 ***********************
-infra.ado.sample_filter
+infra.automation_development_office.sample_filter
 ***********************
 
 **A custom filter plugin for Ansible.**

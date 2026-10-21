@@ -43,7 +43,7 @@
 
 - name: Create MinIO Keycloak client with policy mapper
   ansible.builtin.include_role:
-    name: infra.ado.rhbk_client
+    name: infra.automation_development_office.rhbk_client
   vars:
     rhbk_hostname: "{{ ocp_minio_rhbk_hostname }}"
     rhbk_realm: "{{ ocp_minio_rhbk_realm }}"
@@ -77,7 +77,7 @@
 
 - name: Create MinIO Keycloak client (no policy mapper)
   ansible.builtin.include_role:
-    name: infra.ado.rhbk_client
+    name: infra.automation_development_office.rhbk_client
   vars:
     rhbk_hostname: "{{ ocp_minio_rhbk_hostname }}"
     rhbk_realm: "{{ ocp_minio_rhbk_realm }}"
@@ -100,7 +100,7 @@
 
 - name: Fetch MinIO OIDC client secret from Keycloak when vault empty
   ansible.builtin.include_role:
-    name: infra.ado.ocp_rhbk_client_secrets
+    name: infra.automation_development_office.ocp_rhbk_client_secrets
   vars:
     ocp_rhbk_component_name: rhbk
     ocp_rhbk_secret_client_id: "{{ minio_oidc_client_id }}"

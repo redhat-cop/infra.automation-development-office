@@ -4,7 +4,7 @@ controller_templates:
   - name: ADO | Create EC2 instance
     description: >-
       Bootstrap - Create an EC2 instance via
-      infra.ado.aws.ec2.ado_ec2_instance_create
+      infra.automation_development_office.aws.ec2.ado_ec2_instance_create
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/aws/ec2/ado-ec2-instance-create-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'

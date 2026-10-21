@@ -19,9 +19,9 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Enable Zabbix SAML configuration
       ansible.builtin.set_fact:
         zabbix_saml_enabled: true
   roles:
-    - role: infra.ado.ocp_zabbix
+    - role: infra.automation_development_office.ocp_zabbix

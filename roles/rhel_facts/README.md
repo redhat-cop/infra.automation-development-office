@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_facts
+# Role: infra.automation_development_office.rhel_facts
 
 Rhel Facts automation role. Primary tasks include: Tuned status; Firewalld status; Memory used/total (MB).
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhel_facts
+    - role: infra.automation_development_office.rhel_facts
 ```
 
 ## 🧪 Role Molecule Testing

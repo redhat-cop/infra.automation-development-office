@@ -151,7 +151,7 @@
 
 - name: ADO | Unsubscribe cert-manager operator (Subscription + CSVs)
   ansible.builtin.include_role:
-    name: infra.ado.ocp_operator_subscription
+    name: infra.automation_development_office.ocp_operator_subscription
   vars:
     name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
     operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -167,7 +167,7 @@
 
 - name: ADO | Pre-delete sweep both cert-manager namespaces
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - "{{ bootstrap_cert_manager_operand_namespace }}"
@@ -202,7 +202,7 @@
 
 - name: ADO | Delete cert-manager OperatorGroup
   ansible.builtin.include_role:
-    name: infra.ado.ocp_operatorgroups
+    name: infra.automation_development_office.ocp_operatorgroups
   vars:
     name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
     operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -211,7 +211,7 @@
 
 - name: ADO | Delete cert-manager operand namespace
   ansible.builtin.include_role:
-    name: infra.ado.ocp_namespace
+    name: infra.automation_development_office.ocp_namespace
   vars:
     ocp_namespace_name: "{{ bootstrap_cert_manager_operand_namespace }}"
     name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
@@ -222,7 +222,7 @@
 
 - name: ADO | Delete cert-manager operator namespace
   ansible.builtin.include_role:
-    name: infra.ado.ocp_namespace
+    name: infra.automation_development_office.ocp_namespace
   vars:
     ocp_namespace_name: "{{ bootstrap_cert_manager_operator_namespace }}"
     name_space: "{{ bootstrap_cert_manager_operator_namespace }}"

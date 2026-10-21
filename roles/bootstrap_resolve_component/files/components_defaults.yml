@@ -103,7 +103,7 @@ components_defaults:
     operator_namespace: aap
     operatorgroup: aap-operators
 
-    # normalized (flattened) subscription vars expected by infra.ado.ocp_operator_subscription
+    # normalized (flattened) subscription vars expected by infra.automation_development_office.ocp_operator_subscription
     operator_name: ansible-automation-platform-operator
     operator_channel: stable-2.6
     operator_source: redhat-operators
@@ -147,7 +147,7 @@ components_defaults:
     operator_namespace: aap25
     operatorgroup: aap25-operators
 
-    # normalized (flattened) subscription vars expected by infra.ado.ocp_operator_subscription
+    # normalized (flattened) subscription vars expected by infra.automation_development_office.ocp_operator_subscription
     operator_name: ansible-automation-platform-operator
     operator_channel: stable-2.5
     operator_source: redhat-operators
@@ -165,7 +165,7 @@ components_defaults:
     operator_namespace: aap24
     operatorgroup: aap24-operators
 
-    # normalized (flattened) subscription vars expected by infra.ado.ocp_operator_subscription
+    # normalized (flattened) subscription vars expected by infra.automation_development_office.ocp_operator_subscription
     operator_name: ansible-automation-platform-operator
     operator_channel: stable-2.4
     operator_source: redhat-operators
@@ -459,7 +459,7 @@ components_defaults:
     operator_subscription_namespace: gitlab-system
     operatorgroup: gitlab-operators
 
-    # normalized (flattened) subscription vars expected by infra.ado.ocp_operator_subscription
+    # normalized (flattened) subscription vars expected by infra.automation_development_office.ocp_operator_subscription
     operator_name: gitlab-operator-kubernetes
     operator_csv_contains: gitlab-operator-kubernetes
     operator_name_substring: gitlab-operator-kubernetes
@@ -721,7 +721,7 @@ components_defaults:
     # CFK 3.x operator Deployment lives in confluent-operator-system (not cfk-operator).
     operator_subscription_namespace: confluent-operator-system
 
-    # infra.ado.ocp_operatorgroups settings (optional; only if you want one)
+    # infra.automation_development_office.ocp_operatorgroups settings (optional; only if you want one)
     operatorgroup: cfk-operator-group
     all_namespaces_install: true
 
@@ -755,7 +755,7 @@ components_defaults:
     # Operator namespace (Subscription + CSV live here)
     operator_subscription_namespace: eck-operator
 
-    # infra.ado.ocp_operatorgroups (created inside eck-operator)
+    # infra.automation_development_office.ocp_operatorgroups (created inside eck-operator)
     operatorgroup: eck-operator-group
     all_namespaces_install: true
 
@@ -1124,7 +1124,7 @@ components_defaults:
   # resolver can merge optional components_env/overrides without failing.
   openshift_virt: {}
 
-  # Cross-region AMI copy (module: infra.ado.ec2_ami_copy).
+  # Cross-region AMI copy (module: infra.automation_development_office.ec2_ami_copy).
   ec2_ami_copy:
     component: ec2_ami_copy
     ec2_ami_copy_source_region: us-east-1
@@ -1140,7 +1140,7 @@ components_defaults:
     ec2_ami_copy_tag_equality: false
     ec2_ami_copy_tags: {}
 
-  # EC2 instance lifecycle (collection playbooks infra.ado.aws.ec2.*).
+  # EC2 instance lifecycle (collection playbooks infra.automation_development_office.aws.ec2.*).
   ec2_instance:
     component: ec2_instance
     ec2_instance_name: ""

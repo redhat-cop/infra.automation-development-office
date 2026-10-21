@@ -1,6 +1,6 @@
 # Grafana dashboard templates
 
-Copied into generated playbook repos by `infra.ado.bootstrap_generate_playbook_repo`.
+Copied into generated playbook repos by `infra.automation_development_office.bootstrap_generate_playbook_repo`.
 
 These trees stay in the generated repo. Default Grafana folders are
 Applications, Security, and Infrastucture (`dashboards/<folder name>`).
@@ -14,7 +14,7 @@ Point a folder source here when you want the OpenShift or RHACS templates:
 | RHACS | `templates/RHACS/dashboards/*.json` | As-is |
 
 One template tree under `templates/Openshift/dashboards/` is uploaded multiple times.
-`infra.ado.grafana_upload_dashboards` adapts UID/title/datasource per folder via
+`infra.automation_development_office.grafana_upload_dashboards` adapts UID/title/datasource per folder via
 `datasource_mode: pin|multi|none`.
 
 ### Shared Openshift folder (K8S dropdown)
@@ -27,7 +27,7 @@ switch `Openshift-Prod` / `Openshift-Dev` (same pattern as cert-manager expiry).
 
 ### Datasources (ADO)
 
-`infra.ado.grafana_create_datasource` creates:
+`infra.automation_development_office.grafana_create_datasource` creates:
 
 | Datasource | Default source |
 |------------|----------------|

@@ -107,7 +107,7 @@
 
 - name: Fetch Quay OIDC client secret from Keycloak when vault empty
   ansible.builtin.include_role:
-    name: infra.ado.ocp_rhbk_client_secrets
+    name: infra.automation_development_office.ocp_rhbk_client_secrets
   vars:
     ocp_rhbk_secret_client_key: quay_client
     ocp_rhbk_secret_client_id: "{{ quay_oidc_client_id | default('quay') }}"

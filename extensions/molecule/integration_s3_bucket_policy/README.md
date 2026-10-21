@@ -4,9 +4,9 @@ Functional fakecloud coverage for the S3 bucket policy collection playbooks,
 driven through the same bootstrap promote + ``import_playbook`` path Contoller
 uses after seed generation:
 
-1. ``infra.ado.aws.s3.ado_s3_bucket_policy_set`` (twice for idempotency)
-2. ``infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file`` (sample policy)
-3. ``infra.ado.aws.s3.ado_s3_bucket_policy_info``
+1. ``infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set`` (twice for idempotency)
+2. ``infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file`` (sample policy)
+3. ``infra.automation_development_office.aws.s3.ado_s3_bucket_policy_info``
 
 Listed in ``extensions/molecule/fakecloud_scenarios.txt`` so CI starts fakecloud.
 

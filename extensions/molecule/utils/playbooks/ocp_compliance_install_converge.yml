@@ -22,7 +22,7 @@
 
     - name: Run ocp_compliance_install role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.ocp_compliance_install
+        name: infra.automation_development_office.ocp_compliance_install
       vars:
         ocp_compliance_install_operator_namespace: >-
           {{ lookup('env', 'OCP_COMPLIANCE_INSTALL_OPERATOR_NAMESPACE') | default('openshift-compliance', true) }}

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_iscsi_storage
+# Role: infra.automation_development_office.ocp_iscsi_storage
 
 Install Synology CSI (iSCSI) on OpenShift using `kubernetes.core.k8s`
 (no `oc` CLI). Bundled vendor manifests plus a generated
@@ -36,7 +36,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_iscsi_storage
+    - role: infra.automation_development_office.ocp_iscsi_storage
       vars:
         ocp_iscsi_storage_dsm_host: 192.168.0.6
         ocp_iscsi_storage_dsm_username: "{{ vault_dsm_user }}"

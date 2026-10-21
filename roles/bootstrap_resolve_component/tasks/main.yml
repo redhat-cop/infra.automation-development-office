@@ -121,7 +121,7 @@
 # Contoller inventory or group_vars (e.g. openshift-cnv from Virt) cannot stick
 # on a later ACM / other operator job.
 # Skip dotted keys — Ansible fact names cannot contain '.' (e.g. legacy
-# ``infra.ado.ocp_operatorgroups`` registry entries). Prefer flattened aliases.
+# ``infra.automation_development_office.ocp_operatorgroups`` registry entries). Prefer flattened aliases.
 - name: Resolve_component | Export resolved vars (top-level, don't clobber higher precedence vars)
   ansible.builtin.set_fact:
     "{{ item.key }}": "{{ item.value }}"

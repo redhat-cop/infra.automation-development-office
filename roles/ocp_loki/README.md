@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_loki
+# Role: infra.automation_development_office.ocp_loki
 
 Ocp Loki automation role. Primary tasks include: Create/Delete Loki Stack; Loki Stack task.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_loki
+    - role: infra.automation_development_office.ocp_loki
 ```
 
 ## 🧪 Role Molecule Testing

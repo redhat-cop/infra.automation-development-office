@@ -86,7 +86,7 @@ Define the Satellite configuration in your playbook or inventory using the varia
   hosts: all
   gather_facts: true
   roles:
-    - role: infra.ado.satellite_config
+    - role: infra.automation_development_office.satellite_config
 ```
 
 ### Example 2: Configure a disconnected Satellite with upstream CDN sync
@@ -107,7 +107,7 @@ Define the Satellite configuration in your playbook or inventory using the varia
     satellite_config_manifest_src: files/manifest.zip
     satellite_config_manifest_path: /root/manifest.zip
   roles:
-    - role: infra.ado.satellite_config
+    - role: infra.automation_development_office.satellite_config
 ```
 
 ## 🔧 Tasks Overview

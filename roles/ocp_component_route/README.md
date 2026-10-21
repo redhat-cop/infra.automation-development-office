@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_component_route
+# Role: infra.automation_development_office.ocp_component_route
 
 Ocp Component Route automation role. Primary tasks include: Validate required framework vars; Resolve component hostname var names; Resolve primary route host from flattened vars.
 
@@ -37,9 +37,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_component_route
+    - role: infra.automation_development_office.ocp_component_route
 ```
 
 ## 🧪 Role Molecule Testing

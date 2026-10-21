@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_client_scope
+# Role: infra.automation_development_office.rhbk_client_scope
 
 Rhbk Client Scope automation role. Primary tasks include: Create client scope; Delete RHBK client scope; Login to RHBK and get admin token.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_client_scope
+    - role: infra.automation_development_office.rhbk_client_scope
 ```
 
 ## 🧪 Role Molecule Testing

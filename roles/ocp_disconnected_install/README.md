@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_disconnected_install
+# Role: infra.automation_development_office.ocp_disconnected_install
 
 Validate an exported disconnected OpenShift agent-install bundle and record a durable run directory. Milestone 1A does not mirror images, build boot media, or contact a cluster.
 
@@ -29,7 +29,7 @@ The role reads `manifest.yaml`, checks SHA-256 checksums, and refuses `registry.
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_disconnected_install
+    - role: infra.automation_development_office.ocp_disconnected_install
       vars:
         ocp_disconnected_install_bundle_dir: /var/tmp/example-install-bundle
 ```

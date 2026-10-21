@@ -14,4 +14,4 @@
     kafka_install_replicas: 1
     kafka_install_data_volume_capacity: 1Gi
   roles:
-    - infra.ado.kafka_install
+    - infra.automation_development_office.kafka_install

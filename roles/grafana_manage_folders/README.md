@@ -1,4 +1,4 @@
-# Role: infra.ado.grafana_manage_folders
+# Role: infra.automation_development_office.grafana_manage_folders
 
 Grafana Manage Folders automation role. Primary tasks include: Create/Update a Folder in Grafana; Normalize grafana_manage_folders variables; Create grafana folder.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.grafana_manage_folders
+    - role: infra.automation_development_office.grafana_manage_folders
 ```
 
 ## 🧪 Role Molecule Testing

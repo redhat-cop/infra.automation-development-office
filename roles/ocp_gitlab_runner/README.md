@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_gitlab_runner
+# Role: infra.automation_development_office.ocp_gitlab_runner
 
 Ocp Gitlab Runner automation role. Primary tasks include: Create service account; Create/ensure ClusterRole for GitLab Runner; Bind ClusterRole to the runner ServiceAccount (namespaced binding name).
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_gitlab_runner
+    - role: infra.automation_development_office.ocp_gitlab_runner
 ```
 
 ## 🧪 Role Molecule Testing

@@ -22,7 +22,7 @@
 
     - name: Run grafana_create_datasource role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.grafana_create_datasource
+        name: infra.automation_development_office.grafana_create_datasource
       vars:
         grafana_create_datasource_state: present
         grafana_create_datasource_name: >-

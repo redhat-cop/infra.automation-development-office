@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Manual-only scenario for exercising `infra.ado.rhel_repos` with the
+Manual-only scenario for exercising `infra.automation_development_office.rhel_repos` with the
 `rhsm_repository` method on a registered RHEL host.
 
 This scenario is excluded from pull request CI. See

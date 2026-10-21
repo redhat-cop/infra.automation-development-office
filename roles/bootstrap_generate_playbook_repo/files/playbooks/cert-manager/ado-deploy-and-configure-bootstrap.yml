@@ -18,7 +18,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
     - name: ADO | Map cert-manager operator vs operand namespaces
       ansible.builtin.set_fact:
@@ -88,7 +88,7 @@
     # ----- present: install -----
     - name: ADO | Ensure cert-manager operator namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       vars:
         ocp_namespace_name: "{{ bootstrap_cert_manager_operator_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -97,7 +97,7 @@
 
     - name: ADO | Create cert-manager OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       vars:
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -107,7 +107,7 @@
 
     - name: ADO | Subscribe cert-manager operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       vars:
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -117,7 +117,7 @@
 
     - name: ADO | Wait for cert-manager operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_operator
+        name: infra.automation_development_office.ocp_wait_operator
       vars:
         operator_namespace: "{{ bootstrap_cert_manager_operator_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operator_namespace }}"
@@ -125,7 +125,7 @@
 
     - name: ADO | Ensure cert-manager operand namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       vars:
         ocp_namespace_name: "{{ bootstrap_cert_manager_operand_namespace }}"
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
@@ -134,14 +134,14 @@
 
     - name: ADO | Wait for cert-manager operand pods
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_pods
+        name: infra.automation_development_office.ocp_wait_pods
       vars:
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure cert-manager
       ansible.builtin.include_role:
-        name: infra.ado.ocp_cert_manager
+        name: infra.automation_development_office.ocp_cert_manager
       vars:
         name_space: "{{ bootstrap_cert_manager_operand_namespace }}"
         state: present
@@ -158,7 +158,7 @@
 
     - name: ADO | Manage cert-manager routes
       ansible.builtin.include_role:
-        name: infra.ado.ocp_routes
+        name: infra.automation_development_office.ocp_routes
       when: (state | default('present')) == 'present'
 
     # ----- absent: full uninstall (see uninstall-cert-manager-tasks.yml) -----

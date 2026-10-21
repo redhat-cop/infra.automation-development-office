@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_acm
+# Role: infra.automation_development_office.ocp_acm
 
 Deploy the ACM MultiClusterHub CR, wait until it is **Running**, keep the ACM
 console component enabled, and enable OpenShift Console plug-ins (`acm`,
@@ -25,7 +25,7 @@ Automation Development Office
 
 - OpenShift API access (`kubernetes.core`)
 - ACM operator Subscription / CSV already installed (typically via
-  `infra.ado.ocp_operator_subscription` + `infra.ado.ocp_wait_operator`)
+  `infra.automation_development_office.ocp_operator_subscription` + `infra.automation_development_office.ocp_wait_operator`)
 
 ## 📦 Role Variables
 
@@ -64,7 +64,7 @@ Automation Development Office
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.ocp_acm
+    - role: infra.automation_development_office.ocp_acm
 ```
 
 Uninstall (thorough hub cleanup):
@@ -72,7 +72,7 @@ Uninstall (thorough hub cleanup):
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.ocp_acm
+    - role: infra.automation_development_office.ocp_acm
       vars:
         state: absent
 ```

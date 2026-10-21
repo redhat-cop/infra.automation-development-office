@@ -1,5 +1,5 @@
 ---
-# argument spec file for infra.ado.satellite_config
+# argument spec file for infra.automation_development_office.satellite_config
 
 argument_specs:
   main:

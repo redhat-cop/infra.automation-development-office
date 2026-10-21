@@ -38,7 +38,7 @@
     - name: Assert set bootstrap imports collection FQCN
       ansible.builtin.command:
         cmd: >-
-          grep -F 'infra.ado.aws.s3.ado_s3_bucket_policy_set'
+          grep -F 'infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set'
           {{ playbook_dir }}/playbooks/aws/s3/ado-s3-bucket-policy-set-bootstrap.yml
       changed_when: false
 

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_secret_replicator
+# Role: infra.automation_development_office.ocp_secret_replicator
 
 Ocp Secret Replicator automation role. Primary tasks include: Set Secret Data for Hashicorp Vault Push; Validate Vault KV Version for Push; Show effective Vault write settings.
 
@@ -27,7 +27,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_secret_replicator
+    - role: infra.automation_development_office.ocp_secret_replicator
 ```
 
 ## 🧪 Role Molecule Testing

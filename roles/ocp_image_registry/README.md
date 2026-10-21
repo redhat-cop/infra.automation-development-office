@@ -47,7 +47,7 @@ Chad Elliott
     K8S_AUTH_API_KEY: '{{ token }}'
     K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'') }}'
   roles:
-    - role: infra.ado.ocp_image_registry
+    - role: infra.automation_development_office.ocp_image_registry
 ```
 
 ## Behavior Notes

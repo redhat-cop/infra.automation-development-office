@@ -15,4 +15,4 @@
     K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'') }}'
   pre_tasks: null
   roles:
-    - role: infra.ado.ocp_search_dirsrv
+    - role: infra.automation_development_office.ocp_search_dirsrv

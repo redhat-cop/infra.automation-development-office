@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_networking
+# Role: infra.automation_development_office.ocp_networking
 
 Centralized OpenShift networking orchestration. Translates administrator
 networking intent (typically produced by PreFlight) into supported OpenShift
@@ -38,7 +38,7 @@ Automation Development Office
 - OpenShift cluster using the **OVN-Kubernetes** network provider. The role
   asserts this and fails fast otherwise.
 - `kubernetes.core` collection.
-- `infra.ado` collection — subordinate roles `ocp_namespace`, `ocp_udn`,
+- `infra.automation_development_office` collection — subordinate roles `ocp_namespace`, `ocp_udn`,
   `ocp_network_policy`, `ocp_egress`, `ocp_nmstate_install`,
   `ocp_metallb_install`.
 - Cluster-admin level credentials. The role creates cluster-scoped resources
@@ -130,7 +130,7 @@ tenant's first secondary network.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_networking
+    - role: infra.automation_development_office.ocp_networking
       vars:
         ocp_networking_enabled: true
         ocp_networking_tenants:
@@ -176,7 +176,7 @@ tenant's first secondary network.
 ### Running a single phase
 
 ```yaml
-- role: infra.ado.ocp_networking
+- role: infra.automation_development_office.ocp_networking
   vars:
     ocp_networking_create_namespaces: false
     ocp_networking_apply_network_resources: false

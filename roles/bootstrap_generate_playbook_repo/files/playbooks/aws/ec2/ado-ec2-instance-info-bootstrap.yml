@@ -13,10 +13,10 @@
   tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
     - name: ADO | Promote vars for imported info playbook
       ansible.builtin.include_tasks: tasks/promote-ec2-instance-facts.yml
 
-- ansible.builtin.import_playbook: infra.ado.aws.ec2.ado_ec2_instance_info
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.ec2.ado_ec2_instance_info
 # yamllint enable rule:line-length

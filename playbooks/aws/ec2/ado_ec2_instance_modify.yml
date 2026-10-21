@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-# FQCN: infra.ado.aws.ec2.ado_ec2_instance_modify
+# FQCN: infra.automation_development_office.aws.ec2.ado_ec2_instance_modify
 # Modify an existing EC2 instance (state, type, tags, termination protection).
 # Uses amazon.aws.ec2_instance — see module docs for state values:
 # present | running | started | stopped | restarted | rebooted | terminated

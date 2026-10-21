@@ -19,7 +19,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Enable Quay OIDC configuration
       ansible.builtin.set_fact:
         quay_oidc_enabled: true
@@ -32,4 +32,4 @@
             | default(rhbk_realm | default(ocp_rhbk_realm | default('rhlab')))
           }}
   roles:
-    - role: infra.ado.ocp_quay
+    - role: infra.automation_development_office.ocp_quay

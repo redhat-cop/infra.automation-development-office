@@ -22,7 +22,7 @@
 
     - name: Run grafana_install role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.grafana_install
+        name: infra.automation_development_office.grafana_install
       vars:
         name_space: >-
           {{ lookup('env', 'GRAFANA_INSTALL_NAMESPACE') | default('grafana', true) }}

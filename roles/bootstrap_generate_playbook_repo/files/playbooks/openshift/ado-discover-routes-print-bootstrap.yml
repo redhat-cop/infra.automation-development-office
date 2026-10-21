@@ -16,14 +16,14 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
       failed_when: false
     - name: ADO | Prefer apps_domain for route discovery suffixes
       ansible.builtin.set_fact:
         app_domain: "{{ apps_domain | default(app_domain) | default('') }}"
         app_domain_alt: "{{ apps_domain_alt | default(app_domain_alt) | default('') }}"
   roles:
-    - role: infra.ado.ocp_discover_routes
+    - role: infra.automation_development_office.ocp_discover_routes
       vars:
         ocp_discover_routes_alt_print: true
         ocp_discover_routes_print_one_liners: true

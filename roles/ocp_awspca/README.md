@@ -53,7 +53,7 @@ templates. For existing environments:
 
 1. Move PCA account credentials into ``vault_aws.yml`` using the
    ``vault_aws_*`` key names (see
-   ``infra.ado.bootstrap_generate_env_vars`` README, *Shared AWS credentials*).
+   ``infra.automation_development_office.bootstrap_generate_env_vars`` README, *Shared AWS credentials*).
 2. Keep PCA issuer settings (region, PCA ARN, namespace, etc.) in
    ``vars_cert_manager.yml``.
 3. Sync the updated awspca bootstrap playbook from the collection.
@@ -68,7 +68,7 @@ to ``vault_aws.yml``.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_awspca
+    - role: infra.automation_development_office.ocp_awspca
       vars:
         state: present
         ocp_awspca_namespace: cert-manager

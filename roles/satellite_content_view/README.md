@@ -69,7 +69,7 @@ defined.
   hosts: all
   gather_facts: true
   roles:
-    - role: infra.ado.satellite_content_view
+    - role: infra.automation_development_office.satellite_content_view
 ```
 
 ### Create Content View

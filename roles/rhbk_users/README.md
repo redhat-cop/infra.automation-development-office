@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_users
+# Role: infra.automation_development_office.rhbk_users
 
 Manage Red Hat build of Keycloak users and user-group membership operations.
 
@@ -53,7 +53,7 @@ Automation Development Office.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_users
+    - role: infra.automation_development_office.rhbk_users
       vars:
         state: add_user_to_group
         rhbk_host: rhbk.example.com

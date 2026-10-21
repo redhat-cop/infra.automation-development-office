@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_service_accounts
+# Role: infra.automation_development_office.ocp_service_accounts
 
 Ocp Service Accounts automation role. Primary tasks include: Assert per-item inputs; Ensure ocp_service_accounts_exclude_namespaces exists; Use provided target_namespaces if available.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_service_accounts
+    - role: infra.automation_development_office.ocp_service_accounts
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,4 @@
-# Role: infra.ado.install_rhbk
+# Role: infra.automation_development_office.install_rhbk
 
 Install **Red Hat Build of Keycloak (RHBK)** — Red Hat's supported Keycloak
 distribution. This role never installs upstream Keycloak.
@@ -45,7 +45,7 @@ does not unzip into the EE; upload only stages the zip into bootstrap `files/`.
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.install_rhbk
+    - role: infra.automation_development_office.install_rhbk
       vars:
         install_rhbk_platform: openshift
         name_space: keycloak
@@ -58,7 +58,7 @@ does not unzip into the EE; upload only stages the zip into bootstrap `files/`.
 - hosts: keycloak_ado
   become: true
   roles:
-    - role: infra.ado.install_rhbk
+    - role: infra.automation_development_office.install_rhbk
       vars:
         install_rhbk_platform: rhel
         rhbk_hostname: keycloak-ado.server.lab

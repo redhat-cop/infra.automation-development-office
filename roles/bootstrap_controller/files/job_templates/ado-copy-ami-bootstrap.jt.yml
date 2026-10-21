@@ -4,7 +4,7 @@ controller_templates:
   - name: ADO | Copy AMI between AWS regions
     description: >-
       Bootstrap - Copy an AWS AMI from one region to another using
-      infra.ado.ec2_ami_copy
+      infra.automation_development_office.ec2_ami_copy
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/aws/ado-copy-ami-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'
@@ -22,7 +22,7 @@ controller_templates:
     survey_enabled: true
     survey_spec:
       name: ADO | Copy AMI Survey
-      description: Cross-region AMI copy options for infra.ado.ec2_ami_copy
+      description: Cross-region AMI copy options for infra.automation_development_office.ec2_ami_copy
       spec:
         - question_name: ADO | What environment?
           question_description: Target environment (loads vault/vars for ec2_ami_copy)

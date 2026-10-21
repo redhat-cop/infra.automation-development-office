@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_udn
+# Role: infra.automation_development_office.ocp_udn
 
 Create or delete UserDefinedNetwork (UDN), ClusterUserDefinedNetwork (CUDN),
 and NetworkAttachmentDefinition (NAD) resources for OpenShift
@@ -89,7 +89,7 @@ Namespace-scoped secondary network:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_udn
+    - role: infra.automation_development_office.ocp_udn
       vars:
         ocp_udn_networks:
           - name: app-network
@@ -141,7 +141,7 @@ ocp_udn_networks:
 Removing networks:
 
 ```yaml
-- role: infra.ado.ocp_udn
+- role: infra.automation_development_office.ocp_udn
   vars:
     ocp_udn_state: absent
     ocp_udn_networks: "{{ previously_created_networks }}"

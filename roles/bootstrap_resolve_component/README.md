@@ -1,4 +1,4 @@
-# Role: infra.ado.bootstrap_resolve_component
+# Role: infra.automation_development_office.bootstrap_resolve_component
 
 Resolve one bootstrap component into the effective variable set used by its
 generated playbook.
@@ -38,7 +38,7 @@ Automation Development Office
       grafana:
         namespace: grafana
   roles:
-    - role: infra.ado.bootstrap_resolve_component
+    - role: infra.automation_development_office.bootstrap_resolve_component
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,7 +1,7 @@
 ---
 - name: Test the Hello World filter plugin
   ansible.builtin.set_fact:
-    msg: "{{ 'ansible-creator' | infra.ado.sample_filter }}"
+    msg: "{{ 'ansible-creator' | infra.automation_development_office.sample_filter }}"
 
 - name: Assert that the filter worked
   ansible.builtin.assert:

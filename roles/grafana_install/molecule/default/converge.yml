@@ -42,5 +42,5 @@
     - role: ado.openshift.namespace
     - role: ado.openshift.openshift_tools_operator_groups
     - role: ado.openshift.subscription_operator
-    - role: infra.ado.grafana_install
+    - role: infra.automation_development_office.grafana_install
     - role: ado.openshift.wait_for_pods_running

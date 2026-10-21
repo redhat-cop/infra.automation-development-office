@@ -19,4 +19,4 @@
         rhbk_enabled: true
         state: present
   roles:
-    - role: infra.ado.rhbk_realm
+    - role: infra.automation_development_office.rhbk_realm

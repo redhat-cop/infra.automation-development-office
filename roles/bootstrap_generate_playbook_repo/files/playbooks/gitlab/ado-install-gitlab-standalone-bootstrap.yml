@@ -53,4 +53,4 @@
         - "{{ playbook_dir }}/../../group_vars/all/{{ env | default('prod') }}/vars_gitlab.yml"
       failed_when: false
   roles:
-    - role: infra.ado.install_gitlab
+    - role: infra.automation_development_office.install_gitlab

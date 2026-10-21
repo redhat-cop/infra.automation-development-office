@@ -91,7 +91,7 @@
   block:
     - name: Bootstrap NFS CSI | Include ocp_nfs_storage
       ansible.builtin.include_role:
-        name: infra.ado.ocp_nfs_storage
+        name: infra.automation_development_office.ocp_nfs_storage
       vars:
         ocp_nfs_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
         ocp_nfs_storage_server: "{{ bootstrap_controller_nfs_csi_server }}"

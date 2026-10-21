@@ -13,7 +13,7 @@
   tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
     - name: ADO | Default policy file to seeded project sample when unset
       ansible.builtin.set_fact:
@@ -27,5 +27,5 @@
     - name: ADO | Promote vars for imported set-from-file playbook
       ansible.builtin.include_tasks: tasks/promote-s3-bucket-policy-facts.yml
 
-- ansible.builtin.import_playbook: infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file
 # yamllint enable rule:line-length

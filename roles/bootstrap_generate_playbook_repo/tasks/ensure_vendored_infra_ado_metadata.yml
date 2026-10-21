@@ -1,12 +1,12 @@
 ---
-# Controller jobs resolve infra.ado.* FQCN roles from the vendored collection
+# Controller jobs resolve infra.automation_development_office.* FQCN roles from the vendored collection
 # tree in the git project. Ansible requires galaxy.yml at the collection root.
 # Contoller project sync installs this via collections/requirements.yml
 # (type: dir). Galaxy/Hub must NOT resolve runtime dependencies (e.g. amazon.aws)
 # from that install — lab Hub TLS often fails and stock EEs already provide
 # those collections. Always write dependencies: {} into the vendored metadata.
 
-- name: Generate playbook repo | Ensure vendored infra.ado galaxy.yml and ansible.cfg
+- name: Generate playbook repo | Ensure vendored infra.automation_development_office galaxy.yml and ansible.cfg
   ansible.builtin.shell: |
     set -euo pipefail
     python3 <<'PYCODE'
@@ -17,7 +17,7 @@
 
     dest_root = Path("{{ bootstrap_generate_playbook_repo_dest_resolved }}")
     src_root = Path("{{ (role_path | dirname | dirname) }}")
-    vendored = dest_root / "collections" / "ansible_collections" / "infra" / "ado"
+    vendored = dest_root / "collections" / "ansible_collections" / "infra" / "automation_development_office"
     vendored.mkdir(parents=True, exist_ok=True)
 
     fallback = yaml.safe_load(
@@ -26,7 +26,7 @@
     if not isinstance(fallback, dict):
         fallback = {
             "namespace": "infra",
-            "name": "ado",
+            "name": "automation_development_office",
             "version": "1.3.1",
             "readme": "README.md",
             "authors": ["Automation Development Office"],
@@ -62,7 +62,7 @@
                 pass
         galaxy_data["version"] = version
         galaxy_data.setdefault("namespace", "infra")
-        galaxy_data.setdefault("name", "ado")
+        galaxy_data.setdefault("name", "automation_development_office")
         galaxy_data.setdefault("readme", "README.md")
         galaxy_data.setdefault("authors", ["Automation Development Office"])
         galaxy_data.setdefault("license_file", "LICENSE")
@@ -131,7 +131,7 @@
     path: >-
       {{
         bootstrap_generate_playbook_repo_dest_resolved
-      }}/collections/ansible_collections/infra/ado/galaxy.yml
+      }}/collections/ansible_collections/infra/automation_development_office/galaxy.yml
   register: bootstrap_generate_playbook_repo_vendored_galaxy_stat
   when: not (bootstrap_generate_playbook_repo_use_hub_galaxy | bool)
 
@@ -140,7 +140,7 @@
     that:
       - bootstrap_generate_playbook_repo_vendored_galaxy_stat.stat.exists | bool
     fail_msg: >-
-      Bootstrap did not write collections/ansible_collections/infra/ado/galaxy.yml
-      into the playbook repo. Controller jobs cannot resolve infra.ado.* roles
+      Bootstrap did not write collections/ansible_collections/infra/automation_development_office/galaxy.yml
+      into the playbook repo. Controller jobs cannot resolve infra.automation_development_office.* roles
       without it.
   when: not (bootstrap_generate_playbook_repo_use_hub_galaxy | bool)

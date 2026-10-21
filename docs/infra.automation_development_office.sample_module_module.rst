@@ -1,8 +1,8 @@
-.. _infra.ado.sample_module_module:
+.. _infra.automation_development_office.sample_module_module:
 
 
 ***********************
-infra.ado.sample_module
+infra.automation_development_office.sample_module
 ***********************
 
 **A custom module plugin for Ansible.**

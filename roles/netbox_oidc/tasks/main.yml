@@ -39,7 +39,7 @@
 
 - name: Fetch NetBox OIDC client secret from Keycloak when unset
   ansible.builtin.include_role:
-    name: infra.ado.ocp_rhbk_client_secrets
+    name: infra.automation_development_office.ocp_rhbk_client_secrets
     public: true
   vars:
     ocp_rhbk_secret_client_id: "{{ netbox_oidc_client_id }}"

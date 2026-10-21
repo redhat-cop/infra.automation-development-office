@@ -1,11 +1,11 @@
 ---
 # Hub is the Controller collection source — git must not ship collection trees.
-- name: Generate playbook repo | Remove vendored infra.ado from git
+- name: Generate playbook repo | Remove vendored infra.automation_development_office from git
   ansible.builtin.file:
     path: >-
       {{
         bootstrap_generate_playbook_repo_dest_resolved
-      }}/collections/ansible_collections/infra/ado
+      }}/collections/ansible_collections/infra/automation_development_office
     state: absent
 
 - name: Generate playbook repo | Remove vendored community.general from git

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_web_terminal
+# Role: infra.automation_development_office.ocp_web_terminal
 
 Install and wait for the OpenShift Web Terminal operator.
 
@@ -24,7 +24,7 @@ Automation Development Office
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.ocp_web_terminal
+    - role: infra.automation_development_office.ocp_web_terminal
 ```
 
 ## 🧪 Role Molecule Testing

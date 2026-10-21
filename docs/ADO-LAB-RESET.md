@@ -7,7 +7,7 @@ The phrase itself is the checklist; do not ask the user to repaste it.
 
 ```text
 /home/chelliot/openshift/git/github-ado/ado
-  -> actual infra.ado product/bootstrap repo
+  -> actual infra.automation_development_office product/bootstrap repo
 
 /home/chelliot/openshift/git/github-ado/ado-preflight-ui
   -> actual preflight form/runner repo
@@ -27,7 +27,7 @@ Mental model:
 ```text
 portal.rhlabchad.com -> where do I click?
 ado-preflight-ui     -> configure & bootstrap
-ado / infra.ado      -> portable automation that makes it real
+ado / infra.automation_development_office      -> portable automation that makes it real
 bootstrap-sample     -> what Controller runs for apps
 lab-tools-dont-delete-> lab user/VPN/host/virt + selected lab operations
 ```
@@ -70,20 +70,20 @@ Do not fix product bugs only by patching Controller, OpenShift, or `bootstrap-sa
 
 ## 5. Preflight runtime reality
 
-Preflight uses the baked `collections/infra-ado-*.tar.gz`, not merely the neighboring live `ado` checkout.
+Preflight uses the baked `collections/infra-automation_development_office-*.tar.gz`, not merely the neighboring live `ado` checkout.
 After an `ado` collection change that must be tested through Preflight:
 
 ```bash
 cd /home/chelliot/openshift/git/github-ado/ado
 ansible-galaxy collection build -o /tmp
-cp /tmp/infra-ado-*.tar.gz /home/chelliot/openshift/git/github-ado/ado-preflight-ui/collections/
+cp /tmp/infra-automation_development_office-*.tar.gz /home/chelliot/openshift/git/github-ado/ado-preflight-ui/collections/
 ```
 
 Then use the normal local Preflight redeploy/restart/import/bootstrap flow, followed by Controller project sync/relaunch as appropriate.
 
 ## 6. Quality gates for ADO source changes
 
-Before declaring `infra.ado` work complete:
+Before declaring `infra.automation_development_office` work complete:
 
 - run `yamllint` on changed YAML;
 - run `ansible-lint` with repository dependencies;
@@ -98,4 +98,4 @@ Pipeline behavior and `.github/Developers _Guide.md` are authoritative.
 ## 7. Lab-only work
 
 Portal and `lab-tools-dont-delete` stay separate from product ADO.
-They may contain lab-specific values because they are lab repos; do not leak those assumptions into reusable `infra.ado` behavior.
+They may contain lab-specific values because they are lab repos; do not leak those assumptions into reusable `infra.automation_development_office` behavior.

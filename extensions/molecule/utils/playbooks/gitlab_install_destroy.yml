@@ -7,4 +7,4 @@
     gitlab_install_validate_certs: false
     state: absent
   roles:
-    - infra.ado.gitlab_install
+    - infra.automation_development_office.gitlab_install

@@ -54,7 +54,7 @@ At least one of `aap_build_ee_collections` or
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
@@ -70,7 +70,7 @@ At least one of `aap_build_ee_collections` or
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-supported-rhel9:latest
         aap_build_ee_source_image_repository: quay.io/ansible
@@ -88,7 +88,7 @@ Dict keyed by collection name:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
@@ -104,7 +104,7 @@ List of name/version objects (matches ansible-builder requirements structure):
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
@@ -120,7 +120,7 @@ Single flat object (single collection convenience):
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
@@ -136,7 +136,7 @@ Single flat object (single collection convenience):
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
@@ -154,14 +154,14 @@ Single flat object (single collection convenience):
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_build_ee
+    - role: infra.automation_development_office.aap_build_ee
       vars:
         aap_build_ee_base_ee: ee-minimal-rhel9:latest
         aap_build_ee_source_image_repository: registry.redhat.io/ansible-automation-platform-24
         aap_build_ee_collections:
           ansible.posix: ""
         aap_build_ee_collection_files:
-          - /tmp/builds/infra-ado-0.1.0.tar.gz
+          - /tmp/builds/infra-automation_development_office-0.1.0.tar.gz
         aap_build_ee_output_image: localhost/custom-ee:with-local
 ```
 
@@ -192,7 +192,7 @@ Use the extension integration scenario at
 Install collection and dependencies before running locally:
 
 ```bash
-cd /path/to/your/git/checkout/infra.ado
+cd /path/to/your/git/checkout/infra.automation_development_office
 ansible-galaxy collection install . --force -p ~/.ansible/collections
 ansible-galaxy collection install ansible.posix --force -p ~/.ansible/collections
 ansible-galaxy collection install community.general --force -p ~/.ansible/collections

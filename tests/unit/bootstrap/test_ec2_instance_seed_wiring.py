@@ -134,16 +134,16 @@ def test_delete_and_info_job_templates_point_at_seed_playbooks() -> None:
 def test_seed_playbooks_import_collection_fqcns_and_shared_aws_vault() -> None:
     expected = {
         "ado-ec2-instance-create-bootstrap.yml": (
-            "infra.ado.aws.ec2.ado_ec2_instance_create"
+            "infra.automation_development_office.aws.ec2.ado_ec2_instance_create"
         ),
         "ado-ec2-instance-delete-bootstrap.yml": (
-            "infra.ado.aws.ec2.ado_ec2_instance_delete"
+            "infra.automation_development_office.aws.ec2.ado_ec2_instance_delete"
         ),
         "ado-ec2-instance-modify-bootstrap.yml": (
-            "infra.ado.aws.ec2.ado_ec2_instance_modify"
+            "infra.automation_development_office.aws.ec2.ado_ec2_instance_modify"
         ),
         "ado-ec2-instance-info-bootstrap.yml": (
-            "infra.ado.aws.ec2.ado_ec2_instance_info"
+            "infra.automation_development_office.aws.ec2.ado_ec2_instance_info"
         ),
     }
     for filename, fqcn in expected.items():

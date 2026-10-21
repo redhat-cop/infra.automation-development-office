@@ -46,7 +46,7 @@ def test_seed_playbook_uses_shared_aws_vault_and_module() -> None:
         / "ado-copy-ami-bootstrap.yml"
     )
     text = playbook.read_text(encoding="utf-8")
-    assert "infra.ado.ec2_ami_copy:" in text
+    assert "infra.automation_development_office.ec2_ami_copy:" in text
     assert "vault_aws.yml" in text
     assert "vars_{{ component }}.yml" in text
     assert "vault_ec2_ami_copy.yml" not in text

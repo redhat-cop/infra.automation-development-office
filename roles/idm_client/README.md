@@ -1,4 +1,4 @@
-# Role: infra.ado.idm_client
+# Role: infra.automation_development_office.idm_client
 
 Idm Client automation role. Primary tasks include: Register IPA client; Register IDM Client.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.idm_client
+    - role: infra.automation_development_office.idm_client
 ```
 
 ## 🧪 Role Molecule Testing

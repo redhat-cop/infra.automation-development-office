@@ -1,4 +1,4 @@
-# Role: infra.ado.bootstrap_flatten_vars
+# Role: infra.automation_development_office.bootstrap_flatten_vars
 
 Flatten a named dictionary into top-level Ansible facts for bootstrap playbooks
 that expect direct variable names.
@@ -33,7 +33,7 @@ Automation Development Office
       state: present
     flatten_var_root: component_defaults
   roles:
-    - role: infra.ado.bootstrap_flatten_vars
+    - role: infra.automation_development_office.bootstrap_flatten_vars
 ```
 
 ## 🧪 Role Molecule Testing

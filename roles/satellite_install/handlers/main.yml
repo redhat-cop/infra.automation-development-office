@@ -1,5 +1,5 @@
 ---
-# handlers file for infra.ado.satellite_install
+# handlers file for infra.automation_development_office.satellite_install
 - name: Reboot node
   listen: reboot system
   ansible.builtin.reboot:

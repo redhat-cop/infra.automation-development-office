@@ -34,4 +34,4 @@
             | regex_replace('/$', '')
           }}
   roles:
-    - role: infra.ado.keycloak_login_events_exporter
+    - role: infra.automation_development_office.keycloak_login_events_exporter

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_rhbk_client_secrets
+# Role: infra.automation_development_office.ocp_rhbk_client_secrets
 
 Ocp Rhbk Client Secrets automation role. Primary tasks include: Rhbk_get_client_secrets Snapshot components_env (safe default); Rhbk_get_client_secrets Create temp file for rendered registry; Rhbk_get_client_secrets Render registry file (Jinja evaluated).
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_rhbk_client_secrets
+    - role: infra.automation_development_office.ocp_rhbk_client_secrets
 ```
 
 ## 🧪 Role Molecule Testing

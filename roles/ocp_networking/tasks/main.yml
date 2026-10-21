@@ -24,7 +24,7 @@
 
 - name: OpenShift Networking | Process physical networks requiring NMState
   ansible.builtin.include_role:
-    name: infra.ado.ocp_nmstate_install
+    name: infra.automation_development_office.ocp_nmstate_install
   vars:
     ocp_nmstate_physical_networks: >-
       {{ ocp_networking_physical_networks
@@ -37,7 +37,7 @@
 
 - name: OpenShift Networking | Process MetalLB configuration
   ansible.builtin.include_role:
-    name: infra.ado.ocp_metallb_install
+    name: infra.automation_development_office.ocp_metallb_install
   vars:
     ocp_metallb_config: "{{ ocp_networking_load_balancing.metallb }}"
   when:

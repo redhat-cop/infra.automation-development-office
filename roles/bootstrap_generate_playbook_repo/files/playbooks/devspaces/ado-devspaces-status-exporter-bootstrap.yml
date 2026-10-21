@@ -18,5 +18,5 @@
   tasks:
     - name: Deploy DevWorkspace status metrics exporter
       ansible.builtin.include_role:
-        name: infra.ado.ocp_devspaces
+        name: infra.automation_development_office.ocp_devspaces
         tasks_from: status-exporter.yml

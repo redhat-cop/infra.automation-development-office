@@ -1,5 +1,5 @@
 ---
-# Seed playbook: call redhat.rhel_system_roles.vpn directly (no infra.ado wrapper).
+# Seed playbook: call redhat.rhel_system_roles.vpn directly (no infra.automation_development_office wrapper).
 - name: ADO | RHEL System Role | vpn
   hosts: rhel_servers
   become: true

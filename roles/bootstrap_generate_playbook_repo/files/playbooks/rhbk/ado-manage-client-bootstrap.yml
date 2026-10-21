@@ -29,7 +29,7 @@
   tasks:
     - name: ADO | Ensure each RHBK client
       ansible.builtin.include_role:
-        name: infra.ado.rhbk_client
+        name: infra.automation_development_office.rhbk_client
       vars:
         rhbk_client: "{{ item.key }}"
         rhbk_client_name: "{{ item.value.rhbk_client_name | default(item.value.name | default(item.key)) }}"

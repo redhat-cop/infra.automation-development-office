@@ -1,6 +1,6 @@
 ---
 # TEMPORARY — proves Contoller loaded THIS tree (no EE shell required).
-# Expect role_path under the project roles/, not ansible_collections/infra/ado/.
+# Expect role_path under the project roles/, not ansible_collections/infra/automation_development_office/.
 - name: DEBUG - prove grafana_upload_dashboards load path
   ansible.builtin.debug:
     msg:

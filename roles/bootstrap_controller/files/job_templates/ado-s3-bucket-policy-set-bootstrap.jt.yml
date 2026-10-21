@@ -4,7 +4,7 @@ controller_templates:
   - name: ADO | Set S3 bucket policy
     description: >-
       Bootstrap - Create bucket and set inline policy via
-      infra.ado.aws.s3.ado_s3_bucket_policy_set
+      infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/aws/s3/ado-s3-bucket-policy-set-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'

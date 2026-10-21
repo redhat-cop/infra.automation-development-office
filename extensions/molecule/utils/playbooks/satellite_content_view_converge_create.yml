@@ -12,4 +12,4 @@
     content_view: "{{ lookup('env', 'SATELLITE_CONTENT_VIEW') | default('molecule-satellite-content-view', true) }}"
 
   roles:
-    - role: infra.ado.satellite_content_view
+    - role: infra.automation_development_office.satellite_content_view

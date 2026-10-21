@@ -1,6 +1,6 @@
 # Molecule scenario: integration_ocp_compliance_install
 
-This scenario validates wiring for the `infra.ado.ocp_compliance_install` role
+This scenario validates wiring for the `infra.automation_development_office.ocp_compliance_install` role
 in the normalized extension-level Molecule layout.
 
 ## Scenario flow

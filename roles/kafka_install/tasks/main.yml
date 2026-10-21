@@ -203,7 +203,7 @@
       metadata:
         name: ado-cfk-jobs-cluster
         labels:
-          app.kubernetes.io/managed-by: infra.ado
+          app.kubernetes.io/managed-by: infra.automation_development_office
           app.kubernetes.io/part-of: kafka-install
       rules:
         - apiGroups: ["batch"]
@@ -219,7 +219,7 @@
       metadata:
         name: ado-cfk-jobs-cluster
         labels:
-          app.kubernetes.io/managed-by: infra.ado
+          app.kubernetes.io/managed-by: infra.automation_development_office
           app.kubernetes.io/part-of: kafka-install
       roleRef:
         apiGroup: rbac.authorization.k8s.io

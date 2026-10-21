@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-# FQCN: infra.ado.aws.s3.ado_s3_bucket_policy_set
+# FQCN: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set
 # Create an S3 bucket if needed and set its resource policy (inline document).
 # Based on amazon.aws.s3_bucket policy examples / aws-ansible-examples.
 #

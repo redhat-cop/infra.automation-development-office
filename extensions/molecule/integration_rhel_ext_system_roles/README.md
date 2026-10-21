@@ -1,6 +1,6 @@
 # Molecule scenario: integration_rhel_ext_system_roles
 
-This integration scenario validates `infra.ado.rhel_ext_system_roles`
+This integration scenario validates `infra.automation_development_office.rhel_ext_system_roles`
 using the extension-level Molecule layout under `extensions/molecule`.
 
 ## Scenario flow
@@ -26,7 +26,7 @@ The scenario `molecule.yml` points to shared playbooks in
 ### Step intent
 
 - `prepare`: no-op-safe setup hook (currently minimal).
-- `converge`: includes `infra.ado.rhel_ext_system_roles` with `timesync`, `selinux`, and `cockpit`.
+- `converge`: includes `infra.automation_development_office.rhel_ext_system_roles` with `timesync`, `selinux`, and `cockpit`.
 - `idempotence`: reruns converge and expects no unexpected changes.
 - `verify`: asserts role README existence at `roles/rhel_ext_system_roles/README.md`.
 - `destroy`: no-op-safe teardown hook (currently minimal).

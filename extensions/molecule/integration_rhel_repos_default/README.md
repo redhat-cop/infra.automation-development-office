@@ -1,6 +1,6 @@
 # Molecule scenario: integration_rhel_repos_default
 
-This scenario validates wiring for the `infra.ado.rhel_repos` role on UBI 8
+This scenario validates wiring for the `infra.automation_development_office.rhel_repos` role on UBI 8
 and UBI 9 in the normalized extension-level Molecule layout.
 
 ## Platforms

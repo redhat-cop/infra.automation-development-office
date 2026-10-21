@@ -21,52 +21,52 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
   tasks:
     # ----- present -----
     - name: ADO | Ensure OpenShift Virtualization namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'present'
 
     - name: ADO | Create OpenShift Virtualization OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'present'
 
     - name: ADO | Subscribe OpenShift Virtualization operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for OpenShift Virtualization operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_operator
+        name: infra.automation_development_office.ocp_wait_operator
       when: (state | default('present')) == 'present'
 
     - name: ADO | Install HyperConverged
       ansible.builtin.include_role:
-        name: infra.ado.ocp_virtualization_install
+        name: infra.automation_development_office.ocp_virtualization_install
       when: (state | default('present')) == 'present'
 
     # ----- absent: HCO → subscription → OG → namespace -----
     - name: ADO | Remove HyperConverged
       ansible.builtin.include_role:
-        name: infra.ado.ocp_virtualization_install
+        name: infra.automation_development_office.ocp_virtualization_install
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Unsubscribe OpenShift Virtualization operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete OpenShift Virtualization OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete OpenShift Virtualization namespace
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'absent'

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_wait_pods
+# Role: infra.automation_development_office.ocp_wait_pods
 
 Wait until workload pods in a namespace are `Running` or `Succeeded`. Completed
 Job pods do not fail the wait. On timeout the role prints name and phase only.
@@ -26,7 +26,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_wait_pods
+    - role: infra.automation_development_office.ocp_wait_pods
 ```
 
 ## 🧪 Role Molecule Testing

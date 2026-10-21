@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_search_dirsrv
+# Role: infra.automation_development_office.ocp_search_dirsrv
 
 Ocp Search Dirsrv automation role. Primary tasks include: Find a running dirsrv pod # noqa; Fail if no dirsrv pods found; Pick first pod name # noqa.
 
@@ -40,7 +40,7 @@ Automation Development Office
     K8S_AUTH_VERIFY_SSL: '{{ (verify_ssl | bool) | ternary(''yes'',''no'') }}'
   pre_tasks: null
   roles:
-    - role: infra.ado.ocp_search_dirsrv
+    - role: infra.automation_development_office.ocp_search_dirsrv
 ```
 
 ## 🧪 Role Molecule Testing

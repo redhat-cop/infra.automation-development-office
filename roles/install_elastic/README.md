@@ -1,4 +1,4 @@
-# Role: infra.ado.install_elastic
+# Role: infra.automation_development_office.install_elastic
 
 Install Elastic automation role. Primary tasks include: ECK Set derived vars; ECK Ensure operator namespace exists; ECK Ensure operand namespace exists (only when creating CR).
 
@@ -37,9 +37,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.install_elastic
+    - role: infra.automation_development_office.install_elastic
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_pega
+# Role: infra.automation_development_office.ocp_pega
 
 Deploy Pega and optional OpenSearch/Backing Services from local Helm artifacts.
 
@@ -61,7 +61,7 @@ Helm output is suppressed because values/manifests can contain secrets.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_pega
+    - role: infra.automation_development_office.ocp_pega
       ocp_pega_database_mode: existing
       ocp_pega_chart_path: /artifacts/charts/pega.tgz
       ocp_pega_values_file: /artifacts/values/pega.yaml

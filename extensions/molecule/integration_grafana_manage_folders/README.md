@@ -1,6 +1,6 @@
 # Molecule scenario: integration_grafana_manage_folders
 
-This scenario validates wiring for the `infra.ado.grafana_manage_folders`
+This scenario validates wiring for the `infra.automation_development_office.grafana_manage_folders`
 role in the normalized extension-level Molecule layout.
 
 ## Scenario flow

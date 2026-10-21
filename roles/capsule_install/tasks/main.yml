@@ -1,5 +1,5 @@
 ---
-# tasks file for infra.ado.capsule_install
+# tasks file for infra.automation_development_office.capsule_install
 
 - name: Preliminary Check
   ansible.builtin.include_tasks: preliminary_check.yml
@@ -12,14 +12,14 @@
 
     - name: Patch
       ansible.builtin.include_role:
-        name: infra.ado.satellite_install
+        name: infra.automation_development_office.satellite_install
         tasks_from: patch
       vars:
         satellite_install_selinux_state: "{{ capsule_install_selinux_state }}"
 
     - name: Storage Config
       ansible.builtin.include_role:
-        name: infra.ado.satellite_install
+        name: infra.automation_development_office.satellite_install
         tasks_from: storage_config
       vars:
         satellite_install_vg_name: "{{ capsule_install_vg_name }}"

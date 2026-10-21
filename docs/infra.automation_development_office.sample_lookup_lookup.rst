@@ -1,8 +1,8 @@
-.. _infra.ado.sample_lookup_lookup:
+.. _infra.automation_development_office.sample_lookup_lookup:
 
 
 ***********************
-infra.ado.sample_lookup
+infra.automation_development_office.sample_lookup
 ***********************
 
 **A custom lookup plugin for Ansible.**

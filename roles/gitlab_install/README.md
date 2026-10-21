@@ -1,4 +1,4 @@
-# Role: infra.ado.gitlab_install
+# Role: infra.automation_development_office.gitlab_install
 
 Install and configure GitLab on OpenShift using the GitLab Operator and Custom Resource (CR).
 
@@ -85,7 +85,7 @@ export K8S_AUTH_VERIFY_SSL="no"
     gitlab_install_tls_crt: "{{ lookup('file', 'files/gitlab.crt') }}"
     gitlab_install_tls_key: "{{ lookup('file', 'files/gitlab.key') }}"
   roles:
-    - role: infra.ado.gitlab_install
+    - role: infra.automation_development_office.gitlab_install
 ```
 
 ### Vaulted secrets
@@ -110,7 +110,7 @@ gitlab_install_root_password: !vault |
     name_space: gitlab
     state: absent
   roles:
-    - role: infra.ado.gitlab_install
+    - role: infra.automation_development_office.gitlab_install
 ```
 
 ---

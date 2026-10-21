@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_gitops_application
+# Role: infra.automation_development_office.ocp_gitops_application
 
 Generate a manual-sync Argo CD Application and Kustomize resources locally.
 
@@ -54,7 +54,7 @@ Generation neither installs prerequisites nor registers/applies the output.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_gitops_application
+    - role: infra.automation_development_office.ocp_gitops_application
       ocp_gitops_application_repo_url: https://git.example.test/platform.git
       ocp_gitops_application_output_dir: /tmp/platform-repo
       ocp_gitops_application_resources:

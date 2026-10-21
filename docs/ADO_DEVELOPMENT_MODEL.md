@@ -5,7 +5,7 @@ It is written so you can hand it to another engineer and keep the dev workflow c
 
 Use it like a checklist every time you touch:
 
-- `infra.ado` roles/modules (Ansible collection code)
+- `infra.automation_development_office` roles/modules (Ansible collection code)
 - `ado-preflight-ui` (the containerized web UI)
 - shared generated bootstrap repo artifacts
 - any documentation that affects maintainers/operators
@@ -20,7 +20,7 @@ In practice, there are three layers:
    - Normalizes them into a **preflight JSON payload**
    - Starts an Ansible run inside a container
 
-2. **`infra.ado`** (Ansible collection: roles/modules)
+2. **`infra.automation_development_office`** (Ansible collection: roles/modules)
    - Implements bootstrap logic:
      - generate `group_vars/` and vault files
      - scaffold a generated bootstrap repo structure
@@ -39,7 +39,7 @@ In practice, there are three layers:
 ---
 ## 2) System Boundaries (what you should change where)
 
-### Change `infra.ado` when…
+### Change `infra.automation_development_office` when…
 
 - You're changing Ansible logic, generated variables, controller object generation, or playbook content.
 - You're changing how the UI's preflight JSON gets turned into a working bootstrap repository.
@@ -47,8 +47,8 @@ In practice, there are three layers:
 
 Typical paths:
 
-- `ansible_collections/infra/ado/roles/<role_name>/...`
-- `ansible_collections/infra/ado/plugins/...`
+- `ansible_collections/infra/automation_development_office/roles/<role_name>/...`
+- `ansible_collections/infra/automation_development_office/plugins/...`
 - `extensions/molecule/<scenario>/...`
 - `changelogs/fragments/...` (user-visible changes)
 
@@ -72,13 +72,13 @@ This is the "mental model" tree people should keep in mind when developing:
 
 ```text
 github-ado/
-  ado/                              # infra.ado repo content + docs
+  ado/                              # infra.automation_development_office repo content + docs
     roles/                          # sometimes mirrored role sources
     docs/                           # dev model docs + templates
-    changelogs/fragments/          # infra.ado user-visible change entries
+    changelogs/fragments/          # infra.automation_development_office user-visible change entries
     .github/Developers _Guide.md    # CI/molecule dev workflow guide
     extensions/molecule/           # integration scenarios (molecule)
-    ansible_collections/infra/ado/  # built collection source layout
+    ansible_collections/infra/automation_development_office/  # built collection source layout
 
   ado-preflight-ui/                 # web UI that runs Ansible in a container
     src/                            # React app
@@ -113,21 +113,21 @@ The container runs the ADO bootstrap scaffolding playbook (one of):
 - `run-ado-scaffolding.yml`
 - `00-controller-bootstrap.yml` (controller configs)
 
-In `infra.ado`, the important roles are:
+In `infra.automation_development_office`, the important roles are:
 
-1. `infra.ado.bootstrap_generate_env_vars`
+1. `infra.automation_development_office.bootstrap_generate_env_vars`
    - writes:
      - `group_vars/all/<env>/vars_*.yml`
      - `group_vars/all/<env>/vault_*.yml`
 
-2. `infra.ado.bootstrap_generate_playbook_repo`
+2. `infra.automation_development_office.bootstrap_generate_playbook_repo`
    - scaffolds:
      - `playbooks/<component>/...`
      - `configs/controller/...`
      - `configs/job_templates/...`
      - `configs/workflows/...`
 
-3. `infra.ado.bootstrap_controller`
+3. `infra.automation_development_office.bootstrap_controller`
    - applies controller objects to AAP when "Using AAP" is enabled
    - optionally uploads/publishes collection content to Hub/EE when enabled
 
@@ -161,7 +161,7 @@ Follow this exact sequence for every PR:
 
 Label what you changed:
 
-- `infra.ado` role/module behavior
+- `infra.automation_development_office` role/module behavior
 - `ado-preflight-ui` payload normalization or UI state
 - generated bootstrap artifacts expectations
 
@@ -188,7 +188,7 @@ If you changed a role's behavior/variables:
 
 This repo uses **two different changelog systems**, depending on where you changed:
 
-#### infra.ado changelog: fragments
+#### infra.automation_development_office changelog: fragments
 
 Add a file under:
 
@@ -264,7 +264,7 @@ Minimal required sections:
 ---
 ## 8) Changelog Format Model
 
-### infra.ado fragment sections
+### infra.automation_development_office fragment sections
 
 This repo's `changelogs/config.yaml` defines allowed sections such as:
 
@@ -373,7 +373,7 @@ If someone asks "how does ADO work?", reply with:
 
 1. **UI** collects answers → writes preflight JSON
 2. **backend** writes JSON into the container workspace and runs `ansible-playbook`
-3. **infra.ado roles** generate env vars, vault files, playbooks, and AAP controller objects
+3. **infra.automation_development_office roles** generate env vars, vault files, playbooks, and AAP controller objects
 4. Optionally **hub/galaxy/EE** actions happen during bootstrap
 5. Output is a generated bootstrap repository you commit/push (optional)
 
@@ -381,7 +381,7 @@ If someone asks "how does ADO work?", reply with:
 ## Appendix: quick pointers
 
 - Role docs: `roles/<role_name>/README.md` + template in `docs/templates/role_readme_format_template.md`
-- infra.ado changelog fragments: `changelogs/fragments/*.yml`
+- infra.automation_development_office changelog fragments: `changelogs/fragments/*.yml`
 - preflight-ui changesets: `.changeset/*.md`
 - Molecule: `extensions/molecule/<scenario>/molecule.yml`
 

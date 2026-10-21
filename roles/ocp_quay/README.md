@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_quay
+# Role: infra.automation_development_office.ocp_quay
 
 Install or remove Red Hat Quay on OpenShift (namespace, Postgres, registry, route).
 Registry blobs default to a local PVC. Set ``ocp_quay_storage_backend=minio`` to
@@ -43,7 +43,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_quay
+    - role: infra.automation_development_office.ocp_quay
 ```
 
 ## 🧪 Role Molecule Testing

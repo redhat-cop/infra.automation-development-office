@@ -1,7 +1,7 @@
 .. Document meta
 
 :orphan:
-:github_url: https://github.com/ansible-collections/infra.ado/edit/main/plugins/modules/sample_action.py?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
+:github_url: https://github.com/ansible-collections/infra.automation_development_office/edit/main/plugins/modules/sample_action.py?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
 
 .. |antsibull-internal-nbsp| unicode:: 0xA0
     :trim:
@@ -11,32 +11,32 @@
 
 .. Anchors
 
-.. _ansible_collections.infra.ado.sample_action_module:
+.. _ansible_collections.infra.automation_development_office.sample_action_module:
 
 .. Anchors: short name for ansible.builtin
 
 .. Title
 
-infra.ado.sample_action module -- A custom action plugin for Ansible.
+infra.automation_development_office.sample_action module -- A custom action plugin for Ansible.
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. Collection note
 
 .. note::
-    This module is part of the `infra.ado collection <https://galaxy.ansible.com/ui/repo/published/infra/ado/>`_ (version 1.0.0).
+    This module is part of the `infra.automation_development_office collection <https://galaxy.ansible.com/ui/repo/published/infra/automation_development_office/>`_ (version 1.0.0).
 
     It is not included in ``ansible-core``.
     To check whether it is installed, run :code:`ansible-galaxy collection list`.
 
-    To install it, use: :code:`ansible\-galaxy collection install infra.ado`.
+    To install it, use: :code:`ansible\-galaxy collection install infra.automation_development_office`.
 
-    To use it in a playbook, specify: :code:`infra.ado.sample_action`.
+    To use it in a playbook, specify: :code:`infra.automation_development_office.sample_action`.
 
 .. version_added
 
 .. rst-class:: ansible-version-added
 
-New in infra.ado 1.0.0
+New in infra.automation_development_office 1.0.0
 
 .. contents::
    :local:
@@ -86,7 +86,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-msg"></div>
 
-      .. _ansible_collections.infra.ado.sample_action_module__parameter-msg:
+      .. _ansible_collections.infra.automation_development_office.sample_action_module__parameter-msg:
 
       .. rst-class:: ansible-option-title
 
@@ -120,7 +120,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-prefix"></div>
 
-      .. _ansible_collections.infra.ado.sample_action_module__parameter-prefix:
+      .. _ansible_collections.infra.automation_development_office.sample_action_module__parameter-prefix:
 
       .. rst-class:: ansible-option-title
 
@@ -154,7 +154,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-with_prefix"></div>
 
-      .. _ansible_collections.infra.ado.sample_action_module__parameter-with_prefix:
+      .. _ansible_collections.infra.automation_development_office.sample_action_module__parameter-with_prefix:
 
       .. rst-class:: ansible-option-title
 
@@ -257,7 +257,7 @@ Collection links
     url: "http://example.com/repository"
     external: true
   - title: "Report an issue"
-    url: "https://github.com/ansible-collections/infra.ado/issues/new/choose"
+    url: "https://github.com/ansible-collections/infra.automation_development_office/issues/new/choose"
     external: true
 
 

@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Corey Sebastian Dixon
-  description: infra.ado.capsule_install Role
+  description: infra.automation_development_office.capsule_install Role
   company: Automation Development Office
   license: GPL-3.0-or-later
 

@@ -1,7 +1,7 @@
 ---
 schemaVersion: 2.2.2
 metadata:
-  name: infra.ado
+  name: infra.automation_development_office
 components:
   - name: tooling-container
     container:

@@ -1,8 +1,8 @@
-.. _infra.ado.sample_test_test:
+.. _infra.automation_development_office.sample_test_test:
 
 
 *********************
-infra.ado.sample_test
+infra.automation_development_office.sample_test
 *********************
 
 **A custom test plugin for Ansible.**

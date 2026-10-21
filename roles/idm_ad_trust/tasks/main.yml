@@ -44,7 +44,7 @@
 
 - name: Ensure SMB service is running for trust
   ansible.builtin.include_role:
-    name: infra.ado.rhel_services_management
+    name: infra.automation_development_office.rhel_services_management
   vars:
     rhel_services_management_service_names:
       - name: smb
@@ -73,7 +73,7 @@
     - name: Restart IPA DNS after DNSSEC change
       when: idm_ad_trust_dnssec is changed  # noqa: no-handler
       ansible.builtin.include_role:
-        name: infra.ado.rhel_services_management
+        name: infra.automation_development_office.rhel_services_management
       vars:
         rhel_services_management_service_names:
           - name: named-pkcs11
@@ -166,7 +166,7 @@
 
 - name: Restart SSSD after trust/group changes
   ansible.builtin.include_role:
-    name: infra.ado.rhel_services_management
+    name: infra.automation_development_office.rhel_services_management
   vars:
     rhel_services_management_service_names:
       - name: sssd

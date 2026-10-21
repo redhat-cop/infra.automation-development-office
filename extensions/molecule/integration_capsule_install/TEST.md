@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate extension-level Molecule scenario wiring for `infra.ado.capsule_install`.
+Validate extension-level Molecule scenario wiring for `infra.automation_development_office.capsule_install`.
 
 ## Sequence
 

@@ -19,7 +19,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.install_dirsrv
+    - role: infra.automation_development_office.ocp_namespace
+    - role: infra.automation_development_office.install_dirsrv

@@ -31,6 +31,6 @@
         - "{{ playbook_dir }}/../../group_vars/all/{{ env | default('prod') }}/vars_rhbk.yml"
       failed_when: false
   roles:
-    - role: infra.ado.install_rhbk
+    - role: infra.automation_development_office.install_rhbk
       vars:
         install_rhbk_platform: rhel

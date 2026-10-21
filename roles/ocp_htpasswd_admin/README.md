@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_htpasswd_admin
+# Role: infra.automation_development_office.ocp_htpasswd_admin
 
 Ocp Htpasswd Admin automation role. Primary tasks include: Build htpasswd content from user list; Create htpasswd Secret; Grant cluster-admin to selected htpasswd users.
 
@@ -48,9 +48,9 @@ patch the Secret even when the OAuth IdP list is unchanged.
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - infra.ado.ocp_htpasswd_admin
+    - infra.automation_development_office.ocp_htpasswd_admin
 ```
 
 ## 🧪 Role Molecule Testing

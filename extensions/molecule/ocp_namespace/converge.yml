@@ -7,7 +7,7 @@
   tasks:
     - name: Include the role under test
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       vars:
         state: present
 

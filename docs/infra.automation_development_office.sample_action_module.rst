@@ -1,8 +1,8 @@
-.. _infra.ado.sample_action_module:
+.. _infra.automation_development_office.sample_action_module:
 
 
 ***********************
-infra.ado.sample_action
+infra.automation_development_office.sample_action
 ***********************
 
 **A custom action plugin for Ansible.**

@@ -1,4 +1,4 @@
-# Role: infra.ado.install_gitlab
+# Role: infra.automation_development_office.install_gitlab
 
 Install **standalone GitLab CE/EE** on RHEL via official Omnibus packages
 (`packages.gitlab.com`) or an offline RPM.
@@ -54,7 +54,7 @@ Controller / bootstrap wiring:
 - hosts: gitlab_ado
   become: true
   roles:
-    - role: infra.ado.install_gitlab
+    - role: infra.automation_development_office.install_gitlab
       vars:
         install_gitlab_hostname: gitlab-ado.server.lab
         install_gitlab_external_url: http://gitlab-ado.server.lab

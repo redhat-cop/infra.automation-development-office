@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_aap_hub_harden
+# Role: infra.automation_development_office.ocp_aap_hub_harden
 
 Separate Automation Hub onto dedicated Postgres when it still shares
 Controller PG, then pin replicas/workers and install a maintenance CronJob
@@ -55,7 +55,7 @@ on that secret.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_aap_hub_harden
+    - role: infra.automation_development_office.ocp_aap_hub_harden
       vars:
         # Leave names empty to discover AAP/Hub CRs on the cluster.
         ocp_aap_hub_harden_separate_database: true

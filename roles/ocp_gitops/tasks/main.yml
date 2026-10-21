@@ -29,7 +29,7 @@
 
 - name: Wait for ArgoCD pods to be running
   ansible.builtin.include_role:
-    name: infra.ado.ocp_wait_pods
+    name: infra.automation_development_office.ocp_wait_pods
   vars:
     name_space: "{{ app_namespace }}"
     label_selector: "{{ pods_label_selector | default('app.kubernetes.io/part-of=argocd') }}"

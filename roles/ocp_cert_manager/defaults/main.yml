@@ -1,6 +1,6 @@
 ---
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Defaults for infra.ado.ocp_cert_manager
+# Defaults for infra.automation_development_office.ocp_cert_manager
 #
 # Resolve exports cert_manager_* from components_defaults; aliases map those
 # onto the ocp_cert_manager_* names this role consumes.

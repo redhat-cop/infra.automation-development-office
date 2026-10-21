@@ -1,6 +1,6 @@
 # Molecule scenario: integration_satellite_content_view_promote
 
-This scenario validates the `infra.ado.satellite_content_view` role **promote**
+This scenario validates the `infra.automation_development_office.satellite_content_view` role **promote**
 action using the extension-level Molecule layout.
 
 ## Playbook mapping

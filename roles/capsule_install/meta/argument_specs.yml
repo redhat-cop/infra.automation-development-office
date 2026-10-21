@@ -1,5 +1,5 @@
 ---
-# argument spec file for infra.ado.capsule_install
+# argument spec file for infra.automation_development_office.capsule_install
 argument_specs:
   main:
     short_description: Role to install Red Hat Satellite Capsule

@@ -3,7 +3,7 @@
 ## Purpose
 
 Validate the extension-level Molecule scenario wiring for
-`infra.ado.elastic`.
+`infra.automation_development_office.elastic`.
 
 ## Sequence
 

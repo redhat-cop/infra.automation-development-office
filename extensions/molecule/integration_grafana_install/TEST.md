@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate extension-level Molecule scenario wiring for `infra.ado.grafana_install`.
+Validate extension-level Molecule scenario wiring for `infra.automation_development_office.grafana_install`.
 
 ## Sequence
 

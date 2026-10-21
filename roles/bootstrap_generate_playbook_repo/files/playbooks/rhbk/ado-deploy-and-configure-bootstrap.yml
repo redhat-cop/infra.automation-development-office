@@ -25,7 +25,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     # set_fact beats group_vars — even if overlay still wrote rhel / UI defaults.
     - name: ADO | Force OpenShift platform (never standalone zip on this JT)
       ansible.builtin.set_fact:
@@ -100,27 +100,27 @@
     # ----- present: install -----
     - name: ADO | Ensure RHBK namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'present'
 
     - name: ADO | Create RHBK OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'present'
 
     - name: ADO | Subscribe RHBK operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for RHBK operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_operator
+        name: infra.automation_development_office.ocp_wait_operator
       when: (state | default('present')) == 'present'
 
     - name: ADO | Install RHBK Keycloak CR (OpenShift)
       ansible.builtin.include_role:
-        name: infra.ado.install_rhbk
+        name: infra.automation_development_office.install_rhbk
       vars:
         install_rhbk_platform: openshift
         rhbk_platform: openshift
@@ -128,17 +128,17 @@
 
     - name: ADO | Wait for RHBK pods
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_pods
+        name: infra.automation_development_office.ocp_wait_pods
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure RHBK routes
       ansible.builtin.include_role:
-        name: infra.ado.ocp_routes
+        name: infra.automation_development_office.ocp_routes
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure RHBK realm
       ansible.builtin.include_role:
-        name: infra.ado.rhbk_realm
+        name: infra.automation_development_office.rhbk_realm
       when: (state | default('present')) == 'present'
 
     - name: ADO | Resolve Keycloak URL for login-events exporter
@@ -153,25 +153,25 @@
 
     - name: ADO | Deploy Keycloak login events exporter
       ansible.builtin.include_role:
-        name: infra.ado.keycloak_login_events_exporter
+        name: infra.automation_development_office.keycloak_login_events_exporter
       when:
         - (state | default('present')) == 'present'
         - keycloak_login_events_exporter_enabled | default(true) | bool
 
     - name: ADO | Configure RHBK LDAP federation
       ansible.builtin.include_role:
-        name: infra.ado.rhbk_manage_federation
+        name: infra.automation_development_office.rhbk_manage_federation
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure RHBK LDAP mappers
       ansible.builtin.include_role:
-        name: infra.ado.rhbk_setup_mapper
+        name: infra.automation_development_office.rhbk_setup_mapper
       when: (state | default('present')) == 'present'
 
     # ----- absent: CR → subscription → OG → namespace (never wait for CSV) -----
     - name: ADO | Delete RHBK Keycloak CR / operator resources
       ansible.builtin.include_role:
-        name: infra.ado.install_rhbk
+        name: infra.automation_development_office.install_rhbk
       vars:
         install_rhbk_platform: openshift
         rhbk_platform: openshift
@@ -179,15 +179,15 @@
 
     - name: ADO | Unsubscribe RHBK operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete RHBK OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete RHBK namespace
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'absent'

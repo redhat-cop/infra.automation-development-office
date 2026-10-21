@@ -1,4 +1,4 @@
-# Role: infra.ado.jira
+# Role: infra.automation_development_office.jira
 
 Jira automation role. Primary tasks include: Jira | Validate required vars; Jira | Build list of template files for selected track; Jira | Process templates for track.
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.jira
+    - role: infra.automation_development_office.jira
 ```
 
 ## 🧪 Role Molecule Testing

@@ -306,7 +306,7 @@
 
 - name: "Apply security policies for tenant {{ tenant.tenant_name }}"
   ansible.builtin.include_role:
-    name: infra.ado.ocp_network_policy
+    name: infra.automation_development_office.ocp_network_policy
   vars:
     ocp_network_policy_resources: "{{ ocp_networking_tenant_security_resources }}"
   when: ocp_networking_tenant_security_resources | length > 0

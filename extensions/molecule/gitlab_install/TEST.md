@@ -1,6 +1,6 @@
 # Test Notes: gitlab_install
 
-This scenario validates the `infra.ado.gitlab_install` role.
+This scenario validates the `infra.automation_development_office.gitlab_install` role.
 
 ## Sequence
 

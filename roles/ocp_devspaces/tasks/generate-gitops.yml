@@ -3,7 +3,7 @@
   ansible.builtin.include_tasks: build-checluster.yml
 - name: Generate Dev Spaces manual-sync Application and resources
   ansible.builtin.include_role:
-    name: infra.ado.ocp_gitops_application
+    name: infra.automation_development_office.ocp_gitops_application
   vars:
     ocp_gitops_application_name: "devspaces-{{ env | default('default') }}"
     ocp_gitops_application_repo_url: '{{ ocp_devspaces_gitops_repo_url }}'

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_absent_cleanup
+# Role: infra.automation_development_office.ocp_absent_cleanup
 
 Safe OpenShift absent cleanup gate for stuck Terminating namespaces, finalizers,
 leftover OLM CSVs/InstallPlans, and Deployments/pods.
@@ -46,8 +46,8 @@ Safety gates:
 
 | Caller | When | Behavior |
 | --- | --- | --- |
-| `infra.ado.ocp_namespace` | `state=absent` | Sweep before delete; gate after delete (`fail_if_present` default true) |
-| `infra.ado.ocp_operator_subscription` | `state=absent` | Matched CSV cleanup only (no namespace finalize); workloads off by default |
+| `infra.automation_development_office.ocp_namespace` | `state=absent` | Sweep before delete; gate after delete (`fail_if_present` default true) |
+| `infra.automation_development_office.ocp_operator_subscription` | `state=absent` | Matched CSV cleanup only (no namespace finalize); workloads off by default |
 | Cert-manager uninstall playbook | `state=absent` | Pre-delete sweep of operand + operator namespaces |
 
 Any OpenShift component that deletes namespaces via `ocp_namespace` therefore gets
@@ -58,7 +58,7 @@ this gate without extra playbook wiring.
 ```yaml
 - name: Report stuck cert-manager namespaces
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - cert-manager
@@ -75,7 +75,7 @@ this gate without extra playbook wiring.
 ```yaml
 - name: Force-clean cert-manager leftovers
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - cert-manager
@@ -91,7 +91,7 @@ this gate without extra playbook wiring.
 ```yaml
 - name: Clean one operator CSV in a shared NS
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - openshift-operators

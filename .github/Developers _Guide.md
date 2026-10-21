@@ -1,6 +1,6 @@
 # GitHub Actions and CI/CD
 
-This document is the maintainer and developer guide for the `infra.ado` Ansible
+This document is the maintainer and developer guide for the `infra.automation_development_office` Ansible
 collection pipeline. It covers pull request checks, local validation, Molecule
 testing, collection builds, dev pre-releases, official GitHub Releases, and manual
 Ansible Galaxy publishing.
@@ -39,7 +39,7 @@ The repository uses these GitHub Actions workflows:
 | **CI** | Contributors | Upstream Ansible collection checks: sanity, unit, build-import, lint |
 | **Certification checker** | Maintainers | Automation Hub import checks on `main` pushes, daily schedule, or manual `workflow_dispatch` |
 | **Security Check** | Contributors | Role security and data-exposure scans |
-| **Release infra.ado** | Maintainers | Attach tarballs to GitHub Releases; compile changelog |
+| **Release infra.automation_development_office** | Maintainers | Attach tarballs to GitHub Releases; compile changelog |
 | **Publish to Ansible Galaxy** | Maintainers | Manual Galaxy publish only (`workflow_dispatch`) |
 
 Most day-to-day development is validated by **Ansible Collection CI/CD** on pull
@@ -83,7 +83,7 @@ Paths most relevant to the pipeline:
 | CI | [`tests.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/tests.yml) | PR to `main`, `workflow_dispatch` | Changelog, build-import, lint, README, sanity, unit, all_green |
 | Certification checker | [`certification.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/certification.yml) | Push to `main`, daily schedule, manual `workflow_dispatch` | Galaxy importer, production ansible-lint, sanity matrix, `Certification` gate |
 | Security Check | [`security-check.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/security-check.yml) | `pull_request`, `workflow_dispatch` | Security and data-exposure scans |
-| Release infra.ado | [`release.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/release.yml) | GitHub Release published | Build, changelog, attach tarball |
+| Release infra.automation_development_office | [`release.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/release.yml) | GitHub Release published | Build, changelog, attach tarball |
 | Publish to Ansible Galaxy | [`publish-galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/.github/workflows/publish-galaxy.yml) | Manual `workflow_dispatch` only | Publish to Galaxy |
 
 Status badges:
@@ -507,7 +507,7 @@ you also push a tag (dev pre-release) or publish a GitHub Release.
 
 Triggered by any tag push. Uses the shared build action and:
 
-1. Builds `infra-ado-<version>.tar.gz`
+1. Builds `infra-automation_development_office-<version>.tar.gz`
 2. Creates a GitHub **pre-release** if one does not exist
 3. Uploads or replaces the tarball on that release
 
@@ -531,7 +531,7 @@ tag-versioned builds for release jobs.
 | Output | Description |
 | --- | --- |
 | `version` | Tag with optional `v` prefix removed |
-| `tarball` | Built artifact filename, for example `infra-ado-1.2.0-beta1.tar.gz` |
+| `tarball` | Built artifact filename, for example `infra-automation_development_office-1.2.0-beta1.tar.gz` |
 
 **Behavior:**
 
@@ -561,7 +561,7 @@ accumulated changelog fragments into release notes before the collection tarball
 
 1. Install collections declared in `galaxy.yml` `dependencies` so
    `antsibull-changelog` can resolve external `extends_documentation_fragment`
-   references (for example `amazon.aws` used by `infra.ado.ec2_ami_copy`)
+   references (for example `amazon.aws` used by `infra.automation_development_office.ec2_ami_copy`)
 2. If the release version is already recorded in `changelogs/changelog.yaml`, render outputs only
 3. Otherwise, if `origin/main` already contains the release entry, sync those changelog files into the build workspace
 4. Otherwise, if fragments exist under `changelogs/fragments/`, run `antsibull-changelog release --version <version>`
@@ -628,7 +628,7 @@ matches the tag name, with an optional leading `v` removed.
 flowchart TD
   devTag[Push dev tag] --> devJob[main.yml: Dev Release]
   devJob --> preRelease[Create or update GitHub pre-release]
-  preRelease --> devAsset[Attach infra-ado-VERSION.tar.gz]
+  preRelease --> devAsset[Attach infra-automation_development_office-VERSION.tar.gz]
 
   publishRelease[Publish GitHub Release] --> changelogJob[release.yml: Generate changelog]
   changelogJob --> assetJob[release.yml: Build and Attach Collection]
@@ -679,7 +679,7 @@ git push origin v1.2.0-beta1
 
 GitHub Actions will:
 
-- Build `infra-ado-1.2.0-beta1.tar.gz`
+- Build `infra-automation_development_office-1.2.0-beta1.tar.gz`
 - Create or update a GitHub pre-release
 - Attach the tarball
 
@@ -687,7 +687,7 @@ Install without cloning:
 
 ```bash
 ansible-galaxy collection install \
-  https://github.com/redhat-cop/infra.automation-development-office/releases/download/v1.2.0-beta1/infra-ado-1.2.0-beta1.tar.gz
+  https://github.com/redhat-cop/infra.automation-development-office/releases/download/v1.2.0-beta1/infra-automation_development_office-1.2.0-beta1.tar.gz
 ```
 
 Re-pushing a tag or re-running the workflow replaces the asset with `--clobber`.
@@ -707,7 +707,7 @@ When the dev build is validated:
 `release.yml` will automatically:
 
 1. Run `antsibull-changelog release` against the accumulated fragments
-2. Build `infra-ado-<version>.tar.gz` (including the generated changelog)
+2. Build `infra-automation_development_office-<version>.tar.gz` (including the generated changelog)
 3. Attach the tarball to the GitHub Release
 4. Open a pull request to `main` with the consumed changelog
 
@@ -732,9 +732,9 @@ changelog from `main` before building the collection tarball.
 - [ ] Changelog PR merged to `main`
 - [ ] `CHANGELOG.rst` on `main` contains the release version
 - [ ] Consumed fragment files were removed from `changelogs/fragments/`
-- [ ] GitHub Release contains `infra-ado-<version>.tar.gz`
+- [ ] GitHub Release contains `infra-automation_development_office-<version>.tar.gz`
 - [ ] `ansible-galaxy collection install <release-url>` succeeds
-- [ ] After Galaxy publish, version appears at [galaxy.ansible.com/infra/ado](https://galaxy.ansible.com/infra/ado)
+- [ ] After Galaxy publish, version appears at [galaxy.ansible.com/infra/automation_development_office](https://galaxy.ansible.com/infra/automation_development_office)
 
 ## Tag and versioning conventions
 
@@ -746,7 +746,7 @@ changelog from `main` before building the collection tarball.
 | Official tags | Use clean semver, for example `v1.2.0` |
 | Invalid examples | `v249.0.0.1-rc1` (extra numeric segment before `-rc1` is rejected by antsibull-changelog) |
 | Namespace and name | Always from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml); only `version` is overridden at build time |
-| Artifact name | `infra-ado-<version>.tar.gz` |
+| Artifact name | `infra-automation_development_office-<version>.tar.gz` |
 
 ### Which git ref is used
 
@@ -797,7 +797,7 @@ Official releases open a changelog PR to `main`; merge it to land consumed fragm
 | `readme-verification-report` | `main.yml`, `tests.yml` | 30 days | README format check output |
 | `security-check-report` | `main.yml` (manual), `security-check.yml` | 30 days | Security and data-exposure reports |
 | `molecule-report-<scenario>` | `main.yml` Molecule | Default | Per-scenario log and summary |
-| `collection-build` | `main.yml` build | 90 days | `infra-ado-*.tar.gz` from branch or tag push |
+| `collection-build` | `main.yml` build | 90 days | `infra-automation_development_office-*.tar.gz` from branch or tag push |
 
 Download artifacts from the workflow run summary page in GitHub Actions.
 
@@ -833,7 +833,7 @@ Both workflows run `ansible-lint` with different configurations (container image
 
 ### GitHub Release published but no tarball attached
 
-- Confirm **Release infra.ado** ran its **Build and Attach Collection** job
+- Confirm **Release infra.automation_development_office** ran its **Build and Attach Collection** job
 - Check that the release was **published**, not merely saved as a draft
 - Review `release_assets` job logs for build or upload failures
 
@@ -847,7 +847,7 @@ Both workflows run `ansible-lint` with different configurations (container image
 
 - Namespace and name come from [`galaxy.yml`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/galaxy.yml) and should be `infra` and `ado`
 - Only `version` is set from the tag at build time
-- Expected artifact: `infra-ado-<version>.tar.gz`
+- Expected artifact: `infra-automation_development_office-<version>.tar.gz`
 
 ## Maintainer notes
 

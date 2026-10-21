@@ -1,4 +1,4 @@
-# Role: infra.ado.acs_upload_policies
+# Role: infra.automation_development_office.acs_upload_policies
 
 Upload Red Hat Advanced Cluster Security (ACS) policy and report configuration
 JSON files from a local path or git repository to ACS Central.
@@ -53,7 +53,7 @@ Automation Development Office
     acs_policies_source: https://github.com/example/acs-policies.git
     acs_policies_version: main
   roles:
-    - role: infra.ado.acs_upload_policies
+    - role: infra.automation_development_office.acs_upload_policies
 ```
 
 Plain JSON files are applied as-is; `.json.j2` files are rendered with Ansible

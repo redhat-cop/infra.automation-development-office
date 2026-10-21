@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_nmstate_install
+# Role: infra.automation_development_office.ocp_nmstate_install
 
 Install the Kubernetes NMState Operator, create the NMState singleton
 instance, and optionally apply NodeNetworkConfigurationPolicy (NNCP)
@@ -32,7 +32,7 @@ Automation Development Office
 
 - OpenShift cluster with cluster-admin credentials.
 - `kubernetes.core` collection.
-- `infra.ado` collection — `ocp_operator_subscription`, `ocp_wait_operator`.
+- `infra.automation_development_office` collection — `ocp_operator_subscription`, `ocp_wait_operator`.
 - Operator catalog reachable at `ocp_nmstate_operator_source`
   (`redhat-operators` by default). In a disconnected cluster, point this at
   the mirrored catalog source.
@@ -86,7 +86,7 @@ Bridge over a single interface:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_nmstate_install
+    - role: infra.automation_development_office.ocp_nmstate_install
       vars:
         ocp_nmstate_physical_networks:
           - name: datacenter-vlan
@@ -118,7 +118,7 @@ ocp_nmstate_physical_networks:
 Install the operator without modifying any node networking:
 
 ```yaml
-- role: infra.ado.ocp_nmstate_install
+- role: infra.automation_development_office.ocp_nmstate_install
   vars:
     ocp_nmstate_apply_nncp: false
 ```

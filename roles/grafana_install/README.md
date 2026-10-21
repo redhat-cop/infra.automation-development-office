@@ -1,4 +1,4 @@
-# Role: infra.ado.grafana_install
+# Role: infra.automation_development_office.grafana_install
 
 Deploy Grafana on OpenShift using the Grafana Operator, including persistent storage,
 admin credentials, an optional Keycloak OIDC integration, and an OpenShift Route.
@@ -93,7 +93,7 @@ export K8S_AUTH_VERIFY_SSL="no"
     # grafana_postgres_storage_class: synology-iscsi-storage
     state: present
   roles:
-    - role: infra.ado.grafana_install
+    - role: infra.automation_development_office.grafana_install
 
 - name: Delete Grafana using Operator
   hosts: localhost
@@ -102,7 +102,7 @@ export K8S_AUTH_VERIFY_SSL="no"
     name_space: grafana
     state: absent
   roles:
-    - role: infra.ado.grafana_install
+    - role: infra.automation_development_office.grafana_install
 ```
 
 ## 🧪 Role Molecule Testing
