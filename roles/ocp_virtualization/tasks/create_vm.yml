@@ -17,7 +17,7 @@
       One or more required variables are missing.
       Please provide vm_name, vm_namespace, storage_class, and source_name.
 
-# Namespace creation is handled by infra.ado.ocp_namespace in the playbook
+# Namespace creation is handled by infra.automation_development_office.ocp_namespace in the playbook
 # (do not create Namespace inline here — reuse the ADO role).
 
 - name: Ensure Multus NetworkAttachmentDefinition exists for bridge mode

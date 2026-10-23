@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_sat_reg
+# Role: infra.automation_development_office.rhel_sat_reg
 
 Rhel Sat Reg automation role. Primary tasks include: Gathering facts; Fail if OS version earlier than 8 is detected (Out of Support); Unregister from Satellite via subscription-manager.
 
@@ -34,7 +34,7 @@ Automation Development Office
   hosts: all
   gather_facts: true
   roles:
-    - role: infra.ado.rhel_sat_reg
+    - role: infra.automation_development_office.rhel_sat_reg
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_manage_federation
+# Role: infra.automation_development_office.rhbk_manage_federation
 
 Rhbk Manage Federation automation role. Primary tasks include: Create RHBK federation; Delete RHBK federation; Ensure LDAP federation provider is absent.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_manage_federation
+    - role: infra.automation_development_office.rhbk_manage_federation
 ```
 
 ## 🧪 Role Molecule Testing

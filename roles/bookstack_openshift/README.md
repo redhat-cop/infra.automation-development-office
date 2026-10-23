@@ -1,4 +1,4 @@
-# Role: infra.ado.bookstack_openshift
+# Role: infra.automation_development_office.bookstack_openshift
 
 Deploy **BookStack** (internal Confluence-style docs) on OpenShift with MariaDB,
 PVCs, Secrets, Service, Route, probes, and idempotent updates. Optional RHBK OIDC
@@ -52,7 +52,7 @@ Default images: `solidnerd/bookstack:24.12.1` (port 8080), `mariadb:11`.
     K8S_AUTH_API_KEY: "{{ token }}"
     K8S_AUTH_VERIFY_SSL: "no"
   roles:
-    - role: infra.ado.bookstack_openshift
+    - role: infra.automation_development_office.bookstack_openshift
       vars:
         bookstack_validate_certs: false
         bookstack_apps_domain: apps.ocp.prod.rhlab

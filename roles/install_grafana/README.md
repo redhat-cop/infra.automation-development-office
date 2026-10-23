@@ -1,4 +1,4 @@
-# Role: infra.ado.install_grafana
+# Role: infra.automation_development_office.install_grafana
 
 Install **standalone Grafana** on RHEL via the official Grafana RPM repository
 or an offline RPM.
@@ -43,7 +43,7 @@ Contoller / bootstrap:
 - hosts: grafana_ado
   become: true
   roles:
-    - role: infra.ado.install_grafana
+    - role: infra.automation_development_office.install_grafana
       vars:
         install_grafana_hostname: grafana-ado.server.lab
         install_grafana_http_port: 3000

@@ -44,7 +44,7 @@ Automation Development Office.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_setup_mapper
+    - role: infra.automation_development_office.rhbk_setup_mapper
       vars:
         state: present
         rhbk_host: rhbk.example.com
@@ -68,7 +68,7 @@ Automation Development Office.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_setup_mapper
+    - role: infra.automation_development_office.rhbk_setup_mapper
       vars:
         state: absent
         rhbk_host: rhbk.example.com

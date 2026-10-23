@@ -30,8 +30,8 @@ __pycache__/
 .tox/
 
 # Local collection build / importer artifacts (never commit)
-infra-ado-*.tar.gz
-collections/infra-ado-*.tar.gz
+infra-automation_development_office-*.tar.gz
+collections/infra-automation_development_office-*.tar.gz
 *.tar.gz
 importer_result.json
 

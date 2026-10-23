@@ -3,7 +3,7 @@
 collections:
 {% for item in bootstrap_generate_playbook_repo_hub_requirements | default([]) %}
   - name: {{ item.name }}
-{% if item.name == 'infra.ado'
+{% if item.name == 'infra.automation_development_office'
       and bootstrap_generate_playbook_repo_infra_ado_collection_version | default('') | string | length > 0
       and (bootstrap_generate_playbook_repo_infra_ado_collection_version | string) not in ['*', 'latest'] %}
     version: "{{ bootstrap_generate_playbook_repo_infra_ado_collection_version }}"

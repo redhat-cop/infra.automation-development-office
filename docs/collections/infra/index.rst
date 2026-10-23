@@ -8,10 +8,10 @@ Collections in the Infra Namespace
 
 These are the collections documented here in the **infra** namespace.
 
-* :anscollection:`infra.ado <infra.ado>`
+* :anscollection:`infra.automation_development_office <infra.automation_development_office>`
 
 .. toctree::
     :maxdepth: 1
     :hidden:
 
-    ado/index
+    automation_development_office/index

@@ -229,7 +229,7 @@
     owner: root
     group: root
     content: |
-      # Managed by infra.ado.install_gitlab — do not edit by hand.
+      # Managed by infra.automation_development_office.install_gitlab — do not edit by hand.
       external_url '{{ install_gitlab_external_url_effective }}'
       gitlab_rails['initial_root_password'] = '{{ install_gitlab_root_password }}'
       {% if (install_gitlab_tls_crt | default('') | length > 0)

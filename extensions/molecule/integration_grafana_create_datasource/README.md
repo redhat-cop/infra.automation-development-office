@@ -1,7 +1,7 @@
 # Molecule scenario: integration_grafana_create_datasource
 
 This scenario validates wiring for the
-`infra.ado.grafana_create_datasource` role in the normalized
+`infra.automation_development_office.grafana_create_datasource` role in the normalized
 extension-level Molecule layout.
 
 ## Scenario flow

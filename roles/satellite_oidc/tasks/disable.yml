@@ -44,7 +44,7 @@
 
 - name: Delete Keycloak client when requested
   ansible.builtin.include_role:
-    name: "{{ satellite_oidc_rhbk_client_role | default('infra.ado.rhbk_client') }}"
+    name: "{{ satellite_oidc_rhbk_client_role | default('infra.automation_development_office.rhbk_client') }}"
     apply:
       delegate_to: localhost
       connection: local

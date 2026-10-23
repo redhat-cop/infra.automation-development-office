@@ -1,4 +1,4 @@
-# Role: infra.ado.install_dirsrv
+# Role: infra.automation_development_office.install_dirsrv
 
 Install Dirsrv automation role. Primary tasks include: DirSrv Normalize inputs (component vars + vault); DirSrv Assert required component vars; DirSrv Guard bootstrap inputs (vault).
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.install_dirsrv
+    - role: infra.automation_development_office.install_dirsrv
 ```
 
 ## 🧪 Role Molecule Testing

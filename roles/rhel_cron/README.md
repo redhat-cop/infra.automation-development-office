@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_cron
+# Role: infra.automation_development_office.rhel_cron
 
 Rhel Cron automation role. Primary tasks include: Creating Special Cron Jobs; Control @Annual Cron Jobs; Control @Daily Cron Jobs.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhel_cron
+    - role: infra.automation_development_office.rhel_cron
 ```
 
 ## 🧪 Role Molecule Testing

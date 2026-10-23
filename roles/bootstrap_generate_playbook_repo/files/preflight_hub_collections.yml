@@ -5,16 +5,16 @@
 # hub_publish: considered when bootstrap_controller_hub_publish_preflight_collections
 # is true. Upload is skipped when the version already exists in validated,
 # published, rh-certified, or pulp. The reserved ``redhat`` namespace is never
-# created or overwritten. force_when_exists is true only for infra.ado
+# created or overwritten. force_when_exists is true only for infra.automation_development_office
 # (hub_force_ado_collection_update).
 #
 # controller_requirements: listed in git collections/requirements.yml when Hub is
 # the Controller collection source (no vendored trees in git).
 collections:
-  - tarball_glob: infra-ado-*.tar.gz
-    name: infra.ado
+  - tarball_glob: infra-automation_development_office-*.tar.gz
+    name: infra.automation_development_office
     namespace: infra
-    collection: ado
+    collection: automation_development_office
     controller_requirements: true
     hub_publish: true
     force_when_exists: true

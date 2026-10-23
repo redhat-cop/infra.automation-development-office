@@ -12,4 +12,4 @@
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_idm.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_idm.yml"
   roles:
-    - role: infra.ado.idm_ad_trust
+    - role: infra.automation_development_office.idm_ad_trust

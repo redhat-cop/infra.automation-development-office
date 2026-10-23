@@ -96,7 +96,7 @@
 
 - name: Fetch Keycloak client secret for Grafana (when OIDC enabled) # noqa var-naming[no-role-prefix]
   ansible.builtin.include_role:
-    name: infra.ado.ocp_rhbk_client_secrets
+    name: infra.automation_development_office.ocp_rhbk_client_secrets
   vars:
     grafana_install_ocp_rhbk_secret_hostname: "{{ grafana_install_oidc_secret_hostname }}"
     grafana_install_ocp_rhbk_secret_realm: "{{ grafana_install_oidc_secret_realm }}"
@@ -147,7 +147,7 @@
     msg: >-
       Grafana OIDC enabled but grafana_install_oidc_issuer_url could not be built.
       Ensure rhbk component has ocp_rhbk_hostname + ocp_rhbk_realm and
-      infra.ado.ocp_rhbk_client_secrets exports hostname/realm facts.
+      infra.automation_development_office.ocp_rhbk_client_secrets exports hostname/realm facts.
   when:
     - grafana_install_oidc_enabled | default(false) | bool
     - grafana_install_oidc_issuer_url is not defined

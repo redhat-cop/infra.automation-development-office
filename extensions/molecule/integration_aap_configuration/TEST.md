@@ -3,7 +3,7 @@
 ## Purpose
 
 Validate extension-level Molecule scenario wiring for
-`infra.ado.aap_configuration`.
+`infra.automation_development_office.aap_configuration`.
 
 ## Sequence
 

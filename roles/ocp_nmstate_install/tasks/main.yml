@@ -13,7 +13,7 @@
 
 - name: NMState | Install Kubernetes NMState Operator
   ansible.builtin.include_role:
-    name: infra.ado.ocp_operator_subscription
+    name: infra.automation_development_office.ocp_operator_subscription
   vars:
     name_space: "{{ ocp_nmstate_namespace }}"
     operator_subscription_namespace: "{{ ocp_nmstate_namespace }}"
@@ -27,7 +27,7 @@
 
 - name: NMState | Wait for operator readiness
   ansible.builtin.include_role:
-    name: infra.ado.ocp_wait_operator
+    name: infra.automation_development_office.ocp_wait_operator
   vars:
     name_space: "{{ ocp_nmstate_namespace }}"
     operator_namespace: "{{ ocp_nmstate_namespace }}"

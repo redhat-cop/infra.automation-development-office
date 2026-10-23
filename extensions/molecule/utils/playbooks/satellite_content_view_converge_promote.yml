@@ -20,4 +20,4 @@
     published_content_view_version: "{{ lookup('env', 'SATELLITE_CONTENT_VIEW_VERSION') | default('1.0', true) }}"
 
   roles:
-    - role: infra.ado.satellite_content_view
+    - role: infra.automation_development_office.satellite_content_view

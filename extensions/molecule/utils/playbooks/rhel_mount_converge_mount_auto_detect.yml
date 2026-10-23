@@ -10,7 +10,7 @@
   tasks:
     - name: Include rhel_mount role for auto-detect mount # noqa: var-naming[no-role-prefix]
       ansible.builtin.include_role:
-        name: infra.ado.rhel_mount
+        name: infra.automation_development_office.rhel_mount
       vars:
         rhel_mount_action: mounted
         rhel_mount_path: /tmp/rhel_mount_molecule_mount_auto_detect/mnt

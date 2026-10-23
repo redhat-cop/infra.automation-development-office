@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_dev_hub
+# Role: infra.automation_development_office.ocp_dev_hub
 
 Deploy Red Hat Developer Hub (RHDH) on OpenShift using the RHDH operator,
 including Backstage custom resource configuration, optional GitLab catalog
@@ -42,7 +42,7 @@ integration, and Keycloak OIDC settings.
     dev_hub_hostname: devhub.apps.example.com
     dev_hub_oidc_client_secret: "{{ vault_dev_hub_oidc_secret }}"
   roles:
-    - role: infra.ado.ocp_dev_hub
+    - role: infra.automation_development_office.ocp_dev_hub
 ```
 
 ## 🧪 Role Molecule Testing

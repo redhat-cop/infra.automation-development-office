@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_virtualization
+# Role: infra.automation_development_office.ocp_virtualization
 
 Provision an OpenShift Virtualization VM from a cluster **DataSource** / DV
 (for example the built-in `rhel9` image in `openshift-virtualization-os-images`),
@@ -43,7 +43,7 @@ unchanged.
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_virtualization
+    - role: infra.automation_development_office.ocp_virtualization
       vars:
         vm_name: keycloak-ado
         vm_namespace: ado-built-vm

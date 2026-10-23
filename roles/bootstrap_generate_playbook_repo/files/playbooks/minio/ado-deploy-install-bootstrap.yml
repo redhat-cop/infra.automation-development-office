@@ -16,7 +16,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Normalize MinIO install vars (OIDC is a separate optional JT)
       ansible.builtin.set_fact:
         minio_install_scope: install
@@ -44,7 +44,7 @@
         storage_size: >-
           {{ storage_size | default(minio_storage_size | default('20Gi')) }}
   roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_minio
-    - role: infra.ado.ocp_wait_pods
-    - role: infra.ado.ocp_routes
+    - role: infra.automation_development_office.ocp_namespace
+    - role: infra.automation_development_office.ocp_minio
+    - role: infra.automation_development_office.ocp_wait_pods
+    - role: infra.automation_development_office.ocp_routes

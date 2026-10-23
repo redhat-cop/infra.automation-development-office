@@ -7,7 +7,7 @@
 
 - name: "Apply EgressIP for tenant {{ tenant.tenant_name }}"
   ansible.builtin.include_role:
-    name: infra.ado.ocp_egress
+    name: infra.automation_development_office.ocp_egress
   vars:
     ocp_egress_resources:
       - kind: EgressIP

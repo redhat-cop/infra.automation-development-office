@@ -18,7 +18,7 @@
 
 - name: Fetch Keycloak client secret for Dev Hub when vault secret empty
   ansible.builtin.include_role:
-    name: infra.ado.ocp_rhbk_client_secrets
+    name: infra.automation_development_office.ocp_rhbk_client_secrets
   vars:
     ocp_rhbk_secret_client_key: rhdh_client
     ocp_rhbk_secret_client_id: "{{ dev_hub_keycloak_client_id | default('rhdh') }}"

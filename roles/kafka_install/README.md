@@ -1,4 +1,4 @@
-# Role: infra.ado.kafka_install
+# Role: infra.automation_development_office.kafka_install
 
 Kafka Install automation role. Primary tasks include: Kafka Install Set derived vars; Kafka Install Lookup currentCSV for channel when operator_starting_csv not provided; Kafka Install Derive effective starting CSV (safe).
 
@@ -36,7 +36,7 @@ export K8S_AUTH_VERIFY_SSL=false
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.kafka_install
+    - role: infra.automation_development_office.kafka_install
 ```
 
 ## 🧪 Role Molecule Testing

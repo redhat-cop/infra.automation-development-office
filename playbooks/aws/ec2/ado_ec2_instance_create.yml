@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-# FQCN: infra.ado.aws.ec2.ado_ec2_instance_create
+# FQCN: infra.automation_development_office.aws.ec2.ado_ec2_instance_create
 # Create / ensure an EC2 instance exists (amazon.aws.ec2_instance).
 # Examples adapted from:
 # https://docs.ansible.com/ansible/latest/collections/amazon/aws/ec2_instance_module.html

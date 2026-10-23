@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_manage_idp
+# Role: infra.automation_development_office.rhbk_manage_idp
 
 Configure and remove identity provider settings for Red Hat build of Keycloak.
 
@@ -43,7 +43,7 @@ Notes:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_manage_idp
+    - role: infra.automation_development_office.rhbk_manage_idp
       vars:
         state: present
         rhbk_host: rhbk.example.com

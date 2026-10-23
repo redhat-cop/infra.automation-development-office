@@ -1,4 +1,4 @@
-# Role: infra.ado.bootstrap_framework_defaults
+# Role: infra.automation_development_office.bootstrap_framework_defaults
 
 Load shared bootstrap framework defaults before component-specific roles resolve
 their effective configuration.
@@ -31,7 +31,7 @@ Automation Development Office
   vars:
     env: prod
   roles:
-    - role: infra.ado.bootstrap_framework_defaults
+    - role: infra.automation_development_office.bootstrap_framework_defaults
 ```
 
 ## 🧪 Role Molecule Testing

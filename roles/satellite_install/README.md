@@ -82,7 +82,7 @@ Define the Satellite installation configuration in your playbook or inventory us
   hosts: all
   gather_facts: true
   roles:
-    - role: infra.ado.satellite_install
+    - role: infra.automation_development_office.satellite_install
 ```
 
 ### Example 2: Run a connected Satellite install
@@ -118,7 +118,7 @@ Define the Satellite installation configuration in your playbook or inventory us
     satellite_install_dns_search:
       - example.com
   roles:
-    - role: infra.ado.satellite_install
+    - role: infra.automation_development_office.satellite_install
 ```
 
 ## 🔧 Tasks Overview

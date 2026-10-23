@@ -24,6 +24,6 @@
         ADO | Resolve vars for component from framework defaults + env
         overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - infra.ado.ocp_htpasswd_admin
+    - infra.automation_development_office.ocp_htpasswd_admin

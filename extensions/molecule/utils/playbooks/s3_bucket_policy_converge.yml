@@ -29,7 +29,7 @@
     - name: ADO | Promote vars for imported set playbook
       ansible.builtin.include_tasks: "{{ s3_bucket_policy_molecule_promote_tasks }}"
 
-- ansible.builtin.import_playbook: infra.ado.aws.s3.ado_s3_bucket_policy_set
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set
 
 - name: Re-run inline set to assert bootstrap import path is idempotent
   hosts: localhost
@@ -43,7 +43,7 @@
     - name: ADO | Promote vars for second set import
       ansible.builtin.include_tasks: "{{ s3_bucket_policy_molecule_promote_tasks }}"
 
-- ansible.builtin.import_playbook: infra.ado.aws.s3.ado_s3_bucket_policy_set
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set
 
 - name: Promote set-from-file vars (sample policy with ListBucket + GetObject)
   hosts: localhost
@@ -66,7 +66,7 @@
     - name: ADO | Promote vars for imported set-from-file playbook
       ansible.builtin.include_tasks: "{{ s3_bucket_policy_molecule_promote_tasks }}"
 
-- ansible.builtin.import_playbook: infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file
 
 - name: Promote info vars
   hosts: localhost
@@ -86,5 +86,5 @@
     - name: ADO | Promote vars for imported info playbook
       ansible.builtin.include_tasks: "{{ s3_bucket_policy_molecule_promote_tasks }}"
 
-- ansible.builtin.import_playbook: infra.ado.aws.s3.ado_s3_bucket_policy_info
+- ansible.builtin.import_playbook: infra.automation_development_office.aws.s3.ado_s3_bucket_policy_info
 # yamllint enable rule:line-length

@@ -46,7 +46,7 @@
 
 - name: Generate env var files
   ansible.builtin.include_role:
-    name: infra.ado.bootstrap_generate_env_vars
+    name: infra.automation_development_office.bootstrap_generate_env_vars
   when: bootstrap_controller_generate_env_vars | default(false) | bool
 
 - name: Resolve preflight sub-documents for AAP bootstrap flags
@@ -516,7 +516,7 @@
 
 - name: Generate playbook repo
   ansible.builtin.include_role:
-    name: infra.ado.bootstrap_generate_playbook_repo
+    name: infra.automation_development_office.bootstrap_generate_playbook_repo
   vars:
     bootstrap_generate_playbook_repo_selected_components: >-
       {{

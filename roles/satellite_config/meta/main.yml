@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: Corey Sebastian Dixon
-  description: infra.ado.satellite_config Role
+  description: infra.automation_development_office.satellite_config Role
   company: Automation Development Office
   license: GPL-3.0-or-later
 

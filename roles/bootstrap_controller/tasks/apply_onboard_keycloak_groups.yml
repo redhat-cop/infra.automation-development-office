@@ -8,7 +8,7 @@
 
 - name: Onboard Keycloak | Create groups for onboard tenants
   ansible.builtin.include_role:
-    name: infra.ado.rhbk_groups
+    name: infra.automation_development_office.rhbk_groups
   vars:
     state: present
     rhbk_group_name: "{{ item }}"

@@ -1,7 +1,7 @@
 <!-- cspell: ignore SSOT CMDB -->
-# AGENTS.md — infra.ado
+# AGENTS.md — infra.automation_development_office
 
-`ado` is the source repository for the `infra.ado` Ansible collection and the primary source of truth for portable ADO bootstrap behavior.
+`ado` is the source repository for the `infra.automation_development_office` Ansible collection and the primary source of truth for portable ADO bootstrap behavior.
 
 Also follow the practices in the upstream ansible-creator agent guidance referenced by the original repository AGENTS file:
 https://raw.githubusercontent.com/ansible/ansible-creator/refs/heads/main/docs/agents.md
@@ -20,7 +20,7 @@ Before changing collection behavior, read:
 
 **ADO/bootstrap behavior comes first.**
 
-For product capabilities, implement the portable, repeatable behavior in `infra.ado` before adding UI-only convenience or editing generated output. `ado-preflight-ui` must invoke/describe this behavior, not replace it.
+For product capabilities, implement the portable, repeatable behavior in `infra.automation_development_office` before adding UI-only convenience or editing generated output. `ado-preflight-ui` must invoke/describe this behavior, not replace it.
 
 ## Portable + repeatable
 
@@ -38,7 +38,7 @@ Lab-specific values belong in generated environment vars/vaults or lab repos, ne
 
 ## Change boundaries
 
-Change `infra.ado` when changing:
+Change `infra.automation_development_office` when changing:
 
 - Ansible role/module logic
 - preflight JSON -> generated vars/vault/playbook behavior

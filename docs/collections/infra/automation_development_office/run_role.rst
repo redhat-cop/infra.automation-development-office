@@ -1,7 +1,7 @@
 .. Document meta
 
 :orphan:
-:github_url: https://github.com/ansible-collections/infra.ado/edit/main/roles/run/meta/argument_specs.yml?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
+:github_url: https://github.com/ansible-collections/infra.automation_development_office/edit/main/roles/run/meta/argument_specs.yml?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
 
 .. |antsibull-internal-nbsp| unicode:: 0xA0
     :trim:
@@ -11,30 +11,30 @@
 
 .. Anchors
 
-.. _ansible_collections.infra.ado.run_role:
+.. _ansible_collections.infra.automation_development_office.run_role:
 
 .. Title
 
-infra.ado.run role -- Role description.
+infra.automation_development_office.run role -- Role description.
 +++++++++++++++++++++++++++++++++++++++
 
 .. Collection note
 
 .. note::
-    This role is part of the `infra.ado collection <https://galaxy.ansible.com/ui/repo/published/infra/ado/>`_ (version 1.0.0).
+    This role is part of the `infra.automation_development_office collection <https://galaxy.ansible.com/ui/repo/published/infra/automation_development_office/>`_ (version 1.0.0).
 
     It is not included in ``ansible-core``.
     To check whether it is installed, run :code:`ansible-galaxy collection list`.
 
-    To install it use: :code:`ansible\-galaxy collection install infra.ado`.
+    To install it use: :code:`ansible\-galaxy collection install infra.automation_development_office`.
 
-    To use it in a playbook, specify: :code:`infra.ado.run`.
+    To use it in a playbook, specify: :code:`infra.automation_development_office.run`.
 
 .. contents::
    :local:
    :depth: 2
 
-.. _ansible_collections.infra.ado.run_role__entrypoint-main:
+.. _ansible_collections.infra.automation_development_office.run_role__entrypoint-main:
 
 .. Entry point title
 
@@ -78,7 +78,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--run_my_variable"></div>
 
-      .. _ansible_collections.infra.ado.run_role__parameter-main__run_my_variable:
+      .. _ansible_collections.infra.automation_development_office.run_role__parameter-main__run_my_variable:
 
       .. rst-class:: ansible-option-title
 
@@ -144,7 +144,7 @@ Collection links
     url: "http://example.com/repository"
     external: true
   - title: "Report an issue"
-    url: "https://github.com/ansible-collections/infra.ado/issues/new/choose"
+    url: "https://github.com/ansible-collections/infra.automation_development_office/issues/new/choose"
     external: true
 
 

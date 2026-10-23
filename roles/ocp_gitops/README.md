@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_gitops
+# Role: infra.automation_development_office.ocp_gitops
 
 Ocp Gitops automation role. Primary tasks include: Apply ArgoCD instance; Wait for ArgoCD pods to be running; Enforce ArgoCD route if requested.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_gitops
+    - role: infra.automation_development_office.ocp_gitops
 ```
 
 ## 🧪 Role Molecule Testing

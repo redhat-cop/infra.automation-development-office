@@ -6,4 +6,4 @@
 #   - openscap-scanner
 #   - openscap-utils
 #
-# No additional collections are required beyond infra.ado for rhel_stig_cac.
+# No additional collections are required beyond infra.automation_development_office for rhel_stig_cac.

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_oadp
+# Role: infra.automation_development_office.ocp_oadp
 
 Ocp Oadp automation role. Primary tasks include: OADP | Skip configuration when disabled; OADP | Configure DataProtectionApplication (optional STS).
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_oadp
+    - role: infra.automation_development_office.ocp_oadp
 ```
 
 ## 🧪 Role Molecule Testing

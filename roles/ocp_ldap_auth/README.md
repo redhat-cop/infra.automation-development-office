@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_ldap_auth
+# Role: infra.automation_development_office.ocp_ldap_auth
 
 Ocp Ldap Auth automation role. Primary tasks include: Assert ldap_config is present (from vault); Build ocp_ldap_auth_config from ldap_config (vault) + optional overrides; Skip when LDAP auth disabled.
 
@@ -37,9 +37,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_ldap_auth
+    - role: infra.automation_development_office.ocp_ldap_auth
 ```
 
 ## 🧪 Role Molecule Testing

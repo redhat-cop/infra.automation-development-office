@@ -8,7 +8,7 @@
 Index of all Test Plugins
 =========================
 
-infra.ado
+infra.automation_development_office
 ---------
 
-* :ansplugin:`infra.ado.sample_test#test` -- A custom test plugin for Ansible.
+* :ansplugin:`infra.automation_development_office.sample_test#test` -- A custom test plugin for Ansible.

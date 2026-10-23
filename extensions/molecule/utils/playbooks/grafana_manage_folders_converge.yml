@@ -22,7 +22,7 @@
 
     - name: Run grafana_manage_folders role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.grafana_manage_folders
+        name: infra.automation_development_office.grafana_manage_folders
       vars:
         grafana_manage_folders_state: present
         grafana_manage_folders_name: >-

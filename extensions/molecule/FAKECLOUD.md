@@ -49,9 +49,9 @@ Scenarios that only mock AWS or do not call AWS APIs do not need to be listed.
 
 | Scenario | What it tests |
 | --- | --- |
-| `integration_ec2_ami_copy` | `infra.ado.ec2_ami_copy` cross-region copy with `name=` set (rename) |
-| `integration_ec2_ami_copy_keep_name` | `infra.ado.ec2_ami_copy` cross-region copy with `name` omitted (reuse source name) |
-| `integration_ec2_instance` | Bootstrap-style `import_playbook` of `infra.ado.aws.ec2.ado_ec2_instance_{create,info,modify,delete}` against fakecloud |
-| `integration_s3_bucket_policy` | Bootstrap-style `import_playbook` of `infra.ado.aws.s3.ado_s3_bucket_policy_{set,set_from_file,info}` against fakecloud |
+| `integration_ec2_ami_copy` | `infra.automation_development_office.ec2_ami_copy` cross-region copy with `name=` set (rename) |
+| `integration_ec2_ami_copy_keep_name` | `infra.automation_development_office.ec2_ami_copy` cross-region copy with `name` omitted (reuse source name) |
+| `integration_ec2_instance` | Bootstrap-style `import_playbook` of `infra.automation_development_office.aws.ec2.ado_ec2_instance_{create,info,modify,delete}` against fakecloud |
+| `integration_s3_bucket_policy` | Bootstrap-style `import_playbook` of `infra.automation_development_office.aws.s3.ado_s3_bucket_policy_{set,set_from_file,info}` against fakecloud |
 
 Add rows here when new scenarios opt in.

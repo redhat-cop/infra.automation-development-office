@@ -1,4 +1,4 @@
-# Role: infra.ado.grafana_upload_dashboards
+# Role: infra.automation_development_office.grafana_upload_dashboards
 
 Grafana Upload Dashboards automation role. Primary tasks include: Render dashboard templates to /tmp; Replace datasource with Openshift in rendered JSON; Import Grafana dashboard.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.grafana_upload_dashboards
+    - role: infra.automation_development_office.grafana_upload_dashboards
 ```
 
 ## 🧪 Role Molecule Testing

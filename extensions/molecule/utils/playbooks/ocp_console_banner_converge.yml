@@ -33,7 +33,7 @@
 
     - name: Run ocp_console_banner role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.ocp_console_banner
+        name: infra.automation_development_office.ocp_console_banner
       vars:
         state: "{{ ocp_console_banner_state_env }}"
         ocp_console_banner_text: "{{ lookup('env', 'OCP_CONSOLE_BANNER_TEXT') | default('', true) }}"

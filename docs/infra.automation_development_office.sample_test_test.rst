@@ -1,11 +1,11 @@
-.. _infra.ado.sample_filter_filter:
+.. _infra.automation_development_office.sample_test_test:
 
 
-***********************
-infra.ado.sample_filter
-***********************
+*********************
+infra.automation_development_office.sample_test
+*********************
 
-**A custom filter plugin for Ansible.**
+**A custom test plugin for Ansible.**
 
 
 Version added: 1.0.0
@@ -17,7 +17,7 @@ Version added: 1.0.0
 
 Synopsis
 --------
-- This is a demo filter plugin designed to return Hello message.
+- This is a demo test plugin designed to return a bool.
 
 
 
@@ -40,15 +40,19 @@ Parameters
                     <b>name</b>
                     <a class="ansibleOptionLink" href="#parameter-" title="Permalink to this option"></a>
                     <div style="font-size: small">
-                        <span style="color: purple">string</span>
+                        <span style="color: purple">boolean</span>
                     </div>
                 </td>
                 <td>
+                        <ul style="margin: 0; padding: 0"><b>Choices:</b>
+                                    <li>no</li>
+                                    <li>yes</li>
+                        </ul>
                 </td>
                     <td>
                     </td>
                 <td>
-                        <div>Value specified here is appended to the Hello message.</div>
+                        <div>This is a sample option.</div>
                 </td>
             </tr>
     </table>
@@ -62,11 +66,11 @@ Examples
 
 .. code-block:: yaml
 
-    # sample_filter filter example
+    # sample_test test example
 
-    - name: Display a hello message
+    - name: Display a bool
       ansible.builtin.debug:
-        msg: "{{ 'ansible-creator' | sample_filter }}"
+        msg: "{{ 50 | sample_test }}"
 
 
 

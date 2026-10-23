@@ -119,7 +119,7 @@
   block:
     - name: Bootstrap iSCSI CSI | Include ocp_iscsi_storage
       ansible.builtin.include_role:
-        name: infra.ado.ocp_iscsi_storage
+        name: infra.automation_development_office.ocp_iscsi_storage
       vars:
         ocp_iscsi_storage_connection: "{{ bootstrap_controller_openshift_connection }}"
         ocp_iscsi_storage_dsm_host: "{{ bootstrap_controller_iscsi_csi_dsm_host }}"

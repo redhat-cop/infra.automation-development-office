@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_mtv
+# Role: infra.automation_development_office.ocp_mtv
 
 Install the Migration Toolkit for Virtualization operand
 (``ForkliftController``) after the ``mtv-operator`` Subscription is ready.
@@ -31,7 +31,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_mtv
+    - role: infra.automation_development_office.ocp_mtv
       vars:
         state: present
         name_space: openshift-mtv

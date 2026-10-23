@@ -23,10 +23,10 @@
 
     - name: Run aap_configuration role with mock dispatch
       ansible.builtin.include_role:
-        name: infra.ado.aap_configuration
+        name: infra.automation_development_office.aap_configuration
       when: not aap_configuration_enable_live_checks
 
     - name: Run aap_configuration role with live dispatch
       ansible.builtin.include_role:
-        name: infra.ado.aap_configuration
+        name: infra.automation_development_office.aap_configuration
       when: aap_configuration_enable_live_checks

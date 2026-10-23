@@ -3,7 +3,7 @@
 ## Purpose
 
 Validate extension-level Molecule scenario wiring for
-`infra.ado.grafana_manage_folders`.
+`infra.automation_development_office.grafana_manage_folders`.
 
 ## Sequence
 

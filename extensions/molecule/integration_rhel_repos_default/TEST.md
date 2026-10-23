@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate extension-level Molecule scenario wiring for `infra.ado.rhel_repos`
+Validate extension-level Molecule scenario wiring for `infra.automation_development_office.rhel_repos`
 on UBI 8 and UBI 9 using Podman.
 
 ## Sequence

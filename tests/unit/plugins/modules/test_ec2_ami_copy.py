@@ -1,4 +1,4 @@
-"""Unit tests for infra.ado.ec2_ami_copy helpers."""
+"""Unit tests for infra.automation_development_office.ec2_ami_copy helpers."""
 
 from __future__ import absolute_import, division, print_function
 

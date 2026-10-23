@@ -9,7 +9,7 @@
     aap_build_ee_mock_builder: >-
       {{ aap_build_ee_test_root }}/bin/ansible-builder-mock
     aap_build_ee_local_tarball: >-
-      {{ aap_build_ee_test_root }}/infra-ado-1.0.0.tar.gz
+      {{ aap_build_ee_test_root }}/infra-automation_development_office-1.0.0.tar.gz
 
   tasks:
     - name: Ensure integration test directories exist
@@ -67,5 +67,5 @@
           grep -q 'additional_build_files:' "$file"
           grep -q 'dest: "collection-artifacts"' "$file"
           grep -q 'name: "ansible.posix"' "$context/requirements.yml"
-          grep -q 'collection-artifacts/infra-ado-1.0.0.tar.gz' "$context/requirements.yml"
+          grep -q 'collection-artifacts/infra-automation_development_office-1.0.0.tar.gz' "$context/requirements.yml"
           printf '%s\n' "$tag" > "$context/.mock-built-image-tag"

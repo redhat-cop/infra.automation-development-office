@@ -454,7 +454,7 @@
         template:
           metadata:
             annotations:
-              infra.ado/htpasswd-synced-at: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+              infra.automation_development_office/htpasswd-synced-at: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
   when:
     - ocp_htpasswd_admin_secret_result is defined
     - ocp_htpasswd_admin_secret_result is changed

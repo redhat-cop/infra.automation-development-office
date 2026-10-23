@@ -18,7 +18,7 @@
 
     - name: Run elastic role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.elastic
+        name: infra.automation_development_office.elastic
       vars:
         elastic_state: status
         elastic_url: "{{ lookup('env', 'ELASTIC_URL') | default('http://localhost:9200', true) }}"

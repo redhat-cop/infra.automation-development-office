@@ -25,7 +25,7 @@
   block:
     - name: Bootstrap image registry | Include ocp_image_registry
       ansible.builtin.include_role:
-        name: infra.ado.ocp_image_registry
+        name: infra.automation_development_office.ocp_image_registry
       vars:
         ocp_image_registry_state: present
         ocp_image_registry_enabled: true

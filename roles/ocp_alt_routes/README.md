@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_alt_routes
+# Role: infra.automation_development_office.ocp_alt_routes
 
 Ocp Alt Routes automation role. Primary tasks include: Ensure_alt_routes_from_list Normalize candidates input; Ensure_alt_routes_from_list Set defaults; Ensure_alt_routes_from_list Validate required inputs.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_alt_routes
+    - role: infra.automation_development_office.ocp_alt_routes
 ```
 
 ## 🧪 Role Molecule Testing

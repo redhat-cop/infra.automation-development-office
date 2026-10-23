@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_network_policy
+# Role: infra.automation_development_office.ocp_network_policy
 
 Apply or remove OpenShift network security policy resources. The role takes a
 flat list of policy definitions, validates each one, resolves the correct
@@ -87,7 +87,7 @@ Deny all ingress in a namespace:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_network_policy
+    - role: infra.automation_development_office.ocp_network_policy
       vars:
         ocp_network_policy_resources:
           - kind: NetworkPolicy
@@ -134,7 +134,7 @@ ocp_network_policy_resources:
 Removing policies:
 
 ```yaml
-- role: infra.ado.ocp_network_policy
+- role: infra.automation_development_office.ocp_network_policy
   vars:
     ocp_network_policy_state: absent
     ocp_network_policy_resources: "{{ previously_applied_policies }}"

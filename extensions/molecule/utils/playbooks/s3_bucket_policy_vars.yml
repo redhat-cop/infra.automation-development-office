@@ -13,7 +13,7 @@ s3_bucket_policy_molecule_bucket_file: >-
 s3_bucket_policy_molecule_promote_tasks: >-
   {{ playbook_dir }}/tasks/promote-s3-bucket-policy-facts.yml
 # Collection sample policy (Jinja) — used by set_from_file path.
-# Resolve from the installed infra.ado collection so the molecule/ symlink
+# Resolve from the installed collection so the molecule/ symlink
 # under extensions/molecule does not break relative repo-root paths.
 s3_bucket_policy_molecule_policy_file: >-
   {{
@@ -23,6 +23,6 @@ s3_bucket_policy_molecule_policy_file: >-
       | split(':')
       | first
     )
-    ~ '/ansible_collections/infra/ado/playbooks/aws/s3/policies/allow_list_and_read.json'
+    ~ '/ansible_collections/infra/automation_development_office/playbooks/aws/s3/policies/allow_list_and_read.json'
   }}
 # yamllint enable rule:line-length

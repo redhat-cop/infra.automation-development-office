@@ -189,11 +189,11 @@
 
     - name: Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
-    - name: Set namespace for infra.ado.ocp_namespace from survey / extra_vars
+    - name: Set namespace for infra.automation_development_office.ocp_namespace from survey / extra_vars
       ansible.builtin.set_fact:
         name_space: "{{ provision_openshift_virt_namespace | default('ado-built-vm') }}"
   roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_virtualization
+    - role: infra.automation_development_office.ocp_namespace
+    - role: infra.automation_development_office.ocp_virtualization

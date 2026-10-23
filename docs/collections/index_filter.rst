@@ -8,7 +8,7 @@
 Index of all Filter Plugins
 ===========================
 
-infra.ado
+infra.automation_development_office
 ---------
 
-* :ansplugin:`infra.ado.sample_filter#filter` -- A custom filter plugin for Ansible.
+* :ansplugin:`infra.automation_development_office.sample_filter#filter` -- A custom filter plugin for Ansible.

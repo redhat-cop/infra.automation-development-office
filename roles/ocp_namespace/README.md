@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_namespace
+# Role: infra.automation_development_office.ocp_namespace
 
 Ocp Namespace automation role. Primary tasks include: Create namespace.
 
@@ -27,7 +27,7 @@ Automation Development Office
 | `ocp_namespace_absent_sweep_workloads` | On ``absent``, sweep Deployments/Pods via ``ocp_absent_cleanup`` (default ``true``). |
 | `ocp_namespace_absent_fail_if_present` | After ``absent``, fail if the namespace still exists (default ``true``). |
 
-On ``state=absent``, this role invokes ``infra.ado.ocp_absent_cleanup`` before and after delete so stuck Terminating namespaces, Failed CSVs, and leftover Deployments are cleared consistently across OpenShift components.
+On ``state=absent``, this role invokes ``infra.automation_development_office.ocp_absent_cleanup`` before and after delete so stuck Terminating namespaces, Failed CSVs, and leftover Deployments are cleared consistently across OpenShift components.
 
 On ``state=present``, if the namespace already exists in ``Terminating`` phase (common after a prior absent), the role runs the same cleanup gate, waits/finalizes, then creates — and fails if the namespace is still Terminating (``kubernetes.core.k8s`` alone can return ok while the NS is unusable).
 
@@ -38,7 +38,7 @@ On ``state=present``, if the namespace already exists in ``Terminating`` phase (
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_namespace
+    - role: infra.automation_development_office.ocp_namespace
 ```
 
 ## 🧪 Role Molecule Testing

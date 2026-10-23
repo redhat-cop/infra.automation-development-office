@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_zabbix
+# Role: infra.automation_development_office.ocp_zabbix
 
 Deploy a Zabbix monitoring stack on OpenShift (dedicated PostgreSQL, Zabbix
 server, and web UI) with persistent storage and an OpenShift Route.
@@ -50,7 +50,7 @@ Existing MariaDB installs are left on MariaDB unless you set
     storage_class: ocs-storagecluster-ceph-rbd
     zabbix_db_password: "{{ vault_zabbix_db_password }}"
   roles:
-    - role: infra.ado.ocp_zabbix
+    - role: infra.automation_development_office.ocp_zabbix
 ```
 
 ## 🧪 Role Molecule Testing

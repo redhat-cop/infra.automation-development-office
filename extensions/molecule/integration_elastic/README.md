@@ -1,6 +1,6 @@
 # Molecule scenario: integration_elastic
 
-This scenario validates the `infra.ado.elastic` role using the
+This scenario validates the `infra.automation_development_office.elastic` role using the
 normalized extension-level Molecule layout.
 
 ## Scenario flow

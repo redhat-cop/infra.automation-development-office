@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_realm
+# Role: infra.automation_development_office.rhbk_realm
 
 Rhbk Realm automation role. Primary tasks include: Create RHBK realm; Delete RHBK realm; Create or update Keycloak realm.
 
@@ -42,9 +42,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.rhbk_realm
+    - role: infra.automation_development_office.rhbk_realm
 ```
 
 #### ado-realm-bootstrap.yml
@@ -67,9 +67,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.rhbk_realm
+    - role: infra.automation_development_office.rhbk_realm
 ```
 
 ## 🧪 Role Molecule Testing

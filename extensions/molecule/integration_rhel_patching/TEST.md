@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate extension-level Molecule scenario wiring for `infra.ado.rhel_patching`
+Validate extension-level Molecule scenario wiring for `infra.automation_development_office.rhel_patching`
 on UBI 8 and UBI 9.
 
 RHEL 7 is not covered by this scenario.

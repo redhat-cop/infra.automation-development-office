@@ -69,13 +69,13 @@ def test_set_from_file_and_info_job_templates() -> None:
 def test_seed_playbooks_import_collection_fqcns_and_shared_aws_vault() -> None:
     expected = {
         "ado-s3-bucket-policy-set-bootstrap.yml": (
-            "infra.ado.aws.s3.ado_s3_bucket_policy_set"
+            "infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set"
         ),
         "ado-s3-bucket-policy-set-from-file-bootstrap.yml": (
-            "infra.ado.aws.s3.ado_s3_bucket_policy_set_from_file"
+            "infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set_from_file"
         ),
         "ado-s3-bucket-policy-info-bootstrap.yml": (
-            "infra.ado.aws.s3.ado_s3_bucket_policy_info"
+            "infra.automation_development_office.aws.s3.ado_s3_bucket_policy_info"
         ),
     }
     for filename, fqcn in expected.items():

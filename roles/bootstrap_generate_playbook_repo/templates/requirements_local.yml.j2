@@ -1,14 +1,14 @@
 ---
 # Contoller project sync installs this into /runner/requirements_collections.
 # Contoller job env sets ANSIBLE_COLLECTIONS_PATH to that path only — it does
-# not include /runner/project/collections — so vendored infra.ado must be
+# not include /runner/project/collections — so vendored infra.automation_development_office must be
 # installed via this file or FQCN roles fail at playbook parse time.
 #
 # community.general is vendored (type: dir) for offline Contoller.
 # community.grafana is pulled from Hub/Galaxy via the org's Galaxy credentials
 # (must stay attached on the Contoller org even when galaxy_setup is off).
 collections:
-  - name: ./collections/ansible_collections/infra/ado
+  - name: ./collections/ansible_collections/infra/automation_development_office
     type: dir
   - name: ./collections/ansible_collections/community/general
     type: dir

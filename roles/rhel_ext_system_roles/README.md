@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_ext_system_roles
+# Role: infra.automation_development_office.rhel_ext_system_roles
 
 Rhel Ext System Roles automation role. Primary tasks include: Gather minimal facts for RHEL System Roles (expanded subset); Normalize wrapper inputs; Normalize SELinux inputs.
 
@@ -27,7 +27,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhel_ext_system_roles
+    - role: infra.automation_development_office.rhel_ext_system_roles
 ```
 
 ## 🧪 Role Molecule Testing
@@ -57,7 +57,7 @@ ansible-galaxy collection install -r collections/requirements-stig.yml
   become: true
   gather_facts: true
   roles:
-    - role: infra.ado.rhel_ext_system_roles
+    - role: infra.automation_development_office.rhel_ext_system_roles
       vars:
         sr_apply:
           - stig

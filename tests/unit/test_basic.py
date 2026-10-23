@@ -1,4 +1,4 @@
-"""Unit tests for infra.ado."""
+"""Unit tests for infra.automation_development_office."""
 
 
 def test_basic() -> None:

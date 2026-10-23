@@ -1,23 +1,23 @@
 ---
-- name: Generate playbook repo | Assert vendored infra.ado absent in Hub mode
+- name: Generate playbook repo | Assert vendored infra.automation_development_office absent in Hub mode
   ansible.builtin.stat:
     path: >-
       {{
         bootstrap_generate_playbook_repo_dest_resolved
-      }}/collections/ansible_collections/infra/ado/galaxy.yml
+      }}/collections/ansible_collections/infra/automation_development_office/galaxy.yml
   register: bootstrap_generate_playbook_repo_hub_vendored_galaxy
 
-- name: Generate playbook repo | Fail when Hub mode still has vendored infra.ado
+- name: Generate playbook repo | Fail when Hub mode still has vendored infra.automation_development_office
   ansible.builtin.fail:
     msg: >-
       bootstrap_generate_playbook_repo_use_hub_galaxy is true but
-      collections/ansible_collections/infra/ado still exists in the playbook
+      collections/ansible_collections/infra/automation_development_office still exists in the playbook
       git repo. Contoller would install stale vendored roles instead of Hub
-      infra.ado. Remove the vendored tree and ensure requirements.yml lists
-      name: infra.ado.
+      infra.automation_development_office. Remove the vendored tree and ensure requirements.yml lists
+      name: infra.automation_development_office.
   when: bootstrap_generate_playbook_repo_hub_vendored_galaxy.stat.exists | default(false) | bool
 
-- name: Generate playbook repo | Assert requirements.yml lists Hub infra.ado
+- name: Generate playbook repo | Assert requirements.yml lists Hub infra.automation_development_office
   ansible.builtin.slurp:
     src: >-
       {{
@@ -28,10 +28,10 @@
 - name: Generate playbook repo | Fail when requirements.yml is not Hub mode
   ansible.builtin.fail:
     msg: >-
-      Hub mode requires collections/requirements.yml to list name: infra.ado.
-      Found type:dir or missing infra.ado — Contoller will not pull from Hub.
+      Hub mode requires collections/requirements.yml to list name: infra.automation_development_office.
+      Found type:dir or missing infra.automation_development_office — Contoller will not pull from Hub.
   when: >-
-    'name: infra.ado' not in (
+    'name: infra.automation_development_office' not in (
       bootstrap_generate_playbook_repo_requirements_slurp.content
       | b64decode
       | string

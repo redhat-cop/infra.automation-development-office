@@ -1,4 +1,4 @@
-# Role: infra.ado.idm_ad_trust
+# Role: infra.automation_development_office.idm_ad_trust
 
 Establish IdM ↔ Active Directory trust and map AD-only users into IdM POSIX
 groups and sudo so they can SSH and sudo on IdM-enrolled Linux clients.
@@ -11,7 +11,7 @@ Automation Development Office
 
 - Ansible Core on the IdM server (role uses ``redhat.rhel_idm`` modules)
 - Collections: ``redhat.rhel_idm``, ``ansible.posix``
-- Same-collection role ``infra.ado.rhel_services_management`` for smb / named / sssd
+- Same-collection role ``infra.automation_development_office.rhel_services_management`` for smb / named / sssd
 - IdM admin credentials (`vault_idm_admin_password` or `ipaadmin_password`)
 - AD Domain Admin credentials (`vault_ad_trust_admin_password`)
 - For two-way trust: AD DNS conditional forwarder for the IdM domain so AD can
@@ -51,7 +51,7 @@ Automation Development Office
     idm_ad_trust_sudo_ad_users:
       - "Administrator@AD.LAB"
   roles:
-    - role: infra.ado.idm_ad_trust
+    - role: infra.automation_development_office.idm_ad_trust
 ```
 
 Bootstrap playbook: `playbooks/idm/ado-manage-ad-trust-bootstrap.yml`

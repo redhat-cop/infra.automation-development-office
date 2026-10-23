@@ -66,7 +66,7 @@ No actual Pega image-size total has been verified in this workspace.
 
 Preflight writes `component_config.pega`; the environment generator emits
 `ocp_pega_*` variables. The existing `ADO | Deploy Pega` JT and OpenShift workflow
-consume the generated playbook, which invokes `infra.ado.ocp_pega`.
+consume the generated playbook, which invokes `infra.automation_development_office.ocp_pega`.
 
 Before cluster changes, the role renders all configured charts and rejects public
 or unpinned image references. `ocp_pega_validate_only: true` performs this validation

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_logging
+# Role: infra.automation_development_office.ocp_logging
 
 Ocp Logging automation role. Primary tasks include: Create Cluster Forwarder Splunk Secret; Create/Delete Cluster Forwarder; Cluster Logging.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_logging
+    - role: infra.automation_development_office.ocp_logging
 ```
 
 ## 🧪 Role Molecule Testing

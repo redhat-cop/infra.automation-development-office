@@ -9,7 +9,7 @@
         name: "{{ bookstack_namespace }}"
         labels:
           app.kubernetes.io/name: bookstack
-          app.kubernetes.io/managed-by: infra.ado.bookstack_openshift
+          app.kubernetes.io/managed-by: infra.automation_development_office.bookstack_openshift
     validate_certs: "{{ bookstack_validate_certs }}"
   tags: [bookstack_namespace]
 

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_default_ingress_cert
+# Role: infra.automation_development_office.ocp_default_ingress_cert
 
 Replace the OpenShift default IngressController TLS certificate (router
 wildcard for `*.apps.<domain>`) and optionally trust the issuing CA
@@ -26,7 +26,7 @@ Automation Development Office
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.ocp_default_ingress_cert
+    - role: infra.automation_development_office.ocp_default_ingress_cert
 ```
 
 ## 🧪 Role Molecule Testing

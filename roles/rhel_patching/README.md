@@ -1,4 +1,4 @@
-# Role: `infra.ado.rhel_patching`
+# Role: `infra.automation_development_office.rhel_patching`
 
 Comprehensive patching for Red Hat Enterprise Linux (RHEL) servers.
 
@@ -46,7 +46,7 @@ Includes safety checks for supported RHEL versions.
     rhel_patching_update_cache: true
     rhel_patching_package_cleanup: true
   roles:
-    - role: infra.ado.rhel_patching
+    - role: infra.automation_development_office.rhel_patching
 ```
 
 ### Patching with forced restart
@@ -60,7 +60,7 @@ Includes safety checks for supported RHEL versions.
     rhel_patching_update_cache: true
     rhel_patching_package_cleanup: true
   roles:
-    - role: infra.ado.rhel_patching
+    - role: infra.automation_development_office.rhel_patching
 ```
 
 ### Selective package patching
@@ -77,7 +77,7 @@ Includes safety checks for supported RHEL versions.
     rhel_patching_versions: latest
     rhel_patching_exclude_list: []
   roles:
-    - role: infra.ado.rhel_patching
+    - role: infra.automation_development_office.rhel_patching
 ```
 
 ### Advanced patching configuration
@@ -97,7 +97,7 @@ Includes safety checks for supported RHEL versions.
       - epel-testing
     rhel_patching_skip_broken: true
   roles:
-    - role: infra.ado.rhel_patching
+    - role: infra.automation_development_office.rhel_patching
 ```
 
 ### Behavior notes

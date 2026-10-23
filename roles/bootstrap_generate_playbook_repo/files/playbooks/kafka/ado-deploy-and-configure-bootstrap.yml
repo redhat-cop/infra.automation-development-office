@@ -16,7 +16,7 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Enable Kafka CR + route by default for bootstrap
       ansible.builtin.set_fact:
         kafka_install_create_cr: "{{ kafka_install_create_cr | default(true) | bool }}"
@@ -33,8 +33,8 @@
         kafka_install_image: >-
           {{ kafka_install_image | default('confluentinc/cp-server:7.6.0') }}
   roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_operatorgroups
-    - role: infra.ado.ocp_operator_subscription
-    - role: infra.ado.kafka_install
-    - role: infra.ado.ocp_routes
+    - role: infra.automation_development_office.ocp_namespace
+    - role: infra.automation_development_office.ocp_operatorgroups
+    - role: infra.automation_development_office.ocp_operator_subscription
+    - role: infra.automation_development_office.kafka_install
+    - role: infra.automation_development_office.ocp_routes

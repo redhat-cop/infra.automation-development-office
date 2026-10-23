@@ -39,7 +39,7 @@
     - name: Assert create bootstrap imports collection FQCN
       ansible.builtin.command:
         cmd: >-
-          grep -F 'infra.ado.aws.ec2.ado_ec2_instance_create'
+          grep -F 'infra.automation_development_office.aws.ec2.ado_ec2_instance_create'
           {{ playbook_dir }}/playbooks/aws/ec2/ado-ec2-instance-create-bootstrap.yml
       changed_when: false
 

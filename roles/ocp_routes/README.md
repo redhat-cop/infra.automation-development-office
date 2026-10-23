@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_routes
+# Role: infra.automation_development_office.ocp_routes
 
 Ocp Routes automation role. Primary tasks include: Get Routes for single namespace; Print all Route hostnames (single namespace); Get Routes for each namespace in routes list.
 
@@ -42,9 +42,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_routes
+    - role: infra.automation_development_office.ocp_routes
 ```
 
 #### ado-deploy-and-configure-bootstrap.yml
@@ -66,9 +66,9 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_routes
+    - role: infra.automation_development_office.ocp_routes
 ```
 
 ## 🧪 Role Molecule Testing

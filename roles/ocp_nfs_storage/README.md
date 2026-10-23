@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_nfs_storage
+# Role: infra.automation_development_office.ocp_nfs_storage
 
 Install the NFS CSI driver (Helm chart ``csi-driver-nfs``) on OpenShift and
 create an NFS-backed StorageClass. Used by bootstrap when preflight selects
@@ -49,7 +49,7 @@ Aliases accepted by env generation: ``nfs_server``, ``nfs_share``,
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_nfs_storage
+    - role: infra.automation_development_office.ocp_nfs_storage
       vars:
         ocp_nfs_storage_server: 192.168.0.6
         ocp_nfs_storage_share: /volume1/openshift

@@ -1,4 +1,4 @@
-# Role: infra.ado.idm_configure_replica
+# Role: infra.automation_development_office.idm_configure_replica
 
 Idm Configure Replica automation role. Primary tasks include: Install IdM replica; Add IdM configure replica entry.
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.idm_configure_replica
+    - role: infra.automation_development_office.idm_configure_replica
 ```
 
 ## 🧪 Role Molecule Testing

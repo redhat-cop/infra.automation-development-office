@@ -1,4 +1,4 @@
-# infra.ado.ec2_ami_copy
+# infra.automation_development_office.ec2_ami_copy
 
 Copy an Amazon Machine Image (AMI) from a source AWS region into a destination
 region. Returns the new AMI ID. Designed for environments that have
@@ -21,7 +21,7 @@ or EE builds, ensure `amazon.aws` is already bundled (see
 
 ```yaml
 collections:
-  - name: infra.ado
+  - name: infra.automation_development_office
 ```
 
 ## Authentication and region
@@ -58,7 +58,7 @@ Basic copy and wait for availability:
 
 ```yaml
 - name: Copy AMI to us-west-2 with a new name
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: us-west-2
     source_image_id: ami-0123456789abcdef0
@@ -67,7 +67,7 @@ Basic copy and wait for availability:
   register: copied_ami
 
 - name: Copy AMI keeping the source name
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: us-west-2
     source_image_id: ami-0123456789abcdef0
@@ -83,7 +83,7 @@ Encrypted, tagged, idempotent copy (safe to re-run):
 
 ```yaml
 - name: Copy AMI with encryption and tag-based idempotency
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: eu-west-1
     source_image_id: ami-0123456789abcdef0
@@ -104,7 +104,7 @@ Using an AWS named profile:
 
 ```yaml
 - name: Copy AMI with a named profile
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     profile: my-aws-profile
     source_region: us-east-1
     region: us-west-2

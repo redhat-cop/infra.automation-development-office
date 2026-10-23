@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_efs_csi
+# Role: infra.automation_development_office.ocp_efs_csi
 
 Ocp Efs Csi automation role. Primary tasks include: Create Storage Class; EFS CSI Storage Driver.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_efs_csi
+    - role: infra.automation_development_office.ocp_efs_csi
 ```
 
 ## 🧪 Role Molecule Testing

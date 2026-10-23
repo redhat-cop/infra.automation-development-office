@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_devspaces_user_config
+# Role: infra.automation_development_office.ocp_devspaces_user_config
 
 Ocp Devspaces User Config automation role. Primary tasks include: Create Certificate Secret; Create bashrc config map; Create PVC.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_devspaces_user_config
+    - role: infra.automation_development_office.ocp_devspaces_user_config
 ```
 
 ## 🧪 Role Molecule Testing

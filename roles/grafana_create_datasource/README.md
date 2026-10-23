@@ -1,4 +1,4 @@
-# Role: infra.ado.grafana_create_datasource
+# Role: infra.automation_development_office.grafana_create_datasource
 
 Creates Grafana Prometheus datasources via the Grafana HTTP API
 (`community.grafana.grafana_datasource`), after ensuring an OpenShift
@@ -54,7 +54,7 @@ Automation Development Office.
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.grafana_create_datasource
+    - role: infra.automation_development_office.grafana_create_datasource
       vars:
         grafana_hostname: grafana.apps.example.com
         grafana_admin_user: admin

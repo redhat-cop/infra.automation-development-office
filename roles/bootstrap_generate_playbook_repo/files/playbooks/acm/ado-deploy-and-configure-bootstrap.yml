@@ -23,60 +23,60 @@
         ADO | Resolve vars for component from framework defaults + env
         overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
   tasks:
     # ----- present: install -----
     - name: ADO | Ensure ACM namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'present'
 
     - name: ADO | Create ACM OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       # operatorgroup comes from bootstrap_resolve_component (do not set
       # operatorgroup: "{{ operatorgroup | default(...) }}" — that recurses).
       when: (state | default('present')) == 'present'
 
     - name: ADO | Subscribe ACM operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for ACM operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_operator
+        name: infra.automation_development_office.ocp_wait_operator
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure MultiClusterHub
       ansible.builtin.include_role:
-        name: infra.ado.ocp_acm
+        name: infra.automation_development_office.ocp_acm
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for ACM pods
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_pods
+        name: infra.automation_development_office.ocp_wait_pods
       when: (state | default('present')) == 'present'
 
     # ----- absent: hub CRs → subscription → OG → namespace -----
     - name: ADO | Remove MultiClusterHub / MCE / ClusterManager
       ansible.builtin.include_role:
-        name: infra.ado.ocp_acm
+        name: infra.automation_development_office.ocp_acm
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Unsubscribe ACM operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete ACM OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       # operatorgroup from resolve_component — avoid self-referential vars.
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete ACM namespace
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'absent'

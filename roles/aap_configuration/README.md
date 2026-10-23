@@ -1,4 +1,4 @@
-# Role: `infra.ado.aap_configuration`
+# Role: `infra.automation_development_office.aap_configuration`
 
 Collect user-provided AAP configuration files and dispatch them to the upstream `infra.aap_configuration.dispatch` role for processing.
 
@@ -75,7 +75,7 @@ When the role runs it will:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_configuration
+    - role: infra.automation_development_office.aap_configuration
 ```
 
 ### Example with a config file
@@ -91,7 +91,7 @@ Place configuration in `configs/aap.example.yml` next to your playbook:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.aap_configuration
+    - role: infra.automation_development_office.aap_configuration
 ```
 
 ### Behavior notes

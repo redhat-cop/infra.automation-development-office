@@ -1,4 +1,4 @@
-# Role: infra.ado.idm_dns
+# Role: infra.automation_development_office.idm_dns
 
 Idm Dns automation role. Primary tasks include: Add A record to IdM DNS using redhat.rhel_idm.dnsrecord; Add IDM DNS entry.
 
@@ -29,7 +29,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.idm_dns
+    - role: infra.automation_development_office.idm_dns
 ```
 
 ## 🧪 Role Molecule Testing

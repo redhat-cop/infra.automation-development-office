@@ -13,10 +13,10 @@
   tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
     - name: ADO | Copy AMI to destination region
-      infra.ado.ec2_ami_copy:
+      infra.automation_development_office.ec2_ami_copy:
         source_region: "{{ ec2_ami_copy_source_region }}"
         region: "{{ ec2_ami_copy_dest_region }}"
         source_image_id: "{{ ec2_ami_copy_source_image_id }}"

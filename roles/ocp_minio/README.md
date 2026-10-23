@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_minio
+# Role: infra.automation_development_office.ocp_minio
 
 Deploy **MinIO** object storage on OpenShift (Deployment, PVC, Service, API + console
 Routes) with optional **Keycloak OIDC** for the web console.
@@ -53,8 +53,8 @@ claim mapper, and stores OpenID env vars in Secret `minio-oidc`.
     K8S_AUTH_API_KEY: "{{ token }}"
     K8S_AUTH_VERIFY_SSL: "no"
   roles:
-    - role: infra.ado.ocp_namespace
-    - role: infra.ado.ocp_minio
+    - role: infra.automation_development_office.ocp_namespace
+    - role: infra.automation_development_office.ocp_minio
       vars:
         name_space: minio
         apps_domain: ocp-dev.dev.rhlab

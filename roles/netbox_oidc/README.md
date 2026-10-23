@@ -1,4 +1,4 @@
-# Role: infra.ado.netbox_oidc
+# Role: infra.automation_development_office.netbox_oidc
 
 Wire NetBox login to Keycloak / Red Hat build of Keycloak (RHBK) OIDC by
 updating the existing NetBox ConfigMap (no full Helm redeploy).
@@ -54,10 +54,10 @@ Automation Development Office
     K8S_AUTH_API_KEY: "{{ token }}"
     K8S_AUTH_VERIFY_SSL: "{{ (verify_ssl | bool) | ternary('yes', 'no') }}"
   roles:
-    - role: infra.ado.netbox_oidc
+    - role: infra.automation_development_office.netbox_oidc
 ```
 
-Create the Keycloak client first (or reuse `infra.ado.rhbk_client`). Then sign
+Create the Keycloak client first (or reuse `infra.automation_development_office.rhbk_client`). Then sign
 in at the NetBox login page with OpenID Connect.
 
 ## 🧪 Role Molecule Testing

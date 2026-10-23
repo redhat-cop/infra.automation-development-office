@@ -1,4 +1,4 @@
-# Role: infra.ado.install_postfix
+# Role: infra.automation_development_office.install_postfix
 
 Install Postfix automation role. Primary tasks include: Ensure namespace exists; Create Secret for relay authentication; Create ConfigMap for Postfix main.cf.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.install_postfix
+    - role: infra.automation_development_office.install_postfix
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,4 @@
-# Role: infra.ado.keycloak_login_events_exporter
+# Role: infra.automation_development_office.keycloak_login_events_exporter
 
 Poll the Keycloak/RHBK user-event store and publish Prometheus gauges for
 successful `LOGIN` and failed `LOGIN_ERROR` events, including username. Native
@@ -37,7 +37,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.keycloak_login_events_exporter
+    - role: infra.automation_development_office.keycloak_login_events_exporter
 ```
 
 Day-2 refresh (does not reinstall RHBK):

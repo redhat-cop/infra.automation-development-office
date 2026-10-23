@@ -1,4 +1,4 @@
-# Role: infra.ado.elastic
+# Role: infra.automation_development_office.elastic
 
 Operational checks/actions for Elasticsearch through a state-driven interface.
 
@@ -51,7 +51,7 @@ Compatibility aliases retained by `tasks/main.yml`:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.elastic
+    - role: infra.automation_development_office.elastic
       vars:
         elastic_state: status
         elastic_url: http://localhost:9200

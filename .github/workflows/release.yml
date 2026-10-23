@@ -1,5 +1,5 @@
 ---
-name: Release infra.ado
+name: Release infra.automation_development_office
 
 on: # yamllint disable-line rule:truthy
   release:

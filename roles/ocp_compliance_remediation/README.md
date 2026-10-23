@@ -31,7 +31,7 @@ Chad Elliott
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_compliance_remediation
+    - role: infra.automation_development_office.ocp_compliance_remediation
       vars:
         ocp_compliance_remediation_enabled: true
         ocp_compliance_remediation_acs_api_url: acs.example.com

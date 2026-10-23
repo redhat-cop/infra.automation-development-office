@@ -43,7 +43,7 @@
 
     - name: Run ocp_compliance_scan role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.ocp_compliance_scan
+        name: infra.automation_development_office.ocp_compliance_scan
       vars:
         ocp_compliance_scan_schedule_scan: "{{ ocp_compliance_scan_schedule_scan_env }}"
         ocp_compliance_scan_run_scan: "{{ ocp_compliance_scan_run_scan_env }}"

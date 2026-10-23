@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_services_management
+# Role: infra.automation_development_office.rhel_services_management
 
 Rhel Services Management automation role. Primary tasks include: Read RHEL major version (raw); Parse major version from raw output; Choose path booleans from major.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhel_services_management
+    - role: infra.automation_development_office.rhel_services_management
 ```
 
 ## 🧪 Role Molecule Testing

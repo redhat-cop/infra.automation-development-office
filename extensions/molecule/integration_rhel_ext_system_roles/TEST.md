@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate the extension-level Molecule scenario for `infra.ado.rhel_ext_system_roles`.
+Validate the extension-level Molecule scenario for `infra.automation_development_office.rhel_ext_system_roles`.
 
 ## Sequence
 

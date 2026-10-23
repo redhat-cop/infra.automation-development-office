@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
-name: "ado"
-version: 1.4.1
+name: "automation_development_office"
+version: 2.1.1
 readme: README.md
 authors:
   - Automation Development Office
@@ -21,7 +21,7 @@ tags:
   - rhel
   - satellite
 # Collection-to-collection dependencies (PEP 440 version ranges). These are
-# installed automatically by `ansible-galaxy collection install infra.ado`.
+# installed automatically by `ansible-galaxy collection install infra.automation_development_office`.
 #
 # Automation Hub-only collections are omitted so public Galaxy installs do not
 # fail to resolve Red Hat certified content. Bundle them on the execution

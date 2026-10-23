@@ -1,4 +1,4 @@
-# Role: infra.ado.rhbk_groups
+# Role: infra.automation_development_office.rhbk_groups
 
 Rhbk Groups automation role. Primary tasks include: Create RHBK group; Delete RHBK group; Create a Keycloak group, authentication with credentials.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhbk_groups
+    - role: infra.automation_development_office.rhbk_groups
 ```
 
 ## 🧪 Role Molecule Testing

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_data_foundation
+# Role: infra.automation_development_office.ocp_data_foundation
 
 Ocp Data Foundation automation role. Primary tasks include: Openshift Data Foundation; Create Storage Cluster.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_data_foundation
+    - role: infra.automation_development_office.ocp_data_foundation
 ```
 
 ## 🧪 Role Molecule Testing

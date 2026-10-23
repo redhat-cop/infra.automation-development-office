@@ -21,55 +21,55 @@
         ADO | Resolve vars for component from framework defaults + env
         overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
 
   tasks:
     - name: ADO | Ensure MTV namespace exists
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'present'
 
     - name: ADO | Create MTV OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'present'
 
     - name: ADO | Subscribe MTV operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for MTV operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_operator
+        name: infra.automation_development_office.ocp_wait_operator
       when: (state | default('present')) == 'present'
 
     - name: ADO | Configure ForkliftController
       ansible.builtin.include_role:
-        name: infra.ado.ocp_mtv
+        name: infra.automation_development_office.ocp_mtv
       when: (state | default('present')) == 'present'
 
     - name: ADO | Wait for MTV pods
       ansible.builtin.include_role:
-        name: infra.ado.ocp_wait_pods
+        name: infra.automation_development_office.ocp_wait_pods
       when: (state | default('present')) == 'present'
 
     - name: ADO | Delete ForkliftController
       ansible.builtin.include_role:
-        name: infra.ado.ocp_mtv
+        name: infra.automation_development_office.ocp_mtv
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Unsubscribe MTV operator
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operator_subscription
+        name: infra.automation_development_office.ocp_operator_subscription
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete MTV OperatorGroup
       ansible.builtin.include_role:
-        name: infra.ado.ocp_operatorgroups
+        name: infra.automation_development_office.ocp_operatorgroups
       when: (state | default('present')) == 'absent'
 
     - name: ADO | Delete MTV namespace
       ansible.builtin.include_role:
-        name: infra.ado.ocp_namespace
+        name: infra.automation_development_office.ocp_namespace
       when: (state | default('present')) == 'absent'

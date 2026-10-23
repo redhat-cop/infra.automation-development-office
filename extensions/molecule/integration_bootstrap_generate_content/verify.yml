@@ -6,12 +6,12 @@
 
   vars:
     bootstrap_generate_content_legacy_role_pattern: >-
-      infra.ado.bootstrap_generate_env_vars|
-      infra.ado.bootstrap_generate_playbook_repo|
-      infra.ado.bootstrap_controller|
-      infra.ado.bootstrap_flatten_vars|
-      infra.ado.bootstrap_resolve_component|
-      infra.ado.bootstrap_framework_defaults
+      infra.automation_development_office.bootstrap_generate_env_vars|
+      infra.automation_development_office.bootstrap_generate_playbook_repo|
+      infra.automation_development_office.bootstrap_controller|
+      infra.automation_development_office.bootstrap_flatten_vars|
+      infra.automation_development_office.bootstrap_resolve_component|
+      infra.automation_development_office.bootstrap_framework_defaults
 
   tasks:
     - name: Verify generated directories exist

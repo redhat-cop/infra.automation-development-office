@@ -1,4 +1,4 @@
-# Role: infra.ado.idm_server
+# Role: infra.automation_development_office.idm_server
 
 Idm Server automation role. Primary tasks include: Install IDM server; Validate idm_server inputs; Add IDM Server entry.
 
@@ -27,7 +27,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.idm_server
+    - role: infra.automation_development_office.idm_server
 ```
 
 ## 🧪 Role Molecule Testing

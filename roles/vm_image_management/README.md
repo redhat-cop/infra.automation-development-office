@@ -1,4 +1,4 @@
-# Role: infra.ado.vm_image_management
+# Role: infra.automation_development_office.vm_image_management
 
 This Ansible role creates a qcow2 virtual machine image from an existing base image.
 
@@ -60,7 +60,7 @@ Define the base image directory and file name, then define the destination direc
     vm_image_management_format: qcow2
     vm_image_management_download: false
   roles:
-    - role: infra.ado.vm_image_management
+    - role: infra.automation_development_office.vm_image_management
 ```
 
 ### Example 2: Create a raw image from the same base image
@@ -76,7 +76,7 @@ Define the base image directory and file name, then define the destination direc
     vm_image_management_format: raw
     vm_image_management_download: false
   roles:
-    - role: infra.ado.vm_image_management
+    - role: infra.automation_development_office.vm_image_management
 ```
 
 ## 🔧 Tasks Overview
@@ -127,7 +127,7 @@ python -m molecule test -s default
 Run the extension-level CI-aligned scenario from the collection root:
 
 ```bash
-cd /path/to/your/git/checkout/infra.ado
+cd /path/to/your/git/checkout/infra.automation_development_office
 ansible-galaxy collection install . --force -p ~/.ansible/collections
 ansible-galaxy collection install ansible.posix --force -p ~/.ansible/collections
 export ANSIBLE_COLLECTIONS_PATH="$HOME/.ansible/collections:/usr/share/ansible/collections"

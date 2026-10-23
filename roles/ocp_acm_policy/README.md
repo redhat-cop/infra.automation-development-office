@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_acm_policy
+# Role: infra.automation_development_office.ocp_acm_policy
 
 Generate a namespace-label ACM policy and explicit cluster placement locally.
 
@@ -55,7 +55,7 @@ Generation neither installs prerequisites nor registers/applies the output.
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_acm_policy
+    - role: infra.automation_development_office.ocp_acm_policy
       ocp_acm_policy_target_namespace: team-a
       ocp_acm_policy_label_key: owner
       ocp_acm_policy_label_value: platform

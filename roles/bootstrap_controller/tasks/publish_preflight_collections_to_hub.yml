@@ -118,7 +118,7 @@
         | list
       }}
 
-- name: Publish preflight collections | Build publish list (skip infra.ado)
+- name: Publish preflight collections | Build publish list (skip infra.automation_development_office)
   ansible.builtin.set_fact:
     bootstrap_controller_hub_preflight_publish_candidates: >-
       {{
@@ -126,7 +126,7 @@
         | default([])
         | selectattr('hub_publish', 'defined')
         | selectattr('hub_publish')
-        | rejectattr('name', 'equalto', 'infra.ado')
+        | rejectattr('name', 'equalto', 'infra.automation_development_office')
         | list
       }}
 
@@ -212,5 +212,5 @@
     loop_var: __hub_pub_item
     label: "{{ __hub_pub_item.name }}"
   vars:
-    # Additional collections never force; only infra.ado has force.
+    # Additional collections never force; only infra.automation_development_office has force.
     __hub_pub_force: false

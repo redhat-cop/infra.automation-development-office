@@ -16,7 +16,7 @@
   pre_tasks:
     - name: Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
     - name: ADO | Normalize OIDC vars from RHBK form
       ansible.builtin.set_fact:
         ocp_rhbk_hostname: >-
@@ -58,4 +58,4 @@
           }}
       no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
   roles:
-    - role: infra.ado.ocp_oidc_auth
+    - role: infra.automation_development_office.ocp_oidc_auth

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_metallb_install
+# Role: infra.automation_development_office.ocp_metallb_install
 
 Install the MetalLB Operator, create the MetalLB instance, and configure
 IPAddressPools, L2Advertisements, BGPPeers, and BGPAdvertisements so that
@@ -33,7 +33,7 @@ Automation Development Office
   balancer integration.
 - Cluster-admin credentials.
 - `kubernetes.core` collection.
-- `infra.ado` collection — `ocp_operator_subscription`, `ocp_wait_operator`.
+- `infra.automation_development_office` collection — `ocp_operator_subscription`, `ocp_wait_operator`.
 - Operator catalog reachable at `ocp_metallb_operator_source`
   (`redhat-operators` by default). Point this at a mirrored catalog in a
   disconnected cluster.
@@ -88,7 +88,7 @@ Layer 2 mode — the common bare-metal and lab setup:
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_metallb_install
+    - role: infra.automation_development_office.ocp_metallb_install
       vars:
         ocp_metallb_config:
           enabled: true

@@ -1,4 +1,4 @@
-# Role: infra.ado.bootstrap_generate_playbook_repo
+# Role: infra.automation_development_office.bootstrap_generate_playbook_repo
 
 Create or refresh the generated bootstrap playbook repository structure used by
 ADO component automation.
@@ -54,7 +54,7 @@ sync installs collections from Hub — never from git trees.
     bootstrap_generate_playbook_repo_dest: "{{ playbook_dir }}"
     bootstrap_generate_playbook_repo_component: all
   roles:
-    - role: infra.ado.bootstrap_generate_playbook_repo
+    - role: infra.automation_development_office.bootstrap_generate_playbook_repo
 ```
 
 ## 🧪 Role Molecule Testing

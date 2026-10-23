@@ -1,4 +1,4 @@
-# Role: infra.ado.rhel_mount
+# Role: infra.automation_development_office.rhel_mount
 
 Rhel Mount automation role. Primary tasks include: Use blkid to find the filesystem type; Parse the FSTYPE from blkid output; Display the detected filesystem type.
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.rhel_mount
+    - role: infra.automation_development_office.rhel_mount
 ```
 
 ## 🧪 Role Molecule Testing

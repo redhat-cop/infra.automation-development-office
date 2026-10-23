@@ -1,7 +1,7 @@
 .. Document meta
 
 :orphan:
-:github_url: https://github.com/ansible-collections/infra.ado/edit/main/roles/vm_image_management/meta/argument_specs.yml?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
+:github_url: https://github.com/ansible-collections/infra.automation_development_office/edit/main/roles/vm_image_management/meta/argument_specs.yml?description=%23%23%23%23%23%20SUMMARY%0A%3C!---%20Your%20description%20here%20--%3E%0A%0A%0A%23%23%23%23%23%20ISSUE%20TYPE%0A-%20Docs%20Pull%20Request%0A%0A%2Blabel:%20docsite_pr
 
 .. |antsibull-internal-nbsp| unicode:: 0xA0
     :trim:
@@ -11,30 +11,30 @@
 
 .. Anchors
 
-.. _ansible_collections.infra.ado.vm_image_management_role:
+.. _ansible_collections.infra.automation_development_office.vm_image_management_role:
 
 .. Title
 
-infra.ado.vm_image_management role -- Create a qcow2 virtual machine image from an existing base image.
+infra.automation_development_office.vm_image_management role -- Create a qcow2 virtual machine image from an existing base image.
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. Collection note
 
 .. note::
-    This role is part of the `infra.ado collection <https://galaxy.ansible.com/ui/repo/published/infra/ado/>`_ (version 1.0.0).
+    This role is part of the `infra.automation_development_office collection <https://galaxy.ansible.com/ui/repo/published/infra/automation_development_office/>`_ (version 1.0.0).
 
     It is not included in ``ansible-core``.
     To check whether it is installed, run :code:`ansible-galaxy collection list`.
 
-    To install it use: :code:`ansible\-galaxy collection install infra.ado`.
+    To install it use: :code:`ansible\-galaxy collection install infra.automation_development_office`.
 
-    To use it in a playbook, specify: :code:`infra.ado.vm_image_management`.
+    To use it in a playbook, specify: :code:`infra.automation_development_office.vm_image_management`.
 
 .. contents::
    :local:
    :depth: 2
 
-.. _ansible_collections.infra.ado.vm_image_management_role__entrypoint-main:
+.. _ansible_collections.infra.automation_development_office.vm_image_management_role__entrypoint-main:
 
 .. Entry point title
 
@@ -80,7 +80,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_action"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_action:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_action:
 
       .. rst-class:: ansible-option-title
 
@@ -117,7 +117,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_backing"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_backing:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_backing:
 
       .. rst-class:: ansible-option-title
 
@@ -162,7 +162,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_base_name"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_base_name:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_base_name:
 
       .. rst-class:: ansible-option-title
 
@@ -199,7 +199,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_base_path"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_base_path:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_base_path:
 
       .. rst-class:: ansible-option-title
 
@@ -236,7 +236,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_dest_name"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_dest_name:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_dest_name:
 
       .. rst-class:: ansible-option-title
 
@@ -273,7 +273,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_dest_path"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_dest_path:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_dest_path:
 
       .. rst-class:: ansible-option-title
 
@@ -310,7 +310,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_download"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_download:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_download:
 
       .. rst-class:: ansible-option-title
 
@@ -355,7 +355,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_force"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_force:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_force:
 
       .. rst-class:: ansible-option-title
 
@@ -400,7 +400,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_format"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_format:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_format:
 
       .. rst-class:: ansible-option-title
 
@@ -441,7 +441,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_path"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_path:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_path:
 
       .. rst-class:: ansible-option-title
 
@@ -478,7 +478,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_resize"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_resize:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_resize:
 
       .. rst-class:: ansible-option-title
 
@@ -523,7 +523,7 @@ Parameters
         <div class="ansible-option-cell">
         <div class="ansibleOptionAnchor" id="parameter-main--vm_image_management_size"></div>
 
-      .. _ansible_collections.infra.ado.vm_image_management_role__parameter-main__vm_image_management_size:
+      .. _ansible_collections.infra.automation_development_office.vm_image_management_role__parameter-main__vm_image_management_size:
 
       .. rst-class:: ansible-option-title
 
@@ -585,7 +585,7 @@ Collection links
     url: "http://example.com/repository"
     external: true
   - title: "Report an issue"
-    url: "https://github.com/ansible-collections/infra.ado/issues/new/choose"
+    url: "https://github.com/ansible-collections/infra.automation_development_office/issues/new/choose"
     external: true
 
 

@@ -1,6 +1,6 @@
 # Molecule scenario: integration_ocp_console_banner
 
-This scenario validates wiring for the `infra.ado.ocp_console_banner` role in
+This scenario validates wiring for the `infra.automation_development_office.ocp_console_banner` role in
 the normalized extension-level Molecule layout.
 
 ## Scenario flow

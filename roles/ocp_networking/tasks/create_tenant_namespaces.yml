@@ -19,7 +19,7 @@
 
 - name: "Create namespaces for tenant {{ ns_tenant.tenant_name }}"
   ansible.builtin.include_role:
-    name: infra.ado.ocp_namespace
+    name: infra.automation_development_office.ocp_namespace
   vars:
     name_space: "{{ ns_item.name }}"
     ocp_namespace_labels: >-

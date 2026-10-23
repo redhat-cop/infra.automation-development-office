@@ -4,7 +4,7 @@ controller_templates:
   - name: ADO | Delete EC2 instance
     description: >-
       Bootstrap - Terminate an EC2 instance via
-      infra.ado.aws.ec2.ado_ec2_instance_delete
+      infra.automation_development_office.aws.ec2.ado_ec2_instance_delete
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/aws/ec2/ado-ec2-instance-delete-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'

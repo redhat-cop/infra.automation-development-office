@@ -1,11 +1,11 @@
-.. _infra.ado.sample_module_module:
+.. _infra.automation_development_office.sample_lookup_lookup:
 
 
 ***********************
-infra.ado.sample_module
+infra.automation_development_office.sample_lookup
 ***********************
 
-**A custom module plugin for Ansible.**
+**A custom lookup plugin for Ansible.**
 
 
 Version added: 1.0.0
@@ -17,7 +17,7 @@ Version added: 1.0.0
 
 Synopsis
 --------
-- This is a demo module plugin designed to return Hello message.
+- This is a custom lookup plugin to provide lookup functionality.
 
 
 
@@ -31,27 +31,36 @@ Parameters
         <tr>
             <th colspan="1">Parameter</th>
             <th>Choices/<font color="blue">Defaults</font></th>
+                <th>Configuration</th>
             <th width="100%">Comments</th>
         </tr>
             <tr>
                 <td colspan="1">
                     <div class="ansibleOptionAnchor" id="parameter-"></div>
-                    <b>name</b>
+                    <b>_terms</b>
                     <a class="ansibleOptionLink" href="#parameter-" title="Permalink to this option"></a>
                     <div style="font-size: small">
-                        <span style="color: purple">string</span>
+                        <span style="color: purple">-</span>
                          / <span style="color: red">required</span>
                     </div>
                 </td>
                 <td>
                 </td>
+                    <td>
+                    </td>
                 <td>
-                        <div>Value specified here is appended to the Hello message.</div>
+                        <div>Terms to lookup</div>
                 </td>
             </tr>
     </table>
     <br/>
 
+
+Notes
+-----
+
+.. note::
+   - This is a scaffold template. Customize the plugin to fit your needs.
 
 
 
@@ -60,20 +69,15 @@ Examples
 
 .. code-block:: yaml
 
-    - name: Run the module
-      register: result
-      sample_module:
-        name: "ansible-creator"
-
-    - name: Display the message
+    - name: Example usage of sample_lookup
       ansible.builtin.debug:
-        msg: result.message
+        msg: "{{ lookup('sample_lookup', 'example_term') }}"
 
 
 
 Return Values
 -------------
-Common return values are documented `here <https://docs.ansible.com/projects/ansible/latest/reference_appendices/common_return_values.html#common-return-values>`_, the following are the fields unique to this module:
+Common return values are documented `here <https://docs.ansible.com/projects/ansible/latest/reference_appendices/common_return_values.html#common-return-values>`_, the following are the fields unique to this lookup:
 
 .. raw:: html
 
@@ -86,18 +90,16 @@ Common return values are documented `here <https://docs.ansible.com/projects/ans
             <tr>
                 <td colspan="1">
                     <div class="ansibleOptionAnchor" id="return-"></div>
-                    <b>message</b>
+                    <b>_list</b>
                     <a class="ansibleOptionLink" href="#return-" title="Permalink to this return value"></a>
                     <div style="font-size: small">
-                      <span style="color: purple">string</span>
+                      <span style="color: purple">list</span>
                     </div>
                 </td>
-                <td>always</td>
+                <td></td>
                 <td>
-                            <div>A demo message.</div>
+                            <div>The list of values found by the lookup</div>
                     <br/>
-                        <div style="font-size: smaller"><b>Sample:</b></div>
-                        <div style="font-size: smaller; color: blue; word-wrap: break-word; word-break: break-all;">Hello, ansible-creator</div>
                 </td>
             </tr>
     </table>
@@ -112,3 +114,7 @@ Authors
 ~~~~~~~
 
 - Your Name (@username)
+
+
+.. hint::
+    Configuration entries for each entry type have a low to high priority order. For example, a variable that is lower in the list will override a variable that is higher up.

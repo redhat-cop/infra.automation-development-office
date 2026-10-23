@@ -22,7 +22,7 @@
 # admission webhooks / ACM conversion list failures). Sweep first, then delete.
 - name: Sweep leftovers before namespace delete
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - "{{ ocp_namespace_effective }}"
@@ -43,7 +43,7 @@
 # on a Terminating NS (k8s state=present returns ok while OG create is Forbidden).
 - name: Sweep Terminating namespace before create
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - "{{ ocp_namespace_effective }}"
@@ -150,7 +150,7 @@
 # Runs for every ocp_namespace state=absent (all OpenShift component uninstalls).
 - name: Run ocp_absent_cleanup gate after namespace delete
   ansible.builtin.include_role:
-    name: infra.ado.ocp_absent_cleanup
+    name: infra.automation_development_office.ocp_absent_cleanup
   vars:
     ocp_absent_cleanup_namespaces:
       - "{{ ocp_namespace_effective }}"

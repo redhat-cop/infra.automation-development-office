@@ -11,7 +11,7 @@
 
 # Create/update projects separately so we can force sync before job templates.
 # Never sync during project create: Contoller runs install_collections then and
-# fails hard if Hub does not yet have infra.ado (or Hub update was skipped).
+# fails hard if Hub does not yet have infra.automation_development_office (or Hub update was skipped).
 - name: AAP 2.5+ | Sanitize controller projects (no sync-on-create)
   ansible.builtin.set_fact:
     bootstrap_controller_projects_sanitized: >-

@@ -1,4 +1,4 @@
-# Role: infra.ado.install_aap
+# Role: infra.automation_development_office.install_aap
 
 Install Ansible Automation Platform using validated **`infra.aap_utilities`**:
 
@@ -50,7 +50,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.install_aap
+    - role: infra.automation_development_office.install_aap
       vars:
         install_aap_target: openshift
         aap_ocp_install_namespace: aap
@@ -74,7 +74,7 @@ Automation Development Office
   hosts: bastion
   become: true
   roles:
-    - role: infra.ado.install_aap
+    - role: infra.automation_development_office.install_aap
       vars:
         install_aap_target: rhel
         aap_setup_down_type: setup-bundle

@@ -7,7 +7,7 @@
   # tasks:
   #   - name: Apply selected RHEL System Roles via wrapper
   #     ansible.builtin.include_role:
-  #       name: infra.ado.rhel_ext_system_roles
+  #       name: infra.automation_development_office.rhel_ext_system_roles
   #     vars:
   #       sr_apply:
   #         - timesync

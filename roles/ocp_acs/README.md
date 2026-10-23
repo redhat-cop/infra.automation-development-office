@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_acs
+# Role: infra.automation_development_office.ocp_acs
 
 Ocp Acs automation role. Primary tasks include: Validate required ACS vars; Ensure ACS operand namespace exists; Delete Central CR (clean reinstall).
 
@@ -25,7 +25,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_acs
+    - role: infra.automation_development_office.ocp_acs
 ```
 
 ## 🧪 Role Molecule Testing

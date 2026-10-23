@@ -1,5 +1,5 @@
 ---
-# tasks file for infra.ado.satellite_install
+# tasks file for infra.automation_development_office.satellite_install
 
 - name: Preliminary Check
   ansible.builtin.include_tasks: preliminary_check.yml

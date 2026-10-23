@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_operatorgroups
+# Role: infra.automation_development_office.ocp_operatorgroups
 
 Ocp Operatorgroups automation role. Primary tasks include: Derive operator namespace and openshift_tools_operator_groups name; Guard — require name_space when not in AllNamespaces mode; Manage openshift_tools_operator_groups with module defaults.
 
@@ -31,7 +31,7 @@ Automation Development Office
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_operatorgroups
+    - role: infra.automation_development_office.ocp_operatorgroups
 ```
 
 ## 🧪 Role Molecule Testing

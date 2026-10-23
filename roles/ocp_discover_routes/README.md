@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_discover_routes
+# Role: infra.automation_development_office.ocp_discover_routes
 
 Ocp Discover Routes automation role. Primary tasks include: Discover Routes | Gather all routes in cluster; Discover Routes | Start empty candidate list; Discover Routes | Append candidates (primary domain, not already -alt).
 
@@ -41,14 +41,14 @@ Automation Development Office
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_discover_routes
+    - role: infra.automation_development_office.ocp_discover_routes
       vars:
-        infra.ado.ocp_discover_routes_route_alt_primary_suffix: '{{ app_domain }}'
-        infra.ado.ocp_discover_routes_route_alt_suffix: '{{ app_domain_alt }}'
-        infra.ado.ocp_discover_routes_route_alt_output_var: route_alt_candidates
-        infra.ado.ocp_discover_routes_route_alt_print: true
+        infra.automation_development_office.ocp_discover_routes_route_alt_primary_suffix: '{{ app_domain }}'
+        infra.automation_development_office.ocp_discover_routes_route_alt_suffix: '{{ app_domain_alt }}'
+        infra.automation_development_office.ocp_discover_routes_route_alt_output_var: route_alt_candidates
+        infra.automation_development_office.ocp_discover_routes_route_alt_print: true
 ```
 
 ## 🧪 Role Molecule Testing

@@ -8,7 +8,7 @@
 
 - name: Cluster Security | Apply AdminNetworkPolicy resources
   ansible.builtin.include_role:
-    name: infra.ado.ocp_network_policy
+    name: infra.automation_development_office.ocp_network_policy
   vars:
     ocp_network_policy_resources: >-
       {{ ocp_networking_cluster_security.admin_network_policies | default([])
@@ -21,7 +21,7 @@
 
 - name: Cluster Security | Apply BaselineAdminNetworkPolicy
   ansible.builtin.include_role:
-    name: infra.ado.ocp_network_policy
+    name: infra.automation_development_office.ocp_network_policy
   vars:
     ocp_network_policy_resources:
       - kind: BaselineAdminNetworkPolicy

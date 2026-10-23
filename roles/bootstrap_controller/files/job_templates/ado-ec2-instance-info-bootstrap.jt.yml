@@ -4,7 +4,7 @@ controller_templates:
   - name: ADO | EC2 instance info
     description: >-
       Bootstrap - Gather EC2 instance info via
-      infra.ado.aws.ec2.ado_ec2_instance_info
+      infra.automation_development_office.aws.ec2.ado_ec2_instance_info
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/aws/ec2/ado-ec2-instance-info-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'

@@ -45,7 +45,7 @@
 
     - name: Resolve component defaults when available
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
       vars:
         component: grafana
       when: grafana_resolve_component | default(true) | bool
@@ -66,17 +66,17 @@
           grafana_admin_password.
 
   roles:
-    - role: infra.ado.grafana_manage_folders
+    - role: infra.automation_development_office.grafana_manage_folders
       when: >-
         (grafana_folders | default([]) | length) > 0
         or (grafana_folder | default('') | length) > 0
-    - role: infra.ado.grafana_create_datasource
+    - role: infra.automation_development_office.grafana_create_datasource
       when: >-
         (grafana_datasources | default([]) | length) > 0
         or (grafana_datasource_sources | default([]) | length) > 0
-    - role: infra.ado.grafana_upload_dashboards
+    - role: infra.automation_development_office.grafana_upload_dashboards
       when: >-
         (grafana_folders | default([]) | length) > 0
         or (grafana_dashboards | default([]) | length) > 0
-    - role: infra.ado.grafana_upload_alerts
+    - role: infra.automation_development_office.grafana_upload_alerts
       when: (grafana_folders | default([]) | length) > 0

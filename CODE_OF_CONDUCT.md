@@ -2,7 +2,7 @@
 
 ## Adoption of the Ansible Community Code of Conduct
 
-Contributors to the **Automation Development Office (ADO)** `infra.ado` Ansible
+Contributors to the **Automation Development Office (ADO)** `infra.automation_development_office` Ansible
 collection are expected to follow the
 [Ansible Community Code of Conduct](https://docs.ansible.com/projects/ansible/devel/community/code_of_conduct.html)
 in all project spaces, including GitHub issues and pull requests, code review,

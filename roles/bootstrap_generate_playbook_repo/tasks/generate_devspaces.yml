@@ -5,7 +5,7 @@
     name: bootstrap_devspaces_delivery
 - name: Delivery | Render Dev Spaces GitOps files
   ansible.builtin.include_role:
-    name: infra.ado.ocp_devspaces
+    name: infra.automation_development_office.ocp_devspaces
   when: >-
     bootstrap_devspaces_delivery.ocp_devspaces_delivery_mode
     | default('direct') == 'generate'

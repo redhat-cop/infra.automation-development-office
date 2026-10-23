@@ -34,7 +34,7 @@
 
     - name: Run ocp_awspca role with live checks enabled
       ansible.builtin.include_role:
-        name: infra.ado.ocp_awspca
+        name: infra.automation_development_office.ocp_awspca
       vars:
         state: "{{ ocp_awspca_state }}"
         ocp_awspca_namespace: "{{ lookup('env', 'OCP_AWSPCA_NAMESPACE') | default('cert-manager', true) }}"

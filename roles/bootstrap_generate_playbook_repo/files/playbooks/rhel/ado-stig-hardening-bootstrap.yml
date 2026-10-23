@@ -67,13 +67,13 @@
           - "RHEL system role profile: {{ rhel_stig_profile_value }}"
 
   roles:
-    - role: infra.ado.rhel_stig_cac
+    - role: infra.automation_development_office.rhel_stig_cac
       when: rhel_stig_engine == 'cac'
       vars:
         rhel_stig_cac_profile_label: "{{ rhel_stig_profile_label }}"
         rhel_stig_cac_remediate: "{{ rhel_stig_cac_remediate_effective }}"
 
-    - role: infra.ado.rhel_ext_system_roles
+    - role: infra.automation_development_office.rhel_ext_system_roles
       when: rhel_stig_engine != 'cac'
       vars:
         sr_apply:

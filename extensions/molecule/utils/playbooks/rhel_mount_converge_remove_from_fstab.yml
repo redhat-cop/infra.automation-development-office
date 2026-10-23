@@ -11,7 +11,7 @@
   tasks:
     - name: Include rhel_mount role for fstab removal # noqa: var-naming[no-role-prefix]
       ansible.builtin.include_role:
-        name: infra.ado.rhel_mount
+        name: infra.automation_development_office.rhel_mount
       vars:
         rhel_mount_action: absent
         rhel_mount_path: /tmp/rhel_mount_molecule_remove_from_fstab/mnt

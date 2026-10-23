@@ -1,4 +1,4 @@
-# Role: infra.ado.bootstrap_generate_env_vars
+# Role: infra.automation_development_office.bootstrap_generate_env_vars
 
 Generate environment group variables and vault files used by the ADO bootstrap
 playbook repository.
@@ -203,7 +203,7 @@ under `group_vars/all/<env>/`:
 | `vault_aws.yml` | `vault_aws_access_key_id`, `vault_aws_secret_access_key`, optional `vault_aws_session_token` |
 | `vars_aws.yml` | `aws_profile`, `aws_default_region` |
 
-Consumers include ``infra.ado.ec2_ami_copy`` (``ado-copy-ami-bootstrap``),
+Consumers include ``infra.automation_development_office.ec2_ami_copy`` (``ado-copy-ami-bootstrap``),
 EC2 instance bootstrap playbooks under ``playbooks/aws/ec2/``,
 cert-manager AWS PCA (``ado-install-and-configure-awspca-bootstrap``), and
 future AWS bootstrap apps. Set credentials in preflight
@@ -221,7 +221,7 @@ as ``ocp_awspca_access_key_id`` and ``ocp_awspca_secret_access_key`` under
 **New path:** store account credentials once in ``vault_aws.yml``. The
 ``ado-install-and-configure-awspca-bootstrap`` playbook loads
 ``vault_aws.yml`` and maps shared keys to ``ocp_awspca_access_key_id`` /
-``ocp_awspca_secret_access_key`` before calling ``infra.ado.ocp_awspca``.
+``ocp_awspca_secret_access_key`` before calling ``infra.automation_development_office.ocp_awspca``.
 Non-secret PCA settings (``ocp_awspca_region``, ``ocp_awspca_pca_arn``, etc.)
 remain in ``vars_cert_manager.yml``.
 
@@ -262,7 +262,7 @@ and re-run bootstrap env-var generation for that ``<env>``.
     env: prod
     preflight_json: ado-preflight-prod.json
   roles:
-    - role: infra.ado.bootstrap_generate_env_vars
+    - role: infra.automation_development_office.bootstrap_generate_env_vars
 ```
 
 ## 🧪 Role Molecule Testing

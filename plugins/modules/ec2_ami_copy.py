@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright: Contributors to the infra.ado collection
+# Copyright: Contributors to the infra.automation_development_office collection
 # GNU General Public License v3.0+
 # (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
@@ -105,7 +105,7 @@ requirements:
 
 EXAMPLES = r"""
 - name: Copy an AMI to another region with a new name
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: us-west-2
     source_image_id: ami-0123456789abcdef0
@@ -114,7 +114,7 @@ EXAMPLES = r"""
   register: copied_ami
 
 - name: Copy an AMI keeping the source name
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: us-west-2
     source_image_id: ami-0123456789abcdef0
@@ -122,7 +122,7 @@ EXAMPLES = r"""
   register: copied_ami_same_name
 
 - name: Encrypted AMI copy with tags (idempotent via tag_equality)
-  infra.ado.ec2_ami_copy:
+  infra.automation_development_office.ec2_ami_copy:
     source_region: us-east-1
     region: eu-west-1
     source_image_id: ami-0123456789abcdef0

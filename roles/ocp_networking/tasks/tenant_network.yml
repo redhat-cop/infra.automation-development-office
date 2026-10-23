@@ -30,7 +30,7 @@
 
 - name: "Create network resources for tenant {{ tenant.tenant_name }}"
   ansible.builtin.include_role:
-    name: infra.ado.ocp_udn
+    name: infra.automation_development_office.ocp_udn
   vars:
     ocp_udn_networks:
       - name: "{{ net.name }}"

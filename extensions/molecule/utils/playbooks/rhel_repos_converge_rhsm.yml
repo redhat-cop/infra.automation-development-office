@@ -8,7 +8,7 @@
   #     block:
   #       - name: Run role with rhsm_repository method
   #         ansible.builtin.include_role:
-  #           name: infra.ado.rhel_repos
+  #           name: infra.automation_development_office.rhel_repos
   #         vars: # noqa: var-naming[no-role-prefix]
   #           repos_action: "enable"
   #           repos_to_enable: "rhel-8-for-x86_64-baseos-rpms"

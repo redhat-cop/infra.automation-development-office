@@ -17,16 +17,16 @@
   pre_tasks:
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
-        name: infra.ado.bootstrap_resolve_component
+        name: infra.automation_development_office.bootstrap_resolve_component
   roles:
-    - role: infra.ado.ocp_namespace
+    - role: infra.automation_development_office.ocp_namespace
       when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
-    - role: infra.ado.ocp_operator_subscription
+    - role: infra.automation_development_office.ocp_operator_subscription
       when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
-    - role: infra.ado.ocp_devspaces
-    - role: infra.ado.ocp_wait_pods
+    - role: infra.automation_development_office.ocp_devspaces
+    - role: infra.automation_development_office.ocp_wait_pods
       when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
-    - role: infra.ado.ocp_routes
+    - role: infra.automation_development_office.ocp_routes
       when: ocp_devspaces_delivery_mode | default('direct') == 'direct'
       vars:
         name_space: "{{ app_namespace | default(devspaces_namespace | default('openshift-devspaces')) }}"

@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_operator_subscription
+# Role: infra.automation_development_office.ocp_operator_subscription
 
 Ocp Operator Subscription automation role. Primary tasks include: Subscription | Derive namespaces and names; Subscription | Assert required inputs; Namespace | Ensure subscription namespace exists.
 
@@ -26,7 +26,7 @@ Automation Development Office
 | `operator_csv_contains` | Optional substring to match CSVs on uninstall (defaults to ``operator_name``). |
 | `ocp_operator_subscription_absent_sweep_workloads` | When ``true``, ``ocp_absent_cleanup`` also deletes Deployments/Pods in the subscription namespace (default ``false`` — safe for shared NS like ``openshift-operators``). |
 
-On ``state=absent``, after Subscription/CSV/InstallPlan removal this role runs ``infra.ado.ocp_absent_cleanup`` with ``ocp_absent_cleanup_csv_name_match`` set to the operator CSV match so Failed CSVs and Terminating leftovers are cleared without wiping unrelated operators in a shared namespace.
+On ``state=absent``, after Subscription/CSV/InstallPlan removal this role runs ``infra.automation_development_office.ocp_absent_cleanup`` with ``ocp_absent_cleanup_csv_name_match`` set to the operator CSV match so Failed CSVs and Terminating leftovers are cleared without wiping unrelated operators in a shared namespace.
 
 ## 🚀 Role Usage
 
@@ -35,7 +35,7 @@ On ``state=absent``, after Subscription/CSV/InstallPlan removal this role runs `
   hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_operator_subscription
+    - role: infra.automation_development_office.ocp_operator_subscription
 ```
 
 ## 🧪 Role Molecule Testing

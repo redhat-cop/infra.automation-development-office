@@ -1,4 +1,4 @@
-# Role: infra.ado.grafana_upload_alerts
+# Role: infra.automation_development_office.grafana_upload_alerts
 
 Uploads Grafana alert rule JSON (``.json`` / ``.json.j2``) from
 ``grafana_alert_folders`` (git or path + ``alerts_path``). When that
@@ -33,7 +33,7 @@ Automation Development Office.
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.grafana_upload_alerts
+    - role: infra.automation_development_office.grafana_upload_alerts
       vars:
         grafana_hostname: grafana.apps.example.com
         grafana_admin_password: "{{ vault_grafana_admin_password }}"

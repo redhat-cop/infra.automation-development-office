@@ -25,7 +25,7 @@ Chad Elliott
 - hosts: localhost
   gather_facts: false
   roles:
-    - role: infra.ado.ocp_compliance_install
+    - role: infra.automation_development_office.ocp_compliance_install
       vars:
         ocp_compliance_install_operator_namespace: openshift-compliance
 ```

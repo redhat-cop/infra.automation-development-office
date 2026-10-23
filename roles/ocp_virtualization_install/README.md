@@ -1,4 +1,4 @@
-# Role: infra.ado.ocp_virtualization_install
+# Role: infra.automation_development_office.ocp_virtualization_install
 
 Install and wait for the OpenShift Virtualization (CNV / HyperConverged)
 operator on an OpenShift cluster.
@@ -31,7 +31,7 @@ CSV alone is not treated as ready.
 ```yaml
 - hosts: localhost
   roles:
-    - role: infra.ado.ocp_virtualization_install
+    - role: infra.automation_development_office.ocp_virtualization_install
 ```
 
 ## 🧪 Role Molecule Testing
