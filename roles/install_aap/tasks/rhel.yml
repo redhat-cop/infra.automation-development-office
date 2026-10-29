@@ -27,12 +27,52 @@
     - install_aap_state_effective == 'present'
     - install_aap_rhel_prepare | default(true) | bool
 
-- name: Run AAP setup.sh install
-  ansible.builtin.include_role:
-    name: infra.aap_utilities.aap_setup_install
+# prepare rewrites inventory; force single-node containerized requirements
+# (redis_mode=standalone, bundle_dir, managed DB passwords) before setup.
+- name: Ensure containerized installer inventory for single-node installs
+  ansible.builtin.include_tasks: ensure_containerized_inventory.yml
+  when:
+    - install_aap_state_effective == 'present'
+    - install_aap_rhel_prepare | default(true) | bool
+    - aap_setup_containerized | default(false) | bool
+
+# containerized_sh.j2 appends aap_setup_inst_extra_vars as -e key=value.
+# Use a role-prefixed fact — do not template aap_setup_inst_extra_vars
+# in terms of itself (Ansible recursion).
+- name: Resolve AAP setup install extra vars
+  ansible.builtin.set_fact:
+    install_aap_rhel_inst_extra_vars: >-
+      {{
+        (aap_setup_inst_extra_vars | default({}, true))
+        | combine(
+            {'redis_mode': 'standalone'}
+            if (aap_setup_containerized | default(false) | bool)
+            else {}
+          )
+      }}
   when:
     - install_aap_state_effective == 'present'
     - install_aap_rhel_install | default(true) | bool
+
+# Bootstrap play often connects as root. Containerized preflight asserts
+# ansible_user_uid != 0. include_role become_user + async does not keep the
+# nested ansible-playbook non-root — run via sudo -u instead.
+- name: Run AAP containerized install as non-root
+  ansible.builtin.include_tasks: run_containerized_install_nonroot.yml
+  when:
+    - install_aap_state_effective == 'present'
+    - install_aap_rhel_install | default(true) | bool
+    - aap_setup_containerized | default(false) | bool
+
+- name: Run AAP setup.sh install
+  ansible.builtin.include_role:
+    name: infra.aap_utilities.aap_setup_install
+  vars:
+    aap_setup_inst_extra_vars: "{{ install_aap_rhel_inst_extra_vars }}"
+  when:
+    - install_aap_state_effective == 'present'
+    - install_aap_rhel_install | default(true) | bool
+    - not (aap_setup_containerized | default(false) | bool)
 
 - name: Remove AAP from RHEL hosts via infra.aap_utilities.aap_remove
   ansible.builtin.include_role:

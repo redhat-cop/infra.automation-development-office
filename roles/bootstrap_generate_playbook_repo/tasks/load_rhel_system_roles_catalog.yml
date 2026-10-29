@@ -46,6 +46,30 @@
   loop_control:
     label: "{{ item.app }}"
 
+- name: Add RHEL system roles outside-Controller readme seed
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_rhel_system_roles_playbook_entries: >-
+      {{
+        bootstrap_generate_playbook_repo_rhel_system_roles_playbook_entries
+        + [
+          {
+            'src': 'rhel_system_roles/README.md',
+            'dest': 'playbooks/rhel_system_roles/README.md',
+            'target_platform': 'rhel',
+            'category': 'config',
+            'app': 'system_role_readme'
+          }
+        ]
+      }}
+    bootstrap_generate_playbook_repo_rhel_system_roles_component_map: >-
+      {{
+        bootstrap_generate_playbook_repo_rhel_system_roles_component_map
+        | combine(
+            {'system_role_readme': ['system_role_readme']},
+            recursive=False
+          )
+      }}
+
 - name: Merge RHEL system roles into playbook generator maps
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_component_map: >-

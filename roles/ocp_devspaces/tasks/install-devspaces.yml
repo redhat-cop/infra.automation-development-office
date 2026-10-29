@@ -89,6 +89,15 @@
 # ----------------------------
 # 5) Getting-started samples ConfigMap (remove defaults / set custom)
 # ----------------------------
+# Dashboard drops samples with an empty url and falls back to stock tiles.
+# When url is blank, point at the built-in Empty Workspace UDI empty.yaml on
+# this Che host so the custom card (ADO icon) still appears.
+- name: Fill blank custom sample urls with built-in empty UDI workspace
+  when:
+    - ocp_devspaces_disable_default_samples | default(true) | bool
+    - (ocp_devspaces_custom_samples | default([]) | length) > 0
+  ansible.builtin.include_tasks: fill-custom-sample-urls.yml
+
 - name: Resolve bundled ADO sample icon into custom_samples when requested
   when:
     - ocp_devspaces_disable_default_samples | default(true) | bool
@@ -141,6 +150,8 @@
       }}
   when: ocp_devspaces_disable_default_samples | bool
 
+# Samples ConfigMap must live next to the dashboard (CheCluster namespace),
+# not the per-user app namespace — otherwise the Create Workspace page ignores it.
 - name: Replace getting-started samples with custom or empty list
   kubernetes.core.k8s:
     state: present
@@ -149,7 +160,7 @@
       kind: ConfigMap
       metadata:
         name: getting-started-samples
-        namespace: "{{ ocp_devspaces_app_ns }}"
+        namespace: "{{ ocp_devspaces_checluster_resource.metadata.namespace }}"
         labels:
           app.kubernetes.io/part-of: che.eclipse.org
           app.kubernetes.io/component: getting-started-samples
@@ -166,7 +177,7 @@
       kind: ConfigMap
       metadata:
         name: getting-started-samples
-        namespace: "{{ ocp_devspaces_app_ns }}"
+        namespace: "{{ ocp_devspaces_checluster_resource.metadata.namespace }}"
         labels:
           app.kubernetes.io/part-of: che.eclipse.org
           app.kubernetes.io/component: getting-started-samples

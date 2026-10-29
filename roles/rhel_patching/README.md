@@ -13,7 +13,7 @@ Includes safety checks for supported RHEL versions.
 ## ✅ Role Requirements
 
 - Red Hat Enterprise Linux 8 or 9 (RHEL 6 and earlier are not supported)
-- SSH access with sudo privileges
+- SSH access with sudo privileges. The generated patch job enables privilege escalation (`become`).
 - Package management utilities (`dnf`) available on target systems
 
 > **RHEL 7 is not supported.** The role fails on RHEL 7 and earlier hosts. Running
@@ -42,6 +42,7 @@ Includes safety checks for supported RHEL versions.
 - name: Patch RHEL servers
   hosts: rhel_servers
   gather_facts: true
+  become: true
   vars:
     rhel_patching_update_cache: true
     rhel_patching_package_cleanup: true
@@ -55,6 +56,7 @@ Includes safety checks for supported RHEL versions.
 - name: Patch and restart RHEL servers
   hosts: rhel_servers
   gather_facts: true
+  become: true
   vars:
     rhel_patching_reboot: true
     rhel_patching_update_cache: true
@@ -69,6 +71,7 @@ Includes safety checks for supported RHEL versions.
 - name: Update specific packages
   hosts: rhel_servers
   gather_facts: true
+  become: true
   vars:
     rhel_patching_package_list:
       - httpd
@@ -86,6 +89,7 @@ Includes safety checks for supported RHEL versions.
 - name: Advanced patching with custom settings
   hosts: rhel_servers
   gather_facts: true
+  become: true
   vars:
     rhel_patching_reboot: true
     rhel_patching_update_cache: true

@@ -1,0 +1,64 @@
+---
+- name: SCM inventory | List sources
+  ansible.builtin.uri:
+    url: >-
+      {{
+        bootstrap_controller_aap_api_url
+        ~ bootstrap_controller_aap_effective_api_path
+        ~ '/inventories/'
+        ~ (bootstrap_controller_scm_inventory.id | string)
+        ~ '/inventory_sources/?page_size=200'
+      }}
+    method: GET
+    headers: >-
+      {{
+        {
+          'Authorization':
+          'Bearer ' ~ bootstrap_controller_controller_oauthtoken
+        }
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length > 0
+        )
+        else {}
+      }}
+    url_username: >-
+      {{
+        bootstrap_controller_controller_username
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    url_password: >-
+      {{
+        bootstrap_controller_controller_password
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    force_basic_auth: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+    status_code: [200]
+  register: bootstrap_controller_scm_sources
+  retries: "{{ bootstrap_controller_org_lookup_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_org_lookup_retry_delay | default(10) | int }}
+  until: bootstrap_controller_scm_sources is succeeded
+  no_log: "{{ bootstrap_controller_aap_connectivity_no_log | default(true) }}"
+
+- name: SCM inventory | Update project sources that read vaulted group_vars
+  ansible.builtin.include_tasks: ensure_scm_inventory_sync_vars.yml
+  loop: "{{ bootstrap_controller_scm_sources.json.results | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_scm_source
+    label: "{{ bootstrap_controller_scm_source.name | default('') }}"
+  when:
+    - (bootstrap_controller_scm_source.source | default('')) == 'scm'

@@ -53,6 +53,8 @@ vault_aap_additional_credentials:
     ssh_key_unlock: "{{ extra_credential.ssh_key_unlock | default('', true) }}"
     become_method: "{{ extra_credential.become_method | default('', true) }}"
     become_username: "{{ extra_credential.become_username | default('', true) }}"
+    become_password: >-
+      {{ extra_credential.become_password | default('', true) }}
     vault_password: "{{ extra_credential.vault_password | default('', true) }}"
 {% endfor %}
 {% else %}

@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    rhel_patching - The generated RHEL patch job template enables
+    privilege escalation, and the patch play sets ``become``. Patching
+    no longer requires that checkbox to be turned on by hand in
+    Controller.

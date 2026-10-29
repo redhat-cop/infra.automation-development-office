@@ -521,7 +521,19 @@ components_env:
     stig_profile: RHEL 9 STIG
 
 {% elif component_name == 'rhel_system_roles' %}
-{% set sr_cfg = bootstrap_generate_env_vars_preflight.component_config.rhel_system_roles | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
+{% set sr_raw =
+    bootstrap_generate_env_vars_preflight.component_config.rhel_system_roles
+    | default({})
+    if bootstrap_generate_env_vars_preflight is defined
+    else {}
+%}
+{% set sr_cfg = sr_raw.roles if (sr_raw.roles is mapping) else {} %}
+# Run a selected role outside Controller. Job templates are optional.
+# ansible-playbook \
+#   playbooks/rhel_system_roles/ado-system-role-<role>-bootstrap.yml \
+#   -e env=<env>
+# Settings under rhel_system_roles.<role> are passed to
+# redhat.rhel_system_roles.<role>. An empty mapping uses role defaults.
 components_env:
   rhel_system_roles:
 {{ sr_cfg | default({}) | to_nice_yaml(indent=2) | indent(4, first=True) }}

@@ -37,3 +37,10 @@ aap_ocp_install_reset_delete_platform: true
 install_aap_rhel_download: true
 install_aap_rhel_prepare: true
 install_aap_rhel_install: true
+# Skip pre-flight URI checks that crash when AAP is not listening yet
+# (infra.aap_utilities containerized.yml expects .status on a failed uri).
+aap_setup_inst_force: true
+# Containerized installer preflight asserts ansible_user_uid != 0. The
+# bootstrap play uses become, so setup must run as this non-root user
+# (passwordless sudo). Override when the host has no cloud-user.
+install_aap_containerized_install_user: cloud-user

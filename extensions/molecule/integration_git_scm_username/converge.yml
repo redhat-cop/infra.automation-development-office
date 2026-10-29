@@ -1,0 +1,139 @@
+---
+# yamllint disable rule:line-length
+- name: Generate GitLab supplied username from preflight JSON only
+  hosts: localhost
+  gather_facts: false
+  vars:
+    env: molecule
+    preflight_json: "{{ playbook_dir }}/preflight-gitlab-user.json"
+    generate_env_vars_base_dir: "{{ molecule_ephemeral_directory }}/gitlab-user"
+    generate_env_vars_encrypt_vault_files: false
+    bootstrap_generate_env_vars_encrypt_vault_files: false
+  roles:
+    - infra.automation_development_office.bootstrap_generate_env_vars
+
+- name: Generate blank GitLab username from preflight JSON only
+  hosts: localhost
+  gather_facts: false
+  vars:
+    env: molecule
+    preflight_json: "{{ playbook_dir }}/preflight-gitlab-blank.json"
+    generate_env_vars_base_dir: "{{ molecule_ephemeral_directory }}/gitlab-blank"
+    generate_env_vars_encrypt_vault_files: false
+    bootstrap_generate_env_vars_encrypt_vault_files: false
+  roles:
+    - infra.automation_development_office.bootstrap_generate_env_vars
+
+- name: Generate blank Bitbucket username from preflight JSON only
+  hosts: localhost
+  gather_facts: false
+  vars:
+    env: molecule
+    preflight_json: "{{ playbook_dir }}/preflight-bitbucket.json"
+    generate_env_vars_base_dir: "{{ molecule_ephemeral_directory }}/bitbucket"
+    generate_env_vars_encrypt_vault_files: false
+    bootstrap_generate_env_vars_encrypt_vault_files: false
+  roles:
+    - infra.automation_development_office.bootstrap_generate_env_vars
+
+- name: Write git credentials without UI extra variables
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Load generated GitLab supplied config
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/gitlab-user/molecule/aap_config_vars.yml
+
+    - name: Load generated GitLab supplied vault
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/gitlab-user/molecule/aap_vault.yml
+      no_log: true
+
+    - name: Clear a previous git URL fact
+      ansible.builtin.set_fact:
+        bootstrap_generate_playbook_repo_git_url: ""
+
+    - name: Configure git auth from generated username and vault token
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.bootstrap_generate_playbook_repo
+        tasks_from: configure_git_auth.yml
+      vars:
+        bootstrap_generate_playbook_repo_dest: >-
+          {{ molecule_ephemeral_directory }}/repo-gitlab-user
+        bootstrap_generate_playbook_repo_git_credentials_file: >-
+          {{ molecule_ephemeral_directory }}/creds-gitlab-user
+        bootstrap_generate_playbook_repo_git_bearer_file: >-
+          {{ molecule_ephemeral_directory }}/bearer-gitlab-user
+
+    - name: Clear git URL before the explicit username case
+      ansible.builtin.set_fact:
+        bootstrap_generate_playbook_repo_git_url: ""
+
+    - name: Configure git auth with an explicit username parameter
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.bootstrap_generate_playbook_repo
+        tasks_from: configure_git_auth.yml
+      vars:
+        bootstrap_generate_playbook_repo_git_username: explicit-user
+        bootstrap_generate_playbook_repo_dest: >-
+          {{ molecule_ephemeral_directory }}/repo-explicit-user
+        bootstrap_generate_playbook_repo_git_credentials_file: >-
+          {{ molecule_ephemeral_directory }}/creds-explicit-user
+        bootstrap_generate_playbook_repo_git_bearer_file: >-
+          {{ molecule_ephemeral_directory }}/bearer-explicit-user
+
+    - name: Load generated blank GitLab config
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/gitlab-blank/molecule/aap_config_vars.yml
+
+    - name: Load generated blank GitLab vault
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/gitlab-blank/molecule/aap_vault.yml
+      no_log: true
+
+    - name: Clear git URL before the blank GitLab case
+      ansible.builtin.set_fact:
+        bootstrap_generate_playbook_repo_git_url: ""
+
+    - name: Configure git auth for a blank GitLab username
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.bootstrap_generate_playbook_repo
+        tasks_from: configure_git_auth.yml
+      vars:
+        bootstrap_generate_playbook_repo_dest: >-
+          {{ molecule_ephemeral_directory }}/repo-gitlab-blank
+        bootstrap_generate_playbook_repo_git_credentials_file: >-
+          {{ molecule_ephemeral_directory }}/creds-gitlab-blank
+        bootstrap_generate_playbook_repo_git_bearer_file: >-
+          {{ molecule_ephemeral_directory }}/bearer-gitlab-blank
+
+    - name: Load generated Bitbucket config
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/bitbucket/molecule/aap_config_vars.yml
+
+    - name: Load generated Bitbucket vault
+      ansible.builtin.include_vars:
+        file: >-
+          {{ molecule_ephemeral_directory }}/bitbucket/molecule/aap_vault.yml
+      no_log: true
+
+    - name: Clear git URL before the Bitbucket case
+      ansible.builtin.set_fact:
+        bootstrap_generate_playbook_repo_git_url: ""
+
+    - name: Configure git auth for a blank Bitbucket username
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.bootstrap_generate_playbook_repo
+        tasks_from: configure_git_auth.yml
+      vars:
+        bootstrap_generate_playbook_repo_dest: >-
+          {{ molecule_ephemeral_directory }}/repo-bitbucket
+        bootstrap_generate_playbook_repo_git_credentials_file: >-
+          {{ molecule_ephemeral_directory }}/creds-bitbucket
+        bootstrap_generate_playbook_repo_git_bearer_file: >-
+          {{ molecule_ephemeral_directory }}/bearer-bitbucket

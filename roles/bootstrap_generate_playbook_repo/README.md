@@ -32,7 +32,9 @@ tables for a simple OpenShift vs RHEL install/configure checklist.
 | `bootstrap_generate_playbook_repo_git_remote` | Git remote name to configure or update. |
 | `bootstrap_generate_playbook_repo_git_branch` | Branch used for generated repository commits. |
 | `bootstrap_generate_playbook_repo_git_message` | Commit message for generated content. |
-| `bootstrap_generate_playbook_repo_git_token` | Optional token used for non-interactive Git pushes. |
+| `bootstrap_generate_playbook_repo_git_username` | HTTPS git username. An explicit value wins. Otherwise the username generated from preflight JSON (`oauth2`, `x-token-auth`, or the typed name). |
+| `bootstrap_generate_playbook_repo_git_token` | Git password. An explicit value wins. Otherwise `vault_controller_git_token` from the generated vault. The token is not written into the remote URL. |
+| `bootstrap_generate_playbook_repo_git_auth_mode` | `basic` uses the credential store. `bearer` (Bitbucket) uses a mode 0600 include file. An explicit value wins. |
 | `bootstrap_generate_playbook_repo_git_sync_before_push` | Rebase on the remote branch before pushing generated commits. Defaults to `true`. |
 | `bootstrap_generate_playbook_repo_write_galaxy_requirements` | Always true: write Hub/Galaxy `collections/requirements.yml` only. Collection trees are never committed to git. |
 | `bootstrap_generate_playbook_repo_infra_ado_collection_version` | Optional pin used only when Galaxy requirements are written. Empty means latest. |
@@ -59,12 +61,14 @@ sync installs collections from Hub — never from git trees.
 
 ## 🧪 Role Molecule Testing
 
-Run focused linting against the role and validate generated content with the
-bootstrap sample CLI repository.
+`extensions/molecule/integration_git_scm_username` generates Controller SCM
+credentials from preflight JSON alone, then writes the git credential file or
+Bitbucket Bearer include file. An explicit username parameter is left unchanged.
 
 ```bash
 ansible-lint --offline roles/bootstrap_generate_playbook_repo
 yamllint roles/bootstrap_generate_playbook_repo/tasks
+cd extensions/molecule && molecule test -s integration_git_scm_username
 ```
 
 ## 📁 Role Structure
@@ -75,6 +79,7 @@ roles/bootstrap_generate_playbook_repo/
   files/playbook_repo_seed/
   files/playbooks/
   tasks/main.yml
+  tasks/configure_git_auth.yml
   README.md
 ```
 

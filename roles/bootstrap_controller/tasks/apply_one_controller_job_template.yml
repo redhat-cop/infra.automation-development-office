@@ -1,0 +1,35 @@
+---
+# state=present leaves an existing job template in place.
+- name: AAP 2.5+ | Apply one job template
+  block:
+    - name: AAP 2.5+ | Dispatch one job template
+      ansible.builtin.include_role:
+        name: infra.aap_configuration.controller_job_templates
+      vars:
+        controller_templates: "{{ [bootstrap_controller_job_template] }}"
+
+    - name: AAP 2.5+ | Job template apply succeeded
+      ansible.builtin.set_fact:
+        bootstrap_controller_job_template_ok: true
+  rescue:
+    - name: AAP 2.5+ | Wait before the next job template attempt
+      ansible.builtin.pause:
+        seconds: >-
+          {{
+            bootstrap_controller_job_template_retry_delay
+            | default(10)
+            | int
+          }}
+      when: >-
+        (bootstrap_controller_job_template_try | int)
+        < (bootstrap_controller_job_template_retries | default(4) | int)
+
+    - name: AAP 2.5+ | Fail when job template retries are exhausted
+      ansible.builtin.fail:
+        msg: >-
+          Job template was not applied after
+          {{ bootstrap_controller_job_template_retries | default(4) }}
+          attempts.
+      when: >-
+        (bootstrap_controller_job_template_try | int)
+        >= (bootstrap_controller_job_template_retries | default(4) | int)

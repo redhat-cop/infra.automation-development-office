@@ -59,6 +59,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   register: bootstrap_controller_sync_existing_result
   failed_when: false
   when: bootstrap_controller_sync_current_url | length > 0
@@ -81,6 +82,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   register: bootstrap_controller_sync_new_result
   failed_when: false
   when:

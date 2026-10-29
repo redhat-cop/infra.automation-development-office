@@ -358,6 +358,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   no_log: true
   when:
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
@@ -379,6 +380,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   when:
     - not (bootstrap_controller_hub_ee_skipped_no_runtime | default(false) | bool)
     - bootstrap_controller_hub_ee_create_execution_environment | default(true) | bool

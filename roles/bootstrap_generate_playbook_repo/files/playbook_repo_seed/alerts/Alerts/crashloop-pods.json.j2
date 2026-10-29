@@ -1,6 +1,6 @@
 {
   "uid": "ado-crashloop-{{ grafana_upload_alerts_datasource_slug }}",
-  "title": "More than 5 pods in CrashLoopBackOff ({{ grafana_upload_alerts_datasource_name }})",
+  "title": "More than 8 pods in CrashLoopBackOff ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -13,7 +13,7 @@
       "datasourceUid": "{{ grafana_upload_alerts_datasource_uid }}",
       "model": {
         "editorMode": "code",
-        "expr": "count(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\"} == 1)",
+        "expr": "count(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\",namespace!~\"aap24|selfserviceportal\"} == 1)",
         "instant": true,
         "intervalMs": 1000,
         "maxDataPoints": 43200,
@@ -59,7 +59,7 @@
           {
             "evaluator": {
               "params": [
-                5
+                8
               ],
               "type": "gt"
             },
@@ -83,9 +83,9 @@
   ],
   "noDataState": "OK",
   "execErrState": "Error",
-  "for": "5m",
+  "for": "15m",
   "annotations": {
-    "summary": "More than 5 containers are waiting in CrashLoopBackOff."
+    "summary": "More than 8 containers are waiting in CrashLoopBackOff (excludes known lab noise namespaces)."
   },
   "labels": {
     "ado": "openshift-default",

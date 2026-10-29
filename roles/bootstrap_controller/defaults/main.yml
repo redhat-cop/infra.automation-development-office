@@ -34,12 +34,49 @@ bootstrap_controller_aap_smoke_test_poll_retries: 60
 # the Install AAP on OpenShift job template.
 bootstrap_controller_aap_install_during_bootstrap: false
 
+# ansible.controller defaults request_timeout to 10s. Org lookup on a slow
+# Controller API then fails inventory create. Dispatcher roles read
+# aap_request_timeout; direct module calls pass this value.
+bootstrap_controller_request_timeout: 120
+# Gateway 504 on POST /inventories/ is retried per inventory. The next
+# inventory in the same run often succeeds, so one timeout must not fail
+# bootstrap.
+bootstrap_controller_inventory_retries: 4
+bootstrap_controller_inventory_retry_delay: 10
+# GET /organizations/?name= can 504 while the org already exists.
+# Retry the lookup. Do not create or PATCH on a gateway timeout.
+bootstrap_controller_org_lookup_retries: 4
+bootstrap_controller_org_lookup_retry_delay: 10
+# Gateway 504 on POST /credentials/ is retried per credential. The
+# dispatcher otherwise posts every credential together, so one timeout
+# fails bootstrap while another credential in the same batch succeeds.
+bootstrap_controller_credential_retries: 4
+bootstrap_controller_credential_retry_delay: 10
+# Gateway 504 on POST /projects/ is retried per project. Ansible 2.15
+# rejects delay on include_role, so each try pauses between attempts.
+bootstrap_controller_project_retries: 4
+bootstrap_controller_project_retry_delay: 10
+# Gateway 504 on POST /hosts/ and /groups/ is retried per object.
+# Ansible 2.15 rejects delay on include_role, so each try pauses.
+bootstrap_controller_host_retries: 4
+bootstrap_controller_host_retry_delay: 10
+bootstrap_controller_group_retries: 4
+bootstrap_controller_group_retry_delay: 10
+# The job template role polls async for 50 seconds by default. The
+# Controller call is allowed 120 seconds, so the poll ends first and
+# the only message is Unknown Error. Delay times retries must outlast
+# bootstrap_controller_request_timeout. Each template is also retried.
+bootstrap_controller_job_template_async_delay: 5
+bootstrap_controller_job_template_retries: 4
+bootstrap_controller_job_template_retry_delay: 10
+
 bootstrap_controller_hub_publish_wait: false
 # Upload timeout for ah_collection (large tarballs need more than 5m).
 bootstrap_controller_hub_publish_timeout: 900
 bootstrap_controller_hub_publish_request_timeout: 120
 # Pulp import / promote visibility wait (wait:false upload + URI poll).
-# Default ~10m; large tarballs (e.g. redhat.rhel_system_roles) use the large_* knobs.
+# Default ~10m; large tarballs (e.g. redhat.rhel_system_roles)
+# use the large_* knobs.
 bootstrap_controller_hub_publish_verify_retries: 60
 bootstrap_controller_hub_publish_verify_delay: 10
 bootstrap_controller_hub_publish_large_bytes: 30000000

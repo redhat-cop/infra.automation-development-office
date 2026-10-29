@@ -1,0 +1,33 @@
+---
+# state=present leaves an existing host in place.
+- name: AAP 2.5+ | Apply one host
+  block:
+    - name: AAP 2.5+ | Dispatch one host
+      ansible.builtin.include_role:
+        name: infra.aap_configuration.controller_hosts
+      vars:
+        controller_hosts: "{{ [bootstrap_controller_host] }}"
+
+    - name: AAP 2.5+ | Host apply succeeded
+      ansible.builtin.set_fact:
+        bootstrap_controller_host_ok: true
+  rescue:
+    - name: AAP 2.5+ | Wait before the next host attempt
+      ansible.builtin.pause:
+        seconds: >-
+          {{
+            bootstrap_controller_host_retry_delay | default(10) | int
+          }}
+      when: >-
+        (bootstrap_controller_host_try | int)
+        < (bootstrap_controller_host_retries | default(4) | int)
+
+    - name: AAP 2.5+ | Fail when host retries are exhausted
+      ansible.builtin.fail:
+        msg: >-
+          Host was not applied after
+          {{ bootstrap_controller_host_retries | default(4) }}
+          attempts.
+      when: >-
+        (bootstrap_controller_host_try | int)
+        >= (bootstrap_controller_host_retries | default(4) | int)

@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    keycloak_login_events_exporter - Default image is
+    ``registry.redhat.io/ubi9/python-312:latest`` so the exporter no longer
+    runs on UBI Python 3.11.

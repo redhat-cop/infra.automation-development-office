@@ -137,3 +137,25 @@ rhel_system_roles_catalog:
     role: vpn
     playbook: rhel_system_roles/ado-system-role-vpn-bootstrap.yml
     job_template: ado-rhel-system-role-vpn-bootstrap.jt.yml
+
+# Checkbox sets for Preflight. Custom is an empty list: the user
+# picks roles. These are not separate playbooks.
+rhel_system_role_profiles:
+  minimal:
+    - system_role_timesync
+    - system_role_ssh
+  standard:
+    - system_role_timesync
+    - system_role_ssh
+    - system_role_firewall
+    - system_role_selinux
+    - system_role_logging
+  security:
+    - system_role_firewall
+    - system_role_selinux
+    - system_role_crypto_policies
+    - system_role_ssh
+    - system_role_aide
+    - system_role_fapolicyd
+    - system_role_sudo
+  custom: []

@@ -1,4 +1,9 @@
 ---
+# Outside Controller, from the bootstrap repo:
+# ansible-playbook \
+#   playbooks/openshift/ado-install-iscsi-csi-bootstrap.yml \
+#   -e env=<env>
+# Uses group_vars for that env. No Controller object is required.
 - name: ADO | Install Synology iSCSI CSI storage driver
   hosts: localhost
   gather_facts: false

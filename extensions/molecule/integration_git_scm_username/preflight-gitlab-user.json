@@ -1,0 +1,28 @@
+{
+  "environment": "molecule",
+  "scm_tool": "gitlab",
+  "components": ["aap"],
+  "component_apps": {
+    "openshift": ["aap"]
+  },
+  "git": {
+    "username": "saml-user",
+    "token": "molecule-git-token-not-secret",
+    "auto_push": true
+  },
+  "aap": {
+    "enabled": true,
+    "organization": "Test",
+    "git_url": "https://git.example.test/gitlab-user/bootstrap.git",
+    "git_branch": "main",
+    "hostname": "controller.example.test",
+    "version": "26",
+    "project": "Test-project",
+    "inventory": "Test-inventory",
+    "execution_environment": "Default execution environment",
+    "vault_credential_name": "Test-vault"
+  },
+  "vault": {
+    "encrypt": false
+  }
+}

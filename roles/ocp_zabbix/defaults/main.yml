@@ -13,6 +13,8 @@ zabbix_postgres_storage_size: 10Gi
 zabbix_postgres_storage_class: ""
 zabbix_postgres_password: ""
 zabbix_postgres_host: ""
+# Delete Deployment+PVC before recreate (clears NFS leftovers after failed initdb).
+zabbix_postgres_reset_data: false
 zabbix_postgres_ready_retries: 60
 zabbix_postgres_ready_delay: 5
 zabbix_mariadb_image: registry.redhat.io/rhel9/mariadb-105:latest

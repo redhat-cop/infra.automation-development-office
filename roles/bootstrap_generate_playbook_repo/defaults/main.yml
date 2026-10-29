@@ -4,14 +4,24 @@ bootstrap_generate_playbook_repo_seed_src: >-
   {{ role_path }}/files/playbook_repo_seed
 bootstrap_generate_playbook_repo_force: false
 
-bootstrap_generate_playbook_repo_git_mode: manual
+# Role defaults are the lowest precedence. Extra vars, play vars, and
+# include_role parameters replace these templates entirely, so an explicit
+# username, token, auth mode, or git mode is not overwritten.
+# CLI bootstrap with only preflight_json loads the generate_* facts and
+# vault_controller_git_token before this role runs.
+bootstrap_generate_playbook_repo_git_mode: >-
+  {{ generate_playbook_repo_git_mode | default('manual', true) }}
 bootstrap_generate_playbook_repo_git_remote: origin
-bootstrap_generate_playbook_repo_git_branch: main
+bootstrap_generate_playbook_repo_git_branch: >-
+  {{ generate_playbook_repo_git_branch | default('main', true) }}
 bootstrap_generate_playbook_repo_git_message: "Generate bootstrap playbook repo"
-bootstrap_generate_playbook_repo_git_username: oauth2
-bootstrap_generate_playbook_repo_git_token: ""
-# Set to 'bearer' for Bitbucket (uses Authorization: Bearer header instead of credential store).
-bootstrap_generate_playbook_repo_git_auth_mode: "basic"
+bootstrap_generate_playbook_repo_git_username: >-
+  {{ generate_playbook_repo_git_username | default('oauth2', true) }}
+bootstrap_generate_playbook_repo_git_token: >-
+  {{ vault_controller_git_token | default('', true) }}
+# bearer for Bitbucket. basic uses the credential store. Callers can override.
+bootstrap_generate_playbook_repo_git_auth_mode: >-
+  {{ generate_playbook_repo_git_auth_mode | default('basic', true) }}
 bootstrap_generate_playbook_repo_git_sync_before_push: true
 bootstrap_generate_playbook_repo_pause_after_generate: false
 
