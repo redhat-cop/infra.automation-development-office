@@ -1,4 +1,0 @@
----
-bugfixes:
-  - ocp_devspaces - Fill blank custom sample URLs without Jinja ``namespace()``
-    so a string variable named ``namespace`` does not fail the task.
