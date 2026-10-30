@@ -11,6 +11,7 @@ import pwd
 import re
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -79,40 +80,41 @@ def _ready(resources: list, substring: str, alt: str, expected: bool) -> bool:
         + expr
         + "\n                        == expected_csv_ready\n"
     )
-    work = Path("/tmp/ado-csv-match")
-    work.mkdir(parents=True, exist_ok=True)
-    play_path = work / "play.yml"
-    play_path.write_text(play)
-    (work / "ansible.cfg").write_text(
-        "[defaults]\ncollections_path = "
-        + os.path.expanduser("~/.ansible/collections")
-        + "\n"
-    )
-    env = os.environ.copy()
-    env.pop("PYTHONNOUSERSITE", None)
-    env.pop("PYTHONSAFEPATH", None)
-    home = pwd.getpwuid(os.getuid()).pw_dir
-    py = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    user_site = str(Path(home) / f".local/lib/{py}/site-packages")
-    if Path(user_site).is_dir():
-        env["PYTHONPATH"] = user_site + os.pathsep + env.get("PYTHONPATH", "")
-        env["HOME"] = home
-    env["ANSIBLE_CONFIG"] = str(work / "ansible.cfg")
-    env["ANSIBLE_COLLECTIONS_PATH"] = os.path.expanduser("~/.ansible/collections")
-    env["ANSIBLE_LOCAL_TEMP"] = "/tmp/ado-ansible-tmp"
-    env["ANSIBLE_STDOUT_CALLBACK"] = "default"
-    env["ANSIBLE_NOCOLOR"] = "1"
-    Path("/tmp/ado-ansible-tmp").mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(
-        ["ansible-playbook", str(play_path)],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    output = completed.stdout + completed.stderr
-    if completed.returncode != 0:
-        raise AssertionError(output)
+    # Unique workdir — pyproject runs pytest with xdist (-n 2).
+    with tempfile.TemporaryDirectory(prefix="ado-csv-match-") as tmp:
+        work = Path(tmp)
+        play_path = work / "play.yml"
+        play_path.write_text(play)
+        (work / "ansible.cfg").write_text(
+            "[defaults]\ncollections_path = "
+            + os.path.expanduser("~/.ansible/collections")
+            + "\n"
+        )
+        env = os.environ.copy()
+        env.pop("PYTHONNOUSERSITE", None)
+        env.pop("PYTHONSAFEPATH", None)
+        home = pwd.getpwuid(os.getuid()).pw_dir
+        py = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        user_site = str(Path(home) / f".local/lib/{py}/site-packages")
+        if Path(user_site).is_dir():
+            env["PYTHONPATH"] = user_site + os.pathsep + env.get("PYTHONPATH", "")
+            env["HOME"] = home
+        env["ANSIBLE_CONFIG"] = str(work / "ansible.cfg")
+        env["ANSIBLE_COLLECTIONS_PATH"] = os.path.expanduser("~/.ansible/collections")
+        env["ANSIBLE_LOCAL_TEMP"] = str(work / "ansible-tmp")
+        env["ANSIBLE_STDOUT_CALLBACK"] = "default"
+        env["ANSIBLE_NOCOLOR"] = "1"
+        Path(env["ANSIBLE_LOCAL_TEMP"]).mkdir(parents=True, exist_ok=True)
+        completed = subprocess.run(
+            ["ansible-playbook", str(play_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        output = completed.stdout + completed.stderr
+        if completed.returncode != 0:
+            raise AssertionError(output)
     return True
 
 
