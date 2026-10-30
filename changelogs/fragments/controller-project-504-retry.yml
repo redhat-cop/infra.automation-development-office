@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Retry each Controller project create when
+    the gateway returns HTTP 504 on ``/api/controller/v2/projects/``.
+    One timed-out project no longer fails bootstrap. Existing projects
+    stay in place (``state=present``). Ansible 2.15 rejects ``delay``
+    on ``include_role``, so each project is retried with a pause
+    between attempts.

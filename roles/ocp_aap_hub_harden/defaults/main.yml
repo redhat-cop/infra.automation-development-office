@@ -29,7 +29,10 @@ ocp_aap_hub_harden_web_replicas: 1
 
 ocp_aap_hub_harden_gunicorn_api_workers: 1
 ocp_aap_hub_harden_gunicorn_content_workers: 1
-ocp_aap_hub_harden_gunicorn_timeout: 180
+# Timeout fields fight the AAP platform operator defaults and thrash Hub RSs.
+# Left for docs/compat only; the role no longer patches them.
+ocp_aap_hub_harden_gunicorn_timeout: 100
+ocp_aap_hub_harden_patch_gunicorn_workers: true
 
 # Soft probes reduce status-endpoint feedback loops during DB stalls.
 ocp_aap_hub_harden_soft_probes: true
@@ -42,7 +45,8 @@ ocp_aap_hub_harden_api_readiness_period: 20
 ocp_aap_hub_harden_api_readiness_timeout: 15
 ocp_aap_hub_harden_api_readiness_failure: 15
 
-# Install CronJob that periodically vacuums status table + re-applies worker env.
+# Install CronJob that periodically vacuums status table (no CR patches).
 ocp_aap_hub_harden_install_maintenance_cronjob: true
 ocp_aap_hub_harden_cronjob_name: aap-hub-stability
-ocp_aap_hub_harden_cron_schedule: "*/15 * * * *"
+# Hourly is enough for vacuum; avoid thrashing Hub with frequent CR reconcile.
+ocp_aap_hub_harden_cron_schedule: "5 * * * *"

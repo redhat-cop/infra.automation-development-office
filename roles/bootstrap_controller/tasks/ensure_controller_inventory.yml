@@ -1,0 +1,38 @@
+---
+# One inventory per include so a gateway 504 can be retried without
+# repeating inventories that already succeeded. state=present leaves an
+# existing inventory in place.
+- name: AAP 2.5+ | Create one inventory
+  ansible.controller.inventory:
+    name: "{{ bootstrap_controller_inventory.name }}"
+    description: >-
+      {{ bootstrap_controller_inventory.description | default(omit) }}
+    organization: "{{ bootstrap_controller_inventory.organization }}"
+    variables: >-
+      {{ bootstrap_controller_inventory.variables | default(omit) }}
+    state: "{{ bootstrap_controller_inventory.state | default('present') }}"
+    controller_host: >-
+      {{ controller_host | default(vault_controller_hostname) }}
+    controller_oauthtoken: >-
+      {{
+        controller_oauthtoken
+        | default(vault_controller_oauthtoken | default(omit))
+      }}
+    controller_username: >-
+      {{
+        controller_username
+        | default(vault_controller_username | default(omit))
+      }}
+    controller_password: >-
+      {{
+        controller_password
+        | default(vault_controller_password | default(omit))
+      }}
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: >-
+      {{ bootstrap_controller_request_timeout | default(120) | int }}
+  register: bootstrap_controller_inventory_result
+  retries: "{{ bootstrap_controller_inventory_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_inventory_retry_delay | default(10) | int }}
+  until: bootstrap_controller_inventory_result is succeeded

@@ -1,0 +1,70 @@
+---
+# aap_setup_install runs ansible-playbook via async; include_role become_user
+# does not keep that child process non-root. Containerized preflight then fails
+# with ansible_user_uid == 0. Invoke via sudo -u so the installer is definitely
+# the non-root install user (passwordless sudo configured earlier).
+
+- name: Resolve non-root containerized install user and setup dir
+  ansible.builtin.set_fact:
+    install_aap_containerized_install_user_effective: >-
+      {{
+        install_aap_containerized_install_user_effective
+        | default(aap_setup_containerized_install_user, true)
+        | default(install_aap_containerized_install_user, true)
+        | default('cloud-user', true)
+      }}
+    install_aap_containerized_setup_dir: >-
+      {{
+        install_aap_containerized_setup_dir
+        | default(aap_setup_inst_setup_dir, true)
+        | default(aap_setup_prep_setup_dir, true)
+        | default('', true)
+      }}
+  changed_when: false
+
+- name: Assert non-root containerized install context
+  ansible.builtin.assert:
+    that:
+      - install_aap_containerized_setup_dir | length > 0
+      - install_aap_containerized_install_user_effective | length > 0
+      - install_aap_containerized_install_user_effective != 'root'
+    fail_msg: >-
+      Containerized install needs setup dir and non-root
+      install_aap_containerized_install_user (default cloud-user).
+
+- name: Initialize containerized installer argv
+  ansible.builtin.set_fact:
+    install_aap_containerized_install_argv:
+      - sudo
+      - -u
+      - "{{ install_aap_containerized_install_user_effective }}"
+      - -H
+      - ansible-playbook
+      - -i
+      - "{{ aap_setup_inst_inventory | default('inventory') }}"
+      - ansible.containerized_installer.install
+  changed_when: false
+
+- name: Append containerized installer extra vars to argv
+  ansible.builtin.set_fact:
+    install_aap_containerized_install_argv: >-
+      {{
+        install_aap_containerized_install_argv
+        + ['-e', item.key ~ '=' ~ (item.value | string)]
+      }}
+  loop: "{{ install_aap_rhel_inst_extra_vars | default({}) | dict2items }}"
+  when: (install_aap_rhel_inst_extra_vars | default({}) | length) > 0
+  changed_when: false
+
+- name: Run containerized AAP installer as non-root via sudo -u
+  ansible.builtin.command:
+    argv: "{{ install_aap_containerized_install_argv }}"
+    chdir: "{{ install_aap_containerized_setup_dir }}"
+  async: 10000
+  poll: 20
+  register: install_aap_containerized_install_result
+  changed_when: false
+  # Outer connection may be root; sudo -u drops to the install user for the
+  # nested ansible-playbook (async + become_user is unreliable).
+  become: true
+  become_user: root

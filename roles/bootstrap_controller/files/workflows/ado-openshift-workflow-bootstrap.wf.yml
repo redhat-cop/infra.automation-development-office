@@ -83,6 +83,29 @@ controller_workflow_job_templates:
           - Print ADO Routes
           - Alt Routes Workflow
 
+      # Optional. Kept only when the matching include flag is true and
+      # the job template was generated.
+      - identifier: Install NFS CSI
+        unified_job_template: ADO | Install NFS CSI Storage
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
+      - identifier: Install Synology iSCSI CSI
+        unified_job_template: ADO | Install Synology iSCSI CSI Storage
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
+      - identifier: Update Pull Secret
+        unified_job_template: ADO | Update pull secret
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Print ADO Routes
+          - Alt Routes Workflow
+
       # --- Cert Manager sub-workflow (deploy + optional issuer/ingress) ---
       # RHBK needs cert-manager webhook for Certificates; hang RHBK off this
       # nested workflow (same pattern as Grafana Workflow / RHBK Workflow).

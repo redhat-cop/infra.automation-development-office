@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    install_aap - Containerized preflight ``ansible_user_uid != 0``: run
+    installer as non-root via ``sudo -u``, SSH to ``127.0.0.1`` as the install
+    user, and do **not** set inventory ``ansible_become`` (it overrides play
+    ``become: false`` so ``setup`` reports uid 0 on current ansible-core).

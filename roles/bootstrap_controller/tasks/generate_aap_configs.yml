@@ -422,6 +422,21 @@
         | list
       }}
 
+- name: AAP configs | Skip system-role JTs when Controller generation is off
+  ansible.builtin.set_fact:
+    bootstrap_controller_job_template_files_selected: >-
+      {{
+        bootstrap_controller_job_template_files_selected
+        | reject('match', '^ado-rhel-system-role-')
+        | list
+      }}
+  when: >-
+    not (
+      bootstrap_controller_system_roles_generate_job_templates
+      | default(true)
+      | bool
+    )
+
 - name: AAP configs | Skip Install AAP JT when bootstrap installs the operator
   ansible.builtin.set_fact:
     bootstrap_controller_job_template_files_selected: >-
@@ -1151,6 +1166,45 @@
     executable: /bin/bash
   changed_when: true
 
+- name: AAP configs | Record optional workflow membership flags
+  ansible.builtin.set_fact:
+    bootstrap_controller_nfs_workflow_flag: >-
+      {{
+        bootstrap_controller_nfs_include_in_workflow
+        | default(false)
+        | bool
+        | lower
+      }}
+    bootstrap_controller_iscsi_workflow_flag: >-
+      {{
+        bootstrap_controller_iscsi_include_in_workflow
+        | default(false)
+        | bool
+        | lower
+      }}
+    bootstrap_controller_pull_secret_workflow_flag: >-
+      {{
+        bootstrap_controller_pull_secret_include_in_workflow
+        | default(false)
+        | bool
+        | lower
+      }}
+    bootstrap_controller_system_roles_workflow_flag: >-
+      {{
+        bootstrap_controller_system_roles_include_in_workflow
+        | default(false)
+        | bool
+        | lower
+      }}
+    bootstrap_controller_role_order_json: >-
+      {{
+        bootstrap_controller_rhel_system_roles_catalog
+        | default([])
+        | map(attribute='role')
+        | list
+        | to_json
+      }}
+
 - name: AAP configs | Prune workflow nodes without generated job templates
   ansible.builtin.shell: |
     set -euo pipefail
@@ -1243,6 +1297,18 @@
                     node for node in kept_nodes
                     if node.get("identifier") != "Configure IDM ACME ClusterIssuer"
                 ]
+            include_nfs = "{{ bootstrap_controller_nfs_workflow_flag }}"
+            include_iscsi = "{{ bootstrap_controller_iscsi_workflow_flag }}"
+            include_pull = "{{ bootstrap_controller_pull_secret_workflow_flag }}"
+            optional_flags = {
+                "Install NFS CSI": include_nfs,
+                "Install Synology iSCSI CSI": include_iscsi,
+                "Update Pull Secret": include_pull,
+            }
+            kept_nodes = [
+                node for node in kept_nodes
+                if optional_flags.get(node.get("identifier"), "true") == "true"
+            ]
             kept_ids = {node.get("identifier") for node in kept_nodes}
             kept_by_id = {node.get("identifier"): node for node in kept_nodes}
 
@@ -1360,6 +1426,45 @@
             chain_linear_nodes(kept_by_id, bookstack_chain)
             chain_linear_nodes(kept_by_id, zabbix_chain)
             chain_linear_nodes(kept_by_id, netbox_chain)
+
+            include_system_roles = \
+                "{{ bootstrap_controller_system_roles_workflow_flag }}"
+            system_role_names = {{ bootstrap_controller_role_order_json }}
+            if (
+                include_system_roles == "true"
+                and workflow.get("name") == "ADO | RHEL Workflow"
+                and kept_nodes
+            ):
+                ordered_roles = []
+                for role_name in system_role_names:
+                    jt_name = "ADO | RHEL System Role | " + str(role_name)
+                    if jt_name in available_templates:
+                        ordered_roles.append((str(role_name), jt_name))
+                if ordered_roles:
+                    org_name = kept_nodes[0].get("lookup_organization")
+                    added_roles = []
+                    for role_name, jt_name in ordered_roles:
+                        added_roles.append({
+                            "identifier": "System Role " + role_name,
+                            "unified_job_template": jt_name,
+                            "lookup_organization": org_name,
+                        })
+                    anchor = None
+                    for node in kept_nodes:
+                        if node.get("identifier") == "RHEL STIG Hardening":
+                            anchor = node
+                    if anchor is None:
+                        anchor = kept_nodes[-1]
+                    anchor["success_nodes"] = [added_roles[0]["identifier"]]
+                    for index, node in enumerate(added_roles[:-1]):
+                        node["success_nodes"] = [
+                            added_roles[index + 1]["identifier"]
+                        ]
+                    kept_nodes.extend(added_roles)
+                    kept_ids = {node.get("identifier") for node in kept_nodes}
+                    kept_by_id = {
+                        node.get("identifier"): node for node in kept_nodes
+                    }
 
             for node in kept_nodes:
                 for edge_key in edge_keys:

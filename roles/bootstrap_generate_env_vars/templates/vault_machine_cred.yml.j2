@@ -26,3 +26,16 @@ vault_machine_credential_ssh_key_data: |
 vault_machine_credential_ssh_key_unlock: "{{ preflight_machine_credential.ssh_key_unlock | default(bootstrap_generate_env_vars_machine_credential_ssh_key_unlock | default(''), true) }}"
 vault_machine_credential_become_method: "{{ preflight_machine_credential.become_method | default(bootstrap_generate_env_vars_machine_credential_become_method | default('sudo'), true) }}"
 vault_machine_credential_become_username: "{{ preflight_machine_credential.become_username | default(bootstrap_generate_env_vars_machine_credential_become_username | default('root'), true) }}"
+{% set vault_machine_credential_become_password =
+    preflight_machine_credential.become_password
+    | default(
+        bootstrap_generate_env_vars_machine_credential_become_password
+        | default('', true),
+        true
+      )
+    | trim
+%}
+{% if vault_machine_credential_become_password | length > 0 %}
+vault_machine_credential_become_password: >-
+  {{ vault_machine_credential_become_password }}
+{% endif %}

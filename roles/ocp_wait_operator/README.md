@@ -32,6 +32,14 @@ Automation Development Office
     - role: infra.automation_development_office.ocp_wait_operator
 ```
 
+## Behavior Notes
+
+- Wait/summary logic must not use Jinja ``namespace()``. OCP component plays often
+  define a string variable named ``namespace``, which shadows Jinja's ``namespace()``
+  and fails with ``'AnsibleUnicode' object is not callable``.
+- CSV readiness uses ``json_query`` for ``status.phase==Succeeded`` plus a literal
+  substring match (``search`` + ``regex_escape``) on ``metadata.name``.
+
 ## 🧪 Role Molecule Testing
 
 Run Molecule scenarios from the role directory when a scenario is available.

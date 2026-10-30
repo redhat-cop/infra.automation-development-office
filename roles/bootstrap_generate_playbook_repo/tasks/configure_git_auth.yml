@@ -1,0 +1,189 @@
+---
+# yamllint disable rule:line-length
+- name: Generate playbook repo | Resolve destination for git auth
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_dest_resolved: >-
+      {{ bootstrap_generate_playbook_repo_dest }}
+
+- name: Generate playbook repo | Ensure git auth destination exists
+  ansible.builtin.file:
+    path: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate playbook repo | Use generated git URL when caller did not set one
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_git_url: "{{ generate_playbook_repo_git_url }}"
+  when:
+    - generate_playbook_repo_git_url is defined
+    - generate_playbook_repo_git_url | string | trim | length > 0
+    - bootstrap_generate_playbook_repo_git_url | default('') | string | trim | length == 0
+
+- name: Generate playbook repo | Resolve git credential file paths
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_git_credentials_file_resolved: >-
+      {{
+        bootstrap_generate_playbook_repo_git_credentials_file
+        | default(
+            lookup('env', 'HOME') | default('/tmp', true) ~ '/.git-credentials',
+            true
+          )
+      }}
+    bootstrap_generate_playbook_repo_git_bearer_file_resolved: >-
+      {{
+        bootstrap_generate_playbook_repo_git_bearer_file
+        | default(
+            lookup('env', 'HOME') | default('/tmp', true) ~ '/.ado-git-bearer',
+            true
+          )
+      }}
+
+- name: Generate playbook repo | Git init  # noqa command-instead-of-module
+  ansible.builtin.command: >-
+    git init -b
+    {{ bootstrap_generate_playbook_repo_git_branch | default('main') }}
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+    creates: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/.git"
+  changed_when: false
+  when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+
+- name: Generate playbook repo | Configure git credential helper (basic auth)
+  ansible.builtin.command:
+    argv:
+      - git
+      - config
+      - credential.helper
+      - >-
+        {{
+          'store'
+          if (
+            bootstrap_generate_playbook_repo_git_credentials_file_resolved
+            == (
+              lookup('env', 'HOME') | default('/tmp', true)
+              ~ '/.git-credentials'
+            )
+          )
+          else (
+            'store --file '
+            ~ bootstrap_generate_playbook_repo_git_credentials_file_resolved
+          )
+        }}
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+  changed_when: false
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_token | default('') | length > 0
+    - bootstrap_generate_playbook_repo_git_auth_mode | default('basic') != 'bearer'
+
+- name: Generate playbook repo | Write git credentials (basic auth)
+  ansible.builtin.copy:
+    dest: "{{ bootstrap_generate_playbook_repo_git_credentials_file_resolved }}"
+    mode: "0600"
+    content: >-
+      {{
+        bootstrap_generate_playbook_repo_git_url | urlsplit('scheme')
+        ~ '://'
+        ~ (
+            bootstrap_generate_playbook_repo_git_username
+            | default('oauth2')
+            | urlencode
+          )
+        ~ ':'
+        ~ (bootstrap_generate_playbook_repo_git_token | urlencode)
+        ~ '@'
+        ~ (bootstrap_generate_playbook_repo_git_url | urlsplit('hostname'))
+        ~ (
+            ':' ~ (bootstrap_generate_playbook_repo_git_url | urlsplit('port'))
+            if bootstrap_generate_playbook_repo_git_url | urlsplit('port')
+            else ''
+          )
+        ~ (bootstrap_generate_playbook_repo_git_url | urlsplit('path'))
+        ~ '\n'
+      }}
+  no_log: true
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_url | default('') | length > 0
+    - bootstrap_generate_playbook_repo_git_token | default('') | length > 0
+    - bootstrap_generate_playbook_repo_git_auth_mode | default('basic') != 'bearer'
+
+- name: Generate playbook repo | Remove Bearer header from git config  # noqa command-instead-of-module
+  ansible.builtin.command: git config --local --unset-all http.extraHeader
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+  changed_when: false
+  failed_when: false
+  when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+
+- name: Generate playbook repo | Write Bearer auth include file (Bitbucket)
+  ansible.builtin.copy:
+    dest: "{{ bootstrap_generate_playbook_repo_git_bearer_file_resolved }}"
+    mode: "0600"
+    content: |
+      [http]
+          extraHeader = Authorization: Bearer {{ bootstrap_generate_playbook_repo_git_token }}
+  no_log: true
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_token | default('') | length > 0
+    - bootstrap_generate_playbook_repo_git_auth_mode | default('basic') == 'bearer'
+
+- name: Generate playbook repo | Include Bearer auth file (Bitbucket)
+  community.general.git_config:
+    name: include.path
+    value: "{{ bootstrap_generate_playbook_repo_git_bearer_file_resolved }}"
+    scope: local
+    repo: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_token | default('') | length > 0
+    - bootstrap_generate_playbook_repo_git_auth_mode | default('basic') == 'bearer'
+
+- name: Generate playbook repo | Remove ADO Bearer include from git config
+  ansible.builtin.shell: |
+    set -euo pipefail
+    current="$(git config --local --get include.path || true)"
+    bearer="{{ bootstrap_generate_playbook_repo_git_bearer_file_resolved }}"
+    if [ -n "$current" ] && [ "$current" = "$bearer" ]; then
+      git config --local --unset-all include.path || true
+    fi
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_auth_mode | default('basic') != 'bearer'
+
+- name: Generate playbook repo | Disable git terminal prompts
+  community.general.git_config:
+    name: core.askPass
+    value: "true"
+    scope: local
+    repo: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+  when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+
+- name: Generate playbook repo | Configure git remote
+  ansible.builtin.shell: |
+    set -euo pipefail
+    remote_name={{
+      bootstrap_generate_playbook_repo_git_remote
+      | default('origin')
+      | quote
+    }}
+    remote_url={{ bootstrap_generate_playbook_repo_git_url | quote }}
+
+    if git remote | grep -qx "$remote_name"; then
+      git remote set-url "$remote_name" "$remote_url"
+    else
+      git remote add "$remote_name" "$remote_url"
+    fi
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+    executable: /bin/bash
+  changed_when: true
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_url | default('') | length > 0

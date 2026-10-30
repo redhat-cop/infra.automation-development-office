@@ -3,6 +3,14 @@
 Generate and apply Ansible Automation Platform controller objects for an ADO
 bootstrap repository.
 
+Project inventory sync cannot use the organization vault credential.
+Controller 4.7 rejects credential kind ``vault`` on an SCM source.
+Bootstrap leaves that credential on job templates. For an existing SCM
+inventory source it sets ``ANSIBLE_VARS_ENABLED`` in ``source_vars`` so
+the sync imports the inventory file and does not read vaulted
+``group_vars``. Direct inventories are unchanged. A source that already
+sets ``ANSIBLE_VARS_ENABLED`` is left alone.
+
 ## Role Author
 
 Automation Development Office
@@ -46,6 +54,22 @@ Automation Development Office
 | `bootstrap_controller_workflow_job_templates` | Workflow job template definitions loaded from generated YAML. |
 | `bootstrap_controller_controller_labels` | Controller labels to create. Generated runs include an organization label such as `ADO` alongside component labels such as `ADO | rhel`. |
 | `bootstrap_controller_hub_publish_timeout` | Hub collection upload timeout (seconds). Defaults to `900`. |
+| `bootstrap_controller_request_timeout` | Controller API read timeout in seconds for inventory, credential, project, and related calls. Defaults to `120`. The `ansible.controller` modules otherwise use `10`. |
+| `bootstrap_controller_inventory_retries` | Extra attempts for one inventory when the Controller gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_inventory_retry_delay` | Seconds between inventory create retries. Defaults to `10`. |
+| `bootstrap_controller_org_lookup_retries` | Extra attempts for the organization lookup when the gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_org_lookup_retry_delay` | Seconds between organization lookup retries. Defaults to `10`. |
+| `bootstrap_controller_credential_retries` | Extra attempts for one credential when the Controller gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_credential_retry_delay` | Seconds between credential create retries. Defaults to `10`. |
+| `bootstrap_controller_project_retries` | Extra attempts for one project when the Controller gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_project_retry_delay` | Seconds between project create retries. Defaults to `10`. |
+| `bootstrap_controller_host_retries` | Extra attempts for one host when the Controller gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_host_retry_delay` | Seconds between host create retries. Defaults to `10`. |
+| `bootstrap_controller_group_retries` | Extra attempts for one group when the Controller gateway returns 504. Defaults to `4`. |
+| `bootstrap_controller_group_retry_delay` | Seconds between group create retries. Defaults to `10`. |
+| `bootstrap_controller_job_template_async_delay` | Seconds between polls while a job template create is still running. Defaults to `5`. The poll count is long enough to outlast `bootstrap_controller_request_timeout`. |
+| `bootstrap_controller_job_template_retries` | Extra attempts for one job template when the Controller call fails or the poll ends early. Defaults to `4`. |
+| `bootstrap_controller_job_template_retry_delay` | Seconds between job template create retries. Defaults to `10`. |
 | `bootstrap_controller_hub_pub_exist_repos` | Hub content repos treated as already installed (`validated`, `published`, `rh-certified`). |
 | `bootstrap_controller_hub_exist_check_retries` | Retries for Hub skip-if-exists GETs when the route returns 502/503/504. Default `8`. |
 | `bootstrap_controller_hub_exist_check_delay` | Seconds between skip-if-exists retries. Default `15`. |

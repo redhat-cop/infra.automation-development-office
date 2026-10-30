@@ -1,0 +1,5 @@
+bugfixes:
+  - install_aap - After ``aap_setup_prepare``, force AAP 2.7 growth inventory groups,
+    ``redis_mode=standalone``, ``ansible_connection=local``, non-root
+    ``ansible_user`` (default ``cloud-user``), and metrics DB vars; run containerized
+    setup as that user so installer preflight does not reject root.

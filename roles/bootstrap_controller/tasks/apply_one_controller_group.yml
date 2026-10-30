@@ -1,0 +1,33 @@
+---
+# state=present leaves an existing group in place.
+- name: AAP 2.5+ | Apply one group
+  block:
+    - name: AAP 2.5+ | Dispatch one group
+      ansible.builtin.include_role:
+        name: infra.aap_configuration.controller_host_groups
+      vars:
+        controller_groups: "{{ [bootstrap_controller_group] }}"
+
+    - name: AAP 2.5+ | Group apply succeeded
+      ansible.builtin.set_fact:
+        bootstrap_controller_group_ok: true
+  rescue:
+    - name: AAP 2.5+ | Wait before the next group attempt
+      ansible.builtin.pause:
+        seconds: >-
+          {{
+            bootstrap_controller_group_retry_delay | default(10) | int
+          }}
+      when: >-
+        (bootstrap_controller_group_try | int)
+        < (bootstrap_controller_group_retries | default(4) | int)
+
+    - name: AAP 2.5+ | Fail when group retries are exhausted
+      ansible.builtin.fail:
+        msg: >-
+          Group was not applied after
+          {{ bootstrap_controller_group_retries | default(4) }}
+          attempts.
+      when: >-
+        (bootstrap_controller_group_try | int)
+        >= (bootstrap_controller_group_retries | default(4) | int)

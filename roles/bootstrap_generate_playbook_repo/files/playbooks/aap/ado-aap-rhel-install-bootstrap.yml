@@ -80,10 +80,8 @@
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap.yml"
-  pre_tasks:
-    - name: ADO | Resolve component vars
-      ansible.builtin.include_role:
-        name: infra.automation_development_office.bootstrap_resolve_component
+  # Do not run bootstrap_resolve_component here: it writes/reads temp
+  # registry files on the controller, but this play SSHes to the VM.
   roles:
     - role: infra.automation_development_office.install_aap
       vars:

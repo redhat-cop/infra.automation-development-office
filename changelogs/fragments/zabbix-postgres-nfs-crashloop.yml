@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    ocp_zabbix - Match GitLab/Grafana RHEL PostgreSQL on NFS: bump
+    ``ado.infra/postgres-init-revision``, fail loud when userdata cannot be
+    cleared before ``initdb``, and add ``zabbix_postgres_reset_data`` to wipe
+    Deployment+PVC after a CrashLoop. Do not let empty preflight ``storage``
+    clobber a real StorageClass in generated group_vars.

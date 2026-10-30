@@ -45,17 +45,24 @@ spec:
                 exit 0
               fi
               SCHEMA=""
+              # Ubuntu 7.x images use zabbix-server-postgresql/; older used -pgsql/.
               for CAND in \
+                /usr/share/doc/zabbix-server-postgresql/create.sql.gz \
                 /usr/share/doc/zabbix-server-pgsql/create.sql.gz \
                 /usr/share/doc/zabbix-sql-scripts/postgresql/server.sql.gz \
                 /usr/share/zabbix/sql-scripts/postgresql/server.sql.gz \
-                /usr/share/doc/zabbix-sql-scripts/postgresql/create.sql.gz
+                /usr/share/doc/zabbix-sql-scripts/postgresql/create.sql.gz \
+                /usr/share/doc/zabbix-sql-scripts/postgresql/create.sql
               do
                 if [ -f "$CAND" ]; then SCHEMA="$CAND"; break; fi
               done
               [ -n "$SCHEMA" ] || { echo "Zabbix SQL schema not found in image"; find /usr/share -name '*.sql*' 2>/dev/null | head; exit 1; }
+              case "${SCHEMA}" in
+                *.gz) LOAD_CMD="gunzip -c" ;;
+                *) LOAD_CMD="cat" ;;
+              esac
               echo "Loading schema from ${SCHEMA}"
-              gunzip -c "${SCHEMA}" | psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}"
+              ${LOAD_CMD} "${SCHEMA}" | psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}"
 {% else %}
             - name: DB_PORT
               value: "3306"

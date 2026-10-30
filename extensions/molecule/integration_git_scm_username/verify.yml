@@ -1,0 +1,168 @@
+---
+# yamllint disable rule:line-length
+- name: Verify generated git credentials and clean remotes
+  hosts: localhost
+  gather_facts: false
+  vars:
+    git_token: molecule-git-token-not-secret
+    gitlab_user_url: https://git.example.test/gitlab-user/bootstrap.git
+    gitlab_blank_url: https://git.example.test/gitlab-blank/bootstrap.git
+    bitbucket_url: https://git.example.test/bitbucket/bootstrap.git
+  tasks:
+    - name: Read generated Controller config files
+      ansible.builtin.include_vars:
+        file: "{{ item.file }}"
+        name: "{{ item.name }}"
+      loop:
+        - name: gitlab_user
+          file: >-
+            {{ molecule_ephemeral_directory }}/gitlab-user/molecule/aap_config_vars.yml
+        - name: gitlab_blank
+          file: >-
+            {{ molecule_ephemeral_directory }}/gitlab-blank/molecule/aap_config_vars.yml
+        - name: bitbucket
+          file: >-
+            {{ molecule_ephemeral_directory }}/bitbucket/molecule/aap_config_vars.yml
+
+    - name: Read generated config text
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - >-
+          {{ molecule_ephemeral_directory }}/gitlab-user/molecule/aap_config_vars.yml
+        - >-
+          {{ molecule_ephemeral_directory }}/gitlab-blank/molecule/aap_config_vars.yml
+        - >-
+          {{ molecule_ephemeral_directory }}/bitbucket/molecule/aap_config_vars.yml
+      register: generated_config_text
+
+    - name: Controller SCM username follows preflight JSON and omits the token
+      ansible.builtin.assert:
+        that:
+          - gitlab_user.generate_playbook_repo_git_username == 'saml-user'
+          - gitlab_user.generate_playbook_repo_git_auth_mode == 'basic'
+          - gitlab_user.generate_playbook_repo_git_mode == 'push'
+          - >-
+            gitlab_user.controller_bootstrap_controller_credentials
+            | selectattr('credential_type', 'equalto', 'Source Control')
+            | map(attribute='inputs.username')
+            | list
+            | first == 'saml-user'
+          - gitlab_blank.generate_playbook_repo_git_username == 'oauth2'
+          - >-
+            gitlab_blank.controller_bootstrap_controller_credentials
+            | selectattr('credential_type', 'equalto', 'Source Control')
+            | map(attribute='inputs.username')
+            | list
+            | first == 'oauth2'
+          - bitbucket.generate_playbook_repo_git_username == 'x-token-auth'
+          - bitbucket.generate_playbook_repo_git_auth_mode == 'bearer'
+          - >-
+            bitbucket.controller_bootstrap_controller_credentials
+            | selectattr('credential_type', 'equalto', 'Source Control')
+            | map(attribute='inputs.username')
+            | list
+            | first == 'x-token-auth'
+          - git_token not in (generated_config_text.results | map(attribute='content') | map('b64decode') | join('\n'))
+
+    - name: Read basic-auth credential files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ molecule_ephemeral_directory }}/creds-gitlab-user"
+        - "{{ molecule_ephemeral_directory }}/creds-explicit-user"
+        - "{{ molecule_ephemeral_directory }}/creds-gitlab-blank"
+      register: credential_files
+      no_log: true
+
+    - name: Credential files use the resolved username and not the remote
+      ansible.builtin.assert:
+        that:
+          - >-
+            'https://saml-user:'
+            in (credential_files.results[0].content | b64decode)
+          - >-
+            '@git.example.test/gitlab-user/bootstrap.git'
+            in (credential_files.results[0].content | b64decode)
+          - >-
+            'https://explicit-user:'
+            in (credential_files.results[1].content | b64decode)
+          - >-
+            'saml-user'
+            not in (credential_files.results[1].content | b64decode)
+          - >-
+            'https://oauth2:'
+            in (credential_files.results[2].content | b64decode)
+          - >-
+            '@git.example.test/gitlab-blank/bootstrap.git'
+            in (credential_files.results[2].content | b64decode)
+          - >-
+            git_token
+            in (credential_files.results[0].content | b64decode)
+
+    - name: Stat credential and Bearer files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ molecule_ephemeral_directory }}/creds-gitlab-user"
+        - "{{ molecule_ephemeral_directory }}/bearer-bitbucket"
+        - "{{ molecule_ephemeral_directory }}/creds-bitbucket"
+      register: auth_file_stats
+
+    - name: Credential store is private and Bitbucket does not use it
+      ansible.builtin.assert:
+        that:
+          - auth_file_stats.results[0].stat.mode == '0600'
+          - auth_file_stats.results[1].stat.exists
+          - auth_file_stats.results[1].stat.mode == '0600'
+          - not auth_file_stats.results[2].stat.exists
+
+    - name: Read git remotes
+      ansible.builtin.command: git remote get-url origin
+      args:
+        chdir: "{{ item }}"
+      loop:
+        - "{{ molecule_ephemeral_directory }}/repo-gitlab-user"
+        - "{{ molecule_ephemeral_directory }}/repo-explicit-user"
+        - "{{ molecule_ephemeral_directory }}/repo-gitlab-blank"
+        - "{{ molecule_ephemeral_directory }}/repo-bitbucket"
+      register: git_remotes
+      changed_when: false
+
+    - name: Remote URLs stay clean
+      ansible.builtin.assert:
+        that:
+          - git_remotes.results[0].stdout == gitlab_user_url
+          - git_remotes.results[1].stdout == gitlab_user_url
+          - git_remotes.results[2].stdout == gitlab_blank_url
+          - git_remotes.results[3].stdout == bitbucket_url
+          - git_token not in (git_remotes.results | map(attribute='stdout') | join('\n'))
+
+    - name: Read git config files
+      ansible.builtin.slurp:
+        src: "{{ item }}/.git/config"
+      loop:
+        - "{{ molecule_ephemeral_directory }}/repo-gitlab-user"
+        - "{{ molecule_ephemeral_directory }}/repo-bitbucket"
+      register: git_config_files
+
+    - name: Git config does not contain the token
+      ansible.builtin.assert:
+        that:
+          - git_token not in (git_config_files.results[0].content | b64decode)
+          - git_token not in (git_config_files.results[1].content | b64decode)
+
+    - name: Read the Bitbucket include path from git config
+      ansible.builtin.command: git config --local --get include.path
+      args:
+        chdir: "{{ molecule_ephemeral_directory }}/repo-bitbucket"
+      register: bitbucket_include
+      changed_when: false
+
+    - name: Bearer include path is the private file
+      ansible.builtin.assert:
+        that:
+          - >-
+            bitbucket_include.stdout
+            == molecule_ephemeral_directory ~ '/bearer-bitbucket'
+          - git_token not in bitbucket_include.stdout

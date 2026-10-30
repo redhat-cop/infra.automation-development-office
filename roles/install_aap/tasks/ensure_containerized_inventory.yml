@@ -1,0 +1,300 @@
+---
+# yamllint disable rule:line-length
+# aap_setup_prepare rewrites inventory from aap_setup_prep_inv_*. Single-node
+# ADO installs often omit AAP 2.7 growth groups (gateway/hub/eda/metrics) and
+# redis_mode. Force required groups + [all:vars] after prepare.
+
+- name: Resolve containerized setup directory for inventory patch
+  ansible.builtin.set_fact:
+    install_aap_containerized_setup_dir: >-
+      {{
+        aap_setup_prep_setup_dir
+        | default(aap_setup_inst_setup_dir, true)
+        | default('', true)
+      }}
+    install_aap_containerized_primary_host: >-
+      {{
+        aap_setup_ssh_host
+        | default(hostname, true)
+        | default(inventory_hostname, true)
+      }}
+    install_aap_containerized_install_user_effective: >-
+      {{
+        aap_setup_containerized_install_user
+        | default(install_aap_containerized_install_user, true)
+        | default('cloud-user', true)
+      }}
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Assert containerized setup directory is known before inventory patch
+  ansible.builtin.assert:
+    that:
+      - install_aap_containerized_setup_dir | length > 0
+      - install_aap_containerized_primary_host | length > 0
+      - install_aap_containerized_install_user_effective | length > 0
+      - install_aap_containerized_install_user_effective != 'root'
+    fail_msg: >-
+      Containerized AAP install needs aap_setup_prep_setup_dir, a primary
+      host, and a non-root install_aap_containerized_install_user (default
+      cloud-user). The installer rejects ansible_user_uid == 0.
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Ensure non-root containerized install user exists
+  ansible.builtin.user:
+    name: "{{ install_aap_containerized_install_user_effective }}"
+    state: present
+    create_home: true
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Give containerized install user passwordless sudo
+  ansible.builtin.copy:
+    dest: >-
+      /etc/sudoers.d/90-ado-aap-{{
+      install_aap_containerized_install_user_effective }}
+    content: >-
+      {{ install_aap_containerized_install_user_effective }}
+      ALL=(ALL) NOPASSWD:ALL
+    mode: "0440"
+    validate: "visudo -cf %s"
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Own containerized setup directory as the non-root install user
+  ansible.builtin.file:
+    path: "{{ install_aap_containerized_setup_dir }}"
+    state: directory
+    owner: "{{ install_aap_containerized_install_user_effective }}"
+    group: "{{ install_aap_containerized_install_user_effective }}"
+    recurse: true
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_setup_dir | length > 0
+
+# Bootstrap often SSHes to the VM as root (aap_setup_ssh_user=root). The
+# nested installer inventory must connect as a non-root user or preflight
+# fails with ansible_user_uid == 0. ansible_connection=local still reports
+# uid 0 when inventory ansible_user is root — use SSH to localhost instead.
+- name: Ensure SSH directory for containerized install user
+  ansible.builtin.file:
+    path: "/home/{{ install_aap_containerized_install_user_effective }}/.ssh"
+    state: directory
+    owner: "{{ install_aap_containerized_install_user_effective }}"
+    group: "{{ install_aap_containerized_install_user_effective }}"
+    mode: "0700"
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Ensure SSH key for containerized install user (localhost)
+  ansible.builtin.command:
+    argv:
+      - ssh-keygen
+      - -t
+      - ed25519
+      - -N
+      - ""
+      - -f
+      - "/home/{{ install_aap_containerized_install_user_effective }}/.ssh/id_ed25519"
+      - -q
+    creates: >-
+      /home/{{ install_aap_containerized_install_user_effective }}/.ssh/id_ed25519
+  become: true
+  become_user: "{{ install_aap_containerized_install_user_effective }}"
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Authorize containerized install user key for localhost SSH
+  ansible.builtin.shell: |
+    set -euo pipefail
+    auth="/home/{{ install_aap_containerized_install_user_effective }}/.ssh/authorized_keys"
+    pub="/home/{{ install_aap_containerized_install_user_effective }}/.ssh/id_ed25519.pub"
+    touch "$auth"
+    chmod 600 "$auth"
+    chown "{{ install_aap_containerized_install_user_effective }}:{{ install_aap_containerized_install_user_effective }}" "$auth"
+    grep -qxF "$(cat "$pub")" "$auth" || cat "$pub" >> "$auth"
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: aap_setup_containerized | default(false) | bool
+
+- name: Load containerized inventory before growth group patch
+  ansible.builtin.slurp:
+    src: "{{ install_aap_containerized_setup_dir }}/inventory"
+  register: install_aap_containerized_inventory_slurp
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_setup_dir | length > 0
+
+- name: Initialize missing growth inventory groups list
+  ansible.builtin.set_fact:
+    install_aap_containerized_groups_missing: []
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_inventory_slurp is succeeded
+
+- name: Build list of missing AAP 2.7 growth inventory groups
+  ansible.builtin.set_fact:
+    install_aap_containerized_groups_missing: >-
+      {{
+        install_aap_containerized_groups_missing
+        + [item]
+      }}
+  loop:
+    - automationgateway
+    - automationhub
+    - automationeda
+    - automationmetrics
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_inventory_slurp is succeeded
+    - >-
+      ('[' ~ item ~ ']') not in (
+        install_aap_containerized_inventory_slurp.content
+        | b64decode
+      )
+
+- name: Ensure AAP 2.7 growth inventory groups on the primary host
+  ansible.builtin.copy:
+    dest: "{{ install_aap_containerized_setup_dir }}/inventory"
+    content: "{{ install_aap_containerized_inventory_patched }}"
+    mode: "0644"
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_groups_missing is defined
+    - install_aap_containerized_groups_missing | length > 0
+  vars:
+    install_aap_inv_text: >-
+      {{
+        install_aap_containerized_inventory_slurp.content
+        | b64decode
+      }}
+    # yamllint disable-line rule:line-length
+    install_aap_growth_blocks: "{% for g in install_aap_containerized_groups_missing %}[{{ g }}]\n{{ install_aap_containerized_primary_host }}\n\n{% endfor %}"
+    install_aap_containerized_inventory_patched: >-
+      {{
+        (
+          install_aap_inv_text.replace(
+            '[all:vars]',
+            install_aap_growth_blocks ~ '[all:vars]',
+            1
+          )
+        )
+        if ('[all:vars]' in install_aap_inv_text)
+        else (
+          install_aap_inv_text.rstrip()
+          ~ '\n\n'
+          ~ install_aap_growth_blocks
+        )
+      }}
+
+- name: Strip root ansible_user and inventory-level become from inventory
+  ansible.builtin.replace:
+    path: "{{ install_aap_containerized_setup_dir }}/inventory"
+    regexp: "{{ item.regexp }}"
+    replace: "{{ item.replace }}"
+  loop:
+    - regexp: ' ansible_user\s*=\s*root(?=\s|$)'
+      replace: ""
+    - regexp: '(?m)^ansible_user\s*=\s*root\s*$'
+      replace: ""
+    # Inventory become forces setup to report uid 0 (see install.yml gather).
+    - regexp: '(?m)^ansible_become(_method)?\s*=.*$'
+      replace: ""
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_setup_dir | length > 0
+
+- name: Ensure required containerized inventory variables
+  ansible.builtin.lineinfile:
+    path: "{{ install_aap_containerized_setup_dir }}/inventory"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    insertafter: EOF
+  loop: "{{ install_aap_containerized_inventory_lines }}"
+  no_log: true
+  when:
+    - aap_setup_containerized | default(false) | bool
+    - install_aap_containerized_setup_dir | length > 0
+  vars:
+    install_aap_bundle_dir_effective: >-
+      {{
+        (
+          aap_setup_prep_inv_vars.all.bundle_dir
+          | default('', true)
+        )
+        if (
+          aap_setup_prep_inv_vars is defined
+          and aap_setup_prep_inv_vars.all is defined
+          and (
+            aap_setup_prep_inv_vars.all.bundle_dir
+            | default('')
+            | length
+          ) > 0
+        )
+        else (install_aap_containerized_setup_dir ~ '/bundle')
+      }}
+    install_aap_db_host: "{{ install_aap_containerized_primary_host }}"
+    install_aap_admin_pw: >-
+      {{
+        aap_setup_prep_inv_vars.all.admin_password
+        | default(
+            aap_setup_prep_inv_vars.all.controller_admin_password
+            | default(aap_admin_password | default(''), true),
+            true
+          )
+        if (
+          aap_setup_prep_inv_vars is defined
+          and aap_setup_prep_inv_vars.all is defined
+        )
+        else (aap_admin_password | default(''))
+      }}
+    install_aap_containerized_ssh_key: >-
+      /home/{{ install_aap_containerized_install_user_effective }}/.ssh/id_ed25519
+    install_aap_containerized_inventory_lines:
+      # SSH to localhost as non-root — local+ansible_user=root still uid 0.
+      - key: ansible_connection
+        value: ssh
+      - key: ansible_host
+        value: "127.0.0.1"
+      - key: ansible_user
+        value: "{{ install_aap_containerized_install_user_effective }}"
+      - key: ansible_ssh_private_key_file
+        value: "{{ install_aap_containerized_ssh_key }}"
+      - key: ansible_ssh_common_args
+        value: >-
+          "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+      # Do NOT set ansible_become in inventory. On this ansible-core, inventory
+      # ansible_become=true overrides play become:false, so setup reports
+      # ansible_user_uid=0 and preflight fails. Installer tasks become as needed.
+      - key: redis_mode
+        value: standalone
+      - key: bundle_install
+        value: "true"
+      - key: bundle_dir
+        value: "{{ install_aap_bundle_dir_effective }}"
+      - key: postgresql_admin_username
+        value: postgres
+      - key: postgresql_admin_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: gateway_admin_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: gateway_pg_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: controller_pg_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: hub_pg_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: eda_pg_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: gateway_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: controller_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: hub_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: eda_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: automationmetrics_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: automationmetrics_pg_password
+        value: "{{ install_aap_admin_pw }}"
+      - key: automationmetrics_controller_read_pg_host
+        value: "{{ install_aap_db_host }}"
+      - key: automationmetrics_controller_read_pg_password
+        value: "{{ install_aap_admin_pw }}"

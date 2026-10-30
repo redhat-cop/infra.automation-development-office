@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Wait for a Controller job template create to
+    finish before treating it as failed. The role was polling for 50
+    seconds while the API call is allowed 120 seconds, so a slow create
+    such as ``ADO | RHEL Patch Host`` ended as ``Unknown Error``. Each
+    template is also retried on its own. Existing templates stay in
+    place (``state=present``).

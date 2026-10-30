@@ -29,13 +29,25 @@
       }}
   changed_when: false
 
+- name: Zabbix Postgres | Fall back to components_env storage when top-level empty
+  ansible.builtin.set_fact:
+    ocp_zabbix_pg_pvc_class: "{{ components_env.zabbix.storage | string | trim }}"
+  when:
+    - (ocp_zabbix_pg_pvc_class | default('') | string | trim | length) == 0
+    - components_env is defined
+    - components_env.zabbix is defined
+    - components_env.zabbix.storage is defined
+    - (components_env.zabbix.storage | string | trim | length) > 0
+  changed_when: false
+
 - name: Zabbix Postgres | Require storage class when provisioning
   ansible.builtin.assert:
     that:
       - (ocp_zabbix_pg_pvc_class | string | trim | length) > 0
     fail_msg: >-
-      zabbix_postgres_storage_class (or storage_class / storage) is required
-      when zabbix_database_type=postgres and zabbix_database_provision=true.
+      zabbix_postgres_storage_class (or storage_class / storage /
+      components_env.zabbix.storage) is required when
+      zabbix_database_type=postgres and zabbix_database_provision=true.
 
 - name: Zabbix Postgres | Lookup existing password Secret
   kubernetes.core.k8s_info:
@@ -141,6 +153,31 @@
           name: "{{ ocp_zabbix_pg_resource_name }}"
           namespace: "{{ name_space }}"
 
+- name: Zabbix Postgres | Reset Deployment+PVC when requested
+  when: zabbix_postgres_reset_data | default(false) | bool
+  block:
+    - name: Zabbix Postgres | Delete Deployment for data reset
+      kubernetes.core.k8s:
+        state: absent
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 120
+      failed_when: false
+
+    - name: Zabbix Postgres | Delete PVC for data reset
+      kubernetes.core.k8s:
+        state: absent
+        api_version: v1
+        kind: PersistentVolumeClaim
+        name: "{{ ocp_zabbix_pg_resource_name }}"
+        namespace: "{{ name_space }}"
+        wait: true
+        wait_timeout: 180
+      failed_when: false
+
 - name: Zabbix Postgres | Create PVC
   kubernetes.core.k8s:
     state: present
@@ -171,6 +208,8 @@
         namespace: "{{ name_space }}"
         labels:
           app: "{{ ocp_zabbix_pg_resource_name }}"
+        annotations:
+          ado.infra/postgres-init-revision: "5"
       spec:
         replicas: 1
         selector:
@@ -180,6 +219,8 @@
           metadata:
             labels:
               app: "{{ ocp_zabbix_pg_resource_name }}"
+            annotations:
+              ado.infra/postgres-init-revision: "5"
           spec:
             serviceAccountName: "{{ ocp_zabbix_pg_resource_name }}"
             securityContext:
@@ -192,9 +233,18 @@
                   - /bin/sh
                   - -ec
                   - |
+                    # PVC is PGDATA (userdata). Same mount for init+postgres.
                     DATADIR=/var/lib/pgsql/data/userdata
+                    mkdir -p "$DATADIR"
                     if [ ! -f "$DATADIR/PG_VERSION" ]; then
                       find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                      leftover=$(find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found 2>/dev/null | head -5 || true)
+                      if [ -n "$leftover" ]; then
+                        echo "ocp_zabbix: cannot clear $DATADIR before initdb:" >&2
+                        echo "$leftover" >&2
+                        echo "Set -e zabbix_postgres_reset_data=true to delete Deployment+PVC." >&2
+                        exit 1
+                      fi
                     fi
                     chown -R 26:26 "$DATADIR" 2>/dev/null || true
                     chmod -R ugo+rwX "$DATADIR" 2>/dev/null || true
@@ -206,6 +256,8 @@
             containers:
               - name: postgres
                 image: "{{ ocp_zabbix_pg_image_ref }}"
+                # RHEL image always chmod/chown PGDATA; NFS root_squash returns
+                # EPERM mid-init and leaves userdata non-empty → CrashLoop.
                 command:
                   - /bin/bash
                   - -ec
@@ -215,6 +267,13 @@
                     mkdir -p "$DATADIR"
                     if [ ! -f "$DATADIR/PG_VERSION" ]; then
                       find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found -exec rm -rf {} + 2>/dev/null || true
+                      leftover=$(find "$DATADIR" -mindepth 1 -maxdepth 1 ! -name lost+found 2>/dev/null | head -5 || true)
+                      if [ -n "$leftover" ]; then
+                        echo "ocp_zabbix: cannot clear $DATADIR before initdb:" >&2
+                        echo "$leftover" >&2
+                        echo "Set -e zabbix_postgres_reset_data=true to delete Deployment+PVC." >&2
+                        exit 1
+                      fi
                     fi
                     for f in /usr/share/container-scripts/postgresql/*.sh \
                              /usr/bin/run-postgresql \

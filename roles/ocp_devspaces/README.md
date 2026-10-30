@@ -18,7 +18,7 @@ Automation Development Office
 |----------|-------------|
 | `ocp_devspaces_state` | Desired state used by role tasks when supported. |
 | `ocp_devspaces_disable_default_samples` | When true, replace stock getting-started samples with ``custom_samples`` (or empty). |
-| `ocp_devspaces_custom_samples` | List of sample objects (``displayName``, ``description``, ``tags``, ``url``, optional ``icon``). |
+| `ocp_devspaces_custom_samples` | List of sample objects (``displayName``, ``description``, ``tags``, ``url``, optional ``icon``). Blank ``url`` is filled with this Che host's built-in Empty Workspace UDI ``empty.yaml`` so the card still shows. ConfigMap is written to the CheCluster/dashboard namespace. |
 | `ocp_devspaces_custom_sample_icon_source` | ``bundled`` (role ``files/ado-sample-icon.png``) or ``upload`` (icon already in sample). |
 | `ocp_devspaces_default_devfile_url` | Optional single sample URL when custom_samples is empty. |
 | `ocp_devspaces_default_workspace_image` | Optional default workspace container image. |
@@ -34,6 +34,10 @@ Automation Development Office
   roles:
     - role: infra.automation_development_office.ocp_devspaces
 ```
+
+Blank custom sample URLs are filled in ``tasks/fill-custom-sample-urls.yml``.
+That task does not call Jinja ``namespace()``, so a string variable named
+``namespace`` does not break the sample list.
 
 Exporter-only (does not install Dev Spaces):
 

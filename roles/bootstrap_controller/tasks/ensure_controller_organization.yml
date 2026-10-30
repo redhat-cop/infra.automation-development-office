@@ -123,8 +123,15 @@
       }}
     force_basic_auth: true
     validate_certs: "{{ controller_validate_certs | default(false) }}"
-    status_code: [200, 401, 403, 404, 500, 502, 503]
+    timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+    status_code: [200, 401, 403, 404, 500, 502, 503, 504]
   register: bootstrap_controller_ensure_org_lookup
+  retries: "{{ bootstrap_controller_org_lookup_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_org_lookup_retry_delay | default(10) | int }}
+  until: >-
+    (bootstrap_controller_ensure_org_lookup.status | default(0) | int)
+    in [200, 401, 403, 404]
   failed_when: false
   when:
     - bootstrap_controller_ensure_org_name | length > 0
@@ -167,6 +174,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   register: bootstrap_controller_ensure_org_create
   failed_when: false
   when:
@@ -226,6 +234,21 @@
     - bootstrap_controller_ensure_org_name | length > 0
     - not (bootstrap_controller_ensure_org_ok | bool)
 
+- name: Ensure organization | Fail when the gateway times out the lookup
+  ansible.builtin.fail:
+    msg: >-
+      Contoller organization '{{ bootstrap_controller_ensure_org_name }}'
+      could not be looked up because the gateway returned HTTP
+      {{ bootstrap_controller_ensure_org_lookup.status | default(0) }}.
+      The organization was not created or changed.
+  when:
+    - bootstrap_controller_ensure_org_strict | default(false) | bool
+    - bootstrap_controller_ensure_org_name | length > 0
+    - not (bootstrap_controller_ensure_org_ok | bool)
+    - >-
+      (bootstrap_controller_ensure_org_lookup.status | default(0) | int)
+      in [500, 502, 503, 504]
+
 - name: Ensure organization | Fail when apply requires a missing org
   ansible.builtin.fail:
     msg: >-
@@ -238,3 +261,6 @@
     - bootstrap_controller_ensure_org_strict | default(false) | bool
     - bootstrap_controller_ensure_org_name | length > 0
     - not (bootstrap_controller_ensure_org_ok | bool)
+    - >-
+      (bootstrap_controller_ensure_org_lookup.status | default(0) | int)
+      not in [500, 502, 503, 504]

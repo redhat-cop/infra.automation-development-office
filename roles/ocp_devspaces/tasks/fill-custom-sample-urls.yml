@@ -1,0 +1,55 @@
+---
+# Blank sample urls are filled without Jinja namespace().
+# A play variable named namespace is a string on many OpenShift plays and
+# would make namespace() raise "object is not callable".
+- name: Compute empty UDI url for blank custom samples
+  ansible.builtin.set_fact:
+    ocp_devspaces_empty_udi_url: >-
+      {{
+        (
+          'https://'
+          ~ _ds_host
+          ~ '/dashboard/devfile-registry/devfiles/empty.yaml'
+        )
+        if (_ds_host | length) > 0 else ''
+      }}
+  vars:
+    _ds_host: >-
+      {{
+        (
+          ocp_devspaces_hostname
+          | default(hostname | default(''))
+          | string
+          | regex_replace('^https?://', '')
+          | trim
+        )
+      }}
+
+- name: Start filled custom sample list
+  ansible.builtin.set_fact:
+    ocp_devspaces_custom_samples_filled: []
+
+- name: Fill one blank custom sample url
+  ansible.builtin.set_fact:
+    ocp_devspaces_custom_samples_filled: >-
+      {{
+        ocp_devspaces_custom_samples_filled + [
+          (
+            ocp_devspaces_sample_item
+            | combine({'url': ocp_devspaces_empty_udi_url}, recursive=True)
+          )
+          if (
+            (ocp_devspaces_sample_item.url | default('') | string | length) == 0
+            and (ocp_devspaces_empty_udi_url | default('') | length) > 0
+          )
+          else ocp_devspaces_sample_item
+        ]
+      }}
+  loop: "{{ ocp_devspaces_custom_samples | default([]) }}"
+  loop_control:
+    loop_var: ocp_devspaces_sample_item
+    label: "{{ ocp_devspaces_sample_item.displayName | default('sample') }}"
+
+- name: Replace custom samples with filled urls
+  ansible.builtin.set_fact:
+    ocp_devspaces_custom_samples: "{{ ocp_devspaces_custom_samples_filled }}"

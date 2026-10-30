@@ -6,7 +6,7 @@
 keycloak_login_events_exporter_enabled: true
 keycloak_login_events_exporter_name: keycloak-login-events
 keycloak_login_events_exporter_namespace: grafana
-keycloak_login_events_exporter_image: registry.redhat.io/ubi9/python-311:latest
+keycloak_login_events_exporter_image: registry.redhat.io/ubi9/python-312:latest
 keycloak_login_events_keycloak_url: >-
   {{
     rhbk_url

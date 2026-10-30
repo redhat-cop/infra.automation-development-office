@@ -59,9 +59,14 @@
     - ansible_dispatch_ignore_galaxy_cert | default(bootstrap_controller_ignore_galaxy_cert | default(false)) | bool
     - controller_projects | default([]) | length > 0
 
+# One project per include. controller_projects posts asynchronously, and
+# a gateway 504 on POST /projects/ fails the play.
 - name: AAP 2.5+ | Apply projects
-  ansible.builtin.include_role:
-    name: infra.aap_configuration.controller_projects
+  ansible.builtin.include_tasks: ensure_controller_project.yml
+  loop: "{{ controller_projects | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_project
+    label: "{{ bootstrap_controller_project.name | default('project') }}"
   when: controller_projects | default([]) | length > 0
 
 # controller_projects may no-op when the project already exists, leaving an
@@ -83,6 +88,11 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+  retries: "{{ bootstrap_controller_project_retries | default(4) | int }}"
+  delay: "{{ bootstrap_controller_project_retry_delay | default(10) | int }}"
+  register: bootstrap_controller_project_align
+  until: bootstrap_controller_project_align is succeeded
   loop: "{{ controller_projects | default([]) }}"
   loop_control:
     label: "{{ item.name }} branch={{ item.scm_branch | default('') }}"

@@ -36,6 +36,7 @@ Automation Development Office
 | `bootstrap_generate_env_vars_machine_credential_ssh_key_unlock` | Optional SSH private key passphrase written to `vault_machine_cred.yml`. |
 | `bootstrap_generate_env_vars_machine_credential_become_method` | Become method for the Machine credential. Default `sudo`. |
 | `bootstrap_generate_env_vars_machine_credential_become_username` | Become username for the Machine credential. Default `root`. |
+| `bootstrap_generate_env_vars_machine_credential_become_password` | Optional sudo password for the Machine credential. Omitted from the Controller credential and `vault_machine_cred.yml` when blank. |
 | `bootstrap_generate_env_vars_aap_additional_credentials` | Additional AAP credentials to add to generated controller config. Secret-capable fields are written to `aap_vault.yml`. |
 | `bootstrap_generate_env_vars_hub_publish_ado_collection` | Enables generated vars for adding the ADO collection to Automation Hub. Default `true`. |
 | `bootstrap_generate_env_vars_hub_mark_ado_validated` | Targets the generated ADO collection hub entry at validated content when enabled. Default `true`. |

@@ -5,6 +5,7 @@
   # Limit the job in Contoller when you only want a subset.
   hosts: all
   gather_facts: true
+  become: true
   vars:
     rhel_patching_update_cache: true
     rhel_patching_package_cleanup: true

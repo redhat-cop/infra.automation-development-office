@@ -1,0 +1,143 @@
+---
+# Controller 4.7 rejects a Vault credential on an SCM inventory source
+# (InventorySource.cloud_credential_validation). The sync still loads
+# group_vars beside the project inventory file and then fails with
+# "no vault secrets found" when those files are encrypted.
+# SCM source_vars are copied into that sync's environment only.
+# An empty ANSIBLE_VARS_ENABLED skips host_group_vars for the sync.
+# Job templates still receive the organization vault credential and
+# still load group_vars when a playbook runs.
+# Credential, source_path, and overwrite on the source are not changed.
+# A source that already sets ANSIBLE_VARS_ENABLED is left alone.
+- name: SCM inventory | Look up organization
+  ansible.builtin.uri:
+    url: >-
+      {{
+        bootstrap_controller_aap_api_url
+        ~ bootstrap_controller_aap_effective_api_path
+        ~ '/organizations/?name='
+        ~ (bootstrap_controller_organization | urlencode)
+      }}
+    method: GET
+    headers: >-
+      {{
+        {
+          'Authorization':
+          'Bearer ' ~ bootstrap_controller_controller_oauthtoken
+        }
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length > 0
+        )
+        else {}
+      }}
+    url_username: >-
+      {{
+        bootstrap_controller_controller_username
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    url_password: >-
+      {{
+        bootstrap_controller_controller_password
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    force_basic_auth: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+    status_code: [200, 404]
+  register: bootstrap_controller_scm_org_lookup
+  retries: "{{ bootstrap_controller_org_lookup_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_org_lookup_retry_delay | default(10) | int }}
+  until: >-
+    (bootstrap_controller_scm_org_lookup.status | default(0) | int)
+    in [200, 404]
+  no_log: "{{ bootstrap_controller_aap_connectivity_no_log | default(true) }}"
+  when:
+    - bootstrap_controller_organization | default('') | length > 0
+    - not (
+        bootstrap_controller_hub_update_collection_only
+        | default(false)
+        | bool
+      )
+
+- name: SCM inventory | List inventories in the organization
+  ansible.builtin.uri:
+    url: >-
+      {{
+        bootstrap_controller_aap_api_url
+        ~ bootstrap_controller_aap_effective_api_path
+        ~ '/inventories/?organization='
+        ~ (bootstrap_controller_scm_org_lookup.json.results[0].id | string)
+        ~ '&page_size=200'
+      }}
+    method: GET
+    headers: >-
+      {{
+        {
+          'Authorization':
+          'Bearer ' ~ bootstrap_controller_controller_oauthtoken
+        }
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length > 0
+        )
+        else {}
+      }}
+    url_username: >-
+      {{
+        bootstrap_controller_controller_username
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    url_password: >-
+      {{
+        bootstrap_controller_controller_password
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    force_basic_auth: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+    status_code: [200]
+  register: bootstrap_controller_scm_inventories
+  retries: "{{ bootstrap_controller_org_lookup_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_org_lookup_retry_delay | default(10) | int }}
+  until: bootstrap_controller_scm_inventories is succeeded
+  no_log: "{{ bootstrap_controller_aap_connectivity_no_log | default(true) }}"
+  when:
+    - bootstrap_controller_scm_org_lookup is defined
+    - not (bootstrap_controller_scm_org_lookup.skipped | default(false))
+    - (bootstrap_controller_scm_org_lookup.status | default(0) | int) == 200
+    - (bootstrap_controller_scm_org_lookup.json.count | default(0) | int) > 0
+
+- name: SCM inventory | Review sources on each inventory
+  ansible.builtin.include_tasks: list_scm_inventory_sources.yml
+  loop: "{{ bootstrap_controller_scm_inventories.json.results | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_scm_inventory
+    label: "{{ bootstrap_controller_scm_inventory.name | default('') }}"
+  when:
+    - bootstrap_controller_scm_inventories is defined
+    - not (bootstrap_controller_scm_inventories.skipped | default(false))

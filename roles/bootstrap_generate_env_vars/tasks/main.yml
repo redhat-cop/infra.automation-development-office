@@ -1330,6 +1330,43 @@
   ansible.builtin.debug:
     var: bootstrap_generate_env_vars_playbook_components
 
+- name: Omit system-role playbooks when standalone generation is off
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_playbook_components: >-
+      {{
+        bootstrap_generate_env_vars_playbook_components
+        | reject('match', '^system_role_')
+        | list
+      }}
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - >-
+      not (
+        (
+          bootstrap_generate_env_vars_preflight.component_config.rhel_system_roles
+          | default({})
+        ).generate_playbooks | default(true) | bool
+      )
+
+- name: Add system-role readme when a system-role playbook is selected
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_playbook_components: >-
+      {{
+        (
+          bootstrap_generate_env_vars_playbook_components
+          + ['system_role_readme']
+        )
+        | unique
+        | list
+      }}
+  when:
+    - >-
+      bootstrap_generate_env_vars_playbook_components
+      | select('match', '^system_role_')
+      | reject('equalto', 'system_role_readme')
+      | list
+      | length > 0
+
 - name: Include Hub dedicated-Postgres playbook/JT when AAP Tools option is selected
   ansible.builtin.set_fact:
     bootstrap_generate_env_vars_playbook_components: >-

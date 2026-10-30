@@ -27,7 +27,7 @@ Automation Development Office
 | `keycloak_login_events_realms` | Comma-separated realms to poll. Inherits `rhbk_realm`. |
 | `keycloak_login_events_token_realm` | Realm used to obtain the admin token. Default `master`. |
 | `keycloak_login_events_exporter_namespace` | Namespace for Deployment/ServiceMonitor. Default `grafana`. |
-| `keycloak_login_events_exporter_image` | Exporter image. Default `registry.redhat.io/ubi9/python-311:latest`. |
+| `keycloak_login_events_exporter_image` | Exporter image. Default `registry.redhat.io/ubi9/python-312:latest`. |
 | `keycloak_login_events_enable_realm_store` | When true, enable `LOGIN` / `LOGIN_ERROR` on each realm. Default `true`. |
 
 ## 🚀 Role Usage

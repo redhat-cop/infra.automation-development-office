@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - Retry each Controller inventory create when the
+    gateway returns HTTP 504. One timed-out inventory no longer fails the
+    bootstrap while the next inventory in the same task succeeds. Existing
+    inventories stay unchanged (``state=present``).

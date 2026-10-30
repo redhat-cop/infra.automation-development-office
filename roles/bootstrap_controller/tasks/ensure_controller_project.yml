@@ -1,0 +1,19 @@
+---
+# One project per include. Ansible 2.15 rejects delay on include_role
+# and on include_tasks, so each try is a loop iteration with a pause.
+- name: AAP 2.5+ | Reset project retry state
+  ansible.builtin.set_fact:
+    bootstrap_controller_project_ok: false
+
+- name: AAP 2.5+ | Apply one project until it succeeds
+  ansible.builtin.include_tasks: apply_one_controller_project.yml
+  loop: >-
+    {{
+      range(
+        1,
+        (bootstrap_controller_project_retries | default(4) | int) + 1
+      ) | list
+    }}
+  loop_control:
+    loop_var: bootstrap_controller_project_try
+  when: not (bootstrap_controller_project_ok | default(false) | bool)

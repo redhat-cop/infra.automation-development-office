@@ -63,20 +63,13 @@
     - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
     - bootstrap_controller_orgs_to_ensure | default([]) | length > 0
 
-# Inventories direct because infra.aap_configuration 4.6.19 stringifies variables
+# Inventories direct because infra.aap_configuration 4.6.19 stringifies variables.
+# Included per item so a 504 on one inventory is retried on its own.
 - name: AAP 2.5+ | Create inventories directly
-  ansible.controller.inventory:
-    name: "{{ item.name }}"
-    description: "{{ item.description | default(omit) }}"
-    organization: "{{ item.organization }}"
-    variables: "{{ item.variables | default(omit) }}"
-    state: "{{ item.state | default('present') }}"
-    controller_host: "{{ controller_host | default(vault_controller_hostname) }}"
-    controller_oauthtoken: "{{ controller_oauthtoken | default(vault_controller_oauthtoken | default(omit)) }}"
-    controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
-    controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
-    validate_certs: "{{ controller_validate_certs | default(false) }}"
+  ansible.builtin.include_tasks: ensure_controller_inventory.yml
   loop: "{{ bootstrap_controller_controller_inventories | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_inventory
   when:
     - bootstrap_controller_controller_inventories | default([]) | length > 0
     - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
@@ -1067,6 +1060,7 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   loop: "{{ bootstrap_controller_labels_to_create }}"
   loop_control:
     loop_var: label_item
@@ -1424,17 +1418,14 @@
         )
       }}
 
+# One include per credential. The dispatcher starts every credential at
+# once, and a single gateway 504 fails the play even when the next
+# credential in that batch succeeded.
 - name: AAP 2.5+ | Apply credentials
-  ansible.builtin.include_role:
-    name: infra.aap_configuration.dispatch
-  vars:
-    gateway_configuration_dispatcher_roles: []
-    hub_configuration_dispatcher_roles: []
-    eda_configuration_dispatcher_roles: []
-    controller_configuration_dispatcher_roles:
-      - role: controller_credentials
-        var: controller_credentials
-        tags: credentials
+  ansible.builtin.include_tasks: ensure_controller_credential.yml
+  loop: "{{ controller_credentials | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_credential
   when: controller_credentials | default([]) | length > 0
 
 - name: AAP 2.5+ | Attach Galaxy credentials to organization after credential create
@@ -1482,41 +1473,41 @@
     controller_username: "{{ controller_username | default(vault_controller_username | default(omit)) }}"
     controller_password: "{{ controller_password | default(vault_controller_password | default(omit)) }}"
     validate_certs: "{{ controller_validate_certs | default(false) }}"
+    request_timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
   loop: "{{ controller_inventory_sources | default([]) }}"
   loop_control:
     label: "{{ item.name }}"
   when: controller_inventory_sources | default([]) | length > 0
 
+- name: AAP 2.5+ | Keep project inventory sync off vaulted group_vars
+  ansible.builtin.include_tasks: attach_scm_inventory_sync_vars.yml
+  when:
+    - not (
+        bootstrap_controller_hub_update_collection_only
+        | default(false)
+        | bool
+      )
+
 - name: AAP 2.5+ | Sync Controller projects before job templates
   ansible.builtin.include_tasks: sync_controller_projects_before_templates.yml
 
-# Hosts before templates
+# One host per include. controller_hosts posts every host at once, and
+# a gateway 504 on POST /hosts/ fails the play.
 - name: AAP 2.5+ | Apply hosts
-  ansible.builtin.include_role:
-    name: infra.aap_configuration.dispatch
-  vars:
-    gateway_configuration_dispatcher_roles: []
-    hub_configuration_dispatcher_roles: []
-    eda_configuration_dispatcher_roles: []
-    controller_configuration_dispatcher_roles:
-      - role: controller_hosts
-        var: controller_hosts
-        tags: hosts
+  ansible.builtin.include_tasks: ensure_controller_host.yml
+  loop: "{{ controller_hosts | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_host
+    label: "{{ bootstrap_controller_host.name | default('host') }}"
   when: controller_hosts | default([]) | length > 0
 
+# One group per include. Same gateway 504 pattern as hosts.
 - name: AAP 2.5+ | Apply groups
-  ansible.builtin.include_role:
-    name: infra.aap_configuration.dispatch
-  vars:
-    gateway_configuration_dispatcher_roles: []
-    hub_configuration_dispatcher_roles: []
-    eda_configuration_dispatcher_roles: []
-    controller_configuration_dispatcher_roles:
-      # infra.aap_configuration role name is controller_host_groups;
-      # the list var remains controller_groups.
-      - role: controller_host_groups
-        var: controller_groups
-        tags: groups
+  ansible.builtin.include_tasks: ensure_controller_group.yml
+  loop: "{{ controller_groups | default([]) }}"
+  loop_control:
+    loop_var: bootstrap_controller_group
+    label: "{{ bootstrap_controller_group.name | default('group') }}"
   when: controller_groups | default([]) | length > 0
 
 # Now job templates can see synced playbooks
@@ -1599,19 +1590,42 @@
 # controller_workflow_job_templates never runs. That leaves destroy_current_nodes
 # workflows empty when a prior partial apply wiped nodes (Managing Workflows runs
 # before simplified_workflow_nodes schema is rebuilt).
+- name: AAP 2.5+ | Wait for job template API calls to finish  # noqa: var-naming[no-role-prefix]
+  ansible.builtin.set_fact:
+    controller_configuration_job_templates_async_delay: >-
+      {{ bootstrap_controller_job_template_async_delay | default(5) | int }}
+    controller_configuration_job_templates_async_retries: >-
+      {{
+        (
+          (bootstrap_controller_request_timeout | default(120) | int)
+          / (bootstrap_controller_job_template_async_delay | default(5) | int)
+        ) | int + 6
+      }}
+    controller_configuration_workflow_job_templates_async_delay: >-
+      {{ bootstrap_controller_job_template_async_delay | default(5) | int }}
+    controller_configuration_workflow_job_templates_async_retries: >-
+      {{
+        (
+          (bootstrap_controller_request_timeout | default(120) | int)
+          / (bootstrap_controller_job_template_async_delay | default(5) | int)
+        ) | int + 6
+      }}
+
+# One template per include. A gateway timeout or a poll that ends
+# before the API call returns no longer fails every template together.
 - name: AAP 2.5+ | Apply job templates
   block:
-    - name: AAP 2.5+ | Dispatch job templates to Controller
-      ansible.builtin.include_role:
-        name: infra.aap_configuration.dispatch
-      vars:
-        gateway_configuration_dispatcher_roles: []
-        hub_configuration_dispatcher_roles: []
-        eda_configuration_dispatcher_roles: []
-        controller_configuration_dispatcher_roles:
-          - role: controller_job_templates
-            var: controller_templates
-            tags: job_templates
+    - name: AAP 2.5+ | Apply job templates one at a time
+      ansible.builtin.include_tasks: ensure_controller_job_template.yml
+      loop: "{{ controller_templates | default([]) }}"
+      loop_control:
+        loop_var: bootstrap_controller_job_template
+        label: >-
+          {{
+            bootstrap_controller_job_template.name
+            | default('job template')
+          }}
+      when: controller_templates | default([]) | length > 0
   rescue:
     - name: AAP 2.5+ | Record job template apply failure (workflows will still run)
       ansible.builtin.set_fact:

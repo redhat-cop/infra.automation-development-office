@@ -16,7 +16,12 @@
     - ocp_aap_hub_harden_separate_database | default(true) | bool
     - not (ocp_aap_hub_harden_already_separated | bool)
 
-- name: Patch AutomationHub gunicorn workers and timeouts
+# Do not patch gunicorn_timeout / nginx_*_timeout on AutomationHub when the
+# parent AnsibleAutomationPlatform operator owns Hub: conflicting values
+# (e.g. 180 vs platform default 100) cause perpetual api/content ReplicaSet
+# thrash. Worker counts alone are safe and enough to limit status fan-out.
+- name: Patch AutomationHub gunicorn worker counts
+  when: ocp_aap_hub_harden_patch_gunicorn_workers | default(true) | bool
   kubernetes.core.k8s:
     state: present
     definition:
@@ -28,11 +33,6 @@
       spec:
         gunicorn_api_workers: "{{ ocp_aap_hub_harden_gunicorn_api_workers | int }}"
         gunicorn_content_workers: "{{ ocp_aap_hub_harden_gunicorn_content_workers | int }}"
-        gunicorn_timeout: "{{ ocp_aap_hub_harden_gunicorn_timeout | int }}"
-        haproxy_timeout: 180s
-        nginx_proxy_connect_timeout: 120s
-        nginx_proxy_read_timeout: 180s
-        nginx_proxy_send_timeout: 180s
 
 - name: Point AutomationHub at dedicated Postgres
   when: >-

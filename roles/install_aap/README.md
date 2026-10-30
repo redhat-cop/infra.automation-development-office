@@ -40,6 +40,9 @@ Automation Development Office
 | `install_aap_rhel_download` | Run download role (default `true`). |
 | `install_aap_rhel_prepare` | Run prepare role (default `true`). |
 | `install_aap_rhel_install` | Run install role (default `true`). |
+| `aap_setup_inst_force` | Skip greenfield URI health checks that crash before AAP listens (default from role / env gen). |
+| `install_aap_containerized_install_user` | Non-root user that runs containerized setup (default `cloud-user`). Installer rejects root. |
+| *(containerized)* | After prepare: growth groups, SSH to ``127.0.0.1`` as non-root install user (key + passwordless sudo), strip inventory ``ansible_user=root`` / ``ansible_become``, ``redis_mode=standalone``; nested installer via ``sudo -u <install_user>``. Do not set inventory ``ansible_become`` (breaks preflight uid check). |
 
 ## 🚀 Role Usage
 

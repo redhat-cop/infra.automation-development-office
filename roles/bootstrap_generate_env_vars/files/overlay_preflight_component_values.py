@@ -1176,6 +1176,10 @@ def merge_component(component, cfg):
             if component == "satellite"
             else copy.deepcopy(vars_data["component_config"].get(component, {}))
         )
+        # Empty storage from the UI must not clobber a real StorageClass
+        # already present in group_vars / components_env (Zabbix PG PVCs).
+        if not str(passthrough_public_values.get("storage") or "").strip():
+            passthrough_public_values.pop("storage", None)
         vars_data["component_config"][component] = {
             **existing_component_config,
             **copy.deepcopy(
@@ -1185,6 +1189,10 @@ def merge_component(component, cfg):
                 else passthrough_public_values
             ),
         }
+        # Drop empty storage left in component_config from prior overlays.
+        cfg_storage = vars_data["component_config"][component].get("storage")
+        if cfg_storage is not None and not str(cfg_storage).strip():
+            vars_data["component_config"][component].pop("storage", None)
 
         for k, v in passthrough_public_values.items():
             vars_data[k] = copy.deepcopy(v)
@@ -1921,12 +1929,25 @@ def merge_component(component, cfg):
                 public_values.get("postgres_storage"),
                 public_values.get("postgres_storage_class"),
                 public_values.get("zabbix_postgres_storage_class"),
+                public_values.get("storage"),
+                (vars_data.get("components_env") or {}).get("zabbix", {}).get(
+                    "storage"
+                ),
+                vars_data.get("storage"),
             )
-            if pg_storage:
-                vars_data["zabbix_postgres_storage_class"] = str(pg_storage)
+            if pg_storage and str(pg_storage).strip():
+                vars_data["zabbix_postgres_storage_class"] = str(pg_storage).strip()
                 vars_data["components_env"]["zabbix"][
                     "zabbix_postgres_storage_class"
-                ] = str(pg_storage)
+                ] = str(pg_storage).strip()
+                if apply_storage_var(
+                    vars_data,
+                    "zabbix",
+                    preflight,
+                    str(pg_storage).strip(),
+                    vars_data_changed,
+                ):
+                    vars_data_changed = True
             pg_size = first_present(
                 public_values.get("postgres_storage_size"),
                 public_values.get("zabbix_postgres_storage_size"),
@@ -3054,11 +3075,10 @@ def merge_component(component, cfg):
                     pre_aap.get("aap_setup_ssh_password"),
                 )
                 if ssh_password:
+                    # Vault only — do not also write vars_data["aap_setup_ssh_password"]
+                    # = vault_ref(...): that self-reference wins over vault and loops.
                     vault_data["aap_setup_ssh_password"] = ssh_password
                     vault_data_changed = True
-                    vars_data["aap_setup_ssh_password"] = vault_ref(
-                        "aap_setup_ssh_password"
-                    )
                 ssh_key = first_present(
                     secret_values.get("aap_setup_ssh_private_key_secret"),
                     pre_aap.get("aap_setup_ssh_private_key_secret"),
@@ -3068,14 +3088,24 @@ def merge_component(component, cfg):
                 if ssh_key:
                     vault_data["aap_setup_ssh_private_key"] = ssh_key
                     vault_data_changed = True
-                    vars_data["aap_setup_ssh_private_key"] = vault_ref(
-                        "aap_setup_ssh_private_key"
-                    )
                 if standalone_host:
-                    vars_data["aap_setup_prep_inv_nodes"] = {
-                        "automationcontroller": {standalone_host: ""},
-                        "database": {standalone_db: ""},
-                    }
+                    db_host = standalone_db or standalone_host
+                    # AAP 2.7 containerized growth topology co-locates gateway,
+                    # hub, eda, and metrics with controller on one host.
+                    if vars_data.get("aap_setup_containerized"):
+                        vars_data["aap_setup_prep_inv_nodes"] = {
+                            "automationgateway": {standalone_host: ""},
+                            "automationcontroller": {standalone_host: ""},
+                            "automationhub": {standalone_host: ""},
+                            "automationeda": {standalone_host: ""},
+                            "automationmetrics": {standalone_host: ""},
+                            "database": {db_host: ""},
+                        }
+                    else:
+                        vars_data["aap_setup_prep_inv_nodes"] = {
+                            "automationcontroller": {standalone_host: ""},
+                            "database": {db_host: ""},
+                        }
                     vars_data["hostname"] = standalone_host
                     vars_data["aap_hostname"] = standalone_host
                     public_values["standalone_hostname"] = standalone_host
@@ -3084,9 +3114,101 @@ def merge_component(component, cfg):
                         public_values["standalone_database_hostname"] = standalone_db
                 inv_all = {}
                 if admin_password is not None:
-                    inv_all["admin_password"] = vault_ref("aap_admin_password")
+                    admin_vault = vault_ref("aap_admin_password")
+                    inv_all["admin_password"] = admin_vault
+                    # containerized installer inventory + health checks
+                    inv_all["controller_admin_password"] = admin_vault
+                    inv_all["hub_admin_password"] = admin_vault
+                    inv_all["eda_admin_password"] = admin_vault
+                    inv_all["gateway_admin_password"] = admin_vault
+                    inv_all["pg_password"] = admin_vault
+                    inv_all["registry_password"] = admin_vault
+                    # Managed DB (database group on the same host) requires these.
+                    inv_all["postgresql_admin_username"] = "postgres"
+                    inv_all["postgresql_admin_password"] = admin_vault
+                    inv_all["gateway_pg_password"] = admin_vault
+                    inv_all["controller_pg_password"] = admin_vault
+                    inv_all["hub_pg_password"] = admin_vault
+                    inv_all["eda_pg_password"] = admin_vault
+                    if standalone_db:
+                        inv_all["gateway_pg_host"] = standalone_db
+                        inv_all["controller_pg_host"] = standalone_db
+                        inv_all["hub_pg_host"] = standalone_db
+                        inv_all["eda_pg_host"] = standalone_db
+                        inv_all["automationmetrics_pg_host"] = standalone_db
+                        inv_all["automationmetrics_controller_read_pg_host"] = (
+                            standalone_db
+                        )
+                    inv_all["automationmetrics_pg_password"] = admin_vault
+                    inv_all["automationmetrics_controller_read_pg_password"] = (
+                        admin_vault
+                    )
                 if vars_data.get("aap_setup_containerized"):
                     inv_all["bundle_install"] = "true"
+                    # Single-node / co-located install — cluster mode needs ≥6 redis hosts.
+                    inv_all["redis_mode"] = "standalone"
+                    # Nested installer must SSH as non-root (not local+root).
+                    # Bootstrap may still use aap_setup_ssh_user=root to reach
+                    # the VM; inventory ansible_user is the install user.
+                    inv_all["ansible_connection"] = "ssh"
+                    inv_all["ansible_host"] = "127.0.0.1"
+                    install_user = str(
+                        first_present(
+                            public_values.get(
+                                "aap_setup_containerized_install_user"
+                            ),
+                            pre_aap.get(
+                                "aap_setup_containerized_install_user"
+                            ),
+                            vars_data.get(
+                                "install_aap_containerized_install_user"
+                            ),
+                            "cloud-user",
+                        )
+                        or "cloud-user"
+                    ).strip()
+                    if install_user and install_user != "root":
+                        inv_all["ansible_user"] = install_user
+                        # Never set ansible_become in inventory — it overrides
+                        # play become:false and makes setup report uid 0.
+                        inv_all.pop("ansible_become", None)
+                        inv_all.pop("ansible_become_method", None)
+                        inv_all["ansible_ssh_private_key_file"] = (
+                            f"/home/{install_user}/.ssh/id_ed25519"
+                        )
+                        inv_all["ansible_ssh_common_args"] = (
+                            "-o StrictHostKeyChecking=no "
+                            "-o UserKnownHostsFile=/dev/null"
+                        )
+                        vars_data[
+                            "install_aap_containerized_install_user"
+                        ] = install_user
+                        vars_data[
+                            "aap_setup_containerized_install_user"
+                        ] = install_user
+
+                    # containerized_installer preflight requires bundle_dir when
+                    # bundle_install=true (path must end with /bundle).
+                    work = (
+                        bundle_dir
+                        or vars_data.get("aap_setup_prep_working_dir")
+                        or "/var/tmp"
+                    ).rstrip("/")
+                    extract_name = ""
+                    if bundle_file:
+                        extract_name = os.path.basename(bundle_file)
+                        for _suf in (".tar.gz", ".tgz", ".tar"):
+                            if extract_name.endswith(_suf):
+                                extract_name = extract_name[: -len(_suf)]
+                                break
+                    if work.endswith("/bundle"):
+                        inv_all["bundle_dir"] = work
+                    elif extract_name and work.endswith(extract_name):
+                        inv_all["bundle_dir"] = f"{work}/bundle"
+                    elif extract_name:
+                        inv_all["bundle_dir"] = f"{work}/{extract_name}/bundle"
+                    else:
+                        inv_all["bundle_dir"] = f"{work}/bundle"
                 for src_key, inv_key in (
                     ("aap_gateway_cert_path", "gateway_tls_cert"),
                     ("aap_gateway_key_path", "gateway_tls_key"),
@@ -3103,6 +3225,38 @@ def merge_component(component, cfg):
                         inv_all[inv_key] = inv_value
                 if inv_all:
                     vars_data["aap_setup_prep_inv_vars"] = {"all": inv_all}
+                # Stamp redis_mode / local connection / non-root user even when
+                # inv_all was merged/hot-patched without them.
+                if vars_data.get("aap_setup_containerized"):
+                    _prep_inv = vars_data.setdefault("aap_setup_prep_inv_vars", {})
+                    _prep_all = _prep_inv.setdefault("all", {})
+                    _prep_all["redis_mode"] = "standalone"
+                    _prep_all["ansible_connection"] = "ssh"
+                    _prep_all["ansible_host"] = "127.0.0.1"
+                    _inst_user = str(
+                        vars_data.get("install_aap_containerized_install_user")
+                        or vars_data.get("aap_setup_containerized_install_user")
+                        or "cloud-user"
+                    ).strip()
+                    if _inst_user and _inst_user != "root":
+                        _prep_all["ansible_user"] = _inst_user
+                        _prep_all.pop("ansible_become", None)
+                        _prep_all.pop("ansible_become_method", None)
+                        _prep_all["ansible_ssh_private_key_file"] = (
+                            f"/home/{_inst_user}/.ssh/id_ed25519"
+                        )
+                        _prep_all["ansible_ssh_common_args"] = (
+                            "-o StrictHostKeyChecking=no "
+                            "-o UserKnownHostsFile=/dev/null"
+                        )
+                        vars_data[
+                            "install_aap_containerized_install_user"
+                        ] = _inst_user
+
+                # Greenfield: URI health checks fail with no .status before
+                # anything listens; aap_utilities then crashes on .status.
+                # Force runs setup.sh instead of relying on those checks.
+                vars_data["aap_setup_inst_force"] = True
             skip_tls_verify = as_bool(
                 openshift_values.get("skip_tls_verify"),
                 True,
@@ -3501,6 +3655,8 @@ def merge_component(component, cfg):
                     ] or ["ado"]
                 sample_url = str(public_values.get("custom_sample_url") or "").strip()
                 # Fall back to default_devfile_url when sample URL blank.
+                # Role fills a blank url with this Che host's built-in empty UDI
+                # empty.yaml so the sample card still renders (empty url = stock tiles).
                 if not sample_url:
                     sample_url = str(
                         public_values.get("default_devfile_url") or ""

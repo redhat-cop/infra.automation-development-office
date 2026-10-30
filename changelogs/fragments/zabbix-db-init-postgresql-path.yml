@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_zabbix - DB init Job looks for schema at
+    ``/usr/share/doc/zabbix-server-postgresql/create.sql.gz`` (Zabbix 7
+    ubuntu images). Older ``zabbix-server-pgsql`` path remains as fallback.

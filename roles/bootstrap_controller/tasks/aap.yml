@@ -24,6 +24,12 @@
         ) >= 25
       }}
 
+- name: AAP | Set Controller API timeout  # noqa: var-naming[no-role-prefix]
+  ansible.builtin.set_fact:
+    aap_request_timeout: >-
+      {{ bootstrap_controller_request_timeout | default(120) | int }}
+  when: aap_request_timeout is not defined
+
 - name: AAP | Resolve effective environment
   ansible.builtin.set_fact:
     bootstrap_controller_effective_env: >-
@@ -66,14 +72,22 @@
 
 - name: AAP | Check controller connectivity
   ansible.builtin.include_tasks: check_connectivity.yml
-  when: bootstrap_controller_aap_connectivity_check_enabled | default(true) | bool
+  when: >-
+    bootstrap_controller_aap_connectivity_check_enabled
+    | default(true)
+    | bool
 
 - name: AAP | Run controller smoke test
   ansible.builtin.include_tasks: run_smoke_test.yml
   when:
     - bootstrap_controller_aap_smoke_test_enabled | default(true) | bool
     # Hub-only runs publish collection / EE; skip Demo JT smoke on fresh hubs.
-    - not (bootstrap_controller_hub_update_collection_only | default(false) | bool)
+    - >-
+      not (
+        bootstrap_controller_hub_update_collection_only
+        | default(false)
+        | bool
+      )
 
 - name: AAP | Detect AAP version
   ansible.builtin.include_tasks: detect_aap_version.yml

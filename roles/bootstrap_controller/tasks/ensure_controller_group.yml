@@ -1,0 +1,19 @@
+---
+# One group per include. Ansible 2.15 rejects delay on include_role
+# and on include_tasks, so each try is a loop iteration with a pause.
+- name: AAP 2.5+ | Reset group retry state
+  ansible.builtin.set_fact:
+    bootstrap_controller_group_ok: false
+
+- name: AAP 2.5+ | Apply one group until it succeeds
+  ansible.builtin.include_tasks: apply_one_controller_group.yml
+  loop: >-
+    {{
+      range(
+        1,
+        (bootstrap_controller_group_retries | default(4) | int) + 1
+      ) | list
+    }}
+  loop_control:
+    loop_var: bootstrap_controller_group_try
+  when: not (bootstrap_controller_group_ok | default(false) | bool)

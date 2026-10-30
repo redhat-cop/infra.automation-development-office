@@ -1,0 +1,33 @@
+---
+# state=present leaves an existing project in place.
+- name: AAP 2.5+ | Apply one project
+  block:
+    - name: AAP 2.5+ | Dispatch one project
+      ansible.builtin.include_role:
+        name: infra.aap_configuration.controller_projects
+      vars:
+        controller_projects: "{{ [bootstrap_controller_project] }}"
+
+    - name: AAP 2.5+ | Project apply succeeded
+      ansible.builtin.set_fact:
+        bootstrap_controller_project_ok: true
+  rescue:
+    - name: AAP 2.5+ | Wait before the next project attempt
+      ansible.builtin.pause:
+        seconds: >-
+          {{
+            bootstrap_controller_project_retry_delay | default(10) | int
+          }}
+      when: >-
+        (bootstrap_controller_project_try | int)
+        < (bootstrap_controller_project_retries | default(4) | int)
+
+    - name: AAP 2.5+ | Fail when project retries are exhausted
+      ansible.builtin.fail:
+        msg: >-
+          Project was not applied after
+          {{ bootstrap_controller_project_retries | default(4) }}
+          attempts.
+      when: >-
+        (bootstrap_controller_project_try | int)
+        >= (bootstrap_controller_project_retries | default(4) | int)

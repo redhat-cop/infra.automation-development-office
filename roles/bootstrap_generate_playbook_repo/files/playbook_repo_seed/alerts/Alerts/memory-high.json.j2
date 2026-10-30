@@ -1,6 +1,6 @@
 {
   "uid": "ado-memory-high-{{ grafana_upload_alerts_datasource_slug }}",
-  "title": "Node or pod memory above threshold ({{ grafana_upload_alerts_datasource_name }})",
+  "title": "Node or pod memory critically high ({{ grafana_upload_alerts_datasource_name }})",
   "condition": "C",
   "data": [
     {
@@ -13,7 +13,7 @@
       "datasourceUid": "{{ grafana_upload_alerts_datasource_uid }}",
       "model": {
         "editorMode": "code",
-        "expr": "(count((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85) or vector(0)) + (count((container_memory_working_set_bytes{container!=\"\",container!=\"POD\"} / on (namespace, pod, container) group_left () kube_pod_container_resource_limits{resource=\"memory\"}) > 0.90) or vector(0))",
+        "expr": "(count((1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.92) or vector(0)) + (count((container_memory_working_set_bytes{container!=\"\",container!=\"POD\"} / on (namespace, pod, container) group_left () kube_pod_container_resource_limits{resource=\"memory\"}) > 0.95) or vector(0))",
         "instant": true,
         "intervalMs": 1000,
         "maxDataPoints": 43200,
@@ -59,7 +59,7 @@
           {
             "evaluator": {
               "params": [
-                0
+                1
               ],
               "type": "gt"
             },
@@ -83,9 +83,9 @@
   ],
   "noDataState": "OK",
   "execErrState": "Error",
-  "for": "10m",
+  "for": "20m",
   "annotations": {
-    "summary": "A node is above 85 percent memory used, or a pod with a memory limit is above 90 percent of that limit. Pods without a limit are not included."
+    "summary": "At least two offenders: a node above 92 percent memory used, and/or pods above 95 percent of their memory limit. Pods without a limit are not included."
   },
   "labels": {
     "ado": "openshift-default",

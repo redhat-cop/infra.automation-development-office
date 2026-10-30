@@ -7,6 +7,7 @@ controller_templates:
     inventory: '{{ bootstrap_controller_rhel_inventory_name }}'
     project: '{{ bootstrap_controller_project_name }}'
     execution_environment: '{{ bootstrap_controller_execution_environment_name }}'  # yamllint disable-line rule:line-length
+    become_enabled: true
     credentials:
       - '{{ bootstrap_controller_creds }}'
       # ADO_MACHINE_CREDENTIAL

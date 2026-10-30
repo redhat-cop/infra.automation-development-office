@@ -1,0 +1,99 @@
+---
+- name: SCM inventory | Parse source vars
+  ansible.builtin.set_fact:
+    bootstrap_controller_scm_source_vars: >-
+      {{
+        bootstrap_controller_scm_source.source_vars
+        if (bootstrap_controller_scm_source.source_vars is mapping)
+        else (
+          {}
+          if (
+            bootstrap_controller_scm_source.source_vars
+            | default('')
+            | length == 0
+          )
+          else (
+            bootstrap_controller_scm_source.source_vars | from_yaml
+          )
+        )
+      }}
+
+- name: SCM inventory | Leave an existing vars plugin setting unchanged
+  ansible.builtin.debug:
+    msg: >-
+      SCM inventory source
+      '{{ bootstrap_controller_scm_source.name | default('') }}'
+      already sets ANSIBLE_VARS_ENABLED.
+  when: >-
+    'ANSIBLE_VARS_ENABLED' in (
+      bootstrap_controller_scm_source_vars | default({})
+    )
+
+- name: SCM inventory | Skip vaulted group_vars during project sync
+  ansible.builtin.uri:
+    url: >-
+      {{
+        bootstrap_controller_aap_api_url
+        ~ bootstrap_controller_aap_effective_api_path
+        ~ '/inventory_sources/'
+        ~ (bootstrap_controller_scm_source.id | string)
+        ~ '/'
+      }}
+    method: PATCH
+    headers: >-
+      {{
+        {
+          'Authorization':
+          'Bearer ' ~ bootstrap_controller_controller_oauthtoken
+        }
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length > 0
+        )
+        else {}
+      }}
+    url_username: >-
+      {{
+        bootstrap_controller_controller_username
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    url_password: >-
+      {{
+        bootstrap_controller_controller_password
+        if (
+          bootstrap_controller_controller_oauthtoken
+          | default('')
+          | length == 0
+        )
+        else omit
+      }}
+    force_basic_auth: true
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    timeout: "{{ bootstrap_controller_request_timeout | default(120) | int }}"
+    status_code: [200]
+    body_format: json
+    body:
+      source_vars: >-
+        {{
+          (
+            (bootstrap_controller_scm_source_vars | default({}))
+            | combine({'ANSIBLE_VARS_ENABLED': ''})
+          )
+          | to_json
+        }}
+  register: bootstrap_controller_scm_source_patch
+  retries: "{{ bootstrap_controller_org_lookup_retries | default(4) | int }}"
+  delay: >-
+    {{ bootstrap_controller_org_lookup_retry_delay | default(10) | int }}
+  until: bootstrap_controller_scm_source_patch is succeeded
+  no_log: "{{ bootstrap_controller_aap_connectivity_no_log | default(true) }}"
+  when: >-
+    'ANSIBLE_VARS_ENABLED' not in (
+      bootstrap_controller_scm_source_vars | default({})
+    )

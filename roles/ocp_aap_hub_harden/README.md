@@ -2,7 +2,8 @@
 
 Separate Automation Hub onto dedicated Postgres when it still shares
 Controller PG, then pin replicas/workers and install a maintenance CronJob
-that vacuums `core_apiappstatus` on the dedicated Hub database.
+that vacuums `core_apiappstatus` on the dedicated Hub database. The CronJob
+must not re-patch AAP/Hub CRs — that caused Hub ReplicaSet thrash.
 
 ## Role Author
 
@@ -37,8 +38,10 @@ Automation Development Office
 | `ocp_aap_hub_harden_api_replicas` | Hub API replica count. Default `1`. |
 | `ocp_aap_hub_harden_content_replicas` | Hub content replica count. Default `1`. |
 | `ocp_aap_hub_harden_gunicorn_api_workers` | Gunicorn API workers. Default `1`. |
-| `ocp_aap_hub_harden_install_maintenance_cronjob` | Install stability CronJob. Default `true`. |
-| `ocp_aap_hub_harden_cron_schedule` | CronJob schedule. Default `*/15 * * * *`. |
+| `ocp_aap_hub_harden_gunicorn_content_workers` | Gunicorn content workers. Default `1`. |
+| `ocp_aap_hub_harden_patch_gunicorn_workers` | Patch worker counts on AutomationHub. Default `true`. Timeout fields are not patched (they fight AAP platform defaults and thrash Hub). |
+| `ocp_aap_hub_harden_install_maintenance_cronjob` | Install stability CronJob (vacuum/LWLock only; no CR patches). Default `true`. |
+| `ocp_aap_hub_harden_cron_schedule` | CronJob schedule. Default `5 * * * *` (hourly). |
 
 Reruns are idempotent: when Hub already uses
 `external-hub-postgres-configuration`, migrate is skipped and only the

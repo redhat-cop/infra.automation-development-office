@@ -29,7 +29,8 @@ Existing MariaDB installs are left on MariaDB unless you set
 | `zabbix_database_provision` | Provision ADO-managed PostgreSQL when type is `postgres`. `anyuid` is bound only to that Postgres ServiceAccount. | ❌ | `true` |
 | `zabbix_postgres_image` | PostgreSQL container image. | ❌ | `registry.redhat.io/rhel9/postgresql-15:latest` |
 | `zabbix_postgres_storage_size` | PVC size for dedicated PostgreSQL. | ❌ | `10Gi` |
-| `zabbix_postgres_storage_class` | StorageClass for dedicated PostgreSQL. Falls back to `storage`. | ❌ | `""` |
+| `zabbix_postgres_storage_class` | StorageClass for dedicated PostgreSQL. Falls back to `storage` / `components_env.zabbix.storage`. | ❌ | `""` |
+| `zabbix_postgres_reset_data` | Delete Deployment+PVC before recreate (clears NFS leftovers after failed `initdb`). | ❌ | `false` |
 | `zabbix_postgres_host` | External PostgreSQL host when provision is `false`. | ❌ | `""` |
 | `zabbix_mariadb_image` | MariaDB container image (mysql path). | ❌ | `registry.redhat.io/rhel9/mariadb-105:latest` |
 | `zabbix_server_image` | Zabbix server container image. | ❌ | `zabbix/zabbix-server-pgsql:ubuntu-7.0-latest` |
