@@ -3202,3 +3202,147 @@ releases:
     - satellite-content-view-local-inventory.yml
     - satellite-target-platform-group.yml
     release_date: '2026-10-19'
+  2.1.1:
+    changes:
+      breaking_changes:
+      - galaxy.yml - Publish the collection as ``infra.automation_development_office``
+        instead of ``infra.ado``. Install with ``ansible-galaxy collection install
+        infra.automation_development_office`` (or the matching Automation Hub path).
+        Existing ``infra.ado`` installs are a different collection name and are not
+        upgraded in place. bootstrap_controller includes sibling roles as ``infra.automation_development_office.bootstrap_generate_env_vars``
+        and ``infra.automation_development_office.bootstrap_generate_playbook_repo``.
+      bugfixes:
+      - bootstrap_controller - Project inventory sync no longer fails with "no vault
+        secrets found" when group_vars are encrypted. Controller 4.7 rejects a Vault
+        credential on an SCM inventory source, so bootstrap sets ANSIBLE_VARS_ENABLED
+        on that source only. Job templates still use the organization vault credential.
+        Direct inventories are unchanged.
+      - bootstrap_controller - Raise the Controller API read timeout from the ``ansible.controller``
+        default of 10 seconds to 120. Inventory creation looks up the organization
+        by name and was failing with a read timeout on a slow Controller API. Set
+        ``bootstrap_controller_request_timeout`` or ``aap_request_timeout`` to override
+        it.
+      - bootstrap_controller - Retry each Controller credential create when the gateway
+        returns HTTP 504. One timed-out Galaxy credential no longer fails bootstrap
+        while another credential in the same batch succeeds. Existing credentials
+        stay unchanged (``state=present``). Ansible 2.15 rejects ``delay`` on ``include_role``,
+        so each credential is retried with a pause between attempts.
+      - bootstrap_controller - Retry each Controller host and group create when the
+        gateway returns HTTP 504. One timed-out host, such as ``localhost``, no longer
+        fails bootstrap while another host in the same batch succeeds. Existing hosts
+        and groups stay in place (``state=present``). Ansible 2.15 rejects ``delay``
+        on ``include_role``, so each object is retried with a pause between attempts.
+      - bootstrap_controller - Retry each Controller inventory create when the gateway
+        returns HTTP 504. One timed-out inventory no longer fails the bootstrap while
+        the next inventory in the same task succeeds. Existing inventories stay unchanged
+        (``state=present``).
+      - bootstrap_controller - Retry each Controller project create when the gateway
+        returns HTTP 504 on ``/api/controller/v2/projects/``. One timed-out project
+        no longer fails bootstrap. Existing projects stay in place (``state=present``).
+        Ansible 2.15 rejects ``delay`` on ``include_role``, so each project is retried
+        with a pause between attempts.
+      - bootstrap_controller - Retry the Controller organization lookup when the gateway
+        returns HTTP 504. A timed-out lookup no longer stops bootstrap as if the organization
+        were missing, and an existing organization is still not PATCHed.
+      - bootstrap_controller - Wait for a Controller job template create to finish
+        before treating it as failed. The role was polling for 50 seconds while the
+        API call is allowed 120 seconds, so a slow create such as ``ADO | RHEL Patch
+        Host`` ended as ``Unknown Error``. Each template is also retried on its own.
+        Existing templates stay in place (``state=present``).
+      - bootstrap_generate_env_vars - Resolve the Controller Source Control username
+        from preflight ``git.username`` when it is set. A blank username stays ``oauth2``
+        for GitLab and GitHub, and ``x-token-auth`` for Bitbucket.
+      - bootstrap_generate_env_vars - Set ``postgresql_admin_password`` and related
+        managed-DB inventory vars for standalone containerized AAP installs.
+      - bootstrap_generate_env_vars - Set ``redis_mode=standalone`` for single-node
+        containerized AAP installs (default cluster mode requires six redis hosts).
+      - bootstrap_generate_env_vars - Set inventory ``bundle_dir`` when containerized
+        ``bundle_install=true`` so the AAP containerized installer preflight does
+        not fail.
+      - bootstrap_generate_playbook_repo - CLI bootstrap with only ``preflight_json``
+        uses that resolved username, the vault git token, and the generated auth mode.
+        Extra vars and role parameters still win. The git remote URL stays free of
+        the token. Bitbucket Bearer auth is stored in a mode 0600 include file.
+      - grafana_upload_alerts - Raised OpenShift CrashLoopBackOff alert to ``>8``
+        for ``15m`` and excluded abandoned lab namespaces ``aap24`` / ``selfserviceportal``
+        from the count so dead AAP 2.4 / portal leftovers stop paging.
+      - 'grafana_upload_alerts - Raised memory alert to node ``>92%`` / pod ``>95%``
+        of limit, require at least two offenders, and ``for: 20m`` to stop single
+        tight-limit pods (e.g. OpenSearch) flapping the threshold.'
+      - install_aap - After ``aap_setup_prepare``, force AAP 2.7 growth inventory
+        groups, ``redis_mode=standalone``, ``ansible_connection=local``, non-root
+        ``ansible_user`` (default ``cloud-user``), and metrics DB vars; run containerized
+        setup as that user so installer preflight does not reject root.
+      - 'install_aap - Containerized preflight ``ansible_user_uid != 0``: run installer
+        as non-root via ``sudo -u``, SSH to ``127.0.0.1`` as the install user, and
+        do **not** set inventory ``ansible_become`` (it overrides play ``become: false``
+        so ``setup`` reports uid 0 on current ansible-core).'
+      - install_aap / bootstrap_generate_env_vars - Set ``aap_setup_inst_force`` for
+        standalone RHEL installs so ``aap_setup_install`` does not crash when pre-install
+        URI checks return no HTTP status.
+      - ocp_aap_hub_harden - Stop ``aap-hub-stability`` CronJob from patching ``AnsibleAutomationPlatform``
+        / ``AutomationHub`` every run. Dual CR patches made the operators fight and
+        flip Hub api/content ReplicaSets, which slowed galaxy sync and gateway UI.
+        CronJob is vacuum/LWLock-only and defaults to hourly (``5 * * * *``). Also
+        stop the role from patching ``gunicorn_timeout`` / nginx timeouts that fight
+        platform defaults (100 vs 180) and thrash Deployments.
+      - ocp_devspaces - Fill blank custom getting-started sample ``url`` with the
+        cluster built-in Empty Workspace UDI ``empty.yaml`` so the ADO sample card
+        appears instead of falling back to stock tiles.
+      - ocp_devspaces - Fill blank custom sample URLs without Jinja ``namespace()``
+        so a string variable named ``namespace`` does not fail the task.
+      - ocp_devspaces - Publish ``getting-started-samples`` in the CheCluster namespace
+        (dashboard), not the per-user app namespace.
+      - ocp_wait_operator - Avoid Jinja ``namespace()`` in CSV wait/summary (collides
+        with string ``namespace`` var and raises ``AnsibleUnicode object is not callable``
+        during OpenShift Virtualization and other operator installs).
+      - ocp_zabbix - DB init Job looks for schema at ``/usr/share/doc/zabbix-server-postgresql/create.sql.gz``
+        (Zabbix 7 ubuntu images). Older ``zabbix-server-pgsql`` path remains as fallback.
+      - 'ocp_zabbix - Match GitLab/Grafana RHEL PostgreSQL on NFS: bump ``ado.infra/postgres-init-revision``,
+        fail loud when userdata cannot be cleared before ``initdb``, and add ``zabbix_postgres_reset_data``
+        to wipe Deployment+PVC after a CrashLoop. Do not let empty preflight ``storage``
+        clobber a real StorageClass in generated group_vars.'
+      - rhel_patching - The generated RHEL patch job template enables privilege escalation,
+        and the patch play sets ``become``. Patching no longer requires that checkbox
+        to be turned on by hand in Controller.
+      minor_changes:
+      - bootstrap_controller - NFS CSI, iSCSI CSI, and pull-secret jobs stay standalone
+        unless Preflight sets the matching include-in-workflow flag. RHEL system roles
+        can be selected individually, with optional membership in the RHEL workflow
+        after STIG.
+      - bootstrap_generate_env_vars - The Machine credential accepts an optional sudo
+        password (``become_password``). A blank password is left out of the Controller
+        credential and ``vault_machine_cred.yml``.
+      - bootstrap_generate_playbook_repo - Selected RHEL system roles copy an outside-Controller
+        README next to the role playbooks.
+      - keycloak_login_events_exporter - Default image is ``registry.redhat.io/ubi9/python-312:latest``
+        so the exporter no longer runs on UBI Python 3.11.
+    fragments:
+    - aap-hub-stability-no-cr-patch.yml
+    - aap-rhel-bundle-dir.yml
+    - aap-rhel-containerized-sudo-u.yml
+    - aap-rhel-ensure-containerized-inventory.yml
+    - aap-rhel-postgres-admin-password.yml
+    - aap-rhel-redis-standalone.yml
+    - aap-setup-inst-force-rhel.yml
+    - controller-credential-504-retry.yml
+    - controller-host-504-retry.yml
+    - controller-inventory-504-retry.yml
+    - controller-job-template-retry.yml
+    - controller-org-lookup-504-retry.yml
+    - controller-project-504-retry.yml
+    - controller-request-timeout.yml
+    - devspaces-ado-sample-empty-url.yml
+    - galaxy-collection-name.yml
+    - git-username-gitlab-override.yml
+    - grafana-openshift-alert-thresholds.yml
+    - keycloak-login-events-python312.yml
+    - machine-credential-sudo-password.yml
+    - ocp-devspaces-sample-url-namespace.yml
+    - ocp-wait-operator-namespace-shadow.yml
+    - optional-workflow-and-system-roles.yml
+    - rhel-patch-privilege-escalation.yml
+    - scm-inventory-sync-vault.yml
+    - zabbix-db-init-postgresql-path.yml
+    - zabbix-postgres-nfs-crashloop.yml
+    release_date: '2026-10-30'

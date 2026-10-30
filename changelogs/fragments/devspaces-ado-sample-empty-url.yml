@@ -1,6 +1,0 @@
-bugfixes:
-  - ocp_devspaces - Fill blank custom getting-started sample ``url`` with the
-    cluster built-in Empty Workspace UDI ``empty.yaml`` so the ADO sample card
-    appears instead of falling back to stock tiles.
-  - ocp_devspaces - Publish ``getting-started-samples`` in the CheCluster
-    namespace (dashboard), not the per-user app namespace.
