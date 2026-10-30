@@ -1341,10 +1341,12 @@
   when:
     - bootstrap_generate_env_vars_preflight is defined
     - >-
-      (
-        bootstrap_generate_env_vars_preflight.component_config.rhel_system_roles
-        | default({})
-      ).generate_playbooks | default(true) | bool == false
+      not (
+        (
+          bootstrap_generate_env_vars_preflight.component_config.rhel_system_roles
+          | default({})
+        ).generate_playbooks | default(true) | bool
+      )
 
 - name: Add system-role readme when a system-role playbook is selected
   ansible.builtin.set_fact:
