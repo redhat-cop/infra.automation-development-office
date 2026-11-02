@@ -1,9 +1,0 @@
----
-bugfixes:
-  - ocp_aap_hub_harden - Stop ``aap-hub-stability`` CronJob from patching
-    ``AnsibleAutomationPlatform`` / ``AutomationHub`` every run. Dual CR
-    patches made the operators fight and flip Hub api/content ReplicaSets,
-    which slowed galaxy sync and gateway UI. CronJob is vacuum/LWLock-only
-    and defaults to hourly (``5 * * * *``). Also stop the role from
-    patching ``gunicorn_timeout`` / nginx timeouts that fight platform
-    defaults (100 vs 180) and thrash Deployments.

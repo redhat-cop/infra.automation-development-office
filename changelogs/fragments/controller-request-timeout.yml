@@ -1,8 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - Raise the Controller API read timeout from the
-    ``ansible.controller`` default of 10 seconds to 120. Inventory creation
-    looks up the organization by name and was failing with a read timeout
-    on a slow Controller API. Set ``bootstrap_controller_request_timeout``
-    or ``aap_request_timeout`` to override it.

@@ -1,7 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - Retry the Controller organization lookup when
-    the gateway returns HTTP 504. A timed-out lookup no longer stops
-    bootstrap as if the organization were missing, and an existing
-    organization is still not PATCHed.

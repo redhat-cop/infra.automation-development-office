@@ -1,6 +1,0 @@
----
-bugfixes:
-  - ocp_wait_operator - Avoid Jinja ``namespace()`` in CSV wait/summary
-    (collides with string ``namespace`` var and raises
-    ``AnsibleUnicode object is not callable`` during OpenShift
-    Virtualization and other operator installs).

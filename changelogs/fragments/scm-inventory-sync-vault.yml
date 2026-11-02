@@ -1,9 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_controller - Project inventory sync no longer fails with
-    "no vault secrets found" when group_vars are encrypted. Controller
-    4.7 rejects a Vault credential on an SCM inventory source, so
-    bootstrap sets ANSIBLE_VARS_ENABLED on that source only. Job
-    templates still use the organization vault credential. Direct
-    inventories are unchanged.
