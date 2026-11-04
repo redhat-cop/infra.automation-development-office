@@ -2152,9 +2152,11 @@ def sourced_unique_stat_panel(
     color: str = "blue",
     value_field: str = "value",
 ) -> dict:
-    """Unique CVE KPI — equal keys so All/single hit one distinct rollup.
+    """Unique CVE KPI — equal keys so All/single/multi hit one distinct rollup.
 
-    Unsupported multi-selects match no row → Grafana no-data (not an inflated sum).
+    Age uses **equal** ``${finding_age:pipe}`` (not regex). Regex alternation would
+    match several per-bucket rows and Grafana ``sum`` would inflate combined-age
+    Unique. Precomputed Age pipe keys hold exact set unions. No match → ``n/a``.
     """
     panel = stat_panel(title, 0, x, y, w, h, color=color)
     headers = ["Source", "ClusterKey", "Namespace", "Age", "SreKey", value_field]
@@ -2178,7 +2180,8 @@ def sourced_unique_stat_panel(
         equal_value_filter("ClusterKey", "${cluster:pipe}"),
         namespace_filter(strict=True),
         namespace_match_filter(),
-        finding_age_filter(strict=True),
+        # Equal — not finding_age_filter(strict=True) regex (that sums buckets).
+        equal_value_filter("Age", "${finding_age:pipe}"),
         equal_value_filter("SreKey", "${sre:pipe}"),
         hide_source_column(),
         hide_columns(["ClusterKey", "Namespace", "Age", "SreKey"]),
@@ -2245,7 +2248,8 @@ def _stat_metric_rows(analysis: dict, key: str) -> list[list]:
             block = by_source.get(source) or {}
             for item in block.get("unique_cves_by_ownership_age") or []:
                 rows.append(_unique_stat_item_row(source, item))
-        # RH+NRS multi-select covers the full source population → All distinct.
+        # RH+NRS multi-select = full population → copy All-source rollups for
+        # every Age key (singles, __ALL__, Over-14/Over-30 pipes, etc.).
         all_block = by_source.get(SOURCE_ALL) or {}
         for item in all_block.get("unique_cves_by_ownership_age") or []:
             rows.append(_unique_stat_item_row(SOURCE_BOTH, item))
@@ -3469,7 +3473,8 @@ def build_dashboard(
                     if header == "SourceAll"
                     else (
                         FILTER_ALL
-                        if header in {"ClusterAll", "NsAll", "AgeAll"}
+                        if header
+                        in {"ClusterAll", "NsAll", "AgeAll", "OwnershipAll"}
                         else item.get(header, "")
                     )
                     for header in detail_headers
@@ -3510,6 +3515,7 @@ def build_dashboard(
                 "ClusterAll",
                 "NsAll",
                 "AgeAll",
+                "OwnershipAll",
                 "SourceAll",
             ],
             label_header="CVE",

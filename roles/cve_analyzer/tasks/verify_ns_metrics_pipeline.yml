@@ -1,0 +1,270 @@
+---
+# Read-focused verification of the metrics scrape stack + gauge content.
+# Uses discover_*_after facts when present; otherwise discovers now.
+- name: Use after-discover snapshot when available
+  when: cve_analyzer_repair_resources_after is defined
+  ansible.builtin.set_fact:
+    cve_analyzer_verify_cm: "{{ cve_analyzer_discover_cm_after }}"
+    cve_analyzer_verify_deploy: "{{ cve_analyzer_discover_deploy_after }}"
+    cve_analyzer_verify_svc: "{{ cve_analyzer_discover_svc_after }}"
+    cve_analyzer_verify_sm: "{{ cve_analyzer_discover_sm_after }}"
+    cve_analyzer_verify_presence: "{{ cve_analyzer_repair_resources_after }}"
+
+- name: Discover resources for verify when after snapshot missing
+  when: cve_analyzer_repair_resources_after is not defined
+  block:
+    - name: Discover for verify
+      ansible.builtin.include_tasks: discover_ns_metrics_resources.yml
+      vars:
+        cve_analyzer_discover_report_key: after
+    - name: Bind verify facts from after discover
+      ansible.builtin.set_fact:
+        cve_analyzer_verify_cm: "{{ cve_analyzer_discover_cm_after }}"
+        cve_analyzer_verify_deploy: "{{ cve_analyzer_discover_deploy_after }}"
+        cve_analyzer_verify_svc: "{{ cve_analyzer_discover_svc_after }}"
+        cve_analyzer_verify_sm: "{{ cve_analyzer_discover_sm_after }}"
+        cve_analyzer_verify_presence: "{{ cve_analyzer_repair_resources_after }}"
+
+- name: List resources present after discover
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_present: >-
+      {{
+        cve_analyzer_verify_presence
+        | dict2items
+        | selectattr('value', 'equalto', true)
+        | map(attribute='key')
+        | list
+      }}
+    cve_analyzer_repair_before_present: >-
+      {{
+        (cve_analyzer_repair_resources_before | default({}))
+        | dict2items
+        | selectattr('value', 'equalto', true)
+        | map(attribute='key')
+        | list
+      }}
+
+- name: List resources created during this repair
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_created: >-
+      {{
+        cve_analyzer_repair_present
+        | difference(cve_analyzer_repair_before_present)
+        | list
+      }}
+
+- name: Count posture sample lines in ConfigMap textfile
+  when: cve_analyzer_verify_presence.ConfigMap | default(false) | bool
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_cm_text: >-
+      {{
+        (cve_analyzer_verify_cm.resources | default([]))[0].data['cve_ns.prom']
+        | default('')
+      }}
+    cve_analyzer_repair_posture_sample_count: >-
+      {{
+        (
+          (cve_analyzer_verify_cm.resources | default([]))[0].data['cve_ns.prom']
+          | default('')
+        ).splitlines()
+        | select('match', '^cve_posture_findings')
+        | list
+        | length
+      }}
+
+- name: Zero posture sample count when ConfigMap missing
+  when: not (cve_analyzer_verify_presence.ConfigMap | default(false) | bool)
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_cm_text: ""
+    cve_analyzer_repair_posture_sample_count: 0
+
+- name: Infer gauge source from ConfigMap when verify-only
+  when:
+    - (cve_analyzer_posture_gauge_source | default('none')) == 'none'
+    - (cve_analyzer_repair_posture_sample_count | int) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: configmap_cve_ns_prom
+
+- name: Check Deployment availability
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_deployment_available: >-
+      {{
+        (
+          (
+            (cve_analyzer_verify_deploy.resources | default([]))[0].status.availableReplicas
+            | default(0)
+            | int
+          ) >= 1
+        )
+        if (cve_analyzer_verify_presence.Deployment | default(false) | bool)
+        else false
+      }}
+
+- name: Check ServiceMonitor selects the metrics Service
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_sm_selects_service: >-
+      {{
+        (
+          (
+            (cve_analyzer_verify_sm.resources | default([]))[0].spec.selector.matchLabels.app
+            | default('')
+          )
+          == (cve_analyzer_metrics_name | string)
+        )
+        if (
+          (cve_analyzer_verify_presence.ServiceMonitor | default(false) | bool)
+          and (cve_analyzer_verify_presence.Service | default(false) | bool)
+        )
+        else false
+      }}
+
+- name: Find metrics pod for endpoint check
+  when: cve_analyzer_repair_deployment_available | bool
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    label_selectors:
+      - "app={{ cve_analyzer_metrics_name }}"
+    wait: false
+  register: cve_analyzer_verify_pods
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+
+- name: Probe metrics endpoint inside the pod
+  when: >-
+    (cve_analyzer_repair_deployment_available | bool)
+    and ((cve_analyzer_verify_pods.resources | default([]) | length) > 0)
+  kubernetes.core.k8s_exec:
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    pod: "{{ cve_analyzer_verify_pods.resources[0].metadata.name }}"
+    command:
+      - python3
+      - -c
+      - >-
+        import urllib.request; print(urllib.request.urlopen(
+        'http://127.0.0.1:8080/metrics', timeout=10).read().decode()[:4000])
+  register: cve_analyzer_verify_endpoint
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+  changed_when: false
+
+- name: Record metrics endpoint status
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_endpoint_status: >-
+      {{
+        (
+          'OK_HAS_POSTURE'
+          if (
+            (cve_analyzer_verify_endpoint.rc | default(1) | int) == 0
+            and (
+              'cve_posture_findings{'
+              in (cve_analyzer_verify_endpoint.stdout | default(''))
+            )
+          )
+          else (
+            'OK_NO_POSTURE'
+            if (cve_analyzer_verify_endpoint.rc | default(1) | int) == 0
+            else (
+              'SKIPPED_NO_POD'
+              if not (cve_analyzer_repair_deployment_available | bool)
+              else 'FAIL'
+            )
+          )
+        )
+        if (cve_analyzer_verify_endpoint is defined)
+        else (
+          'SKIPPED_NO_POD'
+          if not (cve_analyzer_repair_deployment_available | bool)
+          else 'unchecked'
+        )
+      }}
+
+- name: Optional Grafana Prom series probe (verify scrape visibility)
+  when: >-
+    (cve_analyzer_prometheus_datasource_uid_resolved | default('') | length) > 0
+    and (cve_analyzer_grafana_url | default('') | length) > 0
+    and (cve_analyzer_grafana_password | default('') | length) > 0
+  ansible.builtin.uri:
+    url: "{{ cve_analyzer_grafana_url }}/api/ds/query"
+    method: POST
+    user: "{{ cve_analyzer_grafana_user }}"
+    password: "{{ cve_analyzer_grafana_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    status_code: [200, 400, 403, 404, 500]
+    body_format: json
+    body:
+      queries:
+        - refId: A
+          datasource:
+            type: prometheus
+            uid: "{{ cve_analyzer_prometheus_datasource_uid_resolved }}"
+          expr: 'cve_posture_findings{job="cve-analyzer-ns-metrics"}'
+          instant: true
+      from: "now-5m"
+      to: "now"
+    timeout: "{{ cve_analyzer_grafana_http_timeout | default(120) | int }}"
+  no_log: true
+  register: cve_analyzer_verify_prom_query
+  failed_when: false
+
+- name: Record Prometheus series status from Grafana
+  when: cve_analyzer_verify_prom_query is defined
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_prom_series_status: >-
+      {{
+        'OK_SERIES_PRESENT'
+        if (
+          (cve_analyzer_verify_prom_query.status | default(0) | int) == 200
+          and (
+            (cve_analyzer_verify_prom_query.json | default({}) | to_json)
+            is search('cve_posture_findings')
+          )
+        )
+        else (
+          'HTTP_' ~ (cve_analyzer_verify_prom_query.status | default('n/a') | string)
+          if (cve_analyzer_verify_prom_query.status | default(0) | int) != 200
+          else 'NO_SERIES_YET'
+        )
+      }}
+
+- name: Record Prometheus series check skipped
+  when: cve_analyzer_verify_prom_query is not defined
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_prom_series_status: SKIPPED_NO_DATASOURCE_OR_GRAFANA
+
+# PASS = all four resources, Deployment available, nonempty posture gauges,
+# ServiceMonitor selects Service. Endpoint/Prom series are reported; Prom
+# lag after a fresh create does not fail repair (scrape interval ~60s).
+- name: Decide PASS/FAIL for repair/verify checks
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_result: >-
+      {{
+        'PASS'
+        if (
+          (cve_analyzer_verify_presence.ConfigMap | default(false) | bool)
+          and (cve_analyzer_verify_presence.Deployment | default(false) | bool)
+          and (cve_analyzer_verify_presence.Service | default(false) | bool)
+          and (cve_analyzer_verify_presence.ServiceMonitor | default(false) | bool)
+          and (cve_analyzer_repair_deployment_available | bool)
+          and ((cve_analyzer_repair_posture_sample_count | int) > 0)
+          and (cve_analyzer_repair_sm_selects_service | bool)
+          and (
+            (cve_analyzer_repair_endpoint_status | default(''))
+            in [
+              'OK_HAS_POSTURE',
+              'SKIPPED_NO_POD',
+              'unchecked',
+              'OK_NO_POSTURE',
+            ]
+          )
+        )
+        else 'FAIL'
+      }}

@@ -1,0 +1,203 @@
+---
+# Ensure cve_posture.prom exists for Findings over time without assuming
+# shared /tmp across Contoller workflow nodes.
+# Order: local file → ConfigMap handoff key → rebuild from scrubbed CSV.
+# Sets cve_analyzer_posture_gauge_source for repair/verify reports.
+- name: Default posture gauge source unset
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: none
+
+- name: Stat local posture gauges
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  register: cve_analyzer_posture_prom_local
+
+- name: Record gauge source from local file
+  when: >-
+    (cve_analyzer_posture_prom_local.stat.exists | default(false))
+    and ((cve_analyzer_posture_prom_local.stat.size | default(0) | int) > 0)
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: local_cve_posture_prom
+
+- name: Lookup metrics ConfigMap for durable posture gauges
+  when: not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+  register: cve_analyzer_metrics_cm_handoff
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+  failed_when: false
+
+- name: Restore posture gauges from ConfigMap handoff key
+  when:
+    - not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+    - >-
+      (
+        (
+          (cve_analyzer_metrics_cm_handoff.resources | default([]))[0].data['cve_posture.prom']
+          | default('')
+          | length
+        ) > 0
+      )
+  ansible.builtin.copy:
+    dest: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+    mode: "0644"
+    content: >-
+      {{
+        cve_analyzer_metrics_cm_handoff.resources[0].data['cve_posture.prom']
+      }}
+
+- name: Record gauge source from ConfigMap handoff
+  when:
+    - (cve_analyzer_posture_gauge_source | default('none')) == 'none'
+    - >-
+      (
+        (
+          (cve_analyzer_metrics_cm_handoff.resources | default([]))[0].data['cve_posture.prom']
+          | default('')
+          | length
+        ) > 0
+      )
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: configmap_cve_posture_prom
+
+- name: Re-stat posture gauges after ConfigMap handoff restore
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  register: cve_analyzer_posture_prom_local
+
+# Priority: existing scraped textfile already has posture gauges (older deploys
+# without the cve_posture.prom handoff key).
+- name: Restore posture gauges from ConfigMap cve_ns.prom textfile
+  when:
+    - not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+    - >-
+      (
+        'cve_posture_findings{'
+        in (
+          (cve_analyzer_metrics_cm_handoff.resources | default([]))[0].data['cve_ns.prom']
+          | default('')
+        )
+      )
+  ansible.builtin.copy:
+    dest: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+    mode: "0644"
+    content: >-
+      {{
+        cve_analyzer_metrics_cm_handoff.resources[0].data['cve_ns.prom']
+      }}
+
+- name: Record gauge source from ConfigMap scraped textfile
+  when:
+    - (cve_analyzer_posture_gauge_source | default('none')) == 'none'
+    - >-
+      (
+        'cve_posture_findings{'
+        in (
+          (cve_analyzer_metrics_cm_handoff.resources | default([]))[0].data['cve_ns.prom']
+          | default('')
+        )
+      )
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: configmap_cve_ns_prom
+
+- name: Re-stat posture gauges after ConfigMap textfile restore
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  register: cve_analyzer_posture_prom_local
+
+- name: Find scrubbed CSV to rebuild posture gauges
+  when: not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+  ansible.builtin.find:
+    paths: "{{ cve_analyzer_data_dir }}"
+    patterns:
+      - "*scrubbed*.csv"
+      - "RHACS*scrubbed*.csv"
+    file_type: file
+  register: cve_analyzer_metrics_scrubbed
+
+- name: Stage dashboard builder for metrics-only rebuild
+  when:
+    - not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+    - (cve_analyzer_metrics_scrubbed.files | default([]) | length) > 0
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ cve_analyzer_data_dir }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - rhacs_report_analytics.py
+    - build_rhacs_vuln_dashboard.py
+    - image_families.yaml
+    - image_families.json
+
+- name: Rebuild posture gauges from scrubbed CSV (no shared /tmp required)
+  when:
+    - not (cve_analyzer_posture_prom_local.stat.exists | default(false))
+    - (cve_analyzer_metrics_scrubbed.files | default([]) | length) > 0
+  ansible.builtin.command:
+    argv:
+      - timeout
+      - "{{ cve_analyzer_subprocess_timeout | int }}"
+      - python3
+      - "{{ cve_analyzer_data_dir }}/build_rhacs_vuln_dashboard.py"
+      - "{{ cve_analyzer_data_dir }}/data.json"
+      - "{{ cve_analyzer_data_dir }}/rhacs-vuln-dashboard.metrics-rebuild.json"
+      - "--title"
+      - "{{ cve_analyzer_vuln_dashboard_title | default('RHACS Vulnerability Posture (ADO)') }}"
+      - "--uid"
+      - "{{ cve_analyzer_vuln_dashboard_uid | default('ado-rhacs-vuln-posture') }}"
+      - "--data-dir"
+      - "{{ cve_analyzer_data_dir }}"
+      - "--families-yaml"
+      - "{{ cve_analyzer_data_dir }}/image_families.yaml"
+      - "--prometheus-datasource-uid"
+      - >-
+        {{
+          cve_analyzer_prometheus_datasource_uid_resolved
+          | default(cve_analyzer_prometheus_datasource_uid | default(''))
+        }}
+      - "--metrics-out"
+      - "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  environment:
+    CVE_ANALYZER_CLUSTERS: "{{ (cve_analyzer_clusters | default([])) | join(',') }}"
+  changed_when: true
+
+- name: Record gauge source from scrubbed CSV rebuild
+  when:
+    - (cve_analyzer_posture_gauge_source | default('none')) == 'none'
+    - (cve_analyzer_metrics_scrubbed.files | default([]) | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_posture_gauge_source: scrubbed_csv_rebuild
+
+- name: Final stat for posture gauges
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  register: cve_analyzer_posture_prom
+
+- name: Fail when posture gauges are required but unavailable
+  when:
+    - cve_analyzer_require_posture_metrics | default(false) | bool
+    - >-
+      not (
+        (cve_analyzer_posture_prom.stat.exists | default(false))
+        and ((cve_analyzer_posture_prom.stat.size | default(0) | int) > 0)
+      )
+  ansible.builtin.fail:
+    msg: >-
+      Posture gauges (cve_posture.prom) are required for Findings over time
+      but were not found locally, in ConfigMap
+      {{ cve_analyzer_metrics_namespace }}/{{ cve_analyzer_metrics_name }}
+      key cve_posture.prom, or rebuildable from a scrubbed CSV under
+      {{ cve_analyzer_data_dir }}
+      (or cve_analyzer_metrics_input_dir staged into data_dir).
+      Do not assume a prior Contoller job left files under /tmp.
+      Place a durable scrubbed CSV or cve_posture.prom where this job can
+      read it, then re-run repair_posture_metrics / publish_metrics.
+      Refusing empty posture metrics SUCCESS.

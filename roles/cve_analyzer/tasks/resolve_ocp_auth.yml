@@ -1,0 +1,52 @@
+---
+# Resolve OpenShift API host/token from the established env contract only:
+#   group_vars/all/<env>/vars.yml  → host / api_host
+#   group_vars/all/<env>/vault.yml → token
+#
+# Optional alias: openshift_token maps to token if token unset.
+# Contoller credential: shared ADO vault only (no invented Kubernetes API cred).
+#
+# These facts feed task-scoped ``environment: K8S_AUTH_*`` blocks and/or
+# explicit kubernetes.core host/api_key args. Setting facts alone does not
+# authenticate Python subprocesses or k8s modules.
+- name: Resolve OpenShift API endpoint and token (vault contract)
+  ansible.builtin.set_fact:
+    cve_analyzer_ocp_host: >-
+      {{
+        (
+          host
+          | default(api_host | default(''), true)
+          | default('', true)
+        )
+        | trim
+        | regex_replace('/$', '')
+      }}
+    cve_analyzer_ocp_token: >-
+      {{
+        (
+          token
+          | default(openshift_token | default(''), true)
+          | default('', true)
+        )
+        | trim
+      }}
+    cve_analyzer_ocp_verify_ssl: "{{ verify_ssl | default(false) | bool }}"
+    cve_analyzer_ocp_auth_ready: false
+  no_log: true
+
+- name: Mark OpenShift auth ready when host and token are present
+  when:
+    - (cve_analyzer_ocp_host | length) > 0
+    - (cve_analyzer_ocp_token | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_ocp_auth_ready: true
+  no_log: true
+
+- name: Show OpenShift auth availability (no secrets)
+  ansible.builtin.debug:
+    msg: >-
+      OpenShift auth for metrics (vars.yml host + vault.yml token):
+      host={{ 'set' if (cve_analyzer_ocp_host | length) > 0 else 'missing' }},
+      token={{ 'set' if (cve_analyzer_ocp_token | length) > 0 else 'missing' }},
+      verify_ssl={{ cve_analyzer_ocp_verify_ssl }},
+      ready={{ cve_analyzer_ocp_auth_ready }}

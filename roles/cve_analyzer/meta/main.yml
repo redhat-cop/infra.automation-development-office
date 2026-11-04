@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: cve_analyzer
+  namespace: infra
+  author: Automation Development Office
+  description: >-
+    RHACS CVE Analyzer — export, enrichment, Grafana posture/triage dashboards,
+    Prometheus metrics, and optional CVE Intelligence (Phase 0 gated).
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - acs
+    - cve
+    - grafana
+    - rhacs
+    - security
+dependencies: []

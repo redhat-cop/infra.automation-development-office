@@ -32,6 +32,10 @@ Automation Development Office
 | `cve_analyzer_metrics_input_dir` | Durable path with scrubbed CSV and/or `cve_posture.prom` for Contoller EEs that do not share `/tmp`. |
 | `cve_analyzer_grafana_dashboard_backup_dir` | Persistent directory for pre-publish Grafana JSON backups. Required when the target UID already exists. Must not be EE `/tmp` (unless `cve_analyzer_grafana_dashboard_backup_allow_ephemeral` for local tests). |
 | `cve_analyzer_grafana_dashboard_backup_allow_ephemeral` | Allow backup under `/tmp` for local/Molecule only. Default `false`. Never enable on Contoller. |
+| `cve_analyzer_scrubbed_csv_retention_enabled` | After a successful Dashboard Build, retain the exact scrubbed CSV + `validation-meta.json` for independent panel verification. Default `false` (existing Contoller schedules unchanged). When `true`, retention failure **fails the job**. |
+| `cve_analyzer_scrubbed_csv_retention_dir` | Durable mount for retention (NFS/PVC/host path). Required when retention is enabled. Must not be EE `/tmp` unless `cve_analyzer_scrubbed_csv_retention_allow_ephemeral`. Do not commit retained CSVs to Git. |
+| `cve_analyzer_scrubbed_csv_retention_days` | Prune `job*` retention directories older than this many days. Default `30`. |
+| `cve_analyzer_scrubbed_csv_retention_allow_ephemeral` | Allow retention under `/tmp` for local/Molecule only. Default `false`. Never enable on Contoller. |
 | `cve_analyzer_run_enrichment` | Caller flag for `full` / `pipeline` / `publish_grafana`. Default `false`. Action `enrichment` does **not** mutate this; it sets per-invocation `cve_analyzer_effective_run_enrichment` so a later role include cannot inherit enrichment. |
 | `cve_analyzer_vuln_dashboard_uid` | Live posture UID. Default `ado-rhacs-vuln-posture` (production; Phase 0 features refused). Contoller survey on Publish RHACS Posture / Full must set this — undeclared launch extra_vars are stripped. |
 | `cve_analyzer_vuln_dashboard_title` | Grafana dashboard title for the selected UID (rename tests change title only). |
@@ -190,28 +194,49 @@ Top KPI cards (Total / severity / Fixable) must not sum hierarchical
 inflated totals ~4× versus the older board on the same CSV. Additive KPIs use
 per-namespace age slices plus all-ages per real cluster+namespace only.
 **Unique CVEs** is ``COUNT(DISTINCT CVE ID)`` after filters — never a sum of
-per-ownership or per-source uniques. The card uses equal-key rollups
-(``ClusterKey`` × ``SreKey`` × Age, plus Source including an RH|NRS union row
-that equals All-sources when both chips are selected). Grafana **SRE managed**
-``allValue`` is ``__ALL__`` (coordinated with ``OwnershipAll`` on additive KPIs
-and ownership tables). All and single-select (and supported multi unions:
-both clusters, ownership pairs, RH+NRS) hit one precomputed distinct; other
-multis show ``n/a`` rather than an inflated sum.
+per-ownership, per-source, or per-age-bucket uniques. The card uses equal-key
+rollups (``ClusterKey`` × ``SreKey`` × Age × Source). Supported multi-selects
+emit exact **set unions** (both clusters, ownership pairs, RH+NRS, and
+combined Finding-age keys such as Over 14 / Over 30). RH+NRS copies the
+All-sources age matrix so Source=RH+NRS × any Age (including multi-age) stays
+correct. Unsupported combinations show Grafana ``n/a`` (``noValue``), never a
+misleading zero or inflated sum. Grafana **SRE managed** ``allValue`` is
+``__ALL__`` (coordinated with ``OwnershipAll`` on additive KPIs and ownership
+tables).
+
+**Severity totals vs Total Findings:** Critical + Important + Moderate + Low
+KPI cards cover those four ACS severities only. **Total Findings** also
+includes rows whose severity is Unknown/other, so
+``C+I+M+L`` can be less than Total on the same scrubbed CSV. That gap is
+expected — do not “fix” additive KPIs by forcing Unknown into a severity card.
+
+**Detail panel size:** Detail (panel id 90) caps at **16,000** rows so the
+published Grafana JSON stays under the **16 MiB** API limit (target
+**< 14.5 MiB**). Local builder fingerprint format:
+``builder-2.1.2-<sha8>`` of ``build_rhacs_vuln_dashboard.py`` (collection
+version stays **2.1.2**; do not bump for these fixes).
 
 Findings over time (production ``ado-rhacs-vuln-posture`` and Phase 0 UIDs):
 
-- **Panel 11** — filterable by cluster / namespace
+- **Panel 11** — historical PromQL / filter behavior **unchanged** in this
+  workstream. Filterable by cluster / namespace
   (``cve_posture_findings_by_cluster`` / ``_by_ns``). All severities are
   always plotted. Source, Finding age, Component, and SRE managed are **not**
   in the Prometheus series labels — do not treat those toolbar filters as
   functional on Panel 11 until metrics grow those dimensions.
 - **Panel 12** — legacy all-cluster reference (``cve_posture_findings``,
   filter-independent).
+- **Panel 16** (SRE-managed OpenShift images bar) — retains ``Category`` /
+  ``xField`` after groupBy so the bar chart renders; honors Ownership and
+  Cluster/Source filters per the filter contract.
 
 CSV toolbar filter contract (Phase 0):
 
 - **Source** is a multiselect (Red Hat / Non-Red Hat). Grafana **All** maps to
   the All-sources slice via ``allValue`` (no redundant ``All sources`` chip).
+- **Finding age** — Unique CVEs use equal Age keys + exact multi-age set
+  unions (do not sum disjoint age buckets). Additive KPIs keep per-bucket
+  age slices.
 - **Simple view** honors Cluster, Source, Namespace, and Finding age.
 - **Findings by namespace** honors Cluster, Source, Namespace, Finding age,
   Component, and SRE managed (component×ownership slices roll up after
@@ -262,8 +287,57 @@ Example durable backup layout (Contoller EE must mount this path):
     ado-rhacs-vuln-posture-phase0-v41-20261101T131500Z.meta.json
 ```
 
+### Same-job scrubbed CSV retention (Gate 2 validation)
+
+Enable only when a durable mount is available. Default remains **off** so
+existing Contoller schedules are unchanged.
+
+```yaml
+cve_analyzer_scrubbed_csv_retention_enabled: true
+cve_analyzer_scrubbed_csv_retention_dir: /var/lib/cve-analyzer/scrubbed-csv
+cve_analyzer_scrubbed_csv_retention_days: 30
+```
+
+After Dashboard Build succeeds, the role copies the **exact** scrubbed CSV
+that fed the builder into:
+
+```text
+/var/lib/cve-analyzer/scrubbed-csv/
+  job<JOB_ID>-<UTC>/
+    RHACS_*_SCRUBBED_*.csv
+    validation-meta.json   # job id, export stamp, sha256, row count,
+                           # builder fingerprint, dashboard UID, 2.1.2
+```
+
+Meta is paths + hashes only (no finding rows in Contoller logs). Retention
+failures are **visible** (job fails). Do **not** store retained CSVs in Git,
+public CI artifacts, or unrestricted logs. Gate 2: compare every Grafana panel
+to this same-job CSV — never substitute a different ACS snapshot.
+
 Validate end-to-end with Contoller/CLI against a nonprod Grafana UID before
 touching production ``ado-rhacs-vuln-posture``.
+
+### Hub / Contoller delivery (collection 2.1.2)
+
+Keep ``galaxy.yml`` version **2.1.2**. Same-version Hub republish is expected
+for these Unique/age/retention fixes — Contoller EE/project must pull the
+tarball that embeds the intended builder fingerprint.
+
+1. Build: ``ansible-galaxy collection build`` →
+   ``infra-automation_development_office-2.1.2.tar.gz``.
+2. Publish/upload to Hub (force same version if needed); sync Contoller
+   project / EE so the installed collection matches the commit under review.
+3. Contoller job stdout must show
+   ``RHACS dashboard builder fingerprint: builder-2.1.2-<sha8>``.
+   Local expected fingerprint for this branch (recalculate after builder
+   edits): see pre-merge readiness report / ``python3 -c`` on
+   ``builder_fingerprint_tag()``.
+4. Production UID ``ado-rhacs-vuln-posture`` and Contoller schedules stay
+   **unchanged** by this workstream. Phase 0 uses a nonprod UID + survey
+   ``cve_analyzer_phase0_publish_only=true``.
+5. For Gate 2 CSV-to-dashboard verification, enable scrubbed CSV retention on
+   that Phase 0 job only (extra vars / ``vars_cve_analyzer``), then compare
+   Grafana to the retained CSV + ``validation-meta.json``.
 
 ### Phase 0 rename + filter validation (collection 2.1.2+)
 
@@ -273,18 +347,23 @@ Do **not** launch until the Contoller JT survey includes UID/title/
 standalone **Publish RHACS Posture** JT (not the multi-node workflow) so the
 survey is answered explicitly.
 
-1. Publish collection **2.1.2** (new version — avoid 2.1.1 same-version cache).
-2. Sync Contoller project + apply JT surveys; confirm Hub/project shows 2.1.2.
+1. Deliver collection **2.1.2** to Hub/Contoller (see Hub / Contoller delivery
+   above); confirm project/EE shows 2.1.2 and the expected builder fingerprint.
+2. Sync Contoller project + apply JT surveys.
 3. Pre-flight: job stdout must show
    ``uid=ado-rhacs-vuln-posture-phase0`` and
    ``phase0_publish_only=True``. If UID is production, **stop**.
 4. Rename publish: title
    ``RHACS Vulnerability Posture - Phase 0 Filter Test``, UID phase0 only.
 5. Grafana: title updated, UID unchanged, no duplicate dashboard, panels
-   11/12/90 present, variables + PromQL + CSV intact.
-6. Browser filter matrix (Source multiselect, Cluster/Ns/Age/Component/SRE).
-7. Restore title to ``RHACS Vulnerability Posture (ADO) - Phase 0``.
-8. Only after sign-off: consider production UID (set Refuse production=false).
+   11/12/16/90 present, variables + PromQL + CSV intact; JSON under 16 MiB.
+6. Browser filter matrix (Source multiselect, Cluster/Ns/Age/Component/SRE),
+   including Unique Over-14 / Over-30 set unions and RH+NRS × age.
+7. With retention enabled: copy retained CSV off-box; independently recompute
+   Unique/severity/age KPIs and compare to Grafana (Gate 2).
+8. Restore title to ``RHACS Vulnerability Posture (ADO) - Phase 0``.
+9. Only after Gate 1 + Gate 2 sign-off: consider production UID (set Refuse
+   production=false).
 
 ## 📁 Role Structure
 
@@ -303,6 +382,7 @@ roles/cve_analyzer/
     run_pipeline.yml
     publish_grafana.yml
     publish_rhacs_posture.yml
+    retain_scrubbed_csv.yml  # optional same-job CSV validation snapshot
     backup_grafana_dashboard.yml
     publish_ns_metrics.yml
     repair_posture_metrics.yml

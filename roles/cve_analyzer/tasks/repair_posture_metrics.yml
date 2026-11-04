@@ -1,0 +1,184 @@
+---
+# Ad-hoc repair / verify for Findings over time scrape stack.
+# Action: repair_posture_metrics
+# Mode: cve_analyzer_repair_mode = repair | verify
+#
+# Never downloads ACS export. Never publishes/overwrites Grafana dashboards.
+# Contoller jobs do not share /tmp — use cve_analyzer_metrics_input_dir for
+# durable scrubbed CSV / cve_posture.prom when the EE has no local artifacts.
+- name: Normalize repair mode
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_mode_effective: >-
+      {{
+        (cve_analyzer_repair_mode | default('repair') | trim | lower)
+        if (
+          (cve_analyzer_repair_mode | default('repair') | trim | lower)
+          in ['repair', 'verify']
+        )
+        else 'repair'
+      }}
+    cve_analyzer_repair_report: {}
+    cve_analyzer_repair_resources_before: {}
+    cve_analyzer_repair_resources_after: {}
+
+- name: Fail when OpenShift auth is missing for repair/verify
+  when: not (cve_analyzer_ocp_auth_ready | default(false) | bool)
+  ansible.builtin.fail:
+    msg: >-
+      repair_posture_metrics requires OpenShift host/token
+      (vault_openshift.yml / vars). OpenShift auth is not ready.
+
+- name: Discover metrics resources (before)
+  ansible.builtin.include_tasks: discover_ns_metrics_resources.yml
+  vars:
+    cve_analyzer_discover_report_key: before
+
+- name: Stage durable metrics inputs into data_dir (no /tmp handoff assumed)
+  when: >-
+    (cve_analyzer_metrics_input_dir | default('') | trim | length) > 0
+  block:
+    - name: Assert metrics input directory exists
+      ansible.builtin.stat:
+        path: "{{ cve_analyzer_metrics_input_dir | trim }}"
+      register: cve_analyzer_metrics_input_stat
+
+    - name: Fail when metrics input directory is missing
+      when: not (cve_analyzer_metrics_input_stat.stat.exists | default(false))
+      ansible.builtin.fail:
+        msg: >-
+          cve_analyzer_metrics_input_dir={{ cve_analyzer_metrics_input_dir }}
+          does not exist on this execution environment. Contoller jobs do not
+          share /tmp with prior runs. Mount or copy a durable scrubbed CSV /
+          cve_posture.prom to a path this job can read.
+
+    - name: Find durable posture gauge file in input dir
+      ansible.builtin.find:
+        paths: "{{ cve_analyzer_metrics_input_dir | trim }}"
+        patterns:
+          - "cve_posture.prom"
+        file_type: file
+      register: cve_analyzer_input_prom_find
+
+    - name: Find durable scrubbed CSV in input dir
+      ansible.builtin.find:
+        paths: "{{ cve_analyzer_metrics_input_dir | trim }}"
+        patterns:
+          - "*scrubbed*.csv"
+          - "RHACS*scrubbed*.csv"
+        file_type: file
+      register: cve_analyzer_input_csv_find
+
+    - name: Stage cve_posture.prom from durable input dir
+      when: (cve_analyzer_input_prom_find.files | default([]) | length) > 0
+      ansible.builtin.copy:
+        src: "{{ cve_analyzer_input_prom_find.files[0].path }}"
+        dest: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+        mode: "0644"
+        remote_src: true
+
+    - name: Stage scrubbed CSV from durable input dir
+      when: (cve_analyzer_input_csv_find.files | default([]) | length) > 0
+      ansible.builtin.copy:
+        src: "{{ item.path }}"
+        dest: "{{ cve_analyzer_data_dir }}/{{ item.path | basename }}"
+        mode: "0644"
+        remote_src: true
+      loop: "{{ cve_analyzer_input_csv_find.files }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
+
+    - name: Show durable input staging result
+      ansible.builtin.debug:
+        msg: >-
+          Staged from {{ cve_analyzer_metrics_input_dir }}:
+          prom={{ (cve_analyzer_input_prom_find.files | default([]) | length) > 0 }},
+          scrubbed_csv_files={{ cve_analyzer_input_csv_find.files | default([]) | length }}.
+
+- name: Resolve Prometheus datasource UID (no dashboard publish)
+  when: >-
+    (cve_analyzer_grafana_url | default('') | length) > 0
+    and (cve_analyzer_grafana_password | default('') | length) > 0
+  ansible.builtin.include_tasks: resolve_prometheus_datasource_uid.yml
+
+- name: Record datasource resolve skipped
+  when: >-
+    not (
+      (cve_analyzer_grafana_url | default('') | length) > 0
+      and (cve_analyzer_grafana_password | default('') | length) > 0
+    )
+  ansible.builtin.set_fact:
+    cve_analyzer_prometheus_datasource_uid_resolved: ""
+    cve_analyzer_repair_datasource_status: SKIPPED_NO_GRAFANA_CREDS
+
+- name: Record datasource resolve status
+  when: >-
+    (cve_analyzer_prometheus_datasource_uid_resolved | default('') | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_datasource_status: >-
+      OK:{{ cve_analyzer_prometheus_datasource_uid_resolved }}
+
+- name: Repair — ensure gauges and scrape stack
+  when: cve_analyzer_repair_mode_effective == 'repair'
+  block:
+    - name: Publish / create metrics stack (reuse publish_ns_metrics)
+      ansible.builtin.include_tasks: publish_ns_metrics.yml
+      vars:
+        cve_analyzer_require_posture_metrics: true
+  rescue:
+    - name: Record METRICS_FAILED for repair
+      ansible.builtin.set_fact:
+        cve_analyzer_metrics_status: METRICS_FAILED
+        cve_analyzer_repair_result: FAIL
+    - name: Fail repair when gauges or stack cannot be published
+      ansible.builtin.fail:
+        msg: >-
+          repair_posture_metrics FAIL. Gauge source unavailable or stack
+          publish failed.
+          {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(500) }}
+          Prerequisite: durable scrubbed CSV or cve_posture.prom via
+          cve_analyzer_metrics_input_dir / cve_analyzer_data_dir, or an
+          existing ConfigMap with cve_posture_findings*. No ACS export
+          will be attempted.
+
+- name: Discover metrics resources (after repair or for verify)
+  ansible.builtin.include_tasks: discover_ns_metrics_resources.yml
+  vars:
+    cve_analyzer_discover_report_key: after
+
+- name: Verify metrics scrape pipeline (read-focused checks)
+  ansible.builtin.include_tasks: verify_ns_metrics_pipeline.yml
+
+- name: Build repair/verify summary lines
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_summary_lines: >-
+      {{
+        [
+          '======= CVE Analyzer repair_posture_metrics =======',
+          'Mode: ' ~ cve_analyzer_repair_mode_effective,
+          'Result: ' ~ (cve_analyzer_repair_result | default('UNKNOWN')),
+          'Gauge source: ' ~ (cve_analyzer_posture_gauge_source | default('none')),
+          'Datasource: ' ~ (cve_analyzer_repair_datasource_status | default('unset')),
+          'Metrics Status: ' ~ (cve_analyzer_metrics_status | default('(not set)')),
+          'Resources before: ' ~ (cve_analyzer_repair_resources_before | default({}) | to_json),
+          'Resources after: ' ~ (cve_analyzer_repair_resources_after | default({}) | to_json),
+          'Created: ' ~ (cve_analyzer_repair_created | default([]) | join(', ') | default('(none)', true)),
+          'Already present: ' ~ (cve_analyzer_repair_present | default([]) | join(', ') | default('(none)', true)),
+          'Posture sample lines: ' ~ (cve_analyzer_repair_posture_sample_count | default(0) | string),
+          'Deployment available: ' ~ (cve_analyzer_repair_deployment_available | default(false) | string),
+          'ServiceMonitor selects Service: ' ~ (cve_analyzer_repair_sm_selects_service | default(false) | string),
+          'Metrics endpoint: ' ~ (cve_analyzer_repair_endpoint_status | default('unchecked')),
+          'Prometheus series check: ' ~ (cve_analyzer_repair_prom_series_status | default('unchecked')),
+          '===============================================',
+        ]
+      }}
+
+- name: Print repair/verify summary
+  ansible.builtin.debug:
+    msg: "{{ cve_analyzer_repair_summary_lines }}"
+
+- name: Fail Contoller job when verify/repair result is FAIL
+  when: (cve_analyzer_repair_result | default('')) == 'FAIL'
+  ansible.builtin.fail:
+    msg: >-
+      repair_posture_metrics Result=FAIL. See summary above.
+      Mode={{ cve_analyzer_repair_mode_effective }}.

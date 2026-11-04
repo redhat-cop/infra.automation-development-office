@@ -1,0 +1,340 @@
+---
+# Backup an existing Grafana dashboard JSON before overwrite.
+# Called from publish_rhacs_posture (and reusable for other Grafana publishes).
+#
+# Expects:
+#   cve_analyzer_grafana_dashboard_backup_uid — Grafana UID to backup
+#   cve_analyzer_grafana_auth_header — "Basic …" (set by publish_rhacs_posture)
+#
+# Existence probe uses GET /api/search?dashboardUIDs=… (small JSON). Full
+# dashboard bodies can be multi‑MB; download with get_url to disk so
+# ansible.builtin.uri password= censoring cannot collapse status→0 and so
+# Ansible does not load the whole board into registered facts.
+#
+# Durable storage: cve_analyzer_grafana_dashboard_backup_dir must point outside
+# Contoller EE ephemeral /tmp (NFS/PVC/host mount). Same idea as
+# cve_analyzer_metrics_input_dir.
+#
+# Never logs or writes Grafana credentials.
+
+- name: Resolve dashboard UID for backup
+  ansible.builtin.set_fact:
+    cve_analyzer_grafana_dashboard_backup_uid: >-
+      {{
+        (cve_analyzer_grafana_dashboard_backup_uid | default('') | trim)
+        or (cve_analyzer_vuln_dashboard_uid | default('') | trim)
+      }}
+
+- name: Assert backup UID is set
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_grafana_dashboard_backup_uid | length) > 0
+    fail_msg: >-
+      Grafana dashboard backup requires a non-empty UID
+      (cve_analyzer_grafana_dashboard_backup_uid or
+      cve_analyzer_vuln_dashboard_uid).
+
+- name: Assert Grafana Basic auth header is set for backup
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_grafana_auth_header | default('') | length) > 0
+    fail_msg: >-
+      cve_analyzer_grafana_auth_header must be set before dashboard backup
+      (Basic auth header avoids uri password= censoring status to 0).
+
+- name: Probe Grafana dashboard existence via search (small response)
+  ansible.builtin.uri:
+    url: >-
+      {{ cve_analyzer_grafana_url }}/api/search?dashboardUIDs={{
+        cve_analyzer_grafana_dashboard_backup_uid | urlencode
+      }}
+    method: GET
+    headers:
+      Authorization: "{{ cve_analyzer_grafana_auth_header }}"
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    status_code: [200]
+    return_content: true
+    timeout: "{{ cve_analyzer_grafana_http_timeout | default(120) | int }}"
+  register: cve_analyzer_grafana_dashboard_backup_search
+
+- name: Normalize Grafana dashboard backup probe status
+  ansible.builtin.set_fact:
+    cve_analyzer_grafana_dashboard_backup_http_status: >-
+      {{
+        200
+        if (
+          (
+            cve_analyzer_grafana_dashboard_backup_search.status
+            | default(0) | int
+          ) == 200
+          and (
+            cve_analyzer_grafana_dashboard_backup_search.json
+            | default([])
+            | selectattr('uid', 'defined')
+            | selectattr(
+              'uid',
+              'equalto',
+              cve_analyzer_grafana_dashboard_backup_uid
+            )
+            | list
+            | length
+          ) > 0
+        )
+        else (
+          404
+          if (
+            cve_analyzer_grafana_dashboard_backup_search.status
+            | default(0) | int
+          ) == 200
+          else (
+            cve_analyzer_grafana_dashboard_backup_search.status
+            | default(0) | int
+          )
+        )
+      }}
+    cve_analyzer_grafana_dashboard_backup_search_hit: >-
+      {{
+        cve_analyzer_grafana_dashboard_backup_search.json
+        | default([])
+        | selectattr('uid', 'defined')
+        | selectattr(
+          'uid',
+          'equalto',
+          cve_analyzer_grafana_dashboard_backup_uid
+        )
+        | list
+        | first
+        | default({}, true)
+      }}
+
+- name: Fail when Grafana dashboard search probe is neither found nor missing
+  ansible.builtin.fail:
+    msg: >-
+      Cannot backup Grafana dashboard
+      {{ cve_analyzer_grafana_dashboard_backup_uid }}: unexpected HTTP
+      {{ cve_analyzer_grafana_dashboard_backup_http_status }}.
+      Refusing to publish without a successful backup probe.
+  when: >-
+    cve_analyzer_grafana_dashboard_backup_http_status | int
+    not in [200, 404]
+
+- name: Record new Grafana dashboard (nothing to backup)
+  when: (cve_analyzer_grafana_dashboard_backup_http_status | int) == 404
+  ansible.builtin.set_fact:
+    cve_analyzer_grafana_dashboard_backup_status: new
+    cve_analyzer_grafana_dashboard_backup_path: ""
+    cve_analyzer_grafana_dashboard_backup_meta_path: ""
+
+- name: Show new Grafana dashboard (no prior backup)
+  when: (cve_analyzer_grafana_dashboard_backup_http_status | int) == 404
+  ansible.builtin.debug:
+    msg: >-
+      Grafana dashboard UID
+      {{ cve_analyzer_grafana_dashboard_backup_uid }} does not exist yet
+      (HTTP 404). Skipping backup; publish will create it.
+
+- name: Backup existing Grafana dashboard before overwrite
+  when: (cve_analyzer_grafana_dashboard_backup_http_status | int) == 200
+  block:
+    - name: Resolve durable Grafana dashboard backup directory
+      ansible.builtin.set_fact:
+        cve_analyzer_grafana_dashboard_backup_dir_effective: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_dir
+            | default('', true)
+            | trim
+          }}
+
+    - name: Require persistent backup path for existing dashboard
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cve_analyzer_grafana_dashboard_backup_dir_effective | length) > 0
+          - >-
+            (
+              cve_analyzer_grafana_dashboard_backup_allow_ephemeral
+              | default(false)
+              | bool
+            )
+            or not (
+              cve_analyzer_grafana_dashboard_backup_dir_effective
+              is match('^/tmp(/|$)')
+            )
+        fail_msg: >-
+          Existing Grafana dashboard
+          {{ cve_analyzer_grafana_dashboard_backup_uid }} must be backed up
+          to a persistent directory before overwrite. Set
+          cve_analyzer_grafana_dashboard_backup_dir to an NFS/PVC/host path
+          mounted into the Contoller EE (not /tmp). Same durability pattern
+          as cve_analyzer_metrics_input_dir. For local-only tests set
+          cve_analyzer_grafana_dashboard_backup_allow_ephemeral=true.
+
+    - name: Stamp Grafana dashboard backup (UTC)
+      ansible.builtin.command:
+        argv:
+          - date
+          - -u
+          - +%Y%m%dT%H%M%SZ
+      register: cve_analyzer_grafana_dashboard_backup_date_cmd
+      changed_when: false
+
+    - name: Compose Grafana dashboard backup staging path
+      ansible.builtin.set_fact:
+        cve_analyzer_grafana_dashboard_backup_stamp: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_date_cmd.stdout
+            | default('unknown', true)
+          }}
+        cve_analyzer_grafana_dashboard_backup_stage_path: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_dir_effective
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '-download-'
+            ~ (
+              cve_analyzer_grafana_dashboard_backup_date_cmd.stdout
+              | default('unknown', true)
+            )
+            ~ '.json'
+          }}
+
+    - name: Ensure Grafana dashboard backup directory exists
+      ansible.builtin.file:
+        path: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_dir_effective
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+          }}
+        state: directory
+        mode: "0750"
+
+    - name: Download Grafana dashboard JSON for backup (stream to disk)
+      ansible.builtin.get_url:
+        url: >-
+          {{ cve_analyzer_grafana_url }}/api/dashboards/uid/{{
+            cve_analyzer_grafana_dashboard_backup_uid
+          }}
+        dest: "{{ cve_analyzer_grafana_dashboard_backup_stage_path }}"
+        headers:
+          Authorization: "{{ cve_analyzer_grafana_auth_header }}"
+        validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+        force: true
+        mode: "0640"
+        timeout: "{{ cve_analyzer_grafana_http_timeout | default(120) | int }}"
+
+    - name: Read Grafana dashboard version from backup download
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >
+            import json, sys;
+            data = json.load(open(sys.argv[1], encoding="utf-8"));
+            print(data.get("dashboard", {}).get("version", "unknown"))
+          - "{{ cve_analyzer_grafana_dashboard_backup_stage_path }}"
+      register: cve_analyzer_grafana_dashboard_backup_version_cmd
+      changed_when: false
+
+    - name: Build Grafana dashboard backup filenames
+      ansible.builtin.set_fact:
+        cve_analyzer_grafana_dashboard_backup_version: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_version_cmd.stdout
+            | default('unknown', true)
+            | trim
+          }}
+        cve_analyzer_grafana_dashboard_backup_path: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_dir_effective
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '-v'
+            ~ (
+              cve_analyzer_grafana_dashboard_backup_version_cmd.stdout
+              | default('unknown', true)
+              | trim
+            )
+            ~ '-'
+            ~ cve_analyzer_grafana_dashboard_backup_stamp
+            ~ '.json'
+          }}
+        cve_analyzer_grafana_dashboard_backup_meta_path: >-
+          {{
+            cve_analyzer_grafana_dashboard_backup_dir_effective
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '/'
+            ~ cve_analyzer_grafana_dashboard_backup_uid
+            ~ '-v'
+            ~ (
+              cve_analyzer_grafana_dashboard_backup_version_cmd.stdout
+              | default('unknown', true)
+              | trim
+            )
+            ~ '-'
+            ~ cve_analyzer_grafana_dashboard_backup_stamp
+            ~ '.meta.json'
+          }}
+
+    - name: Move Grafana dashboard backup into versioned path
+      ansible.builtin.command:
+        argv:
+          - mv
+          - -f
+          - "{{ cve_analyzer_grafana_dashboard_backup_stage_path }}"
+          - "{{ cve_analyzer_grafana_dashboard_backup_path }}"
+      changed_when: true
+
+    - name: Write Grafana dashboard backup sidecar metadata
+      ansible.builtin.copy:
+        dest: "{{ cve_analyzer_grafana_dashboard_backup_meta_path }}"
+        mode: "0640"
+        content: >-
+          {{
+            {
+              'uid': cve_analyzer_grafana_dashboard_backup_uid,
+              'title': (
+                cve_analyzer_grafana_dashboard_backup_search_hit.title
+                | default('', true)
+              ),
+              'version': cve_analyzer_grafana_dashboard_backup_version,
+              'id': (
+                cve_analyzer_grafana_dashboard_backup_search_hit.id
+                | default('', true)
+              ),
+              'backed_up_at': cve_analyzer_grafana_dashboard_backup_stamp,
+              'backup_path': cve_analyzer_grafana_dashboard_backup_path,
+              'folderUid': (
+                cve_analyzer_grafana_dashboard_backup_search_hit.folderUid
+                | default('', true)
+              ),
+            }
+            | to_nice_json
+          }}
+
+    - name: Mark Grafana dashboard backup complete
+      ansible.builtin.set_fact:
+        cve_analyzer_grafana_dashboard_backup_status: backed_up
+
+    - name: Show Grafana dashboard backup location
+      ansible.builtin.debug:
+        msg: >-
+          Backed up Grafana dashboard UID
+          {{ cve_analyzer_grafana_dashboard_backup_uid }}
+          version {{ cve_analyzer_grafana_dashboard_backup_version }}
+          to {{ cve_analyzer_grafana_dashboard_backup_path }}
+  rescue:
+    - name: Fail when existing Grafana dashboard cannot be backed up
+      ansible.builtin.fail:
+        msg: >-
+          Existing Grafana dashboard
+          {{ cve_analyzer_grafana_dashboard_backup_uid }} could not be
+          backed up. Refusing to publish/overwrite. Check
+          cve_analyzer_grafana_dashboard_backup_dir is writable and
+          persistent (not EE /tmp).
+          {{ ansible_failed_result.msg | default('') }}

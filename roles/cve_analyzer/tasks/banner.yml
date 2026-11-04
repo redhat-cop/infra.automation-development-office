@@ -1,0 +1,36 @@
+---
+# Contoller stdout escapes \\n in a single debug string; use a list
+# so each line renders on its own row in the job output UI.
+- name: Print endpoint banner (top)
+  when: cve_analyzer_print_banner | bool
+  ansible.builtin.debug:
+    msg:
+      - "======= CVE Analyzer endpoints ======="
+      - >-
+        Action:
+        {{ cve_analyzer_action }}
+      - >-
+        OpenShift URL:
+        {{
+          cve_analyzer_ocp_host
+          | default(host | default(api_host | default('(unset)')))
+        }}
+      - >-
+        Grafana URL:
+        {{
+          (
+            cve_analyzer_grafana_url
+            | default(grafana_url | default('(unset)'))
+          )
+          | regex_replace('/$', '')
+        }}
+      - >-
+        ACS URL:
+        {{
+          (
+            cve_analyzer_acs_central_url
+            | default(acs_central_url | default('(unset)'))
+          )
+          | regex_replace('/$', '')
+        }}
+      - "======================================"

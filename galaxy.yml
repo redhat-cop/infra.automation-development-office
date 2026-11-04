@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
 name: "automation_development_office"
-version: 2.1.1
+version: 2.1.2
 readme: README.md
 authors:
   - Automation Development Office
@@ -79,3 +79,5 @@ build_ignore:
   - changelogs/.plugin-cache.yaml
   - .venv
   - collections
+  - dist
+  - dist/**

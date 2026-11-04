@@ -1,6 +1,28 @@
 ---
 # yamllint disable rule:line-length
 # Clear kubernetes namespace finalizer via the finalize subresource.
+# Caller must already have proven the namespace is the requested target and
+# ocp_absent_cleanup_finalize is true.
+
+- name: Absent cleanup | Refuse finalize of a different namespace
+  ansible.builtin.assert:
+    that:
+      - ocp_absent_cleanup_ns | infra.automation_development_office.ocp_absent_cleanup_namespace_name_valid
+      - >-
+        (ocp_absent_cleanup_finalize_resource.metadata.name | default(''))
+        == (ocp_absent_cleanup_ns | string)
+      - ocp_absent_cleanup_finalize | default(false) | bool
+      - >-
+        not (
+          ocp_absent_cleanup_ns
+          | infra.automation_development_office.ocp_absent_cleanup_cleanup_refused(
+              ocp_absent_cleanup_guard | default({})
+            )
+        )
+    fail_msg: >-
+      Refusing to finalize namespace
+      '{{ ocp_absent_cleanup_finalize_resource.metadata.name | default('') }}'
+      while the requested target is '{{ ocp_absent_cleanup_ns | default('') }}'.
 
 - name: Absent cleanup | Build finalize body with empty finalizers
   ansible.builtin.set_fact:

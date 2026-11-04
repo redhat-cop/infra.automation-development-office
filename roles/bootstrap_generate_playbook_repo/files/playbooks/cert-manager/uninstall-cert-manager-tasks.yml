@@ -5,7 +5,7 @@
 # 2) strip finalizers on any stuck CRs
 # 3) delete admission webhooks (orphans break the next install)
 # 4) delete OLM Subscription/CSV/InstallPlan + OperatorGroup
-# 5) delete namespaces via ocp_namespace (runs ocp_absent_cleanup gate)
+# 5) delete namespaces via ocp_namespace (Namespace object only; no CSV sweep)
 # 6) clear cert-manager APIServices
 #
 # Safe gate: only touch ADO cert-manager operator/operand namespaces,
@@ -160,9 +160,9 @@
       {{
         operator_csv_contains
         | default(operator_name_substring, true)
-        | default('cert-manager', true)
+        | default('cert-manager-operator', true)
       }}
-    ocp_operator_subscription_absent_sweep_workloads: true
+    ocp_operator_subscription_absent_sweep_workloads: false
     state: absent
 
 - name: ADO | Pre-delete sweep both cert-manager namespaces
@@ -174,7 +174,19 @@
       - "{{ bootstrap_cert_manager_operator_namespace }}"
     ocp_absent_cleanup_mode: cleanup
     ocp_absent_cleanup_sweep_olm: true
+    ocp_absent_cleanup_authorize_csv_delete: true
+    ocp_absent_cleanup_csv_name_match: cert-manager-operator
+    ocp_absent_cleanup_authorize_unfiltered_csv_delete: false
+    ocp_absent_cleanup_delete_copied_csvs: false
+    ocp_absent_cleanup_strip_csv_finalizers: true
     ocp_absent_cleanup_sweep_workloads: true
+    ocp_absent_cleanup_deployment_names:
+      - cert-manager
+      - cert-manager-cainjector
+      - cert-manager-webhook
+      - cert-manager-operator-controller-manager
+    ocp_absent_cleanup_authorize_unfiltered_workloads: false
+    ocp_absent_cleanup_finalize: false
     ocp_absent_cleanup_fail_if_present: false
 
 - name: ADO | Remove cert-manager admission webhooks (pass 2 after OLM)

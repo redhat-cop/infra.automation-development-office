@@ -15,6 +15,14 @@ aap24_admin_password: redhat123
 acs_admin_user: admin
 acs_admin_password: redhat123
 
+{% elif component_name == 'cve_analyzer' %}
+# ACS + Grafana secrets for CVE Analyzer (OpenShift token stays in vault_openshift).
+acs_admin_user: admin
+acs_admin_password: ""
+acs_api_token: ""
+grafana_admin_user: admin
+grafana_admin_password: ""
+
 {% elif component_name == '389ds' or component_name == 'dirsrv' %}
 # install_dirsrv expects vault_dirsrv.yml with top-level key dirsrv:
 dirsrv:

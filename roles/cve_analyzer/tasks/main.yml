@@ -1,0 +1,352 @@
+---
+# CVE Analyzer role entrypoint. Bootstrap playbooks set cve_analyzer_action
+# and load group_vars; this file owns all runtime sequencing.
+- name: Preflight (env, action, data_dir, URL checks)
+  ansible.builtin.include_tasks: preflight.yml
+
+- name: Initialize Phase 1a / 4a execution timers and artifact meta
+  ansible.builtin.set_fact:
+    cve_analyzer_run_started: "{{ lookup('pipe', 'date +%s.%N') }}"
+    cve_analyzer_phase_times: {}
+    cve_analyzer_metrics_status: ""
+    cve_analyzer_artifact_sizes: {}
+    cve_analyzer_last_failed_phase: ""
+    cve_analyzer_timing_phase_active: ""
+
+- name: Ensure data directory exists
+  ansible.builtin.file:
+    path: "{{ cve_analyzer_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Resolve OpenShift auth for metrics / inventory
+  ansible.builtin.include_tasks: resolve_ocp_auth.yml
+
+- name: Print endpoint banner
+  when:
+    - cve_analyzer_print_banner | bool
+    - cve_analyzer_action in ['full', 'enrichment']
+  ansible.builtin.include_tasks: banner.yml
+
+- name: Timed CVE Analyzer phases
+  block:
+    - name: RHACS Authentication
+      when: >-
+        cve_analyzer_action in [
+          'fetch_export', 'pipeline', 'full', 'enrichment'
+        ]
+      block:
+        - name: Start RHACS Authentication
+          ansible.builtin.include_tasks: phase_start.yml
+          vars:
+            cve_analyzer_timing_phase: RHACS Authentication
+        - name: Ensure ACS API token + normalized ROX endpoint
+          ansible.builtin.include_tasks: ensure_acs_token.yml
+        - name: End RHACS Authentication
+          ansible.builtin.include_tasks: phase_end.yml
+      rescue:
+        - name: Record RHACS Authentication failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: RHACS Authentication
+        - name: Re-raise RHACS Authentication failure
+          ansible.builtin.fail:
+            msg: >-
+              RHACS Authentication failed after
+              {{ (cve_analyzer_phase_times['RHACS Authentication'].seconds | default('?')) }}s.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip RHACS Authentication
+      when: >-
+        cve_analyzer_action not in [
+          'fetch_export', 'pipeline', 'full', 'enrichment'
+        ]
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: RHACS Authentication
+
+    - name: RHACS Export + CSV Processing
+      when: >-
+        cve_analyzer_action in ['fetch_export', 'full', 'enrichment']
+      block:
+        - name: Fetch ACS export and prepare raw.csv
+          ansible.builtin.include_tasks: fetch_export.yml
+      rescue:
+        - name: Record active export/CSV phase failure
+          when: (cve_analyzer_timing_phase_active | default('') | length) > 0
+          ansible.builtin.include_tasks: phase_fail.yml
+        - name: Re-raise export/CSV failure
+          ansible.builtin.fail:
+            msg: >-
+              {{ cve_analyzer_timing_phase_active | default('RHACS Export/CSV') }}
+              failed.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip RHACS Export
+      when: >-
+        cve_analyzer_action not in ['fetch_export', 'full', 'enrichment']
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: RHACS Export
+
+    - name: Skip CSV Processing
+      when: >-
+        cve_analyzer_action not in ['fetch_export', 'full', 'enrichment']
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: CSV Processing
+
+    - name: Enrichment Pipeline
+      when:
+        - >-
+          cve_analyzer_action in ['pipeline', 'full', 'enrichment']
+        - cve_analyzer_effective_run_enrichment | bool
+      block:
+        - name: Start Enrichment Pipeline
+          ansible.builtin.include_tasks: phase_start.yml
+          vars:
+            cve_analyzer_timing_phase: Enrichment Pipeline
+        - name: Run cve-analyzer enrichment pipeline
+          ansible.builtin.include_tasks: run_pipeline.yml
+        - name: End Enrichment Pipeline
+          ansible.builtin.include_tasks: phase_end.yml
+      rescue:
+        - name: Record Enrichment Pipeline failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: Enrichment Pipeline
+        - name: Re-raise Enrichment Pipeline failure
+          ansible.builtin.fail:
+            msg: >-
+              Enrichment Pipeline failed after
+              {{ (cve_analyzer_phase_times['Enrichment Pipeline'].seconds | default('?')) }}s.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip Enrichment Pipeline
+      when: >-
+        not (
+          cve_analyzer_action in ['pipeline', 'full', 'enrichment']
+          and (cve_analyzer_effective_run_enrichment | bool)
+        )
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: Enrichment Pipeline
+
+    - name: Triage Grafana Publish
+      when:
+        - >-
+          cve_analyzer_action in [
+            'publish_grafana', 'full', 'enrichment'
+          ]
+        - cve_analyzer_effective_run_enrichment | bool
+      block:
+        - name: Start Triage Grafana Publish
+          ansible.builtin.include_tasks: phase_start.yml
+          vars:
+            cve_analyzer_timing_phase: Triage Grafana Publish
+        - name: Publish Grafana CVE triage dashboard
+          ansible.builtin.include_tasks: publish_grafana.yml
+        - name: End Triage Grafana Publish
+          ansible.builtin.include_tasks: phase_end.yml
+      rescue:
+        - name: Record Triage Grafana Publish failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: Triage Grafana Publish
+        - name: Re-raise Triage Grafana Publish failure
+          ansible.builtin.fail:
+            msg: >-
+              Triage Grafana Publish failed after
+              {{ (cve_analyzer_phase_times['Triage Grafana Publish'].seconds | default('?')) }}s.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip Triage Grafana Publish
+      when: >-
+        not (
+          cve_analyzer_action in [
+            'publish_grafana', 'full', 'enrichment'
+          ]
+          and (cve_analyzer_effective_run_enrichment | bool)
+        )
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: Triage Grafana Publish
+
+    - name: RHACS posture dashboard (build / metrics / Grafana)
+      when: >-
+        cve_analyzer_action in [
+          'publish_rhacs_posture', 'full', 'enrichment'
+        ]
+      block:
+        - name: Publish RHACS vulnerability posture dashboard
+          ansible.builtin.include_tasks: publish_rhacs_posture.yml
+      rescue:
+        - name: Record active posture phase failure
+          when: (cve_analyzer_timing_phase_active | default('') | length) > 0
+          ansible.builtin.include_tasks: phase_fail.yml
+        - name: Re-raise posture publish failure
+          ansible.builtin.fail:
+            msg: >-
+              {{ cve_analyzer_timing_phase_active | default('RHACS Posture') }}
+              failed.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip posture sub-phases when posture not in action
+      when: >-
+        cve_analyzer_action not in [
+          'publish_rhacs_posture', 'full', 'enrichment'
+        ]
+      block:
+        - name: Skip Cluster Inventory
+          ansible.builtin.include_tasks: phase_skip.yml
+          vars:
+            cve_analyzer_timing_phase: Cluster Inventory
+        - name: Skip Dashboard Build
+          ansible.builtin.include_tasks: phase_skip.yml
+          vars:
+            cve_analyzer_timing_phase: Dashboard Build
+        - name: Skip Metrics Publish
+          ansible.builtin.include_tasks: phase_skip.yml
+          vars:
+            cve_analyzer_timing_phase: Metrics Publish
+        - name: Skip Grafana Publish
+          ansible.builtin.include_tasks: phase_skip.yml
+          vars:
+            cve_analyzer_timing_phase: Grafana Publish
+
+    # Trend chart (cve_posture_findings). Standalone metrics JT, or
+    # publish_grafana path. publish_rhacs_posture / full already publish
+    # metrics inside the posture tasks (creates missing scrape stack).
+    # Skip this duplicate when posture already set METRICS_PUBLISHED.
+    # Action ``enrichment`` does not include this phase (matches prior
+    # cve-analyzer-run-pipeline.yml); posture still publishes gauges.
+    - name: Namespace Metrics Publish
+      when:
+        - >-
+          cve_analyzer_action in ['publish_metrics', 'publish_grafana']
+          or (
+            cve_analyzer_action == 'full'
+            and (cve_analyzer_effective_run_enrichment | bool)
+            and (cve_analyzer_metrics_status | default('')) != 'METRICS_PUBLISHED'
+          )
+        - cve_analyzer_ocp_auth_ready | default(false) | bool
+      block:
+        - name: Start Namespace Metrics Publish
+          ansible.builtin.include_tasks: phase_start.yml
+          vars:
+            cve_analyzer_timing_phase: Namespace Metrics Publish
+        - name: Publish per-namespace CVE Prometheus metrics
+          ansible.builtin.include_tasks: publish_ns_metrics.yml
+          vars:
+            cve_analyzer_require_posture_metrics: >-
+              {{ cve_analyzer_action == 'publish_metrics' }}
+        - name: End Namespace Metrics Publish
+          ansible.builtin.include_tasks: phase_end.yml
+      rescue:
+        - name: Record Namespace Metrics Publish failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: Namespace Metrics Publish
+        - name: Record METRICS_FAILED for namespace metrics
+          ansible.builtin.set_fact:
+            cve_analyzer_metrics_status: METRICS_FAILED
+        - name: Re-raise Namespace Metrics Publish failure
+          ansible.builtin.fail:
+            msg: >-
+              Namespace Metrics Publish failed after
+              {{ (cve_analyzer_phase_times['Namespace Metrics Publish'].seconds | default('?')) }}s.
+              Metrics Status: METRICS_FAILED.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip Namespace Metrics Publish
+      when: >-
+        not (
+          (
+            cve_analyzer_action in ['publish_metrics', 'publish_grafana']
+            or (
+              cve_analyzer_action == 'full'
+              and (cve_analyzer_effective_run_enrichment | bool)
+              and (cve_analyzer_metrics_status | default('')) != 'METRICS_PUBLISHED'
+            )
+          )
+          and (cve_analyzer_ocp_auth_ready | default(false) | bool)
+        )
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: Namespace Metrics Publish
+
+    - name: CVE Intelligence
+      when: >-
+        (cve_analyzer_action == 'cve_intel')
+        or (
+          (cve_analyzer_action == 'full')
+          and (cve_analyzer_cve_intel_enabled | default(false) | bool)
+        )
+      block:
+        - name: Run CVE Intelligence collection
+          ansible.builtin.include_tasks: cve_intel.yml
+      rescue:
+        - name: Record CVE Intelligence failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: CVE Intelligence
+        - name: Re-raise CVE Intelligence failure
+          ansible.builtin.fail:
+            msg: >-
+              CVE Intelligence failed after
+              {{ (cve_analyzer_phase_times['CVE Intelligence'].seconds | default('?')) }}s.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}
+
+    - name: Skip CVE Intelligence
+      when: >-
+        not (
+          (cve_analyzer_action == 'cve_intel')
+          or (
+            (cve_analyzer_action == 'full')
+            and (cve_analyzer_cve_intel_enabled | default(false) | bool)
+          )
+        )
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: CVE Intelligence
+
+    # Standalone ad-hoc: repair/verify Findings over time scrape stack.
+    # Not part of the CVE Analyzer workflow. No ACS export. No Grafana
+    # dashboard overwrite.
+    - name: Repair Posture Metrics
+      when: cve_analyzer_action == 'repair_posture_metrics'
+      block:
+        - name: Start Repair Posture Metrics
+          ansible.builtin.include_tasks: phase_start.yml
+          vars:
+            cve_analyzer_timing_phase: Repair Posture Metrics
+        - name: Run repair_posture_metrics
+          ansible.builtin.include_tasks: repair_posture_metrics.yml
+        - name: End Repair Posture Metrics
+          ansible.builtin.include_tasks: phase_end.yml
+      rescue:
+        - name: Record Repair Posture Metrics failure
+          ansible.builtin.include_tasks: phase_fail.yml
+          vars:
+            cve_analyzer_timing_phase: Repair Posture Metrics
+        - name: Re-raise Repair Posture Metrics failure
+          ansible.builtin.fail:
+            msg: >-
+              Repair Posture Metrics failed after
+              {{ (cve_analyzer_phase_times['Repair Posture Metrics'].seconds | default('?')) }}s.
+              {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(400) }}
+
+    - name: Skip Repair Posture Metrics
+      when: cve_analyzer_action != 'repair_posture_metrics'
+      ansible.builtin.include_tasks: phase_skip.yml
+      vars:
+        cve_analyzer_timing_phase: Repair Posture Metrics
+
+  always:
+    - name: Print Phase 1a execution summary
+      ansible.builtin.include_tasks: execution_summary.yml
+    - name: Print endpoint recap
+      when:
+        - cve_analyzer_print_banner | bool
+        - cve_analyzer_action in ['full', 'enrichment']
+      ansible.builtin.include_tasks: recap.yml

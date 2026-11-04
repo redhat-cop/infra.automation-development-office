@@ -33,6 +33,7 @@ import urllib.request
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from itertools import combinations
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
@@ -988,13 +989,30 @@ def cluster_all_key(clusters: list[str]) -> str:
     return "|".join(ordered)
 
 
+def finding_age_multi_keys(ages: list[str] | None = None) -> list[str]:
+    """Grafana ``${finding_age:pipe}`` keys for multi-select age unions.
+
+    Singles and ``FILTER_ALL`` are separate. Multi keys use dropdown option order
+    so equal-filter matches ``15-30 days|30-60 days|Over 60 days`` (Over 14) etc.
+    """
+    ordered = list(ages) if ages is not None else list(FINDING_AGE_BUCKETS) + ["Unknown"]
+    keys: list[str] = []
+    for rank in range(2, len(ordered) + 1):
+        for combo in combinations(range(len(ordered)), rank):
+            keys.append("|".join(ordered[i] for i in combo))
+    return keys
+
+
 def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
     """Exact COUNT(DISTINCT CVE) rollups for the Unique KPI card.
 
-    Rows carry ClusterKey / SreKey for Grafana **equal** ``${var:pipe}`` filters
-    so All and single-select hit one precomputed union. Supported multi-select
-    unions (ownership pairs / all-labels pipe, both clusters) get their own key;
-    unsupported multis match nothing (empty / unavailable) instead of a sum.
+    Rows carry ClusterKey / SreKey / Age for Grafana **equal** ``${var:pipe}``
+    filters so All and single-select hit one precomputed union. Combined Finding
+    age (Over 14 / Over 30 / arbitrary multi) uses **set union** of per-bucket
+    CVE sets — never a sum of Unique counts. A CVE on findings in multiple age
+    buckets is counted once in the combined-age key and once in ``Age=__ALL__``.
+
+    Unsupported multis match no row → Grafana ``n/a`` (not zero / not a sum).
     """
     own_order = ownership_label_order()
     clusters = sorted(
@@ -1005,6 +1023,8 @@ def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
         }
     )
     ages = list(FINDING_AGE_BUCKETS) + ["Unknown"]
+    age_multi = finding_age_multi_keys(ages)
+    age_keys_all = ages + [FILTER_ALL] + age_multi
     cl_all = cluster_all_key(clusters)
     cl_multi = "|".join(clusters) if len(clusters) > 1 else ""
     all_own_pipe = "|".join(own_order)
@@ -1022,23 +1042,34 @@ def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
         age = _finding_age_of(row)
         for cl_key in (cl, FILTER_ALL):
             for own_key in (own, FILTER_ALL):
-                for age_key in (age, FILTER_ALL):
-                    by[(cl_key, own_key, age_key)].add(cve)
+                # Per-finding age membership (CVE may sit in several singles).
+                by[(cl_key, own_key, age)].add(cve)
+                by[(cl_key, own_key, FILTER_ALL)].add(cve)
+
+    # Combined-age keys = set union of member buckets (exact distinct, not sum).
+    base_own = list(own_order) + [FILTER_ALL]
+    for cl_key in list(clusters) + [FILTER_ALL]:
+        for own_key in base_own:
+            for age_pipe in age_multi:
+                union: set[str] = set()
+                for part in age_pipe.split("|"):
+                    union |= by.get((cl_key, own_key, part), set())
+                by[(cl_key, own_key, age_pipe)] = union
 
     for i, a in enumerate(own_order):
         for b in own_order[i + 1 :]:
             pair = pipe_key([a, b], own_order)
             for cl_key in list(clusters) + [FILTER_ALL]:
-                for age_key in ages + [FILTER_ALL]:
-                    by[(cl_key, pair, age_key)] = set(by[(cl_key, a, age_key)]) | set(
-                        by[(cl_key, b, age_key)]
-                    )
+                for age_key in age_keys_all:
+                    by[(cl_key, pair, age_key)] = set(
+                        by.get((cl_key, a, age_key), set())
+                    ) | set(by.get((cl_key, b, age_key), set()))
 
     # Manual select-all-three chips → pipe of labels (not allValue __ALL__).
     for cl_key in list(clusters) + [FILTER_ALL]:
-        for age_key in ages + [FILTER_ALL]:
+        for age_key in age_keys_all:
             by[(cl_key, all_own_pipe, age_key)] = set(
-                by[(cl_key, FILTER_ALL, age_key)]
+                by.get((cl_key, FILTER_ALL, age_key), set())
             )
 
     # (ClusterKey, lookup_cl)
@@ -1057,7 +1088,7 @@ def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for ck, lc in cluster_keys:
         for sk in sre_keys:
-            for ak in ages + [FILTER_ALL]:
+            for ak in age_keys_all:
                 cves = by.get((lc, sk, ak), set())
                 out.append(
                     {
@@ -1604,7 +1635,7 @@ def unique_cve_age_buckets_by_cluster(
     }
 
 
-def drilldown_rows(rows: list[dict], cfg: dict, limit: int = 20000) -> list[dict]:
+def drilldown_rows(rows: list[dict], cfg: dict, limit: int = 16000) -> list[dict]:
     """One row per namespace, component, image, and CVE so a click can filter to it.
 
     Critical and Important are kept first. Moderate and Low stop at ``limit``

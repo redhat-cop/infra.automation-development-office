@@ -1,0 +1,153 @@
+---
+# Publish CVE triage dashboard by UID into Security when that folder exists.
+# Preference: folder titled Security → existing dashboard folderUid → General.
+# Never create an RHACS folder.
+- name: Assert data.json exists
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/data.json"
+  register: cve_analyzer_data_json
+
+- name: Fail when data.json missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ cve_analyzer_data_dir }}/data.json not found. Run pipeline first.
+  when: not cve_analyzer_data_json.stat.exists
+
+- name: Stage Grafana dashboard builder
+  ansible.builtin.copy:
+    src: build_grafana_cve_dashboard.py
+    dest: "{{ cve_analyzer_data_dir }}/build_grafana_cve_dashboard.py"
+    mode: "0755"
+
+- name: Build Grafana dashboard JSON from data.json
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ cve_analyzer_data_dir }}/build_grafana_cve_dashboard.py"
+      - "{{ cve_analyzer_data_dir }}/data.json"
+      - "{{ cve_analyzer_data_dir }}/cve-triage-dashboard.json"
+      - "--title"
+      - "{{ cve_analyzer_dashboard_title }}"
+      - "--uid"
+      - "{{ cve_analyzer_dashboard_uid }}"
+  changed_when: true
+
+- name: Assert Grafana credentials
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_grafana_url | default('') | length) > 0
+      - (cve_analyzer_grafana_password | default('') | length) > 0
+    fail_msg: >-
+      Provide grafana_admin_password or vault_grafana_admin_password for dashboard upload.
+
+- name: Lookup existing dashboard by UID
+  ansible.builtin.uri:
+    url: "{{ cve_analyzer_grafana_url }}/api/dashboards/uid/{{ cve_analyzer_dashboard_uid }}"
+    method: GET
+    user: "{{ cve_analyzer_grafana_user }}"
+    password: "{{ cve_analyzer_grafana_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    status_code: [200, 404]
+  no_log: true
+  register: cve_analyzer_grafana_dash_lookup
+
+- name: List Grafana folders
+  ansible.builtin.uri:
+    url: "{{ cve_analyzer_grafana_url }}/api/folders"
+    method: GET
+    user: "{{ cve_analyzer_grafana_user }}"
+    password: "{{ cve_analyzer_grafana_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    status_code: [200]
+  no_log: true
+  register: cve_analyzer_grafana_folders_list
+
+- name: Resolve Security folder UID from folder list
+  ansible.builtin.set_fact:
+    cve_analyzer_security_folder_uid: >-
+      {{
+        (
+          cve_analyzer_grafana_folders_list.json
+          | default([])
+          | selectattr('title', 'defined')
+          | selectattr('title', 'equalto', cve_analyzer_grafana_folder)
+          | map(attribute='uid')
+          | list
+          | first
+          | default('')
+        )
+      }}
+
+- name: Set publish folder UID (Security → existing → General)
+  ansible.builtin.set_fact:
+    cve_analyzer_publish_folder_uid: >-
+      {{
+        cve_analyzer_security_folder_uid
+        if (cve_analyzer_security_folder_uid | default('') | length) > 0
+        else (
+          (
+            cve_analyzer_grafana_dash_lookup.json.meta.folderUid
+            | default('', true)
+          )
+          if (cve_analyzer_grafana_dash_lookup.status | default(0) | int) == 200
+          else ''
+        )
+      }}
+
+- name: Read dashboard JSON
+  ansible.builtin.slurp:
+    src: "{{ cve_analyzer_data_dir }}/cve-triage-dashboard.json"
+  register: cve_analyzer_dashboard_slurp
+
+- name: Assert triage dashboard UID is configured before publish
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_dashboard_uid | default('') | trim | length) > 0
+      - (cve_analyzer_dashboard_title | default('') | trim | length) > 0
+    fail_msg: >-
+      cve_analyzer_dashboard_uid and cve_analyzer_dashboard_title are required
+      so Grafana cannot auto-assign a random dashboard UID.
+
+- name: Publish dashboard to Grafana (by UID, folder optional)
+  ansible.builtin.uri:
+    url: "{{ cve_analyzer_grafana_url }}/api/dashboards/db"
+    method: POST
+    user: "{{ cve_analyzer_grafana_user }}"
+    password: "{{ cve_analyzer_grafana_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    body_format: json
+    body: >-
+      {{
+        {
+          'dashboard': (
+            (cve_analyzer_dashboard_slurp.content | b64decode | from_json)
+            | combine({
+                'id': none,
+                'uid': (cve_analyzer_dashboard_uid | trim),
+                'title': (cve_analyzer_dashboard_title | trim),
+                'version': 1
+              })
+          ),
+          'overwrite': true,
+          'message': 'Updated by cve-analyzer Ansible pipeline'
+        }
+        | combine(
+            {'folderUid': cve_analyzer_publish_folder_uid}
+            if (cve_analyzer_publish_folder_uid | default('') | length) > 0
+            else {}
+          )
+      }}
+    status_code: [200]
+  no_log: true
+  register: cve_analyzer_grafana_publish
+
+- name: Show Grafana dashboard URL
+  ansible.builtin.debug:
+    msg: >-
+      Dashboard published (uid={{ cve_analyzer_dashboard_uid }},
+      folderUid={{ cve_analyzer_publish_folder_uid | default('') | ternary(cve_analyzer_publish_folder_uid, '(General)') }}):
+      {{ cve_analyzer_grafana_url }}{{ cve_analyzer_grafana_publish.json.url
+         | default('/d/' ~ cve_analyzer_dashboard_uid) }}

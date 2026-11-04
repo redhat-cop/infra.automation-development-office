@@ -1,0 +1,2 @@
+bugfixes:
+  - bootstrap_controller - Hub pulp collection-version lookup uses ``automation_development_office`` (not legacy ``ado``) so staging→validated promote succeeds after rename.

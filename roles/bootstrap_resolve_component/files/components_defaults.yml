@@ -312,6 +312,29 @@ components_defaults:
     ingress_tls_key: ""
     ingress_ca_crt: ""
 
+  # CVE Analyzer (RHACS posture / enrichment / metrics / Phase 0 intel).
+  # Distinct from acs_report (lighter CSV reports). Optional Contoller workflow.
+  cve_analyzer:
+    acs_central_url: ""
+    grafana_url: ""
+    cve_analyzer_vuln_dashboard_uid: ado-rhacs-vuln-posture
+    cve_analyzer_vuln_dashboard_title: "RHACS Vulnerability Posture (ADO)"
+    cve_analyzer_dashboard_uid: ado-rhacs-cve-triage
+    cve_analyzer_dashboard_title: "OpenShift CVE Triage Report"
+    cve_analyzer_phase0_feature_uids: []
+    cve_analyzer_dashboard_lite: false
+    cve_analyzer_publish_lite_compare: false
+    cve_analyzer_cve_intel_enabled: false
+    cve_analyzer_cve_intel_panels: false
+    cve_analyzer_cve_intel_lookback_days: 14
+    cve_analyzer_run_enrichment: false
+    cve_analyzer_send_report_url: ""
+    cve_analyzer_prometheus_datasource_uid: ""
+    cve_analyzer_metrics_namespace: grafana
+    cve_analyzer_clusters: []
+    cve_analyzer_acs_validate_certs: false
+    cve_analyzer_grafana_validate_certs: false
+
   console_banner:
     console_banner_state: present
 

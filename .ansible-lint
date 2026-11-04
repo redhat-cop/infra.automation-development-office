@@ -148,6 +148,7 @@ mock_roles:
     - infra.automation_development_office.install_gitlab
     - infra.automation_development_office.install_grafana
     - infra.automation_development_office.acs_report
+    - infra.automation_development_office.cve_analyzer
     - infra.automation_development_office.vm_image_management
 mock_modules:
     # Lint production does not install collection deps. These playbooks call
