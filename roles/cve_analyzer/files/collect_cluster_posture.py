@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read running images and OLM subscriptions for the posture dashboard."""
 
 from __future__ import annotations

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """cve_analyzer_clusters exact-name filter + metrics stay all-cluster."""
 
 from __future__ import annotations

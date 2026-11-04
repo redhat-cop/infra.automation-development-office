@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 For each unique base image:
 1. Use skopeo to find the latest tag/digest
@@ -8,6 +7,7 @@ For each unique base image:
 5. Save results for the report builder
 """
 
+from collections import Counter
 import csv
 import json
 import os
@@ -57,6 +57,7 @@ for r in rows:
 
 print(f"{len(base_map)} unique base images to check")
 
+
 def _version_key(tag):
     """Sort key that compares version segments numerically."""
     t = re.sub(r'^v', '', tag)
@@ -70,13 +71,18 @@ def _version_key(tag):
     return result
 
 # ── Step 1: Find latest tag for each base image ──
+
+
 def get_latest_tag(base_image):
     """Use skopeo to find the latest numeric tag and its digest."""
     try:
         cmd = ['skopeo', 'list-tags', f'docker://{base_image}']
         if AUTH_FILE:
             cmd += ['--authfile', AUTH_FILE]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30,
+            check=False,
+        )
         if result.returncode != 0:
             return (base_image, None, None, f'skopeo error: {result.stderr[:100]}')
 
@@ -100,7 +106,10 @@ def get_latest_tag(base_image):
         icmd = ['skopeo', 'inspect', '--raw', f'docker://{base_image}:{latest_tag}']
         if AUTH_FILE:
             icmd += ['--authfile', AUTH_FILE]
-        inspect = subprocess.run(icmd, capture_output=True, text=True, timeout=30)
+        inspect = subprocess.run(
+            icmd, capture_output=True, text=True, timeout=30,
+            check=False,
+        )
         if inspect.returncode != 0:
             return (base_image, latest_tag, None, f'inspect error: {inspect.stderr[:100]}')
 
@@ -127,6 +136,7 @@ def get_latest_tag(base_image):
     except Exception as e:
         return (base_image, None, None, str(e)[:100])
 
+
 print("\nFinding latest tags via skopeo...")
 tag_results = {}
 done = 0
@@ -134,7 +144,7 @@ with ThreadPoolExecutor(max_workers=8) as ex:
     futs = {ex.submit(get_latest_tag, scan_base_map.get(base, base)): base for base in base_map}
     for f in as_completed(futs):
         base = futs[f]
-        _, tag, digest, err = f.result()
+        _base, tag, digest, err = f.result()
         tag_results[base] = {'tag': tag, 'digest': digest, 'error': err}
         done += 1
         if done % 20 == 0 or done == len(base_map):
@@ -148,6 +158,8 @@ for base, info in list(errors.items())[:5]:
     print(f"    {base}: {info['error']}")
 
 # ── Step 2: Scan latest images with roxctl ──
+
+
 def scan_latest(base_image, digest):
     """Scan the latest image digest with roxctl."""
     ref = f"{base_image}@{digest}"
@@ -157,13 +169,17 @@ def scan_latest(base_image, digest):
         cmd = ['roxctl', 'image', 'scan', '--image', ref, '--output', 'json']
         if INSECURE:
             cmd.insert(3, '--insecure-skip-tls-verify')
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, env=env,
+            check=False,
+        )
         if result.returncode == 0:
             data = json.loads(result.stdout)
             return (base_image, data.get('result', {}))
         return (base_image, {'error': result.stderr[:200]})
     except Exception as e:
         return (base_image, {'error': str(e)[:200]})
+
 
 to_scan = {base: info for base, info in tag_results.items()
            if info['digest'] and not info['error']}
@@ -176,7 +192,7 @@ with ThreadPoolExecutor(max_workers=WORKERS) as ex:
             for base, info in to_scan.items()}
     for f in as_completed(futs):
         base = futs[f]
-        _, result = f.result()
+        _base, result = f.result()
         latest_scans[base] = result
         done += 1
         if done % 20 == 0 or done == len(to_scan):
@@ -251,7 +267,6 @@ for base, info in base_map.items():
             }
 
 # Stats
-from collections import Counter
 statuses = Counter(v['status'] for v in fix_results.values())
 print(f"\nResults across {len(fix_results)} CVE+image records:")
 for status, count in statuses.most_common():
@@ -265,4 +280,4 @@ with open(OUTPUT, 'w') as f:
         'scan_base_map': scan_base_map,
     }, f)
 
-print(f"\nSaved to {OUTPUT} ({os.path.getsize(OUTPUT)/1024:.0f} KB)")
+print(f"\nSaved to {OUTPUT} ({os.path.getsize(OUTPUT) / 1024:.0f} KB)")

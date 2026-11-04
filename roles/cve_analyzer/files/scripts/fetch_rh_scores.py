@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
 """Fetch CVSS scores from Red Hat CVE database and save to JSON."""
 
+from collections import Counter
 import csv
 import json
 import os
@@ -17,6 +17,7 @@ OUTPUT = os.path.join(DATA_DIR, "redhat_cve_scores.json")
 rows = list(csv.DictReader(open(TRIAGE_CSV)))
 cves = sorted(set(r['CVE'] for r in rows if r['CVE'].startswith('CVE-')))
 print(f"{len(cves)} unique CVEs to fetch from Red Hat")
+
 
 def fetch_rh_cve(cve_id):
     url = f"https://access.redhat.com/hydra/rest/securitydata/cve/{cve_id}.json"
@@ -42,6 +43,7 @@ def fetch_rh_cve(cve_id):
         return (cve_id, {'score': 0, 'vector': '', 'severity': '', 'status': f'http_{e.code}', 'mitigation': '', 'statement': ''})
     except Exception as e:
         return (cve_id, {'score': 0, 'vector': '', 'severity': '', 'status': f'error: {str(e)[:60]}', 'mitigation': '', 'statement': ''})
+
 
 results = {}
 done = 0
@@ -70,6 +72,5 @@ else:
     print("Score range: n/a (no CVE scores yet)")
 
 # Severity breakdown from Red Hat
-from collections import Counter
 sevs = Counter(v['severity'] for v in results.values() if v['severity'])
 print(f"Red Hat severities: {dict(sevs)}")

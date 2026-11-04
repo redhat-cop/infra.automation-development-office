@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build RHACS vulnerability Grafana dashboard from scrubbed CSV / data.json.
 
 Uses native Grafana panels only:
@@ -10,6 +9,14 @@ No HTML table panels. Requires datasource uid ``ado-testdata``
 """
 
 from __future__ import annotations
+from rhacs_report_analytics import (
+    AGE_BUCKETS,
+    FILTER_ALL,
+    FINDING_AGE_BUCKETS,
+    OWNERSHIP_LABELS,
+    analyze_paths,
+    scrubbed_pull_time,
+)
 
 import argparse
 import csv
@@ -29,14 +36,6 @@ from urllib.parse import quote
 # loaded the intended builder artifact.
 _COLLECTION_VERSION = "2.1.2"
 
-from rhacs_report_analytics import (
-    AGE_BUCKETS,
-    FILTER_ALL,
-    FINDING_AGE_BUCKETS,
-    OWNERSHIP_LABELS,
-    analyze_paths,
-    scrubbed_pull_time,
-)
 
 TESTDATA_UID = "ado-testdata"
 TESTDATA_TYPE = "grafana-testdata-datasource"
@@ -149,6 +148,8 @@ def phase1_hybrid_trend(uid: str) -> bool:
     if not cleaned or is_production_posture_uid(cleaned):
         return False
     return cleaned in phase0_hybrid_uids()
+
+
 DRILL_VARIABLES = (
     "cluster",
     "namespace",
@@ -1496,7 +1497,8 @@ def filterable_findings_trend_expr(scope_clusters: list[str] | None = None) -> s
     Unrestricted namespace → by-cluster (scoped All via ``allValue``).
     Any namespace restriction → by-ns. Never uses all-RHACS legacy samples.
     """
-    _ = scope_clusters
+    # Reserved for future cluster-scoped PromQL; keep call signature stable.
+    _unused_scope_clusters = scope_clusters
     ns_free = hybrid_namespace_unrestricted_gate_expr()
     by_cluster = _trend_by_cluster_expr()
     by_ns = _trend_by_ns_expr()
@@ -1537,7 +1539,6 @@ def legacy_findings_trend_expr() -> str:
         "sum by (severity, pod) ("
         f'last_over_time({POSTURE_METRIC}{{job="cve-analyzer-ns-metrics"}}[1d])))'
     )
-
 
 
 def prometheus_variable(default_uid: str) -> dict:
@@ -1947,8 +1948,8 @@ def bargauge_panel(
 ) -> dict:
     if not items:
         items = [("none", 0)]
-    headers = [name for name, _ in items]
-    values = [val for _, val in items]
+    headers = [name for name, _unused in items]
+    values = [val for _unused, val in items]
     # One-row CSV so each namespace is a numeric field → bargauge series
     csv_text = to_csv(headers, [values])
     return _bargauge(title, csv_text, x, y, w, h, [])
@@ -2392,8 +2393,6 @@ def product_rows(items: list[dict], limit: int = 100) -> list[list]:
     return out
 
 
-
-
 def simple_view_table_rows(items: list[dict]) -> list[list]:
     headers = [
         "Cluster",
@@ -2623,7 +2622,6 @@ def build_operator_updates_dashboard(
             }
         ],
     }
-
 
 
 def filterable_component_rows(
@@ -3199,7 +3197,7 @@ def build_dashboard(
                 "ClusterAll",
                 "NsAll",
                 "AgeAll",
-        "OwnershipAll",
+                "OwnershipAll",
             ],
             sourced_filterable_rows(
                 analysis, "filterable_ownership", filterable_ownership_rows
@@ -3220,7 +3218,7 @@ def build_dashboard(
                 {},
             ),
             hide=["Cluster", "Namespace", "Age", "ClusterAll", "NsAll", "AgeAll",
-        "OwnershipAll"],
+                  "OwnershipAll"],
             drill=drill_opt({"variable": "sre", "field": "Ownership"}),
         )
     )
@@ -3341,7 +3339,7 @@ def build_dashboard(
                 "ClusterAll",
                 "NsAll",
                 "AgeAll",
-        "OwnershipAll",
+                "OwnershipAll",
             ],
             sourced_filterable_rows(
                 analysis, "filterable_remediation", filterable_remediation_rows
@@ -3462,7 +3460,7 @@ def build_dashboard(
             "ClusterAll",
             "NsAll",
             "AgeAll",
-        "OwnershipAll",
+            "OwnershipAll",
             "SourceAll",
         ]
         detail_rows: list[list] = []
@@ -3720,7 +3718,6 @@ def build_dashboard(
     }
 
 
-
 def _load_installed_images(path: str) -> dict[str, set[str]] | None:
     if not path:
         return None
@@ -3759,7 +3756,6 @@ def newest_scrubbed(data_dir: Path) -> Path | None:
     if not files:
         return None
     return max(files, key=lambda path: (scrubbed_pull_time(path), path.stat().st_mtime))
-
 
 
 def serialize_dashboard_json(dash: dict, *, compact: bool = True) -> str:
@@ -3950,7 +3946,7 @@ def main() -> None:
     embedded_detail = 0
     if not lite:
         p90 = next((p for p in dash["panels"] if p.get("id") == DETAIL_PANEL_ID), None)
-        if p90 and (p90.get("targets") or []):
+        if p90 and p90.get("targets"):
             csv_text = (p90["targets"][0].get("csvContent") or "")
             embedded_detail = max(0, csv_text.count("\n") - 1)
     # Equivalent-input serialize compare (same dash object): indent vs compact.

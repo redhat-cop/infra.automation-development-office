@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch Pyxis repository IDs and fix catalog.redhat.com URLs."""
 
 import json
@@ -26,6 +25,7 @@ for v in fr.values():
 
 print(f"{len(repo_paths)} repos to look up in Pyxis")
 
+
 def fetch_pyxis_id(repo_path):
     """Fetch the Pyxis _id for a repository."""
     encoded = urllib.parse.quote(repo_path, safe='')
@@ -43,6 +43,7 @@ def fetch_pyxis_id(repo_path):
             return (repo_path, '')
     except Exception as e:
         return (repo_path, f'ERROR:{str(e)[:60]}')
+
 
 pyxis_ids = {}
 done = 0

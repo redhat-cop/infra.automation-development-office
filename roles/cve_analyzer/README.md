@@ -208,7 +208,7 @@ tables).
 KPI cards cover those four ACS severities only. **Total Findings** also
 includes rows whose severity is Unknown/other, so
 ``C+I+M+L`` can be less than Total on the same scrubbed CSV. That gap is
-expected — do not “fix” additive KPIs by forcing Unknown into a severity card.
+expected — do not "fix" additive KPIs by forcing Unknown into a severity card.
 
 **Detail panel size:** Detail (panel id 90) caps at **16,000** rows so the
 published Grafana JSON stays under the **16 MiB** API limit (target

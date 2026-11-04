@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build Prometheus metrics for per-namespace CVE counts from data.json.
 
 Emits:

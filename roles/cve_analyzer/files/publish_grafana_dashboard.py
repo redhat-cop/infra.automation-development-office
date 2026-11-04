@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """POST a Grafana dashboard JSON file to /api/dashboards/db.
 
 Avoids Ansible uri+no_log swallowing the real HTTP error. Auth via env:
@@ -21,7 +20,6 @@ import json
 import os
 import re
 import ssl
-import sys
 import urllib.error
 import urllib.request
 from pathlib import Path

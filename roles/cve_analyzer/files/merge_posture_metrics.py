@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Keep cve_posture_findings in the scraped Prometheus textfile."""
 
 from __future__ import annotations

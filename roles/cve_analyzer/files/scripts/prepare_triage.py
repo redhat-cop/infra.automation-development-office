@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Step 0: Transform a raw RHACS CSV export into the triage CSV format.
 Groups by CVE+Image, derives product lines, computes priority/action,
@@ -10,10 +9,10 @@ Usage: python3 prepare_triage.py [DATA_DIR]
   Writes: DATA_DIR/triage.csv
 """
 
+from collections import Counter
 import csv
 import json
 import os
-import re
 import subprocess
 import sys
 import urllib.request
@@ -111,7 +110,7 @@ def parse_image(image_ref):
 
 
 def get_product_line(image_ref):
-    _, ns, short = parse_image(image_ref)
+    _registry, ns, short = parse_image(image_ref)
     if short in IMG_PRODUCT:
         return IMG_PRODUCT[short]
     if 'redhat-services-prod' in ns:
@@ -120,7 +119,7 @@ def get_product_line(image_ref):
 
 
 def get_remediation(image_ref):
-    _, ns, _ = parse_image(image_ref)
+    _registry, ns, _short = parse_image(image_ref)
     if 'redhat-services-prod' in ns:
         return 'Contact SRE team / managed by Red Hat SRE'
     return NS_REMEDIATION.get(ns, f'Update {ns} operator via OLM' if ns else 'Update image')
@@ -128,6 +127,7 @@ def get_remediation(image_ref):
 
 INTERNAL_REGISTRY = 'image-registry.openshift-image-registry.svc:5000/'
 PUBLIC_REGISTRIES = ['quay.io', 'registry.redhat.io']
+
 
 def _skopeo_probe(candidate):
     """Check if a public image exists using skopeo without auth."""
@@ -137,6 +137,7 @@ def _skopeo_probe(candidate):
         env.pop('REGISTRY_AUTH_FILE', None)
         result = subprocess.run(
             ['skopeo', 'inspect', '--raw', f'docker://{base}'],
+            check=False,
             capture_output=True, text=True, timeout=15, env=env,
         )
         return result.returncode == 0
@@ -283,7 +284,7 @@ print(f"  {len(groups)} unique CVE+Image combinations")
 
 # Resolve internal registry images to public equivalents
 internal_images = sorted(set(
-    img for _, img in groups.keys() if img.startswith(INTERNAL_REGISTRY)
+    img for _key, img in groups.keys() if img.startswith(INTERNAL_REGISTRY)
 ))
 scan_image_cache = {}
 if internal_images:
@@ -306,7 +307,7 @@ for (cve, image), g in groups.items():
     epss = float(r.get('EPSS Probability Percentage', '0') or '0')
     fixed_in = r.get('CVE Fixed In', '')
 
-    _, _, short = parse_image(image)
+    _registry, _ns, short = parse_image(image)
     product = get_product_line(image)
     remediation = get_remediation(image)
     scan_image = scan_image_cache.get(image, image)
@@ -382,7 +383,6 @@ with open(OUTPUT_CSV, 'w', newline='') as f:
     w.writeheader()
     w.writerows(triage)
 
-from collections import Counter
 pri = Counter(t['Priority'] for t in triage)
 act = Counter(t['Action'] for t in triage)
 print(f"\nWrote {len(triage)} records to {OUTPUT_CSV}")

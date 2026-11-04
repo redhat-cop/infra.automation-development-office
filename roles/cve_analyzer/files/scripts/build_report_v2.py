@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
 """
 Build a lightweight HTML report: all data lives in a JS array,
 one table renders it with client-side sort/filter/search.
 """
 
+import re as _re
+from collections import Counter
 import csv
 import json
 import os
@@ -43,7 +44,7 @@ for img, res in scan.items():
     if 'error' in res:
         continue
     for v in res.get('vulnerabilities', []):
-        rox_lk[f"{img}|||{v.get('cveId','')}"] = v.get('componentFixedVersion', '')
+        rox_lk[f"{img}|||{v.get('cveId', '')}"] = v.get('componentFixedVersion', '')
 
 for row in rows:
     k = f"{row['Image_Full']}|||{row['CVE']}"
@@ -114,7 +115,7 @@ for row in rows:
         row['Triage_Reasoning'] = (
             f"Red Hat CVSS {rh_score:.1f} ({rh_sev}), "
             f"EPSS {epss:.3f}%"
-            + (f", NVD CVSS {row.get('CVSS','')}" if row.get('CVSS','') and row.get('CVSS','') != '0' else '')
+            + (f", NVD CVSS {row.get('CVSS', '')}" if row.get('CVSS', '') and row.get('CVSS', '') != '0' else '')
         )
 
 for row in rows:
@@ -123,13 +124,13 @@ for row in rows:
     row['kev_due_date'] = kev.get('dueDate', '')
 
 print(f"Re-prioritized {len(rows)} records using Red Hat CVSS scores")
-from collections import Counter
 new_pri = Counter(r['Priority'] for r in rows)
 new_act = Counter(r['Action'] for r in rows)
 print(f"  Priorities: {dict(sorted(new_pri.items()))}")
 print(f"  Actions: {dict(new_act)}")
 
 rh_not_found = {k for k, v in rh_scores.items() if v.get('status') == 'not_found'}
+
 
 def build_cve_links(cve_id):
     """Build prioritized links: Red Hat > NVD > OSV for CVE-*, OSV for GHSA-*.
@@ -149,6 +150,7 @@ def build_cve_links(cve_id):
         )
     return ('', '', '')
 
+
 # Compact records for JS
 R = []
 for i, r in enumerate(rows):
@@ -158,48 +160,47 @@ for i, r in enumerate(rows):
         r['Action'],             # 1
         r['CVE'],                # 2
         r['Severity'],           # 3
-        r.get('CVSS',''),        # 4
-        r.get('NVD_CVSS',''),    # 5
-        r.get('EPSS_Pct',''),    # 6
-        r.get('Product_Line',''),# 7
-        r.get('Image_Short',''), # 8
-        r.get('Image_Full',''),  # 9
-        r.get('Cluster',''),     # 10
-        r.get('Namespaces',''),  # 11
-        r.get('Deployments',''), # 12
-        r.get('Affected_Components',''),  # 13
-        r.get('Component_Versions',''),   # 14
-        r.get('Fixed_In',''),    # 15
-        r.get('RHSA_Advisory',''),        # 16
-        r.get('Advisory_Link',''),        # 17
+        r.get('CVSS', ''),        # 4
+        r.get('NVD_CVSS', ''),    # 5
+        r.get('EPSS_Pct', ''),    # 6
+        r.get('Product_Line', ''),  # 7
+        r.get('Image_Short', ''),  # 8
+        r.get('Image_Full', ''),  # 9
+        r.get('Cluster', ''),     # 10
+        r.get('Namespaces', ''),  # 11
+        r.get('Deployments', ''),  # 12
+        r.get('Affected_Components', ''),  # 13
+        r.get('Component_Versions', ''),   # 14
+        r.get('Fixed_In', ''),    # 15
+        r.get('RHSA_Advisory', ''),        # 16
+        r.get('Advisory_Link', ''),        # 17
         link1,                   # 18 — primary link (Red Hat for CVE, OSV for GHSA)
-        r.get('Remediation_Path',''),     # 19
-        r.get('Triage_Reasoning',''),     # 20
-        r.get('OSV_Verification',''),     # 21
-        r.get('OSV_Affected_Range',''),   # 22
-        r.get('POAM_Justification',''),   # 23
-        r.get('Discovered',''),  # 24
-        r.get('rox',''),         # 25
-        r.get('roxf',''),        # 26
+        r.get('Remediation_Path', ''),     # 19
+        r.get('Triage_Reasoning', ''),     # 20
+        r.get('OSV_Verification', ''),     # 21
+        r.get('OSV_Affected_Range', ''),   # 22
+        r.get('POAM_Justification', ''),   # 23
+        r.get('Discovered', ''),  # 24
+        r.get('rox', ''),         # 25
+        r.get('roxf', ''),        # 26
         link2,                   # 27 — secondary link (NVD for CVE, GitHub for GHSA)
         link3,                   # 28 — tertiary link (OSV for CVE, empty for GHSA)
         r.get('rh_cvss', '0'),   # 29 — Red Hat CVSS score
-        r.get('rh_severity', ''),# 30 — Red Hat severity
+        r.get('rh_severity', ''),  # 30 — Red Hat severity
         r.get('rh_vector', ''),  # 31 — Red Hat CVSS vector
-        r.get('fix_status', ''), # 32 — latest image fix status
+        r.get('fix_status', ''),  # 32 — latest image fix status
         r.get('fix_latest_ref', ''),  # 33 — latest image ref
         r.get('fix_latest_tag', ''),  # 34 — latest image tag
-        r.get('fix_catalog_url', ''), # 35 — catalog.redhat.com URL
-        r.get('rhsa_description', ''), # 36 — RHSA advisory description
+        r.get('fix_catalog_url', ''),  # 35 — catalog.redhat.com URL
+        r.get('rhsa_description', ''),  # 36 — RHSA advisory description
         r.get('rh_mitigation', ''),  # 37 — Red Hat CVE mitigation
         r.get('rh_statement', ''),   # 38 — Red Hat CVE statement
-        r.get('kev_date_added', ''), # 39 — CISA KEV date added (empty = not in KEV)
+        r.get('kev_date_added', ''),  # 39 — CISA KEV date added (empty = not in KEV)
         r.get('kev_due_date', ''),   # 40 — CISA KEV due date
     ])
 
 data_json = json.dumps(R, separators=(',', ':'))
 
-import re as _re
 
 def detect_ocp_version():
     """Detect OCP version from image paths or fall back to OCP_TARGET_VERSION."""
@@ -221,6 +222,7 @@ def detect_ocp_version():
     if version_counts:
         return max(version_counts, key=version_counts.get)
     return os.environ.get('OCP_TARGET_VERSION', '')
+
 
 ocp_version = detect_ocp_version()
 report_name = REPORT_NAME or REPORT_ID
@@ -265,8 +267,10 @@ for r in R:
     prod_sum[pl]['c'].add(r[2])
     prod_sum[pl]['i'].add(r[8])
 
+
 def e(s):
     return (s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
 
 # Build exec summary HTML
 exec_html = ''
@@ -278,11 +282,19 @@ if kev_unique_cves:
         if r[2] not in kev_info:
             kev_info[r[2]] = (r[39], r[40])
     exec_html += '<div class="es kev-summary"><h3 style="color:#f59e0b">&#9888; CISA Known Exploited Vulnerabilities</h3>'
-    exec_html += f'<p class="esub">{len(kev_unique_cves)} CVE(s) in the <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank">CISA KEV catalog</a>. These have confirmed active exploitation and carry mandatory remediation deadlines per BOD 22-01.</p>'
+    exec_html += (
+        f'<p class="esub">{len(kev_unique_cves)} CVE(s) in the '
+        '<a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" '
+        'target="_blank">CISA KEV catalog</a>. These have confirmed active '
+        'exploitation and carry mandatory remediation deadlines per BOD 22-01.</p>'
+    )
     exec_html += '<table><thead><tr><th>CVE</th><th>Date Added</th><th>Due Date</th><th>Records</th></tr></thead><tbody>'
     for cve in kev_unique_cves:
         added, due = kev_info[cve]
-        exec_html += f'<tr onclick="drill(\'cve\',\'{e(cve)}\')"><td><a href="https://access.redhat.com/security/cve/{e(cve)}" target="_blank" onclick="event.stopPropagation()">{e(cve)}</a></td>'
+        exec_html += f'<tr onclick="drill(\'cve\',\'{
+            e(cve)}\')"><td><a href="https://access.redhat.com/security/cve/{
+            e(cve)}" target="_blank" onclick="event.stopPropagation()">{
+            e(cve)}</a></td>'
         exec_html += f'<td>{e(added)}</td><td style="color:#f59e0b;font-weight:600">{e(due)}</td><td class="n">{kev_by_cve[cve]}</td></tr>'
     exec_html += '</tbody></table></div>'
 
@@ -291,7 +303,11 @@ exec_html += '<p class="esub">What you need to do and how many CVE+image records
 exec_html += '<table><thead><tr><th>Remediation Action</th><th>PATCH</th><th>MONITOR</th><th>P1</th><th>CVEs</th></tr></thead><tbody>'
 for rem in sorted(rem_sum.keys(), key=lambda r: -rem_sum[r]['p']):
     s = rem_sum[rem]
-    exec_html += f'<tr onclick="drill(\'remediation\',this.dataset.v)" data-v="{e(rem)}"><td>{e(rem)}</td><td class="n r">{s["p"] or "—"}</td><td class="n">{s["m"] or "—"}</td>'
+    exec_html += f'<tr onclick="drill(\'remediation\',this.dataset.v)" data-v="{
+        e(rem)}"><td>{
+        e(rem)}</td><td class="n r">{
+            s["p"] or "—"}</td><td class="n">{
+                s["m"] or "—"}</td>'
     exec_html += f'<td class="n{" r" if s["p1"] else ""}">{s["p1"] or "—"}</td><td class="n">{len(s["c"])}</td></tr>'
 exec_html += '</tbody></table></div>'
 
@@ -313,9 +329,9 @@ pd = {'P1-CRITICAL': 'Red Hat Critical severity, or RH CVSS >= 9.0 + EPSS >= 1%'
       'P3-MODERATE': 'RH CVSS >= 8.0, or RH CVSS >= 7.0 + EPSS >= 1%',
       'P4-MONITOR': 'RH CVSS >= 7.0 (or Important + >= 6.0), low EPSS',
       'P5-LOW': 'Low RH CVSS or no score — informational'}
-for p in ['P1-CRITICAL','P1-HIGH-EPSS','P2-HIGH-IMPACT','P2-HIGH-EPSS','P3-MODERATE','P4-MONITOR','P5-LOW']:
+for p in ['P1-CRITICAL', 'P1-HIGH-EPSS', 'P2-HIGH-IMPACT', 'P2-HIGH-EPSS', 'P3-MODERATE', 'P4-MONITOR', 'P5-LOW']:
     if pc.get(p, 0):
-        exec_html += f'<tr onclick="drill(\'priority\',\'{e(p)}\')"><td>{e(p)}</td><td class="n">{pc[p]}</td><td class="tm">{e(pd.get(p,""))}</td></tr>'
+        exec_html += f'<tr onclick="drill(\'priority\',\'{e(p)}\')"><td>{e(p)}</td><td class="n">{pc[p]}</td><td class="tm">{e(pd.get(p, ""))}</td></tr>'
 exec_html += '</tbody></table></div>'
 
 # Products list for filter dropdown
@@ -352,7 +368,8 @@ h1{{font-size:1.3rem;font-weight:600}}
 select.fb{{appearance:auto;padding:3px 6px}}
 .tw{{overflow-x:auto;max-height:60vh;overflow-y:auto}}
 table{{width:100%;border-collapse:collapse;font-size:.75rem}}
-th{{background:var(--sf2);color:var(--tm);font-weight:600;text-align:left;padding:5px 7px;position:sticky;top:0;z-index:2;font-size:.65rem;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;white-space:nowrap}}
+th{{background:var(--sf2);color:var(--tm);font-weight:600;text-align:left;padding:5px 7px;position:sticky;top:0;z-index:2;font-size:.65rem;text-transform:upperc
+ase;letter-spacing:.03em;cursor:pointer;white-space:nowrap}}
 th:hover{{color:var(--ac)}}
 td{{padding:5px 7px;border-bottom:1px solid var(--bd);vertical-align:top}}
 tr.dr{{cursor:pointer}}tr.dr:hover td{{background:rgba(56,189,248,.05)}}
@@ -380,27 +397,40 @@ a{{color:var(--ac);text-decoration:none}}a:hover{{text-decoration:underline}}
 .cnt{{font-size:.72rem;color:var(--tm);margin:4px 0}}
 @media print{{body{{background:#fff;color:#000}}.tw{{max-height:none}}}}
 .prow td{{opacity:.45}}.pcb{{width:14px;height:14px;cursor:pointer;accent-color:var(--ac)}}
-.pbtn{{padding:2px 8px;border-radius:4px;border:1px solid var(--bd);background:var(--sf);color:var(--tm);cursor:pointer;font-size:.7rem;white-space:nowrap}}.pbtn:hover{{border-color:var(--ac);color:var(--ac)}}
-.fprow td{{opacity:.45}}.fpbtn{{padding:1px 6px;border-radius:4px;border:1px solid var(--bd);background:var(--sf);color:var(--tm);cursor:pointer;font-size:.65rem;white-space:nowrap}}.fpbtn:hover{{border-color:var(--rd);color:var(--rd)}}.fpflag{{cursor:pointer;font-size:.85rem;user-select:none}}
+.pbtn{{padding:2px 8px;border-radius:4px;border:1px solid var(--bd);background:var(--sf);color:var(--tm);cursor:pointer;font-size:.7rem;white-space:nowrap}}
+.pbtn:hover{{border-color:var(--ac);color:var(--ac)}}
+.fprow td{{opacity:.45}}.fpbtn{{padding:1px 6px;border-radius:4px;border:1px solid var(--bd);background:var(--sf);color:var(--tm);cursor:pointer;font-size:.65re
+m;white-space:nowrap}}.fpbtn:hover{{border-color:var(--rd);color:var(--rd)}}.fpflag{{cursor:pointer;font-size:.85rem;user-select:none}}
 .kevrow{{background:rgba(245,158,11,.05)!important}}.kevrow>td:first-child{{border-left:3px solid #f59e0b}}
-.kev{{display:inline-block;padding:1px 5px;border-radius:3px;font-size:.55rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#dc2626,#f59e0b);animation:kevpulse 2s ease-in-out infinite;vertical-align:middle;margin-left:3px;letter-spacing:.03em}}
+.kev{{display:inline-block;padding:1px 5px;border-radius:3px;font-size:.55rem;font-weight:700;color:#fff;background:linear-gradient(135deg,#dc2626,#f59e0b);anim
+ation:kevpulse 2s ease-in-out infinite;vertical-align:middle;margin-left:3px;letter-spacing:.03em}}
 @keyframes kevpulse{{0%,100%{{box-shadow:0 0 3px rgba(245,158,11,.3)}}50%{{box-shadow:0 0 8px rgba(245,158,11,.6),0 0 16px rgba(220,38,38,.2)}}}}
 .kev-summary{{border-color:#f59e0b!important;background:linear-gradient(135deg,#1a1708,#1f1a0a)!important}}
 .es tr[onclick]{{cursor:pointer}}.es tr[onclick]:hover td{{background:rgba(56,189,248,.08)}}
 .c[onclick]{{cursor:pointer;transition:all .15s}}.c[onclick]:hover{{border-color:var(--ac)}}
 </style></head><body>
 <h1>{report_title}</h1>
-<p class="sub">Generated Aug 25, 2026 &bull; Clusters: prod, prod-infra &bull; RHACS scan Aug 21 &bull; Verified: roxctl + OSV &bull; Prioritized by Red Hat CVSS &bull; {len(R):,} records, {ucve} CVEs, {uimg} images</p>
+<p class="sub">Generated Aug 25, 2026 &bull; Clusters: prod, prod-infra &bull; RHACS scan Aug 21 &bull; Verified: roxctl + OSV &bull; Prioritized by Red Hat
+CVSS &bull; {len(R):,} records, {ucve} CVEs, {uimg} images</p>
 <div class="g">
 <div class="c" onclick="drill('all')"><div class="cl">Records</div><div class="cv">{len(R):,}</div></div>
 <div class="c" onclick="drill('all')"><div class="cl">CVEs</div><div class="cv">{ucve}</div></div>
 <div class="c" onclick="drill('action','PATCH')"><div class="cl">PATCH</div><div class="cv r">{ac['PATCH']:,}</div></div>
 <div class="c" onclick="drill('action','MONITOR')"><div class="cl">MONITOR</div><div class="cv bl">{ac['MONITOR']:,}</div></div>
-<div class="c" onclick="drill('priority','P1')"><div class="cl">P1 Critical</div><div class="cv r">{pc.get('P1-CRITICAL',0)+pc.get('P1-HIGH-EPSS',0)}</div></div>
-<div class="c" onclick="drill('priority','P2')"><div class="cl">P2 High</div><div class="cv o">{pc.get('P2-HIGH-IMPACT',0)+pc.get('P2-HIGH-EPSS',0)}</div></div>
+<div class="c" onclick="drill('priority','P1')">
+<div class="cl">P1 Critical</div>
+<div class="cv r">{pc.get('P1-CRITICAL', 0) + pc.get('P1-HIGH-EPSS', 0)}</div>
+</div>
+<div class="c" onclick="drill('priority','P2')">
+<div class="cl">P2 High</div>
+<div class="cv o">{pc.get('P2-HIGH-IMPACT', 0) + pc.get('P2-HIGH-EPSS', 0)}</div>
+</div>
 <div class="c" onclick="drill('fix','FIXED_IN_LATEST')"><div class="cl">Fixed in Latest</div><div class="cv gr">{fix_fixed:,}</div></div>
 <div class="c" onclick="drill('fix','STILL_VULNERABLE')"><div class="cl">Not Fixed</div><div class="cv r">{fix_still:,}</div></div>
-<div class="c" onclick="drill('kev')" style="border-color:#f59e0b"><div class="cl">CISA KEV</div><div class="cv" style="color:{'#f59e0b' if kev_unique_cves else 'var(--gn)'}">{len(kev_unique_cves)}</div></div>
+<div class="c" onclick="drill('kev')" style="border-color:#f59e0b">
+<div class="cl">CISA KEV</div>
+<div class="cv" style="color:{'#f59e0b' if kev_unique_cves else 'var(--gn)'}">{len(kev_unique_cves)}</div>
+</div>
 </div>
 
 <div class="tabs">
@@ -443,7 +473,8 @@ a{{color:var(--ac);text-decoration:none}}a:hover{{text-decoration:underline}}
 </div>
 <div class="cnt" id="rowCount"></div>
 <div class="tw" id="tableWrap"><table><thead><tr>
-<th style="width:28px">Processed</th><th style="width:28px">FP</th><th onclick="srt(0)">Priority</th><th onclick="srt(1)">Action</th><th onclick="srt(2)">CVE</th>
+<th style="width:28px">Processed</th><th style="width:28px">FP</th><th onclick="srt(0)">Priority</th><th onclick="srt(1)">Action</th><th
+onclick="srt(2)">CVE</th>
 <th onclick="srt(3)">Sev</th><th onclick="srt(29)">RH CVSS</th><th onclick="srt(4)">CVSS</th><th onclick="srt(6)">EPSS</th>
 <th onclick="srt(7)">Product</th><th onclick="srt(8)">Image</th>
 <th onclick="srt(13)">Component</th><th onclick="srt(15)">Fixed In</th>
@@ -471,7 +502,8 @@ a{{color:var(--ac);text-decoration:none}}a:hover{{text-decoration:underline}}
 <script>
 const D={data_json};
 const PO={{'P1-CRITICAL':0,'P1-HIGH-EPSS':1,'P2-HIGH-IMPACT':2,'P2-HIGH-EPSS':3,'P3-MODERATE':4,'P4-MONITOR':5,'P5-LOW':6}};
-const PC={{'P1-CRITICAL':'#dc2626','P1-HIGH-EPSS':'#dc2626','P2-HIGH-IMPACT':'#ea580c','P2-HIGH-EPSS':'#ea580c','P3-MODERATE':'#d97706','P4-MONITOR':'#2563eb','P5-LOW':'#6b7280'}};
+const PC={{'P1-CRITICAL':'#dc2626','P1-HIGH-EPSS':'#dc2626','P2-HIGH-IMPACT':'#ea580c','P2-HIGH-EPSS':'#ea580c','P3-MODERATE':'#d97706','P4-MONITOR':'#2563eb','
+P5-LOW':'#6b7280'}};
 const AC={{'PATCH':'#dc2626','MONITOR':'#2563eb'}};
 const SC={{'CRITICAL':'#7f1d1d','IMPORTANT':'#92400e'}};
 const RC={{'CONFIRMED':'#16a34a','NOT_FOUND':'#d97706','SCAN_ERROR':'#dc2626'}};
@@ -487,7 +519,8 @@ function savePS(){{
   fetch('/api/reports/'+REPORT_ID+'/state',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(arr)}}).catch(()=>{{}});
 }}
 fetch('/api/reports/'+REPORT_ID+'/state').then(r=>r.json()).then(arr=>{{
-  if(Array.isArray(arr)&&arr.length){{PS=new Set(arr);localStorage.setItem('cve_proc_'+REPORT_ID,JSON.stringify(arr));updPC();if(document.getElementById('tc-data').classList.contains('on'))filt();}}
+  if(Array.isArray(arr)&&arr.length){{PS=new Set(arr);localStorage.setItem('cve_proc_'+REPORT_ID,JSON.stringify(arr));updPC();
+  if(document.getElementById('tc-data').classList.contains('on'))filt();}}
 }}).catch(()=>{{}});
 function pk(r){{return r[2]+'|||'+r[9]}}
 function isProc(r){{return PS.has(pk(r))}}
@@ -506,7 +539,8 @@ function saveFP(){{
   fetch('/api/reports/'+REPORT_ID+'/fp_state',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(arr)}}).catch(()=>{{}});
 }}
 fetch('/api/reports/'+REPORT_ID+'/fp_state').then(r=>r.json()).then(arr=>{{
-  if(Array.isArray(arr)&&arr.length){{FP=new Set(arr);localStorage.setItem('cve_fp_'+REPORT_ID,JSON.stringify(arr));updFPC();if(document.getElementById('tc-data').classList.contains('on'))filt();}}
+  if(Array.isArray(arr)&&arr.length){{FP=new Set(arr);localStorage.setItem('cve_fp_'+REPORT_ID,JSON.stringify(arr));updFPC();
+  if(document.getElementById('tc-data').classList.contains('on'))filt();}}
 }}).catch(()=>{{}});
 function isFP(r){{return FP.has(pk(r))}}
 function toggleFP(idx,ev){{
@@ -647,7 +681,8 @@ function render(){{
     const ec=ep>=10?'#ef4444':ep>=1?'#f97316':ep>0?'#22c55e':'#6b7280';
     const ew=Math.min(100,ep<10?ep*10:50+ep);
     const cveL=cveLink(r);const ip=isProc(r);const ifp=isFP(r);const ik=!!r[39];
-    const rhsaL=r[16]&&r[17]?'<a href="'+h(r[17])+'" target="_blank" onclick="event.stopPropagation()">'+h(r[16])+'</a>':(r[16]?h(r[16]):'<span class="tm">—</span>');
+    const rhsaL=r[16]&&r[17]?'<a href="'+h(r[17])+'" target="_blank" onclick="event.stopPropagation()">'+h(r[16])+'</a>':(r[16]?h(r[16]):'<span
+    class="tm">—</span>');
     const osvT=r[21]||'';
     const osvC=osvT.startsWith('Confirmed')?'#16a34a':(osvT.includes('RPM')||osvT.includes('RHSA')||osvT.includes('Container'))?'#0891b2':'#6b7280';
     const idx=r[41];
@@ -693,7 +728,8 @@ function loadMore(){{
     const ec=ep>=10?'#ef4444':ep>=1?'#f97316':ep>0?'#22c55e':'#6b7280';
     const ew=Math.min(100,ep<10?ep*10:50+ep);
     const cveL=cveLink(r);const ip=isProc(r);const ifp=isFP(r);const ik=!!r[39];
-    const rhsaL=r[16]&&r[17]?'<a href="'+h(r[17])+'" target="_blank" onclick="event.stopPropagation()">'+h(r[16])+'</a>':(r[16]?h(r[16]):'<span class="tm">—</span>');
+    const rhsaL=r[16]&&r[17]?'<a href="'+h(r[17])+'" target="_blank" onclick="event.stopPropagation()">'+h(r[16])+'</a>':(r[16]?h(r[16]):'<span
+    class="tm">—</span>');
     const osvT=r[21]||'';
     const osvC=osvT.startsWith('Confirmed')?'#16a34a':(osvT.includes('RPM')||osvT.includes('RHSA')||osvT.includes('Container'))?'#0891b2':'#6b7280';
     const idx=r[41];
@@ -736,7 +772,8 @@ function det(idx){{
   o+='<span>RH CVSS: '+rhCvss(r)+'</span>';
   o+='<span class="tm">Scanner CVSS: '+h(r[4])+(r[5]&&r[5]!=='0'?' (NVD:'+h(r[5])+')':'')+'</span>';
   o+='<span class="tm">EPSS: '+h(r[6])+'%</span>';
-  o+='<button class="pbtn" onclick="toggleFP('+idx+',event)" style="margin-left:auto">'+(isFP(r)?'&#x1F6A9; Remove False Positive':'Flag False Positive')+'</button>';
+  o+='<button class="pbtn" onclick="toggleFP('+idx+',event)" style="margin-left:auto">'+(isFP(r)?'&#x1F6A9; Remove False Positive':'Flag False
+  Positive')+'</button>';
   o+='<button class="pbtn" onclick="toggleProc('+idx+',event)">'+(isProc(r)?'Unmark Processed':'Mark Processed')+'</button>';
   o+='</div>';
   if(r[31])o+='<div style="font-size:.72rem;color:var(--tm);margin-bottom:8px">RH Vector: '+h(r[31])+'</div>';
@@ -760,14 +797,17 @@ function det(idx){{
   const fs=r[32],fref=r[33],ftag=r[34],fcat=r[35];
   if(fs){{
     const fsc={{'FIXED_IN_LATEST':'#16a34a','STILL_VULNERABLE':'#dc2626','SCAN_UNAVAILABLE':'#6b7280','UNKNOWN':'#6b7280'}};
-    const fsl={{'FIXED_IN_LATEST':'FIXED in latest','STILL_VULNERABLE':'Still vulnerable in latest','SCAN_UNAVAILABLE':'Latest scan unavailable','UNKNOWN':'Unknown'}};
+    const fsl={{'FIXED_IN_LATEST':'FIXED in latest','STILL_VULNERABLE':'Still vulnerable in latest','SCAN_UNAVAILABLE':'Latest scan
+    unavailable','UNKNOWN':'Unknown'}};
     o+='<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bd)">';
     o+='Latest image: <span class="b" style="background:'+(fsc[fs]||'#6b7280')+'">'+(fsl[fs]||fs)+'</span>';
     if(ftag)o+=' <span class="tm">('+h(ftag)+')</span>';
     if(fref){{
       o+='<div style="margin-top:3px;font-size:.7rem;word-break:break-all">';
-      if(fref.includes('quay.io/')&&fref.includes('@sha256:')){{const fp=fref.split('@');const rp=fp[0].replace('quay.io/','');o+='<a href="https://quay.io/repository/'+h(rp)+'/manifest/'+h(fp[1])+'" target="_blank">'+h(fref)+'</a>';}}
-      else if(fref.includes('quay.io/')){{const rp=fref.replace('quay.io/','').split(':')[0];o+='<a href="https://quay.io/repository/'+h(rp)+'" target="_blank">'+h(fref)+'</a>';}}
+      if(fref.includes('quay.io/')&&fref.includes('@sha256:')){{const fp=fref.split('@');const rp=fp[0].replace('quay.io/','');o+='<a href="https://quay.io/repo
+      sitory/'+h(rp)+'/manifest/'+h(fp[1])+'" target="_blank">'+h(fref)+'</a>';}}
+      else if(fref.includes('quay.io/')){{const rp=fref.replace('quay.io/','').split(':')[0];o+='<a href="https://quay.io/repository/'+h(rp)+'"
+      target="_blank">'+h(fref)+'</a>';}}
       else if(fcat)o+='<a href="'+h(fcat)+'" target="_blank">'+h(fref)+'</a>';
       else o+=h(fref);
       o+='</div>';
@@ -780,14 +820,18 @@ function det(idx){{
     o+='<span class="b" style="background:'+oc+'">'+h(r[21])+'</span>';
     if(r[22])o+='<div style="margin-top:3px;font-size:.72rem" class="tm">Range: '+h(r[22])+'</div>';
     o+='</div>';}}
-  if(r[39]){{o+='<div class="bx" style="background:#1a1708;border:1px solid #f59e0b"><div class="bl2" style="color:#f59e0b">&#9888; CISA Known Exploited Vulnerability</div>';
-    o+='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px"><div><span class="dl">Date Added</span> '+h(r[39])+'</div><div><span class="dl">Due Date</span> <strong style="color:#f59e0b">'+h(r[40])+'</strong></div></div>';
-    o+='<div style="font-size:.72rem;color:var(--tm)">Active exploitation confirmed. Mandatory remediation deadline per <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank">CISA BOD 22-01</a>.</div></div>';}}
+  if(r[39]){{o+='<div class="bx" style="background:#1a1708;border:1px solid #f59e0b"><div class="bl2" style="color:#f59e0b">&#9888; CISA Known Exploited
+  Vulnerability</div>';
+    o+='<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px"><div><span class="dl">Date Added</span> '+h(r[39])+'</div><div><span class="dl">Due
+    Date</span> <strong style="color:#f59e0b">'+h(r[40])+'</strong></div></div>';
+    o+='<div style="font-size:.72rem;color:var(--tm)">Active exploitation confirmed. Mandatory remediation deadline per <a href="https://www.cisa.gov/known-expl
+    oited-vulnerabilities-catalog" target="_blank">CISA BOD 22-01</a>.</div></div>';}}
   if(r[37])o+='<div class="bx bxr"><div class="bl2">Red Hat CVE Mitigation</div>'+h(r[37])+'</div>';
   if(r[38])o+='<div class="bx bxr"><div class="bl2">Red Hat CVE Statement</div>'+h(r[38])+'</div>';
   if(r[23])o+='<div class="bx bxp"><div class="bl2">POA&amp;M Justification</div>'+h(r[23])+'</div>';
   // CVE reference links — detect source from URL
-  function lnk(u){{if(u.includes('access.redhat.com'))return'Red Hat CVE';if(u.includes('nvd.nist.gov'))return'NVD';if(u.includes('osv.dev'))return'OSV';if(u.includes('github.com'))return'GitHub Advisory';return'Link'}}
+  function lnk(u){{if(u.includes('access.redhat.com'))return'Red Hat CVE';if(u.includes('nvd.nist.gov'))return'NVD';if(u.includes('osv.dev'))return'OSV';
+  if(u.includes('github.com'))return'GitHub Advisory';return'Link'}}
   let links='<div style="margin-top:6px;font-size:.78rem;display:flex;gap:12px;flex-wrap:wrap">';
   if(r[18])links+='<a href="'+h(r[18])+'" target="_blank">'+lnk(r[18])+' &rarr;</a>';
   if(r[27])links+='<a href="'+h(r[27])+'" target="_blank">'+lnk(r[27])+' &rarr;</a>';
@@ -884,7 +928,7 @@ updPC();updFPC();
 with open(OUTPUT, 'w') as f:
     f.write(html)
 print(f"Report: {OUTPUT}")
-print(f"Size: {os.path.getsize(OUTPUT)/1024/1024:.1f} MB")
+print(f"Size: {os.path.getsize(OUTPUT) / 1024 / 1024:.1f} MB")
 
 FIELD_NAMES = [
     'priority', 'action', 'cve', 'severity', 'cvss', 'nvd_cvss', 'epss_pct',
@@ -906,4 +950,4 @@ for r in R:
     data_rows.append(row)
 with open(DATA_JSON_OUTPUT, 'w') as f:
     json.dump(data_rows, f, separators=(',', ':'))
-print(f"Data JSON: {DATA_JSON_OUTPUT} ({os.path.getsize(DATA_JSON_OUTPUT)/1024:.0f} KB)")
+print(f"Data JSON: {DATA_JSON_OUTPUT} ({os.path.getsize(DATA_JSON_OUTPUT) / 1024:.0f} KB)")

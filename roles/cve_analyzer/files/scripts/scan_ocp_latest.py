@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
 """
 Handle OCP core images: extract {OCP_TARGET_VERSION} component digests,
 scan the new ones, and update the latest_scan_results.json.
 """
 
+from collections import Counter
 import csv
 import json
 import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from collections import defaultdict
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('CVE_DATA_DIR', os.path.join(BASE_DIR, "data"))
@@ -41,7 +40,8 @@ try:
         ['oc', 'adm', 'release', 'info',
          f'quay.io/openshift-release-dev/ocp-release:{OCP_TARGET_VERSION}-x86_64',
          '--output', 'json'],
-        capture_output=True, text=True, timeout=60
+        capture_output=True, text=True, timeout=60,
+        check=False,
     )
 except FileNotFoundError:
     print("SKIP: oc CLI not available")
@@ -91,6 +91,7 @@ print(f"  Changed (updated in {OCP_TARGET_VERSION}): {len(changed)}")
 unique_tgt_digests = list(digests_tgt)
 print(f"\nScanning {len(unique_tgt_digests)} {OCP_TARGET_VERSION} images via roxctl...")
 
+
 def scan_image(ref):
     try:
         env = os.environ.copy()
@@ -98,12 +99,16 @@ def scan_image(ref):
         cmd = ['roxctl', 'image', 'scan', '--image', ref, '--output', 'json']
         if INSECURE:
             cmd.insert(3, '--insecure-skip-tls-verify')
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=env)
+        r = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, env=env,
+            check=False,
+        )
         if r.returncode == 0:
             return (ref, json.loads(r.stdout).get('result', {}))
         return (ref, {'error': r.stderr[:100]})
     except Exception as e:
         return (ref, {'error': str(e)[:100]})
+
 
 scan_tgt = {}
 done = 0
@@ -210,7 +215,6 @@ with open(LATEST_JSON, 'w') as f:
     json.dump(latest_data, f)
 
 # Final stats
-from collections import Counter
 statuses = Counter(v['status'] for v in fix_results.values())
 print(f"\nFinal results across {len(fix_results)} records:")
 for s, c in statuses.most_common():

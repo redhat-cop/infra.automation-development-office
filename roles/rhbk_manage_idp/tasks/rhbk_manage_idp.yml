@@ -1,5 +1,5 @@
 - name: Create OIDC Identity Provider (Microsoft Entra ID)
-  community.general.keycloak_identity_provider:
+  middleware_automation.keycloak.keycloak_identity_provider:
     state: present
     auth_keycloak_url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}"
     auth_realm: master

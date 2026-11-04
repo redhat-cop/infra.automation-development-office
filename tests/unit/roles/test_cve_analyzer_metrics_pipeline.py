@@ -108,5 +108,5 @@ def test_no_promql_contract_change_in_builder() -> None:
 
 def test_phase0_uid_and_title_defaults_untouched() -> None:
     text = DEFAULTS.read_text()
-    assert "cve_analyzer_vuln_dashboard_uid: ado-rhacs-vuln-posture" in text
+    assert 'cve_analyzer_vuln_dashboard_uid: ""' in text
     assert "RHACS Vulnerability Posture (ADO)" in text

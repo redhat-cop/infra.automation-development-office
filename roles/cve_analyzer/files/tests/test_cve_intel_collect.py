@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unit tests for CVE Intelligence collector helpers (no network)."""
 
 from __future__ import annotations

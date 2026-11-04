@@ -2,6 +2,9 @@
 collections:
   - name: ansible.utils
   - name: community.general
+  # Keycloak modules moved out of community.general 14+ into
+  # middleware_automation.keycloak (redirects require this collection).
+  - name: middleware_automation.keycloak
   - name: community.crypto
   - name: community.kubernetes
   - name: kubernetes.core

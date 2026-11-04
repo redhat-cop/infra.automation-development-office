@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """CVE Intelligence panel guards — Mythos-style Recent reports only."""
 
 from __future__ import annotations

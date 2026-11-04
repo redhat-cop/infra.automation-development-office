@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Dashboard title/UID contract: builder + publish helper (no live Grafana)."""
 
 from __future__ import annotations
@@ -73,7 +72,7 @@ class DashboardTitleUidTest(unittest.TestCase):
         )
         dash["id"] = 42
         dash["version"] = 7
-        for _ in range(2):
+        for _round in range(2):
             payload_dash = dict(dash)
             payload_dash.pop("id", None)
             payload_dash["id"] = None

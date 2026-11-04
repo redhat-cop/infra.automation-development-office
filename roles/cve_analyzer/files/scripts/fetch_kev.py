@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Check CVEs against the CISA Known Exploited Vulnerabilities catalog."""
 
 import csv

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch RHSA advisory descriptions from Red Hat CSAF data."""
 
 import csv

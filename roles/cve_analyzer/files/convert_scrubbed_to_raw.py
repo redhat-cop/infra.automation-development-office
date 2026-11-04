@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Map RHACS scrubbed CSV (acs_report mode=all) to cve-analyzer raw.csv format."""
 
 from __future__ import annotations

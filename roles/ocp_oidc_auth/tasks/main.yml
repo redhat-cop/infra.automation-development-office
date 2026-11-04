@@ -88,7 +88,7 @@
 # ==========================================================
 
 - name: Try to get Keycloak client secret via module
-  community.general.keycloak_clientsecret_info:
+  middleware_automation.keycloak.keycloak_clientsecret_info:
     auth_keycloak_url: "{{ ocp_oidc_auth_keycloak_base }}"
     auth_realm: "{{ auth_realm | default('master') }}"
     auth_username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"

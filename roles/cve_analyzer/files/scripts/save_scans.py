@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Save roxctl scan results to JSON for the report builder."""
 import csv
 import json
@@ -31,6 +30,7 @@ for row in csv.DictReader(open(TRIAGE_CSV)):
 unique_images = sorted(scan_map.keys())
 print(f"{len(unique_images)} images to scan")
 
+
 def scan_image(image_ref):
     try:
         env = os.environ.copy()
@@ -38,8 +38,10 @@ def scan_image(image_ref):
         cmd = ['roxctl', 'image', 'scan', '--image', image_ref, '--output', 'json']
         if INSECURE:
             cmd.insert(3, '--insecure-skip-tls-verify')
-        result = subprocess.run(cmd,
-            capture_output=True, text=True, timeout=60, env=env
+        result = subprocess.run(
+            cmd,
+            capture_output=True, text=True, timeout=60, env=env,
+            check=False,
         )
         if result.returncode == 0:
             data = json.loads(result.stdout)
@@ -48,13 +50,14 @@ def scan_image(image_ref):
     except Exception as e:
         return (image_ref, {'error': str(e)[:200]})
 
+
 results = {}
 done = 0
 with ThreadPoolExecutor(max_workers=WORKERS) as ex:
     futs = {ex.submit(scan_image, scan_map[img]): img for img in unique_images}
     for f in as_completed(futs):
         img = futs[f]
-        _, data = f.result()
+        _img, data = f.result()
         results[img] = data
         done += 1
         if done % 50 == 0 or done == len(unique_images):

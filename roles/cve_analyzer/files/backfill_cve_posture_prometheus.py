@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Write cve_posture_findings samples for old RHACS scrubbed CSVs.
 
 The live metrics pod is scraped as a gauge, so each new CVE Analyzer run

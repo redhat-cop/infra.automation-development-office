@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Grafana panels for CVE Intelligence — Mythos-style Recent reports.
 
 Per-day rows: DATE | TOTAL | CRITICAL | HIGH | MEDIUM | LOW | NOTE

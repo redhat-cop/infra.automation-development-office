@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Phase 4C-1: compact dashboard JSON must parse to the same structure as indent=2."""
 from __future__ import annotations
 

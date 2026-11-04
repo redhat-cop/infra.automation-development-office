@@ -15,7 +15,6 @@ import tempfile
 import textwrap
 from pathlib import Path
 
-import pytest
 
 ROLE = Path(__file__).resolve().parents[3] / "roles/cve_analyzer"
 PREFLIGHT = ROLE / "tasks/preflight.yml"

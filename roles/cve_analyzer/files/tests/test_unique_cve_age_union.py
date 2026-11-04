@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unique KPI combined Finding age = set union, never sum of bucket Uniques."""
 from __future__ import annotations
 

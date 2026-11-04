@@ -1265,6 +1265,7 @@ if _input_path:
 # COMPANION JSON SUMMARY (table modes)
 # ============================================================
 
+
 def write_summary_json(visible_order):
     """Write Grafana-friendly summary next to table reports."""
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Collect newly published Red Hat CVEs from the Security Data API.
 
 Independent of RHACS Panel 11 / Testdata. Writes a JSON snapshot and optionally

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Serve a Prometheus textfile on :8080/metrics (from METRICS_FILE)."""
 from __future__ import annotations
 

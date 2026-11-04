@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Contoller JT survey must declare Phase 0 UID/title overrides.
 
 AAP strips undeclared launch extra_vars. Without these survey fields, a

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Match published Red Hat CVEs against RHACS CSV findings.
 
 Reads:

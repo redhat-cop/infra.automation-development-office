@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regression contracts for Findings over time metrics publish path."""
 
 from __future__ import annotations

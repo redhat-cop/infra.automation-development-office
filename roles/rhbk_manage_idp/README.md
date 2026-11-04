@@ -10,7 +10,7 @@ Automation Development Office.
 
 - Reachable Red Hat build of Keycloak endpoint.
 - Admin credentials with permission to manage realm identity providers.
-- `community.general` collection for `community.general.keycloak_identity_provider`.
+- `middleware_automation.keycloak` collection for `middleware_automation.keycloak.keycloak_identity_provider`.
 
 ## 📦 Role Variables
 

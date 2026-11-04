@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """RHACS report analytics for Grafana dashboards.
 
 Calculation semantics match the lab RHACS analyzer contract:
@@ -95,14 +94,14 @@ def extract_repository(image: str) -> str:
         image = image.split("@", 1)[0]
     if image.count(":") >= 2 or (image.startswith("localhost") and ":" in image):
         # registry:port/repo:tag — strip tag after last /
-        host_path, _, maybe_tag = image.rpartition(":")
+        host_path, _sep, maybe_tag = image.rpartition(":")
         if "/" in maybe_tag:
             return image
         if "/" in host_path:
             return host_path
     elif ":" in image and "@" not in image:
         # name:tag without digest
-        left, _, right = image.rpartition(":")
+        left, _sep, right = image.rpartition(":")
         if "/" in left and right and "/" not in right:
             return left
     return image
@@ -333,7 +332,7 @@ def extract_tag(image: str) -> str:
     repo = extract_repository(image)
     prefix = repo + ":"
     if image.startswith(prefix):
-        return image[len(prefix) :]
+        return image[len(prefix):]
     return ""
 
 
@@ -354,7 +353,7 @@ def _catalog_get(url: str) -> dict | None:
 def _redhat_repo_name(repository: str) -> str:
     for prefix in _REDHAT_REGISTRIES:
         if repository.startswith(prefix):
-            return repository[len(prefix) :]
+            return repository[len(prefix):]
     return ""
 
 
@@ -452,7 +451,7 @@ def _dockerhub_repo(repository: str) -> tuple[str, str] | None:
     rest = ""
     for prefix in ("docker.io/", "registry-1.docker.io/", "index.docker.io/"):
         if repository.startswith(prefix):
-            rest = repository[len(prefix) :]
+            rest = repository[len(prefix):]
             break
     if not rest:
         return None
@@ -800,7 +799,6 @@ def remediation_summary(rows: list[dict]) -> list[dict]:
     return output
 
 
-
 def _finding_age_of(row: dict) -> str:
     return str(row.get("finding_age") or finding_age_bucket(row.get("age_days")))
 
@@ -1057,7 +1055,7 @@ def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
                 by[(cl_key, own_key, age_pipe)] = union
 
     for i, a in enumerate(own_order):
-        for b in own_order[i + 1 :]:
+        for b in own_order[i + 1:]:
             pair = pipe_key([a, b], own_order)
             for cl_key in list(clusters) + [FILTER_ALL]:
                 for age_key in age_keys_all:
@@ -1081,7 +1079,7 @@ def unique_cves_kpi_filterable(rows: list[dict]) -> list[dict]:
 
     sre_keys = [FILTER_ALL, *own_order, all_own_pipe]
     for i, a in enumerate(own_order):
-        for b in own_order[i + 1 :]:
+        for b in own_order[i + 1:]:
             sre_keys.append(pipe_key([a, b], own_order))
     sre_keys = list(dict.fromkeys(sre_keys))
 
@@ -1468,6 +1466,8 @@ def namespace_stat_rows(rows: list[dict]) -> list[dict]:
             }
         )
     return out
+
+
 def _namespace_metric_row(
     group: list[dict], cluster: str, namespace: str, age: str
 ) -> dict:
@@ -1721,6 +1721,8 @@ def component_over_30(rows: list[dict]) -> list[dict]:
         key=lambda x: (-x["Total >30 Days"], -x["Critical"], x["Cluster"], x["Namespace"], x["Age"])
     )
     return out
+
+
 def image_family_table(rows: list[dict], cfg: dict) -> list[dict]:
     groups: dict[tuple[str, str], set[str]] = defaultdict(set)
     for r in rows:
@@ -1774,7 +1776,6 @@ def csv_report_display_name(path: Path | None) -> str:
     clock = local.strftime("%I-%M_%p").lstrip("0")
     day = local.strftime("%d_%B_%Y")
     return f"RHACS_Vulnerability_Report_SCRUBBED_{day}_{clock}.csv"
-
 
 
 def _short_image(image: str) -> str:
@@ -2073,7 +2074,7 @@ def analyze_paths(
         "csv_load_parse",
         time.perf_counter() - t_load,
         rows=len(rows),
-        source=source_label.split("(")[0].strip().replace(" ", "_"),
+        source=source_label.split("(", maxsplit=1)[0].strip().replace(" ", "_"),
     )
     if report_date is None:
         report_date = scrubbed_pull_time(scrubbed_csv if scrubbed_csv and scrubbed_csv.exists() else None)

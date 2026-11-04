@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Pipeline orchestrator: runs all enrichment steps in order for a given data directory.
 
@@ -55,9 +54,9 @@ def run_step(idx, name, script):
         print(f"  SKIP: {script} not found")
         return True
 
-    print(f"\n{'='*60}")
-    print(f"Step {idx+1}/{len(STEPS)}: {name}")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print(f"Step {idx + 1}/{len(STEPS)}: {name}")
+    print(f"{'=' * 60}")
     update_status(idx + 1, name, "running")
 
     env = os.environ.copy()
@@ -66,6 +65,7 @@ def run_step(idx, name, script):
     result = subprocess.run(
         [sys.executable, script_path, DATA_DIR],
         env=env, timeout=1800,
+        check=False,
     )
 
     if result.returncode != 0:
@@ -87,11 +87,11 @@ update_status(0, "Initializing", "running")
 for idx, (name, script) in enumerate(STEPS):
     ok = run_step(idx, name, script)
     if not ok:
-        print(f"\nPipeline FAILED at step {idx+1}: {name}")
+        print(f"\nPipeline FAILED at step {idx + 1}: {name}")
         sys.exit(1)
 
 update_status(len(STEPS), "Complete", "complete")
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 print("Pipeline COMPLETE")
 print(f"Report: {os.path.join(DATA_DIR, 'report.html')}")
-print(f"{'='*60}")
+print(f"{'=' * 60}")

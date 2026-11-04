@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Phase 0 feature UID allowlist — portable Stage/Preprod UIDs."""
 
 from __future__ import annotations

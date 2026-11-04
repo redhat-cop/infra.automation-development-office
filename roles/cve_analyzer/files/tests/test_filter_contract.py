@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Phase 0 RHACS dashboard filter-contract regression.
 
 Encodes the 27-panel coverage matrix: which toolbar filters each panel must

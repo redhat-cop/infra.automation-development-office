@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build Grafana dashboard JSON from cve-analyzer data.json (dict rows or legacy arrays)."""
 
 from __future__ import annotations

@@ -11,7 +11,7 @@ Automation Development Office.
 - Reachable Red Hat build of Keycloak endpoint with admin API access.
 - Realm admin credentials for user and group management.
 - Current role implementation uses a mix of:
-  - `community.general.keycloak_user` for create
+  - `middleware_automation.keycloak.keycloak_user` for create
   - direct `ansible.builtin.uri` calls for delete and group membership actions
 - Red Hat collection path exists for equivalent operations:
   - `redhat.rhbk.keycloak_user`
@@ -29,9 +29,9 @@ Automation Development Office.
 | `rhbk_host` | RHBK host used in REST endpoints for URI-based flows. | Yes*** | N/A |
 | `rhbk_admin_user` | Admin username for token acquisition in URI-based flows. | Yes*** | N/A |
 | `rhbk_admin_password` | Admin password for token acquisition in URI-based flows. | Yes*** | N/A |
-| `rhbk_hostname` | Keycloak URL passed to `community.general.keycloak_user`. | Yes**** | N/A |
-| `rhbk_username` | Admin username passed to `community.general.keycloak_user`. | Yes**** | N/A |
-| `rhbk_password` | Admin password passed to `community.general.keycloak_user`. | Yes**** | N/A |
+| `rhbk_hostname` | Keycloak URL passed to `middleware_automation.keycloak.keycloak_user`. | Yes**** | N/A |
+| `rhbk_username` | Admin username passed to `middleware_automation.keycloak.keycloak_user`. | Yes**** | N/A |
+| `rhbk_password` | Admin password passed to `middleware_automation.keycloak.keycloak_user`. | Yes**** | N/A |
 | `rhbk_new_username` | Username of user to create. | Yes**** | N/A |
 | `rhbk_new_firstname` | First name for new user. | No | `undefined` |
 | `rhbk_new_lastname` | Last name for new user. | No | `undefined` |

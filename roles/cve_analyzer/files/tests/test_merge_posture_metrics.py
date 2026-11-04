@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Merge safety: replace posture families only; no dupes; keep unrelated metrics."""
 from __future__ import annotations
 

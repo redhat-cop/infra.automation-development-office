@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 """Phase 4C-2A: one-shot header binding must match legacy per-call _pick output."""
 from __future__ import annotations
 
 import csv
-import io
 import sys
 import tempfile
 import time
@@ -346,7 +344,7 @@ def _benchmark_pair(path: Path, rounds: int = 3) -> dict:
     def _timed(fn):
         times = []
         rows = None
-        for _ in range(rounds):
+        for _round in range(rounds):
             t0 = time.perf_counter()
             rows = fn(path)
             times.append(time.perf_counter() - t0)

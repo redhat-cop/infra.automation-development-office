@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Full + Lite compare: same analysis, different JSON sizes / panel 90."""
 from __future__ import annotations
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """English-month Discovered At must populate OCP age buckets and over-30."""
 
 from __future__ import annotations

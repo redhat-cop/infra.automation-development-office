@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regression: namespace-aware rollups + Phase 0 dashboard filter wiring."""
 from __future__ import annotations
 
@@ -236,7 +235,6 @@ class FilterableRollupsTest(unittest.TestCase):
         ]
         self.assertEqual(sum(r["Findings"] for r in rows), 3)
 
-
     def test_simple_view_rows(self):
         rows = self.analysis.get("simple_view") or []
         self.assertTrue(rows)
@@ -274,7 +272,6 @@ class FilterableRollupsTest(unittest.TestCase):
         # sits above Detail
         detail = next(p for p in self.dash["panels"] if p.get("id") == 90)
         self.assertLess(panel["gridPos"]["y"], detail["gridPos"]["y"])
-
 
     def test_drill_resets_namespace_match_and_hidden_vars(self):
         """Stuck payload/sre and leftover namespace_match emptied or pinned Detail."""
@@ -316,7 +313,6 @@ class FilterableRollupsTest(unittest.TestCase):
         self.assertIn('__data.fields["Repository"]', url)
         self.assertIn('__data.fields["Cluster"]', url)
 
-
     def test_over30_drill_keeps_cluster(self):
         panel = next(
             p
@@ -332,8 +328,6 @@ class FilterableRollupsTest(unittest.TestCase):
                     url = prop["value"][0]["url"]
         self.assertIn("${__value.raw:percentencode}", url)
         self.assertIn('__data.fields["Cluster"]', url)
-
-
 
     def test_detail_filter_sim_clears_stuck_payload(self):
         """Reproduce screenshot: payload=Yes alone yields only OCP SRE rows."""
@@ -371,7 +365,6 @@ class FilterableRollupsTest(unittest.TestCase):
                         f"string convert on {c.get('targetField')} quotes drill values",
                     )
 
-
     def test_age_drill_pins_sre_severity_payload(self):
         panel = next(
             p
@@ -392,7 +385,6 @@ class FilterableRollupsTest(unittest.TestCase):
         self.assertIn("var-payload=Yes", url)
         self.assertIn("Red%20Hat%20SRE%20Managed%20Services", url)
         self.assertIn("var-namespace_match=.*", url)
-
 
     def test_sre_managed_shows_cluster_column(self):
         panel = next(

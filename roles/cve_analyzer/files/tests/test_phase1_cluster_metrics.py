@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Phase 1: cve_posture_findings_by_cluster + filterable Panel 11 on test UIDs."""
 from __future__ import annotations
 

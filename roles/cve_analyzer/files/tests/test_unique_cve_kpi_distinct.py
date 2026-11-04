@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
 """Unique CVE KPI equals COUNT(DISTINCT cve) — not ownership/source sum."""
 from __future__ import annotations
 
 import json
 import sys
 import unittest
-from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 FILES = Path(__file__).resolve().parents[1]

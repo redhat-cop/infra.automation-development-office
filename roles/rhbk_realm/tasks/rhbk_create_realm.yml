@@ -1,5 +1,5 @@
 - name: Create or update Keycloak realm
-  community.general.keycloak_realm:
+  middleware_automation.keycloak.keycloak_realm:
     # ---- REQUIRED auth + target ----
     auth_client_id: "{{ rhbk_auth_client_id | default('admin-cli') }}"
     auth_keycloak_url: >-

@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 """Phase 0 Lite: omit Detail panel 90; Full unchanged; panel 11 PromQL locked."""
 from __future__ import annotations
 
-import csv
 import json
 import sys
 import unittest

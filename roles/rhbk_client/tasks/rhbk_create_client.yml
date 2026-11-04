@@ -23,7 +23,7 @@
 
 # Create / update the client with requireds + optionals (sent only if defined)
 - name: Create or update Keycloak client
-  community.general.keycloak_client:
+  middleware_automation.keycloak.keycloak_client:
     # Auth to Keycloak
     auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
     auth_keycloak_url: "{{ rhbk_client_kc_url }}"

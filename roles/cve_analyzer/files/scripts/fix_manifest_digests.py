@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Replace amd64 digests with manifest list digests in latest_ref for display."""
 
 import json
@@ -26,13 +25,17 @@ for base, info in tag_info.items():
 
 print(f"{len(bases)} base images to fetch manifest list digests")
 
+
 def get_manifest_list_digest(base, tag):
     """Fetch the manifest list and compute its digest."""
     try:
         cmd = ['skopeo', 'inspect', '--raw', f'docker://{base}:{tag}']
         if AUTH_FILE:
             cmd += ['--authfile', AUTH_FILE]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30,
+            check=False,
+        )
         if result.returncode != 0:
             return (base, None, f'error: {result.stderr[:80]}')
 
@@ -48,13 +51,14 @@ def get_manifest_list_digest(base, tag):
     except Exception as e:
         return (base, None, str(e)[:80])
 
+
 done = 0
 ml_digests = {}
 with ThreadPoolExecutor(max_workers=8) as ex:
     futs = {ex.submit(get_manifest_list_digest, sbm.get(b, b), t): b for b, t in bases.items()}
     for f in as_completed(futs):
         base = futs[f]
-        _, digest, err = f.result()
+        _base, digest, err = f.result()
         ml_digests[base] = (digest, err)
         done += 1
         if done % 20 == 0 or done == len(bases):
