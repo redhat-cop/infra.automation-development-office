@@ -291,11 +291,17 @@ if kev_unique_cves:
     exec_html += '<table><thead><tr><th>CVE</th><th>Date Added</th><th>Due Date</th><th>Records</th></tr></thead><tbody>'
     for cve in kev_unique_cves:
         added, due = kev_info[cve]
-        exec_html += f'<tr onclick="drill(\'cve\',\'{
-            e(cve)}\')"><td><a href="https://access.redhat.com/security/cve/{
-            e(cve)}" target="_blank" onclick="event.stopPropagation()">{
-            e(cve)}</a></td>'
-        exec_html += f'<td>{e(added)}</td><td style="color:#f59e0b;font-weight:600">{e(due)}</td><td class="n">{kev_by_cve[cve]}</td></tr>'
+        cve_e = e(cve)
+        exec_html += (
+            f'<tr onclick="drill(\'cve\',\'{cve_e}\')">'
+            f'<td><a href="https://access.redhat.com/security/cve/{cve_e}" '
+            f'target="_blank" onclick="event.stopPropagation()">{cve_e}</a></td>'
+        )
+        exec_html += (
+            f'<td>{e(added)}</td>'
+            f'<td style="color:#f59e0b;font-weight:600">{e(due)}</td>'
+            f'<td class="n">{kev_by_cve[cve]}</td></tr>'
+        )
     exec_html += '</tbody></table></div>'
 
 exec_html += '<div class="es"><h3>Remediation Action Summary</h3>'
@@ -303,12 +309,20 @@ exec_html += '<p class="esub">What you need to do and how many CVE+image records
 exec_html += '<table><thead><tr><th>Remediation Action</th><th>PATCH</th><th>MONITOR</th><th>P1</th><th>CVEs</th></tr></thead><tbody>'
 for rem in sorted(rem_sum.keys(), key=lambda r: -rem_sum[r]['p']):
     s = rem_sum[rem]
-    exec_html += f'<tr onclick="drill(\'remediation\',this.dataset.v)" data-v="{
-        e(rem)}"><td>{
-        e(rem)}</td><td class="n r">{
-            s["p"] or "—"}</td><td class="n">{
-                s["m"] or "—"}</td>'
-    exec_html += f'<td class="n{" r" if s["p1"] else ""}">{s["p1"] or "—"}</td><td class="n">{len(s["c"])}</td></tr>'
+    rem_e = e(rem)
+    patch_n = s["p"] or "—"
+    mon_n = s["m"] or "—"
+    p1_n = s["p1"] or "—"
+    p1_cls = " r" if s["p1"] else ""
+    exec_html += (
+        f'<tr onclick="drill(\'remediation\',this.dataset.v)" data-v="{rem_e}">'
+        f'<td>{rem_e}</td><td class="n r">{patch_n}</td>'
+        f'<td class="n">{mon_n}</td>'
+    )
+    exec_html += (
+        f'<td class="n{p1_cls}">{p1_n}</td>'
+        f'<td class="n">{len(s["c"])}</td></tr>'
+    )
 exec_html += '</tbody></table></div>'
 
 exec_html += '<div class="es"><h3>Product Line Summary</h3>'
