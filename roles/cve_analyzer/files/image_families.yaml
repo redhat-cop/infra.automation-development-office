@@ -1,0 +1,271 @@
+---
+# RHACS image/product classification.
+#
+# First match wins.
+#
+# ownership values:
+#   sre_managed       = OpenShift platform/release payload
+#   redhat_component  = Red Hat add-on/operator/product
+#   non_redhat        = customer/third-party/custom software
+#
+# remediation_type values:
+#   ocp_upgrade
+#   operator_update
+#   vendor_image_update
+#   custom_rebuild
+#   review
+#
+# IMPORTANT:
+# Image/repository matches should be preferred over namespace-only matches.
+# A workload is NOT SRE managed merely because it runs in an openshift-* namespace.
+# Do NOT use RedHatSource CSV column for ownership — that is advisory source only.
+
+ocp_payload_repository: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+
+families:
+
+  # ============================================================
+  # OPENSHIFT / SRE MANAGED
+  # ============================================================
+
+  - name: OpenShift Container Platform
+    vendor: Red Hat
+    ownership: sre_managed
+    remediation_type: ocp_upgrade
+    action: Upgrade OpenShift release
+    match:
+      repository_equals:
+        - quay.io/openshift-release-dev/ocp-v4.0-art-dev
+
+  # ============================================================
+  # RED HAT COMPONENTS / OPERATORS
+  # ============================================================
+
+  - name: ACM / MCE
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade ACM/MCE
+    match:
+      namespace:
+        - multicluster-engine
+        - open-cluster-management
+        - open-cluster-management-hub
+        - open-cluster-management-agent
+        - open-cluster-management-agent-addon
+      namespace_prefix:
+        - open-cluster-management
+      image_contains:
+        - rhacm
+        - multicluster-engine
+
+  - name: OpenShift Logging
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade OpenShift Logging
+    match:
+      namespace:
+        - openshift-logging
+      image_contains:
+        - openshift-logging
+        - cluster-logging
+
+  - name: Dev Spaces / UDI
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade Dev Spaces
+    match:
+      namespace:
+        - openshift-devspaces
+      namespace_suffix:
+        - -devspaces
+      image_contains:
+        - devspaces
+        - devworkspace
+        - udi-rhel
+
+  - name: Web Terminal
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade Web Terminal
+    match:
+      namespace:
+        - openshift-terminal
+      image_contains:
+        - web-terminal
+
+  - name: RHACS
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade RHACS
+    match:
+      namespace:
+        - stackrox
+        - rhacs-operator
+      image_contains:
+        - stackrox
+        - rhacs
+
+  - name: cert-manager
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade cert-manager
+    match:
+      namespace:
+        - cert-manager
+        - cert-manager-operator
+      namespace_prefix:
+        - cert-manager
+      image_contains:
+        - cert-manager
+
+  - name: Kube Descheduler
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade Kube Descheduler
+    match:
+      namespace:
+        - openshift-kube-descheduler
+        - openshift-kube-descheduler-operator
+      image_contains:
+        - descheduler
+
+  - name: OpenShift GitOps
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade OpenShift GitOps
+    match:
+      namespace:
+        - openshift-gitops
+      image_contains:
+        - openshift-gitops
+        - argocd
+
+  - name: Compliance Operator
+    vendor: Red Hat
+    ownership: redhat_component
+    remediation_type: operator_update
+    action: Upgrade Compliance Operator
+    match:
+      namespace:
+        - openshift-compliance
+      image_contains:
+        - compliance
+        - openscap
+
+  # ============================================================
+  # THIRD PARTY / VENDOR
+  # ============================================================
+
+  - name: Iron Bank Kibana
+    vendor: Elastic / Iron Bank
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Elastic/Kibana image
+    match:
+      image_contains:
+        - kibana
+
+  - name: Iron Bank elastic-agent
+    vendor: Elastic / Iron Bank
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Elastic image
+    match:
+      image_contains:
+        - elastic-agent
+
+  - name: Iron Bank Filebeat
+    vendor: Elastic / Iron Bank
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Elastic image
+    match:
+      image_contains:
+        - filebeat
+
+  - name: Iron Bank Metricbeat
+    vendor: Elastic / Iron Bank
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Elastic image
+    match:
+      image_contains:
+        - metricbeat
+
+  - name: Elasticsearch
+    vendor: Elastic
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Elastic image
+    match:
+      image_contains:
+        - elasticsearch
+
+  - name: Confluent cp-server-connect
+    vendor: Confluent
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade Confluent image
+    match:
+      image_contains:
+        - cp-server-connect
+
+  - name: IBM MQ
+    vendor: IBM
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade IBM MQ image
+    match:
+      image_contains:
+        - ibm-mq
+        - ibmmq
+
+  - name: External Secrets
+    vendor: Third Party
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade External Secrets
+    match:
+      namespace_prefix:
+        - external-secrets
+      image_contains:
+        - external-secrets
+
+  - name: Route monitor blackbox-exporter
+    vendor: Third Party
+    ownership: non_redhat
+    remediation_type: vendor_image_update
+    action: Upgrade blackbox-exporter
+    match:
+      namespace:
+        - openshift-route-monitor-operator
+      image_contains:
+        - blackbox
+
+  # ============================================================
+  # CUSTOMER / CUSTOM
+  # ============================================================
+
+  - name: ROE custom applications
+    vendor: Customer
+    ownership: non_redhat
+    remediation_type: custom_rebuild
+    action: Rebuild/update custom image
+    match:
+      namespace_prefix:
+        - roe-
+
+# Anything not matched above is classified as Non-Red-Hat / Review.
+default:
+  vendor: Unknown
+  ownership: non_redhat
+  remediation_type: review
+  action: Determine application owner / update path
