@@ -609,7 +609,9 @@ read-only changelog preview for dev pre-releases.
 1. Copies changelog data into a temporary workspace with `keep_fragments: true`
 2. Runs `antsibull-changelog release --version` and `generate` without modifying the repository
 3. Writes `changelog-preview-notes.rst` (release notes) and `CHANGELOG-preview.rst`
-4. `release_dev` uses these files for GitHub pre-release notes and uploads the preview asset
+4. `release_dev` uses these files for GitHub pre-release notes and uploads the preview asset.
+   That job runs only for pre-release tags (the tag name contains `-`, for example `v1.2.0-beta1`).
+   A final tag such as `v1.2.0` is published only by `release.yml`.
 5. Verifies repository fragment files are unchanged after the preview run
 
 Fragments are **never** deleted by this action.
@@ -626,7 +628,7 @@ matches the tag name, with an optional leading `v` removed.
 
 ```mermaid
 flowchart TD
-  devTag[Push dev tag] --> devJob[main.yml: Dev Release]
+  devTag[Push pre-release tag] --> devJob[main.yml: Dev Release]
   devJob --> preRelease[Create or update GitHub pre-release]
   preRelease --> devAsset[Attach infra-automation_development_office-VERSION.tar.gz]
 
@@ -644,9 +646,10 @@ flowchart TD
 
 | Event | Workflow | Fragments consumed? | Result |
 | --- | --- | --- | --- |
-| Push a dev tag | `main.yml` | **No** | Pre-release with changelog preview only |
+| Push a pre-release tag (`v1.2.0-beta1`) | `main.yml` `release_dev` | **No** | Pre-release with changelog preview only |
+| Push a final tag (`v1.2.0`) | none from `main.yml` | — | `release_dev` does not run. `release.yml` publishes the tarball when the GitHub Release is published |
 | Publish a GitHub pre-release | `release.yml` | **No** | Changelog preview attached; fragments remain |
-| Publish an official GitHub Release | `release.yml` | **In workspace** | Tarball attached; changelog PR opened to `main` |
+| Publish an official GitHub Release | `release.yml` | **In workspace** | Official tarball attached; changelog PR opened to `main` |
 
 ### Manual steps
 
@@ -670,7 +673,8 @@ you want to preview the compiled changelog in a PR.
 
 ### 2. Create a dev pre-release (optional)
 
-Tag and push a pre-release version:
+Tag and push a pre-release version. The tag name must contain a hyphen after the version
+so `release_dev` runs. A final tag such as `v1.2.0` does not run that job.
 
 ```bash
 git tag v1.2.0-beta1
@@ -683,6 +687,9 @@ GitHub Actions will:
 - Create or update a GitHub pre-release
 - Attach the tarball
 
+`release_dev` leaves an existing official release unchanged. It does not upload over a
+release that is no longer marked as a pre-release.
+
 Install without cloning:
 
 ```bash
@@ -690,10 +697,12 @@ ansible-galaxy collection install \
   https://github.com/redhat-cop/infra.automation-development-office/releases/download/v1.2.0-beta1/infra-automation_development_office-1.2.0-beta1.tar.gz
 ```
 
-Re-pushing a tag or re-running the workflow replaces the asset with `--clobber`.
+Re-pushing a pre-release tag or re-running the workflow replaces that pre-release
+asset with `--clobber`.
 
-Dev pre-releases do not compile changelog fragments. Fragments remain for the official
-release.
+Dev pre-releases do not compile changelog fragments into the collection. Fragments remain
+for the official release. The official tarball is attached only by `release.yml` when the
+GitHub Release is published.
 
 ### 3. Publish an official GitHub Release
 
@@ -704,10 +713,13 @@ When the dev build is validated:
 3. Uncheck **Set as a pre-release** for an official release
 4. Publish the release
 
+Pushing the final tag does not attach the collection. `release.yml` publishes that tarball
+when the GitHub Release is published. `main.yml` `release_dev` does not run for a final tag.
+
 `release.yml` will automatically:
 
 1. Run `antsibull-changelog release` against the accumulated fragments
-2. Build `infra-automation_development_office-<version>.tar.gz` (including the generated changelog)
+2. Build `infra-automation_development_office-<version>.tar.gz` from that workspace, so the tarball includes the generated changelog and omits consumed fragments
 3. Attach the tarball to the GitHub Release
 4. Open a pull request to `main` with the consumed changelog
 
