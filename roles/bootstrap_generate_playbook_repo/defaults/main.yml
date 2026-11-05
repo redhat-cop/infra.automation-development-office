@@ -30,7 +30,7 @@ bootstrap_generate_playbook_repo_pause_after_generate: false
 bootstrap_generate_playbook_repo_write_galaxy_requirements: true
 bootstrap_generate_playbook_repo_galaxy_ignore_certs: false
 
-# Leave empty so generated collections/requirements.yml has no version pin. Set only when you must pin.
+# Deprecated / unused. Generated collections/requirements.yml never pins versions.
 bootstrap_generate_playbook_repo_infra_ado_collection_version: ""
 
 bootstrap_generate_playbook_repo_component: all
@@ -128,6 +128,9 @@ bootstrap_generate_playbook_repo_component_map:
 
   bookstack:
     - bookstack
+
+  cve_analyzer:
+    - cve_analyzer
 
   minio:
     - minio
@@ -269,6 +272,12 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     target_platform: openshift
     category: platform
     app: acs
+
+  - src: cve_analyzer/ado-cve-analyzer-bootstrap.yml
+    dest: playbooks/cve_analyzer/ado-cve-analyzer-bootstrap.yml
+    target_platform: openshift
+    category: platform
+    app: cve_analyzer
 
   - src: aws/ado-copy-ami-bootstrap.yml
     dest: playbooks/aws/ado-copy-ami-bootstrap.yml

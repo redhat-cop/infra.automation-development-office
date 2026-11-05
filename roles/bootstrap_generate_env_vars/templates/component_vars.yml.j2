@@ -85,6 +85,70 @@ components_env:
     storage_class: synology-nfs-csi
     storage: synology-nfs-csi
 
+{% elif component_name == 'cve_analyzer' %}
+{% set cve_cfg =
+    (
+      bootstrap_generate_env_vars_preflight.component_config.cve_analyzer
+      | default({})
+    )
+    if bootstrap_generate_env_vars_preflight is defined else {}
+%}
+{% set acs_cfg =
+    (
+      bootstrap_generate_env_vars_preflight.component_config.acs
+      | default({})
+    )
+    if bootstrap_generate_env_vars_preflight is defined else {}
+%}
+{% set grafana_cfg =
+    (
+      bootstrap_generate_env_vars_preflight.component_config.grafana
+      | default({})
+    )
+    if bootstrap_generate_env_vars_preflight is defined else {}
+%}
+{% set _acs_host =
+      cve_cfg.acs_central_url | default(cve_cfg.acs_hostname | default(acs_cfg.hostname | default('')), true)
+%}
+{% set _grafana_host =
+      cve_cfg.grafana_url | default(cve_cfg.grafana_hostname | default(grafana_cfg.hostname | default('')), true)
+%}
+{# Normalize hostnames to https:// URLs when a bare hostname is provided. #}
+{% set _acs_url =
+      (_acs_host if (_acs_host is string and _acs_host.startswith('http')) else ('https://' + _acs_host if _acs_host else ''))
+%}
+{% set _grafana_url =
+      (_grafana_host if (_grafana_host is string and _grafana_host.startswith('http')) else ('https://' + _grafana_host if _grafana_host else ''))
+%}
+# Public CVE Analyzer settings (secrets live in vault_cve_analyzer.yml).
+acs_central_url: "{{ _acs_url }}"
+grafana_url: "{{ _grafana_url }}"
+# RHACS posture board (stable UID — do not regenerate).
+cve_analyzer_vuln_dashboard_uid: "{{ cve_cfg.cve_analyzer_vuln_dashboard_uid | default('ado-rhacs-vuln-posture') }}"
+cve_analyzer_vuln_dashboard_title: "{{ cve_cfg.cve_analyzer_vuln_dashboard_title | default('RHACS Vulnerability Posture (ADO)') }}"
+# Triage HTML board (enrichment / publish_grafana); separate UID from posture.
+cve_analyzer_dashboard_uid: "{{ cve_cfg.cve_analyzer_dashboard_uid | default('ado-rhacs-cve-triage') }}"
+cve_analyzer_dashboard_title: "{{ cve_cfg.cve_analyzer_dashboard_title | default('OpenShift CVE Triage Report') }}"
+cve_analyzer_phase0_feature_uids: {{ cve_cfg.cve_analyzer_phase0_feature_uids | default([]) | to_json }}
+cve_analyzer_dashboard_lite: {{ cve_cfg.cve_analyzer_dashboard_lite | default(false) | bool | lower }}
+cve_analyzer_publish_lite_compare: {{ cve_cfg.cve_analyzer_publish_lite_compare | default(false) | bool | lower }}
+cve_analyzer_cve_intel_enabled: {{ cve_cfg.cve_analyzer_cve_intel_enabled | default(false) | bool | lower }}
+cve_analyzer_cve_intel_panels: {{ cve_cfg.cve_analyzer_cve_intel_panels | default(false) | bool | lower }}
+cve_analyzer_cve_intel_lookback_days: {{ cve_cfg.cve_analyzer_cve_intel_lookback_days | default(14) | int }}
+cve_analyzer_run_enrichment: {{ cve_cfg.cve_analyzer_run_enrichment | default(false) | bool | lower }}
+cve_analyzer_send_report_url: "{{ cve_cfg.cve_analyzer_send_report_url | default('') }}"
+cve_analyzer_prometheus_datasource_uid: "{{ cve_cfg.cve_analyzer_prometheus_datasource_uid | default('') }}"
+cve_analyzer_grafana_dashboard_backup_dir: "{{ cve_cfg.cve_analyzer_grafana_dashboard_backup_dir | default('') }}"
+cve_analyzer_grafana_dashboard_backup_allow_ephemeral: {{ cve_cfg.cve_analyzer_grafana_dashboard_backup_allow_ephemeral | default(false) | bool | lower }}
+cve_analyzer_scrubbed_csv_retention_enabled: {{ cve_cfg.cve_analyzer_scrubbed_csv_retention_enabled | default(false) | bool | lower }}
+cve_analyzer_scrubbed_csv_retention_dir: "{{ cve_cfg.cve_analyzer_scrubbed_csv_retention_dir | default('') }}"
+cve_analyzer_scrubbed_csv_retention_days: {{ cve_cfg.cve_analyzer_scrubbed_csv_retention_days | default(30) | int }}
+cve_analyzer_scrubbed_csv_retention_allow_ephemeral: {{ cve_cfg.cve_analyzer_scrubbed_csv_retention_allow_ephemeral | default(false) | bool | lower }}
+cve_analyzer_metrics_namespace: "{{ cve_cfg.cve_analyzer_metrics_namespace | default('grafana') }}"
+cve_analyzer_clusters: {{ cve_cfg.cve_analyzer_clusters | default([]) | to_json }}
+cve_analyzer_acs_validate_certs: {{ cve_cfg.cve_analyzer_acs_validate_certs | default(false) | bool | lower }}
+cve_analyzer_grafana_validate_certs: {{ cve_cfg.cve_analyzer_grafana_validate_certs | default(false) | bool | lower }}
+
 {% elif component_name == 'grafana' %}
 components_env:
   grafana:

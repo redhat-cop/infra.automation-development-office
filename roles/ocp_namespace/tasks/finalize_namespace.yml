@@ -1,7 +1,35 @@
 ---
 # yamllint disable rule:line-length
-# Clear kubernetes namespace finalizer via the finalize subresource.
-# Used when content is gone but ACM/OLM discovery errors leave NS Terminating.
+# Not used by ordinary state=absent. main.yml does not include this file.
+# Advanced cleanup finalizes through ocp_absent_cleanup when
+# ocp_namespace_absent_finalize is true. If a future task includes this file,
+# the assert below still refuses platform namespaces and unauthorized runs.
+
+- name: Refuse namespace finalize unless explicitly authorized
+  ansible.builtin.assert:
+    that:
+      - ocp_namespace_advanced_cleanup | default(false) | bool
+      - ocp_namespace_absent_finalize | default(false) | bool
+      - ocp_namespace_effective | infra.automation_development_office.ocp_absent_cleanup_namespace_name_valid
+      - >-
+        not (
+          ocp_namespace_effective
+          | infra.automation_development_office.ocp_absent_cleanup_namespace_delete_blocked(
+              ocp_namespace_blocked_namespaces | default([]),
+              ocp_namespace_blocked_namespace_prefixes | default([])
+            )
+        )
+      - >-
+        (ocp_namespace_finalize_resource.metadata.name | default(''))
+        == (ocp_namespace_effective | string)
+      - >-
+        (ocp_namespace_finalize_resource.status.phase | default(''))
+        == 'Terminating'
+    fail_msg: >-
+      Refusing to strip finalizers on namespace '{{ ocp_namespace_effective }}'.
+      Set ocp_namespace_advanced_cleanup and ocp_namespace_absent_finalize,
+      and only for a Terminating namespace that is not platform-protected.
+
 - name: Build finalize body with empty finalizers
   ansible.builtin.set_fact:
     ocp_namespace_finalize_body: >-

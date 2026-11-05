@@ -91,6 +91,7 @@
   community.general.keycloak_clientsecret_info:
     auth_keycloak_url: "{{ ocp_oidc_auth_keycloak_base }}"
     auth_realm: "{{ auth_realm | default('master') }}"
+    auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
     auth_username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"
     auth_password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
     realm: "{{ ocp_oidc_auth_rhbk_realm }}"
@@ -98,19 +99,51 @@
     validate_certs: "{{ ocp_rhbk_verify_ssl | default(false) | bool }}"
   register: ocp_oidc_auth_client_secret_raw
   delegate_to: localhost
+  connection: local
+  become: false
+  # Soft-fail: Contoller EEs may lack middleware_automation.keycloak redirects,
+  # or admin login may fail in-module. REST fallback below must still run.
+  failed_when: false
   no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+- name: Note Keycloak module secret fetch will use REST fallback
+  ansible.builtin.debug:
+    msg: >-
+      keycloak_clientsecret_info did not return a secret
+      (failed={{ ocp_oidc_auth_client_secret_raw.failed | default(false) }};
+      msg={{ ocp_oidc_auth_client_secret_raw.msg | default('') | truncate(180, true, '…') }}).
+      Continuing with REST fallback.
+  when: >-
+    (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
+    or (
+      (
+        (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
+        | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
+        | default(ocp_oidc_auth_client_secret_raw.secret, true)
+        | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
+        | default(ocp_oidc_auth_client_secret_raw.value, true)
+        | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
+        | default('')
+        | string
+        | length
+      ) == 0
+    )
 
 - name: Extract Keycloak client secret from module result
   ansible.builtin.set_fact:
     ocp_oidc_auth_client_secret_value: >-
       {{
-        (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
-          | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
-          | default(ocp_oidc_auth_client_secret_raw.secret, true)
-          | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
-          | default(ocp_oidc_auth_client_secret_raw.value, true)
-          | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
-          | default('')
+        ''
+        if (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
+        else (
+          (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
+            | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
+            | default(ocp_oidc_auth_client_secret_raw.secret, true)
+            | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
+            | default(ocp_oidc_auth_client_secret_raw.value, true)
+            | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
+            | default('')
+        )
       }}
   no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
 

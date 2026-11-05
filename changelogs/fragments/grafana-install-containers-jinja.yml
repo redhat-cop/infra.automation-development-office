@@ -1,0 +1,5 @@
+---
+bugfixes:
+  - >-
+    grafana_install - fix unbalanced parentheses in the Grafana CR container
+    collect expression so set_fact no longer fails with ``unexpected ')'``.

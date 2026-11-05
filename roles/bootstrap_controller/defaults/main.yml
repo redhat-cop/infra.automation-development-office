@@ -86,8 +86,8 @@ bootstrap_controller_hub_staging_repository: staging
 # Retry skip-if-exists GETs when Hub/route returns 502/503/504.
 bootstrap_controller_hub_exist_check_retries: 8
 bootstrap_controller_hub_exist_check_delay: 15
-# Content repos to treat as "already installed" before uploading a tarball.
-# Red Hat certified collections often exist in rh-certified, not validated.
+# Content repos probed for diagnostics / cross-repo awareness. Skip-upload uses
+# only the per-item destination (validated or hub_publish_repository).
 bootstrap_controller_hub_pub_exist_repos:
   - validated
   - published

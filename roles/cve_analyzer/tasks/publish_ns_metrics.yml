@@ -1,0 +1,186 @@
+---
+# Publish CVE Prometheus metrics for Findings over time + optional triage gauges.
+# Idempotent: creates ConfigMap / Deployment / Service / ServiceMonitor when
+# missing; updates gauges in place; does not create a second workload.
+# Requires vault_openshift host/token (same as other OCP lab playbooks).
+# Phase 4a: kubernetes.core has no request HTTP timeout. Contoller EE rejects
+# async on these modules. wait=false disables readiness wait only — not
+# an HTTP or task wall-clock timeout.
+#
+# Contoller workflow nodes do not share /tmp. Posture gauges come from:
+#   1) local cve_posture.prom
+#   2) ConfigMap handoff key cve_posture.prom
+#   3) rebuild from scrubbed CSV in cve_analyzer_data_dir
+# Do NOT set cve_analyzer_require_posture_metrics via include_tasks vars that
+# reference the same name — Ansible recurses and Contoller fails templating.
+- name: Default require-posture-metrics from action when unset
+  when: cve_analyzer_require_posture_metrics is not defined
+  ansible.builtin.set_fact:
+    cve_analyzer_require_posture_metrics: >-
+      {{
+        cve_analyzer_action in [
+          'publish_metrics',
+          'publish_rhacs_posture',
+          'full',
+          'enrichment',
+        ]
+      }}
+
+- name: Ensure posture gauges for Findings over time
+  ansible.builtin.include_tasks: ensure_posture_metrics_gauges.yml
+
+- name: Stage namespace CVE metrics builders
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ cve_analyzer_data_dir }}/{{ item }}"
+    mode: "0755"
+  loop:
+    - build_ns_cve_metrics.py
+    - serve_ns_cve_metrics.py
+    - merge_posture_metrics.py
+
+- name: Stat triage data.json for namespace gauges
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/data.json"
+  register: cve_analyzer_ns_data_json
+
+- name: Lookup existing metrics ConfigMap (preserve prior gauges)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+  register: cve_analyzer_metrics_cm_existing
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+  failed_when: false
+
+- name: Build Prometheus textfile from data.json
+  when: cve_analyzer_ns_data_json.stat.exists | default(false)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ cve_analyzer_data_dir }}/build_ns_cve_metrics.py"
+      - "{{ cve_analyzer_data_dir }}/data.json"
+      - "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+  changed_when: true
+
+- name: Seed metrics textfile from existing ConfigMap when data.json is missing
+  when:
+    - not (cve_analyzer_ns_data_json.stat.exists | default(false))
+    - >-
+      (
+        (
+          (cve_analyzer_metrics_cm_existing.resources | default([]))[0].data['cve_ns.prom']
+          | default('')
+          | length
+        ) > 0
+      )
+  ansible.builtin.copy:
+    dest: "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+    mode: "0644"
+    content: >-
+      {{
+        cve_analyzer_metrics_cm_existing.resources[0].data['cve_ns.prom']
+      }}
+
+- name: Seed empty metrics textfile when data.json and ConfigMap gauges are missing
+  when:
+    - not (cve_analyzer_ns_data_json.stat.exists | default(false))
+    - >-
+      (
+        (
+          (cve_analyzer_metrics_cm_existing.resources | default([]))[0].data['cve_ns.prom']
+          | default('')
+          | length
+        ) == 0
+      )
+  ansible.builtin.copy:
+    dest: "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+    mode: "0644"
+    content: |
+      # cve_triage gauges need data.json from enrichment.
+      # cve_posture_findings is merged below when present.
+
+- name: Merge posture gauges into the metrics textfile
+  when: >-
+    (cve_analyzer_posture_prom.stat.exists | default(false))
+    and ((cve_analyzer_posture_prom.stat.size | default(0) | int) > 0)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ cve_analyzer_data_dir }}/merge_posture_metrics.py"
+      - "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+      - "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+      - "{{ cve_analyzer_data_dir }}/cve_ns.merged.prom"
+  changed_when: true
+
+- name: Use merged metrics textfile when posture gauges exist
+  when: >-
+    (cve_analyzer_posture_prom.stat.exists | default(false))
+    and ((cve_analyzer_posture_prom.stat.size | default(0) | int) > 0)
+  ansible.builtin.copy:
+    src: "{{ cve_analyzer_data_dir }}/cve_ns.merged.prom"
+    dest: "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+    remote_src: true
+    mode: "0644"
+
+- name: Assert posture gauges present in the metrics textfile
+  when: cve_analyzer_require_posture_metrics | default(false) | bool
+  ansible.builtin.shell: |
+    set -euo pipefail
+    f="{{ cve_analyzer_data_dir }}/cve_ns.prom"
+    grep -q 'cve_posture_findings{' "$f"
+    grep -q 'cve_posture_findings_by_cluster{' "$f"
+    grep -q 'cve_posture_findings_by_ns{' "$f"
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Read metrics textfile
+  ansible.builtin.slurp:
+    src: "{{ cve_analyzer_data_dir }}/cve_ns.prom"
+  register: cve_analyzer_ns_metrics_slurp
+
+- name: Read posture gauges for ConfigMap handoff key
+  when: >-
+    (cve_analyzer_posture_prom.stat.exists | default(false))
+    and ((cve_analyzer_posture_prom.stat.size | default(0) | int) > 0)
+  ansible.builtin.slurp:
+    src: "{{ cve_analyzer_data_dir }}/cve_posture.prom"
+  register: cve_analyzer_posture_prom_slurp
+
+- name: Set facts for shared workload ensure
+  ansible.builtin.set_fact:
+    cve_analyzer_ns_metrics_textfile: "{{ cve_analyzer_ns_metrics_slurp.content | b64decode }}"
+    cve_analyzer_metrics_cm_prior_data: >-
+      {{
+        (cve_analyzer_metrics_cm_existing.resources | default([]))[0].data
+        | default({})
+      }}
+    cve_analyzer_posture_prom_handoff: >-
+      {{
+        (cve_analyzer_posture_prom_slurp.content | default('') | b64decode)
+        if ((cve_analyzer_posture_prom_slurp.content | default('') | length) > 0)
+        else ''
+      }}
+
+- name: Ensure metrics scrape stack (reuse shared definitions)
+  ansible.builtin.include_tasks: ensure_ns_metrics_workload.yml
+
+- name: Record METRICS_PUBLISHED
+  ansible.builtin.set_fact:
+    cve_analyzer_metrics_status: METRICS_PUBLISHED
+
+- name: Show namespace metrics target
+  ansible.builtin.debug:
+    msg: >-
+      METRICS_PUBLISHED via
+      {{ cve_analyzer_metrics_namespace }}/{{ cve_analyzer_metrics_name }}
+      (ConfigMap, Deployment, Service, ServiceMonitor).
+      Findings over time scrapes cve_posture_findings with
+      job=cve-analyzer-ns-metrics.

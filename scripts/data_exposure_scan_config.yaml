@@ -51,6 +51,8 @@ categories:
       - 203.0.113.
       - 1.1.1.1
       - 8.8.8.8
+      # Bind-all default for in-cluster metrics listeners (not a routable host IP).
+      - 0.0.0.0
     value_regex: []
 
   private_ip:

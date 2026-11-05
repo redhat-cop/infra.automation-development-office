@@ -1,0 +1,249 @@
+{
+  "ocp_payload_repository": "quay.io/openshift-release-dev/ocp-v4.0-art-dev",
+  "families": [
+    {
+      "name": "OpenShift OCP release payload",
+      "action": "Upgrade OpenShift release",
+      "match": {
+        "repository_equals": [
+          "quay.io/openshift-release-dev/ocp-v4.0-art-dev"
+        ]
+      }
+    },
+    {
+      "name": "Iron Bank Kibana",
+      "action": "Upgrade Elastic/Kibana image",
+      "match": {
+        "image_contains": [
+          "kibana"
+        ]
+      }
+    },
+    {
+      "name": "Iron Bank elastic-agent",
+      "action": "Upgrade Elastic image",
+      "match": {
+        "image_contains": [
+          "elastic-agent"
+        ]
+      }
+    },
+    {
+      "name": "Iron Bank Filebeat",
+      "action": "Upgrade Elastic image",
+      "match": {
+        "image_contains": [
+          "filebeat"
+        ]
+      }
+    },
+    {
+      "name": "Iron Bank Metricbeat",
+      "action": "Upgrade Elastic image",
+      "match": {
+        "image_contains": [
+          "metricbeat"
+        ]
+      }
+    },
+    {
+      "name": "Elasticsearch",
+      "action": "Upgrade Elastic image",
+      "match": {
+        "image_contains": [
+          "elasticsearch"
+        ]
+      }
+    },
+    {
+      "name": "Confluent cp-server-connect",
+      "action": "Upgrade Confluent image",
+      "match": {
+        "image_contains": [
+          "cp-server-connect"
+        ]
+      }
+    },
+    {
+      "name": "Web Terminal tooling",
+      "action": "Upgrade Web Terminal",
+      "match": {
+        "image_contains": [
+          "web-terminal-tooling"
+        ],
+        "namespace": [
+          "openshift-terminal"
+        ]
+      }
+    },
+    {
+      "name": "Web Terminal exec/operator",
+      "action": "Upgrade Web Terminal",
+      "match": {
+        "image_contains": [
+          "web-terminal"
+        ],
+        "namespace": [
+          "openshift-terminal"
+        ]
+      }
+    },
+    {
+      "name": "OpenShift Logging",
+      "action": "Upgrade Logging Operator",
+      "match": {
+        "namespace": [
+          "openshift-logging"
+        ],
+        "image_contains": [
+          "cluster-logging"
+        ]
+      }
+    },
+    {
+      "name": "Dev Spaces / UDI",
+      "action": "Upgrade Dev Spaces / UDI",
+      "match": {
+        "namespace": [
+          "openshift-devspaces"
+        ],
+        "namespace_suffix": [
+          "-devspaces"
+        ],
+        "image_contains": [
+          "devspaces",
+          "udi-rhel"
+        ]
+      }
+    },
+    {
+      "name": "ACM / MCE",
+      "action": "Upgrade ACM/MCE",
+      "match": {
+        "namespace_prefix": [
+          "open-cluster-management"
+        ],
+        "namespace": [
+          "multicluster-engine"
+        ],
+        "image_contains": [
+          "multicluster-engine"
+        ]
+      }
+    },
+    {
+      "name": "Kube Descheduler",
+      "action": "Upgrade Kube Descheduler",
+      "match": {
+        "namespace": [
+          "openshift-kube-descheduler-operator"
+        ],
+        "image_contains": [
+          "descheduler"
+        ]
+      }
+    },
+    {
+      "name": "RHACS",
+      "action": "Upgrade RHACS",
+      "match": {
+        "namespace": [
+          "stackrox",
+          "rhacs-operator"
+        ],
+        "image_contains": [
+          "stackrox",
+          "rhacs"
+        ]
+      }
+    },
+    {
+      "name": "External Secrets",
+      "action": "Upgrade External Secrets",
+      "match": {
+        "namespace_prefix": [
+          "external-secrets"
+        ],
+        "image_contains": [
+          "external-secrets"
+        ]
+      }
+    },
+    {
+      "name": "cert-manager",
+      "action": "Upgrade cert-manager",
+      "match": {
+        "namespace_prefix": [
+          "cert-manager"
+        ],
+        "image_contains": [
+          "cert-manager"
+        ]
+      }
+    },
+    {
+      "name": "Route monitor blackbox-exporter",
+      "action": "Upgrade blackbox-exporter",
+      "match": {
+        "namespace": [
+          "openshift-route-monitor-operator"
+        ],
+        "image_contains": [
+          "blackbox"
+        ]
+      }
+    },
+    {
+      "name": "IBM MQ",
+      "action": "Upgrade IBM MQ image",
+      "match": {
+        "image_contains": [
+          "ibm-mq",
+          "ibmmq"
+        ]
+      }
+    },
+    {
+      "name": "GitOps",
+      "action": "Upgrade OpenShift GitOps",
+      "match": {
+        "namespace": [
+          "openshift-gitops"
+        ],
+        "image_contains": [
+          "gitops"
+        ]
+      }
+    },
+    {
+      "name": "Compliance",
+      "action": "Upgrade Compliance Operator",
+      "match": {
+        "namespace": [
+          "openshift-compliance"
+        ],
+        "image_contains": [
+          "compliance"
+        ]
+      }
+    },
+    {
+      "name": "Cluster Logging",
+      "action": "Upgrade Logging Operator",
+      "match": {
+        "namespace": [
+          "openshift-logging"
+        ]
+      }
+    },
+    {
+      "name": "Web Terminal",
+      "action": "Upgrade Web Terminal",
+      "match": {
+        "namespace": [
+          "openshift-terminal"
+        ]
+      }
+    }
+  ]
+}

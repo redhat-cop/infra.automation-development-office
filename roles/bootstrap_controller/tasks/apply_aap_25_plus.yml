@@ -545,7 +545,7 @@
 
     - name: AAP 2.5+ | Resolve pulp href for infra.automation_development_office collection version
       ansible.builtin.uri:
-        url: "{{ bootstrap_controller_hub_api_host.rstrip('/') }}/api/galaxy/pulp/api/v3/content/ansible/collection_versions/?namespace=infra&name=ado&version={{ bootstrap_controller_hub_artifact_coords.version }}"
+        url: "{{ bootstrap_controller_hub_api_host.rstrip('/') }}/api/galaxy/pulp/api/v3/content/ansible/collection_versions/?namespace=infra&name=automation_development_office&version={{ bootstrap_controller_hub_artifact_coords.version }}"
         method: GET
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200]

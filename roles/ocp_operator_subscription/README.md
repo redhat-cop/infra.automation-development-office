@@ -23,10 +23,10 @@ Automation Development Office
 | `operator_source_namespace` | Catalog source namespace (required for ``present``). |
 | `operator_subscription_namespace` / `name_space` | Namespace for the Subscription. Empty string falls through to ``name_space``. |
 | `operator_subscription_name` | Subscription ``metadata.name``. Empty or unset uses ``operator_name-sub``. |
-| `operator_csv_contains` | Optional substring to match CSVs on uninstall (defaults to ``operator_name``). |
-| `ocp_operator_subscription_absent_sweep_workloads` | When ``true``, ``ocp_absent_cleanup`` also deletes Deployments/Pods in the subscription namespace (default ``false`` — safe for shared NS like ``openshift-operators``). |
+| `operator_csv_contains` | Operator package prefix for uninstall. Matches that exact CSV name or ``<prefix>.<version>`` only (defaults to ``operator_name``). |
+| `ocp_operator_subscription_absent_sweep_workloads` | When ``true``, ``ocp_absent_cleanup`` also deletes Deployments/Pods in the subscription namespace (default ``false``). ``openshift-operators`` refuses this workload sweep. |
 
-On ``state=absent``, after Subscription/CSV/InstallPlan removal this role runs ``infra.automation_development_office.ocp_absent_cleanup`` with ``ocp_absent_cleanup_csv_name_match`` set to the operator CSV match so Failed CSVs and Terminating leftovers are cleared without wiping unrelated operators in a shared namespace.
+On ``state=absent``, after Subscription removal this role deletes only CSVs in the subscription namespace whose name is exactly ``operator_csv_contains`` or ``<operator_csv_contains>.<version>``. A shorter token such as ``operator`` does not match ``openshift-gitops-operator.v1``. Each selected CSV is checked again before deletion. OLM copied CSVs are left alone. InstallPlans are deleted only when every CSV they reference matches that same rule. The follow-up ``ocp_absent_cleanup`` call uses that same prefix, may strip finalizers on those selected CSVs, and does not finalize the namespace.
 
 ## 🚀 Role Usage
 

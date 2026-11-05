@@ -1,0 +1,216 @@
+---
+# Idempotent metrics scrape stack for Findings over time / triage gauges.
+# Creates missing Namespace, ConfigMap, Deployment, Service, and ServiceMonitor.
+# Does not create a second workload when resources already exist (state: present).
+#
+# Caller must set:
+#   cve_analyzer_ns_metrics_textfile — body for ConfigMap key cve_ns.prom
+# Optional:
+#   cve_analyzer_posture_prom_handoff — body for durable key cve_posture.prom
+#     (workflow nodes do not share /tmp; Metrics restores from this key)
+#   cve_analyzer_metrics_cm_prior_data — prior ConfigMap .data map to preserve
+#
+# kubernetes.core has no request HTTP timeout. Contoller EE rejects async on
+# these modules. wait=false disables readiness wait only.
+- name: Assert metrics textfile body is ready
+  ansible.builtin.assert:
+    that:
+      - cve_analyzer_ns_metrics_textfile is defined
+    fail_msg: >-
+      ensure_ns_metrics_workload.yml requires cve_analyzer_ns_metrics_textfile.
+
+- name: Build ConfigMap data (preserve prior keys, set textfile + serve.py)
+  ansible.builtin.set_fact:
+    cve_analyzer_metrics_cm_data: >-
+      {{
+        (cve_analyzer_metrics_cm_prior_data | default({}))
+        | combine({
+            'cve_ns.prom': cve_analyzer_ns_metrics_textfile,
+            'serve.py': lookup(
+              'ansible.builtin.file',
+              role_path ~ '/files/serve_ns_cve_metrics.py'
+            ),
+          })
+        | combine(
+            {'cve_posture.prom': cve_analyzer_posture_prom_handoff}
+            if (
+              (cve_analyzer_posture_prom_handoff | default('') | length) > 0
+            )
+            else {}
+          )
+      }}
+
+- name: Ensure metrics namespace exists
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ cve_analyzer_metrics_namespace }}"
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+
+- name: Ensure metrics ConfigMap (textfile + serve.py + optional posture handoff)
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ cve_analyzer_metrics_name }}"
+        namespace: "{{ cve_analyzer_metrics_namespace }}"
+        labels:
+          app: "{{ cve_analyzer_metrics_name }}"
+      data: "{{ cve_analyzer_metrics_cm_data }}"
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+
+- name: Ensure metrics Deployment
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: "{{ cve_analyzer_metrics_name }}"
+        namespace: "{{ cve_analyzer_metrics_namespace }}"
+        labels:
+          app: "{{ cve_analyzer_metrics_name }}"
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: "{{ cve_analyzer_metrics_name }}"
+        template:
+          metadata:
+            labels:
+              app: "{{ cve_analyzer_metrics_name }}"
+          spec:
+            containers:
+              - name: metrics
+                image: "{{ cve_analyzer_metrics_image }}"
+                imagePullPolicy: IfNotPresent
+                command: ["python3", "/app/serve.py"]
+                env:
+                  - name: METRICS_FILE
+                    value: /metrics/cve_ns.prom
+                ports:
+                  - name: metrics
+                    containerPort: 8080
+                volumeMounts:
+                  - name: app
+                    mountPath: /app
+                    readOnly: true
+                  - name: metrics
+                    mountPath: /metrics
+                    readOnly: true
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
+                  limits:
+                    cpu: 100m
+                    memory: 128Mi
+            volumes:
+              - name: app
+                configMap:
+                  name: "{{ cve_analyzer_metrics_name }}"
+                  items:
+                    - key: serve.py
+                      path: serve.py
+                  # 0555 as decimal (ansible-lint forbids bare octal)
+                  defaultMode: 365
+              - name: metrics
+                configMap:
+                  name: "{{ cve_analyzer_metrics_name }}"
+                  items:
+                    - key: cve_ns.prom
+                      path: cve_ns.prom
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+
+- name: Ensure metrics Service
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: "{{ cve_analyzer_metrics_name }}"
+        namespace: "{{ cve_analyzer_metrics_namespace }}"
+        labels:
+          app: "{{ cve_analyzer_metrics_name }}"
+      spec:
+        selector:
+          app: "{{ cve_analyzer_metrics_name }}"
+        ports:
+          - name: metrics
+            port: 8080
+            targetPort: metrics
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+
+- name: Ensure metrics ServiceMonitor
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: present
+    definition:
+      apiVersion: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      metadata:
+        name: "{{ cve_analyzer_metrics_name }}"
+        namespace: "{{ cve_analyzer_metrics_namespace }}"
+        labels:
+          app: "{{ cve_analyzer_metrics_name }}"
+      spec:
+        selector:
+          matchLabels:
+            app: "{{ cve_analyzer_metrics_name }}"
+        endpoints:
+          - port: metrics
+            path: /metrics
+            interval: 60s
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+
+- name: Rollout restart metrics Deployment (pick up new ConfigMap)
+  kubernetes.core.k8s:
+    wait: "{{ cve_analyzer_k8s_wait | bool }}"
+    wait_timeout: "{{ cve_analyzer_k8s_wait_timeout | int }}"
+    state: patched
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    merge_type:
+      - strategic-merge
+    definition:
+      spec:
+        template:
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/restartedAt: "{{ now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host | default(''))) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token | default('')) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"

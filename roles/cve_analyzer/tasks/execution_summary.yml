@@ -1,0 +1,167 @@
+---
+# Print CVE ANALYZER — EXECUTION SUMMARY (no credentials / no report contents).
+- name: Compute total runtime from wall clock
+  ansible.builtin.set_fact:
+    cve_analyzer_total_seconds: >-
+      {{
+        (
+          (lookup('pipe', 'date +%s.%N') | float)
+          - (cve_analyzer_run_started | default(lookup('pipe', 'date +%s.%N')) | float)
+        )
+        | round(1)
+      }}
+
+- name: Initialize execution summary lines
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: "{{ ['CVE ANALYZER — EXECUTION SUMMARY'] }}"
+
+- name: Append each phase line
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          (
+            item ~ ': SKIPPED'
+            if ((cve_analyzer_phase_times | default({})).get(item, {}).get('status') | default('skipped')) == 'skipped'
+            else (
+              item ~ ': FAILED after '
+              ~ ((cve_analyzer_phase_times | default({})).get(item, {}).get('seconds') | default('?') | string)
+              ~ 's'
+              if ((cve_analyzer_phase_times | default({})).get(item, {}).get('status') | default('')) == 'failed'
+              else (
+                item ~ ': '
+                ~ ((cve_analyzer_phase_times | default({})).get(item, {}).get('seconds') | default('?') | string)
+                ~ 's'
+                if item in (cve_analyzer_phase_times | default({}))
+                else item ~ ': (not recorded)'
+              )
+            )
+          )
+        ]
+      }}
+  loop: "{{ cve_analyzer_timing_order | default([]) }}"
+
+- name: Append total runtime
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + ['Total Runtime: ' ~ (cve_analyzer_total_seconds | string) ~ 's']
+      }}
+
+- name: Append metrics status line
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          'Metrics Status: '
+          ~ (
+            (cve_analyzer_metrics_status | default(''))
+            if ((cve_analyzer_metrics_status | default('') | length) > 0)
+            else '(not set)'
+          )
+        ]
+      }}
+
+- name: Append last-failed / active-phase diagnostics
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          'Last Failed Phase: '
+          ~ (
+            (cve_analyzer_last_failed_phase | default(''))
+            if ((cve_analyzer_last_failed_phase | default('') | length) > 0)
+            else '(none)'
+          ),
+          'Active Phase At End: '
+          ~ (
+            (cve_analyzer_timing_phase_active | default(''))
+            if ((cve_analyzer_timing_phase_active | default('') | length) > 0)
+            else '(none)'
+          )
+        ]
+      }}
+
+- name: Append dashboard build error when the builder failed
+  when: (cve_analyzer_dashboard_build_error | default('') | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          'Dashboard Build Error: '
+          ~ ((cve_analyzer_dashboard_build_error | default(''))[-2000:])
+        ]
+      }}
+
+- name: Append artifact sizes header
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + ['Artifact Sizes:']
+      }}
+
+- name: Append each artifact size line
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          (
+            '  '
+            ~ item
+            ~ ': missing'
+            if not ((cve_analyzer_artifact_sizes | default({})).get(item, {}).get('exists') | default(false))
+            else (
+              '  '
+              ~ item
+              ~ ': '
+              ~ ((cve_analyzer_artifact_sizes | default({})).get(item, {}).get('bytes') | default(0) | string)
+              ~ ' bytes ('
+              ~ (
+                  (
+                    ((cve_analyzer_artifact_sizes | default({})).get(item, {}).get('bytes') | default(0) | float)
+                    / 1048576
+                  )
+                  | round(2)
+                  | string
+                )
+              ~ ' MiB)'
+            )
+          )
+        ]
+      }}
+  loop: "{{ cve_analyzer_artifact_size_order | default([]) }}"
+  when: (cve_analyzer_artifact_sizes | default({})) | length > 0
+
+- name: Append artifact sizes placeholder when none recorded
+  when: (cve_analyzer_artifact_sizes | default({})) | length == 0
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + ['  (none recorded)']
+      }}
+
+- name: Append k8s / Contoller timeout notes (diagnostics only)
+  ansible.builtin.set_fact:
+    cve_analyzer_execution_summary_lines: >-
+      {{
+        cve_analyzer_execution_summary_lines
+        + [
+          'Timeout Notes:',
+          '  K8s metrics tasks: wait='
+          ~ (cve_analyzer_k8s_wait | default(false) | string)
+          ~ ' (readiness only when wait=true; no HTTP/task timeout from this role)',
+          '  Contoller job duration: not set by this role (JT setting)'
+        ]
+      }}
+
+- name: Print execution summary
+  ansible.builtin.debug:
+    msg: "{{ cve_analyzer_execution_summary_lines }}"

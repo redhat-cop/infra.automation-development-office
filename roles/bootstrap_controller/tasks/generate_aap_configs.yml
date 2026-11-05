@@ -162,6 +162,16 @@
         - ado-acs-report-age-bootstrap.jt.yml
         - ado-acs-report-cve-enriched-bootstrap.jt.yml
 
+      cve_analyzer:
+        - ado-cve-analyzer-full-bootstrap.jt.yml
+        - ado-cve-analyzer-enrichment-bootstrap.jt.yml
+        - ado-cve-analyzer-fetch-export-bootstrap.jt.yml
+        - ado-cve-analyzer-publish-rhacs-posture-bootstrap.jt.yml
+        - ado-cve-analyzer-publish-metrics-bootstrap.jt.yml
+        - ado-cve-analyzer-repair-posture-metrics-bootstrap.jt.yml
+        - ado-cve-analyzer-publish-grafana-bootstrap.jt.yml
+        - ado-cve-analyzer-cve-intel-bootstrap.jt.yml
+
       acm:
         - ado-acm-deploy-and-configure-bootstrap.jt.yml
 
@@ -951,6 +961,18 @@
   when:
     - "'acs_report' in bootstrap_controller_effective_components"
 
+- name: AAP configs | Copy CVE Analyzer workflow when selected
+  ansible.builtin.copy:
+    src: workflows/ado-cve-analyzer-workflow-bootstrap.wf.yml
+    dest: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-cve-analyzer-workflow-bootstrap.wf.yml
+    mode: "0644"
+    force: "{{ bootstrap_controller_jt_wf_force | bool }}"
+  when:
+    - "'cve_analyzer' in bootstrap_controller_effective_components"
+
 - name: AAP configs | Remove patching workflow when unselected
   ansible.builtin.file:
     path: >-
@@ -1102,6 +1124,17 @@
   when:
     - bootstrap_controller_jt_wf_force | bool
     - "'acs_report' not in bootstrap_controller_effective_components"
+
+- name: AAP configs | Remove CVE Analyzer workflow when unselected
+  ansible.builtin.file:
+    path: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-cve-analyzer-workflow-bootstrap.wf.yml
+    state: absent
+  when:
+    - bootstrap_controller_jt_wf_force | bool
+    - "'cve_analyzer' not in bootstrap_controller_effective_components"
 
 - name: AAP configs | Apply organization prefix to workflow templates
   ansible.builtin.replace:

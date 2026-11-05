@@ -1,0 +1,79 @@
+---
+# Resolve Grafana Prometheus datasource UID for Findings over time panels.
+# Empty cve_analyzer_prometheus_datasource_uid is allowed only when Grafana
+# has exactly one Prometheus datasource. Never invent Openshift-Prod or
+# pick an arbitrary UID when multiple exist.
+- name: Use configured Prometheus datasource UID when set
+  when: (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_prometheus_datasource_uid_resolved: >-
+      {{ cve_analyzer_prometheus_datasource_uid | trim }}
+
+- name: List Grafana datasources when Prometheus UID is unset
+  when: (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) == 0
+  ansible.builtin.uri:
+    url: "{{ cve_analyzer_grafana_url }}/api/datasources"
+    method: GET
+    user: "{{ cve_analyzer_grafana_user }}"
+    password: "{{ cve_analyzer_grafana_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ cve_analyzer_grafana_validate_certs | bool }}"
+    status_code: [200]
+    timeout: "{{ cve_analyzer_grafana_http_timeout | default(120) | int }}"
+  no_log: true
+  register: cve_analyzer_grafana_datasources
+
+- name: Select Prometheus datasources from Grafana
+  when: (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) == 0
+  ansible.builtin.set_fact:
+    cve_analyzer_prometheus_datasources: >-
+      {{
+        (cve_analyzer_grafana_datasources.json | default([]))
+        | selectattr('type', 'defined')
+        | selectattr('type', 'equalto', 'prometheus')
+        | list
+      }}
+
+- name: Fail when Grafana has no Prometheus datasource
+  when:
+    - (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) == 0
+    - (cve_analyzer_prometheus_datasources | default([]) | length) == 0
+  ansible.builtin.fail:
+    msg: >-
+      cve_analyzer_prometheus_datasource_uid is empty and Grafana
+      {{ cve_analyzer_grafana_url }} has no Prometheus datasource.
+      Create one in Grafana or set cve_analyzer_prometheus_datasource_uid
+      in vars_cve_analyzer.yml to the datasource UID.
+
+- name: Fail when multiple Prometheus datasources require an explicit UID
+  when:
+    - (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) == 0
+    - (cve_analyzer_prometheus_datasources | default([]) | length) > 1
+  ansible.builtin.fail:
+    msg: >-
+      cve_analyzer_prometheus_datasource_uid is empty but Grafana has
+      {{ cve_analyzer_prometheus_datasources | length }} Prometheus datasources
+      (uids:
+      {{
+        cve_analyzer_prometheus_datasources
+        | map(attribute='uid')
+        | list
+        | join(', ')
+      }}).
+      Set cve_analyzer_prometheus_datasource_uid explicitly; refusing to
+      guess.
+
+- name: Auto-select the only Prometheus datasource UID
+  when:
+    - (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) == 0
+    - (cve_analyzer_prometheus_datasources | default([]) | length) == 1
+  ansible.builtin.set_fact:
+    cve_analyzer_prometheus_datasource_uid_resolved: >-
+      {{ cve_analyzer_prometheus_datasources[0].uid }}
+
+- name: Show resolved Prometheus datasource UID
+  ansible.builtin.debug:
+    msg: >-
+      Prometheus datasource UID for Findings over time:
+      {{ cve_analyzer_prometheus_datasource_uid_resolved }}
+      (configured={{ (cve_analyzer_prometheus_datasource_uid | default('') | trim | length) > 0 }})

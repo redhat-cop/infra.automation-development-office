@@ -1,0 +1,204 @@
+---
+# Optional Red Hat CVE Intelligence collection. Does not touch Panel 11.
+- name: Start CVE Intelligence
+  ansible.builtin.include_tasks: phase_start.yml
+  vars:
+    cve_analyzer_timing_phase: CVE Intelligence
+
+- name: Ensure CVE Analyzer data directory exists
+  ansible.builtin.file:
+    path: "{{ cve_analyzer_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Resolve CVE Intelligence Postgres URL from OpenShift secret
+  when:
+    - (cve_analyzer_cve_intel_database_url | default('') | length) == 0
+    - (cve_analyzer_ocp_host | default(host | default(api_host | default(''))) | length) > 0
+    - (cve_analyzer_ocp_token | default(token | default('')) | length) > 0
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: "{{ cve_analyzer_cve_intel_postgres_secret }}"
+    namespace: "{{ cve_analyzer_cve_intel_postgres_namespace }}"
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host | default(host | default(api_host)) }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token | default(token) }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | default(verify_ssl | default(false)) | bool }}"
+  register: cve_analyzer_cve_intel_pg_secret
+  no_log: true
+
+- name: Build CVE Intelligence database URL
+  when:
+    - (cve_analyzer_cve_intel_database_url | default('') | length) == 0
+    - (cve_analyzer_cve_intel_pg_secret.resources | default([]) | length) > 0
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import base64, json, os, urllib.parse, sys
+        data = json.loads(os.environ["CVE_INTEL_PG_SECRET_JSON"])["data"]
+        user = base64.b64decode(data["POSTGRESQL_USER"]).decode()
+        password = base64.b64decode(data["POSTGRESQL_PASSWORD"]).decode()
+        db = base64.b64decode(data["POSTGRESQL_DATABASE"]).decode()
+        host = os.environ["CVE_INTEL_PG_HOST"]
+        port = os.environ["CVE_INTEL_PG_PORT"]
+        print(
+            "postgresql://{u}:{p}@{h}:{port}/{db}".format(
+                u=urllib.parse.quote(user, safe=""),
+                p=urllib.parse.quote(password, safe=""),
+                h=host,
+                port=port,
+                db=db,
+            )
+        )
+  environment:
+    CVE_INTEL_PG_SECRET_JSON: "{{ cve_analyzer_cve_intel_pg_secret.resources[0] | to_json }}"
+    CVE_INTEL_PG_HOST: "{{ cve_analyzer_cve_intel_postgres_host }}"
+    CVE_INTEL_PG_PORT: "{{ cve_analyzer_cve_intel_postgres_port | string }}"
+  register: cve_analyzer_cve_intel_db_url_cmd
+  changed_when: false
+  no_log: true
+
+- name: Set CVE Intelligence database URL fact
+  when:
+    - cve_analyzer_cve_intel_db_url_cmd is defined
+    - (cve_analyzer_cve_intel_db_url_cmd.stdout | default('') | length) > 0
+  ansible.builtin.set_fact:
+    cve_analyzer_cve_intel_database_url: "{{ cve_analyzer_cve_intel_db_url_cmd.stdout | trim }}"
+  no_log: true
+
+- name: Ensure psycopg2 for CVE Intelligence upserts
+  when:
+    - cve_analyzer_cve_intel_ensure_psycopg2 | default(true) | bool
+    - (cve_analyzer_cve_intel_database_url | default('') | length) > 0
+  block:
+    - name: Probe psycopg2
+      ansible.builtin.command:
+        argv: [python3, -c, "import psycopg2"]
+      register: cve_analyzer_cve_intel_psycopg2_probe
+      changed_when: false
+      failed_when: false
+
+    - name: Install psycopg2-binary into job-local path
+      when: cve_analyzer_cve_intel_psycopg2_probe.rc != 0
+      ansible.builtin.pip:
+        name: psycopg2-binary
+        extra_args: "--target {{ cve_analyzer_data_dir }}/.cve-intel-pip"
+      environment:
+        PYTHONUSERBASE: "{{ cve_analyzer_data_dir }}/.cve-intel-pip-user"
+        XDG_CACHE_HOME: "{{ cve_analyzer_data_dir }}/.cve-intel-cache"
+      vars:
+        ansible_python_interpreter: "{{ ansible_playbook_python | default('/usr/bin/python3') }}"
+
+- name: Resolve CVE Intelligence after-date (UTC lookback)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - >
+        from datetime import datetime, timedelta, timezone;
+        print((datetime.now(timezone.utc) - timedelta(days=int("{{ cve_analyzer_cve_intel_lookback_days }}"))).strftime("%Y-%m-%d"))
+  register: cve_analyzer_cve_intel_after_cmd
+  changed_when: false
+
+- name: Set CVE Intelligence after-date fact
+  ansible.builtin.set_fact:
+    cve_analyzer_cve_intel_after: "{{ cve_analyzer_cve_intel_after_cmd.stdout | trim }}"
+
+- name: Collect published Red Hat CVEs
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/cve_intel/collect_rh_published_cves.py"
+  environment:
+    CVE_INTEL_AFTER: "{{ cve_analyzer_cve_intel_after }}"
+    CVE_INTEL_FETCH_DETAILS: "{{ '1' if (cve_analyzer_cve_intel_fetch_details | bool) else '0' }}"
+    CVE_INTEL_OUT: "{{ cve_analyzer_data_dir }}/cve_intel_published.json"
+    CVE_INTEL_SCHEMA_SQL: "{{ role_path }}/files/cve_intel/schema.sql"
+    CVE_INTEL_DATABASE_URL: "{{ cve_analyzer_cve_intel_database_url | default('') }}"
+    CVE_DATA_DIR: "{{ cve_analyzer_data_dir }}"
+    PYTHONPATH: >-
+      {{
+        (
+          (cve_analyzer_data_dir ~ '/.cve-intel-pip:')
+          if (
+            (cve_analyzer_cve_intel_ensure_psycopg2 | default(true) | bool)
+            and (cve_analyzer_cve_intel_psycopg2_probe is defined)
+            and (cve_analyzer_cve_intel_psycopg2_probe.rc | default(0) != 0)
+          )
+          else ''
+        )
+        ~ (ansible_env.PYTHONPATH | default(''))
+      }}
+  args:
+    chdir: "{{ cve_analyzer_data_dir }}"
+  register: cve_analyzer_cve_intel_collect
+  changed_when: true
+
+- name: Show CVE Intelligence collector stdout
+  ansible.builtin.debug:
+    var: cve_analyzer_cve_intel_collect.stdout_lines
+
+- name: Stat default scrubbed CSV for CVE match
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/RHACS_Vulnerability_Report_SCRUBBED.csv"
+  register: cve_analyzer_cve_intel_scrubbed_stat
+
+- name: Match published CVEs to RHACS CSV when available
+  when: >-
+    (cve_analyzer_cve_intel_match_csv | default('') | length) > 0
+    or (cve_analyzer_cve_intel_scrubbed_stat.stat.exists | default(false))
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/cve_intel/match_rhacs_exposure.py"
+  environment:
+    CVE_INTEL_PUBLISHED_JSON: "{{ cve_analyzer_data_dir }}/cve_intel_published.json"
+    CVE_INTEL_RHACS_CSV: >-
+      {{
+        cve_analyzer_cve_intel_match_csv
+        if (cve_analyzer_cve_intel_match_csv | default('') | length) > 0
+        else (cve_analyzer_data_dir ~ '/RHACS_Vulnerability_Report_SCRUBBED.csv')
+      }}
+    CVE_INTEL_MATCH_OUT: "{{ cve_analyzer_data_dir }}/cve_intel_rhacs_matches.json"
+    CVE_INTEL_DATABASE_URL: "{{ cve_analyzer_cve_intel_database_url | default('') }}"
+    PYTHONPATH: >-
+      {{
+        (
+          (cve_analyzer_data_dir ~ '/.cve-intel-pip:')
+          if (
+            (cve_analyzer_cve_intel_ensure_psycopg2 | default(true) | bool)
+            and (cve_analyzer_cve_intel_psycopg2_probe is defined)
+            and (cve_analyzer_cve_intel_psycopg2_probe.rc | default(0) != 0)
+          )
+          else ''
+        )
+        ~ (ansible_env.PYTHONPATH | default(''))
+      }}
+  register: cve_analyzer_cve_intel_match
+  changed_when: true
+
+- name: Show CVE Intelligence match stdout
+  when: cve_analyzer_cve_intel_match is defined
+  ansible.builtin.debug:
+    var: cve_analyzer_cve_intel_match.stdout_lines | default([])
+
+- name: Record CVE Intelligence Published JSON size
+  ansible.builtin.include_tasks: record_artifact_stat.yml
+  vars:
+    cve_analyzer_artifact_label: CVE Intel Published JSON
+    cve_analyzer_artifact_path: "{{ cve_analyzer_data_dir }}/cve_intel_published.json"
+
+- name: Record CVE Intelligence Matches JSON size
+  when: >-
+    cve_analyzer_cve_intel_match is defined
+    and (cve_analyzer_cve_intel_match.rc | default(1) | int) == 0
+  ansible.builtin.include_tasks: record_artifact_stat.yml
+  vars:
+    cve_analyzer_artifact_label: CVE Intel Matches JSON
+    cve_analyzer_artifact_path: "{{ cve_analyzer_data_dir }}/cve_intel_rhacs_matches.json"
+
+- name: End CVE Intelligence
+  ansible.builtin.include_tasks: phase_end.yml

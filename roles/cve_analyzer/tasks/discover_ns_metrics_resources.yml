@@ -1,0 +1,103 @@
+---
+# Discover ConfigMap / Deployment / Service / ServiceMonitor for the metrics
+# scrape stack. Sets cve_analyzer_repair_resources_<key> where key is
+# cve_analyzer_discover_report_key (before|after).
+- name: Require discover report key
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_discover_report_key | default('') | length) > 0
+    fail_msg: Set cve_analyzer_discover_report_key to before or after.
+
+- name: Lookup metrics ConfigMap
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: false
+  register: cve_analyzer_discover_cm
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+
+- name: Lookup metrics Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: false
+  register: cve_analyzer_discover_deploy
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+
+- name: Lookup metrics Service
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: false
+  register: cve_analyzer_discover_svc
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+
+- name: Lookup metrics ServiceMonitor
+  kubernetes.core.k8s_info:
+    api_version: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    name: "{{ cve_analyzer_metrics_name }}"
+    namespace: "{{ cve_analyzer_metrics_namespace }}"
+    wait: false
+  register: cve_analyzer_discover_sm
+  environment:
+    K8S_AUTH_HOST: "{{ cve_analyzer_ocp_host }}"
+    K8S_AUTH_API_KEY: "{{ cve_analyzer_ocp_token }}"
+    K8S_AUTH_VERIFY_SSL: "{{ cve_analyzer_ocp_verify_ssl | bool }}"
+  failed_when: false
+
+- name: Record discover snapshot
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_resources_snap: >-
+      {{
+        {
+          'ConfigMap': (
+            (cve_analyzer_discover_cm.resources | default([]) | length) > 0
+          ),
+          'Deployment': (
+            (cve_analyzer_discover_deploy.resources | default([]) | length) > 0
+          ),
+          'Service': (
+            (cve_analyzer_discover_svc.resources | default([]) | length) > 0
+          ),
+          'ServiceMonitor': (
+            (cve_analyzer_discover_sm.resources | default([]) | length) > 0
+          ),
+        }
+      }}
+
+- name: Store discover snapshot under before
+  when: cve_analyzer_discover_report_key == 'before'
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_resources_before: "{{ cve_analyzer_repair_resources_snap }}"
+    cve_analyzer_discover_cm_before: "{{ cve_analyzer_discover_cm }}"
+    cve_analyzer_discover_deploy_before: "{{ cve_analyzer_discover_deploy }}"
+    cve_analyzer_discover_svc_before: "{{ cve_analyzer_discover_svc }}"
+    cve_analyzer_discover_sm_before: "{{ cve_analyzer_discover_sm }}"
+
+- name: Store discover snapshot under after
+  when: cve_analyzer_discover_report_key == 'after'
+  ansible.builtin.set_fact:
+    cve_analyzer_repair_resources_after: "{{ cve_analyzer_repair_resources_snap }}"
+    cve_analyzer_discover_cm_after: "{{ cve_analyzer_discover_cm }}"
+    cve_analyzer_discover_deploy_after: "{{ cve_analyzer_discover_deploy }}"
+    cve_analyzer_discover_svc_after: "{{ cve_analyzer_discover_svc }}"
+    cve_analyzer_discover_sm_after: "{{ cve_analyzer_discover_sm }}"

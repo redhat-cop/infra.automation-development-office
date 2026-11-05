@@ -23,22 +23,43 @@
   ansible.builtin.set_fact:
     ocp_operator_subscription_csvs_to_delete: >-
       {{
-        (
-          ocp_operator_subscription_csvs.resources
-          | default([])
-          | selectattr('metadata.name', 'defined')
-          | selectattr(
-              'metadata.name',
-              'search',
-              ocp_operator_subscription_csv_match
-                | regex_escape
-            )
-          | list
-        )
-        if (ocp_operator_subscription_csv_match | length) > 0
-        else []
+        ocp_operator_subscription_csvs.resources | default([])
+        | infra.automation_development_office.ocp_absent_cleanup_select_csvs(
+            ocp_operator_subscription_sub_namespace,
+            ocp_operator_subscription_csv_match | default(''),
+            (ocp_operator_subscription_csv_match | default('') | length) > 0,
+            false,
+            false
+          )
       }}
   changed_when: false
+
+- name: Subscription | Confirm each selected CSV is this operator package
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.metadata.name
+        | infra.automation_development_office.ocp_absent_cleanup_csv_name_matches(
+            ocp_operator_subscription_csv_match
+          )
+      - >-
+        not (
+          item
+          | infra.automation_development_office.ocp_absent_cleanup_is_olm_copy(
+              ocp_operator_subscription_sub_namespace
+            )
+        )
+      - >-
+        (item.metadata.namespace | default(ocp_operator_subscription_sub_namespace))
+        == ocp_operator_subscription_sub_namespace
+    fail_msg: >-
+      Refusing to delete CSV '{{ item.metadata.name | default('') }}'.
+      Uninstall only deletes an exact CSV name or '<package>.<version>'
+      for '{{ ocp_operator_subscription_csv_match }}' in
+      {{ ocp_operator_subscription_sub_namespace }}. Copied CSVs are excluded.
+  loop: "{{ ocp_operator_subscription_csvs_to_delete }}"
+  loop_control:
+    label: "{{ item.metadata.namespace | default('') }}/{{ item.metadata.name | default('?') }}"
 
 - name: Subscription | Delete matching ClusterServiceVersions
   kubernetes.core.k8s:
@@ -50,6 +71,11 @@
   loop: "{{ ocp_operator_subscription_csvs_to_delete }}"
   loop_control:
     label: "{{ item.metadata.name }}"
+  when:
+    - item.metadata.name is defined
+    - >-
+      (item.metadata.namespace | default(ocp_operator_subscription_sub_namespace))
+      == ocp_operator_subscription_sub_namespace
 
 - name: Subscription | List InstallPlans in subscription namespace
   kubernetes.core.k8s_info:
@@ -60,6 +86,21 @@
   failed_when: false
   when: (ocp_operator_subscription_csv_match | length) > 0
 
+- name: Subscription | Select InstallPlans that reference only this operator
+  ansible.builtin.set_fact:
+    ocp_operator_subscription_ips_to_delete: >-
+      {{
+        ocp_operator_subscription_installplans.resources | default([])
+        | infra.automation_development_office.ocp_absent_cleanup_select_installplans(
+            ocp_operator_subscription_sub_namespace,
+            ocp_operator_subscription_csv_match | default(''),
+            (ocp_operator_subscription_csv_match | default('') | length) > 0,
+            false
+          )
+      }}
+  when: (ocp_operator_subscription_csv_match | length) > 0
+  changed_when: false
+
 - name: Subscription | Delete InstallPlans for this operator
   kubernetes.core.k8s:
     state: absent
@@ -67,18 +108,15 @@
     kind: InstallPlan
     namespace: "{{ ocp_operator_subscription_sub_namespace }}"
     name: "{{ item.metadata.name }}"
-  loop: "{{ ocp_operator_subscription_installplans.resources | default([]) }}"
+  loop: "{{ ocp_operator_subscription_ips_to_delete | default([]) }}"
   loop_control:
     label: "{{ item.metadata.name | default('unknown') }}"
   when:
     - (ocp_operator_subscription_csv_match | length) > 0
     - item.metadata.name is defined
     - >-
-      (
-        item.spec.clusterServiceVersionNames
-        | default([])
-        | join(' ')
-      ) is search(ocp_operator_subscription_csv_match | regex_escape)
+      (item.metadata.namespace | default(ocp_operator_subscription_sub_namespace))
+      == ocp_operator_subscription_sub_namespace
   failed_when: false
 
 # Shared absent gate: catch Failed CSVs / Terminating leftovers this operator left.
@@ -91,13 +129,25 @@
     ocp_absent_cleanup_mode: cleanup
     ocp_absent_cleanup_csv_name_match: "{{ ocp_operator_subscription_csv_match }}"
     ocp_absent_cleanup_sweep_olm: true
+    ocp_absent_cleanup_authorize_csv_delete: true
+    # Name match is the authorization. Never delete every CSV in the namespace.
+    ocp_absent_cleanup_authorize_unfiltered_csv_delete: false
+    # Leave OLM copies (olm.copiedFrom / other olm.operatorNamespace) alone.
+    ocp_absent_cleanup_delete_copied_csvs: false
+    # Stuck matched CSVs only. Copies are already excluded by the selector.
+    ocp_absent_cleanup_strip_csv_finalizers: true
     # Shared NS (openshift-operators): do not wipe unrelated Deployments.
+    # openshift-operators also refuses workload sweep inside ocp_absent_cleanup.
     ocp_absent_cleanup_sweep_workloads: >-
+      {{
+        ocp_operator_subscription_absent_sweep_workloads
+        | default(false)
+      }}
+    ocp_absent_cleanup_authorize_unfiltered_workloads: >-
       {{
         ocp_operator_subscription_absent_sweep_workloads
         | default(false)
       }}
     ocp_absent_cleanup_fail_if_present: false
     # Do not finalize/delete the namespace here — ocp_namespace owns that later.
-    # Finalizing on every subscription absent caused repeated 12x retry spam.
     ocp_absent_cleanup_finalize: false

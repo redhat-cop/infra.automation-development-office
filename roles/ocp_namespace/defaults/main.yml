@@ -1,3 +1,34 @@
-# SPDX-License-Identifier: GPL-3.0-or-later-0
-# ---
-# defaults file for advanced-cluster-management
+---
+# SPDX-License-Identifier: GPL-3.0-or-later
+# ocp_namespace deletes only the Namespace object unless advanced cleanup is
+# explicitly enabled. Sweep and finalizer flags stay false.
+
+ocp_namespace_terminating_retries: 24
+ocp_namespace_terminating_delay: 5
+ocp_namespace_delete_wait_timeout: 45
+ocp_namespace_delete_settle_seconds: 3
+
+# state=absent fails when the Namespace is still present after the delete.
+ocp_namespace_absent_fail_if_present: true
+
+# Opt-in gate. false means state=absent never calls ocp_absent_cleanup and
+# never strips namespace or CSV finalizers.
+ocp_namespace_advanced_cleanup: false
+
+# Ignored unless ocp_namespace_advanced_cleanup is true.
+ocp_namespace_absent_sweep_olm: false
+ocp_namespace_absent_sweep_workloads: false
+ocp_namespace_absent_finalize: false
+ocp_namespace_absent_csv_name_match: ""
+ocp_namespace_absent_authorize_csv_delete: false
+ocp_namespace_absent_authorize_unfiltered_csv_delete: false
+ocp_namespace_absent_delete_copied_csvs: false
+ocp_namespace_absent_strip_csv_finalizers: false
+ocp_namespace_absent_authorize_unfiltered_workloads: false
+ocp_namespace_absent_deployment_names: []
+
+# Additive only. plugins/filter/ocp_absent_cleanup.py always blocks platform
+# namespaces (kube-*, default, openshift, openshift-etcd, openshift-operators,
+# and the other control-plane namespaces) even when this list is empty.
+ocp_namespace_blocked_namespaces: []
+ocp_namespace_blocked_namespace_prefixes: []

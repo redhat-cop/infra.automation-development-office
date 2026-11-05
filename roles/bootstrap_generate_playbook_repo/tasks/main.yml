@@ -54,6 +54,10 @@
 - name: Generate playbook repo | Load Hub collections manifest for requirements
   ansible.builtin.include_tasks: load_hub_collections_manifest.yml
 
+# Never pin collection versions in collections/requirements.yml. Contoller
+# project sync must resolve the latest Hub copy (LooseVersion rejects tarball
+# filenames, and hard pins fight Hub republish of the same or newer build).
+
 - name: Generate playbook repo | Render collection requirements for Hub/Galaxy
   ansible.builtin.template:
     src: requirements.yml.j2

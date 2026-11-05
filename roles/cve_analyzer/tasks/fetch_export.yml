@@ -1,0 +1,191 @@
+---
+- name: Assert ACS Central credentials for export
+  ansible.builtin.assert:
+    that:
+      - (cve_analyzer_acs_central_url | default('') | length) > 0
+      - >-
+        (cve_analyzer_acs_api_token | default('') | length) > 0
+        or (cve_analyzer_acs_admin_password | default('') | length) > 0
+    fail_msg: >-
+      Provide acs_api_token / vault_acs_api_token / ROX_API_TOKEN, or
+      acs_admin_password for ACS export.
+
+- name: Start RHACS Export
+  ansible.builtin.include_tasks: phase_start.yml
+  vars:
+    cve_analyzer_timing_phase: RHACS Export
+
+- name: Download ACS Central workload export
+  block:
+    - name: Download ACS Central workload export (token)
+      ansible.builtin.get_url:
+        url: >-
+          {{ cve_analyzer_acs_central_url }}/v1/export/vuln-mgmt/workloads?timeout={{ cve_analyzer_acs_export_timeout | int }}
+        dest: "{{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson"
+        headers:
+          Accept: application/json
+          Authorization: "Bearer {{ cve_analyzer_acs_api_token }}"
+        timeout: "{{ cve_analyzer_acs_http_timeout | int }}"
+        validate_certs: "{{ cve_analyzer_acs_validate_certs | bool }}"
+        force: true
+        mode: "0600"
+      register: cve_analyzer_acs_export_result
+      no_log: true
+      retries: "{{ cve_analyzer_acs_export_retries | default(3) | int }}"
+      delay: "{{ cve_analyzer_acs_export_retry_delay | default(30) | int }}"
+      until: cve_analyzer_acs_export_result is succeeded
+      when: (cve_analyzer_acs_api_token | default('') | length) > 0
+
+    - name: Download ACS Central workload export (basic auth)
+      ansible.builtin.get_url:
+        url: >-
+          {{ cve_analyzer_acs_central_url }}/v1/export/vuln-mgmt/workloads?timeout={{ cve_analyzer_acs_export_timeout | int }}
+        dest: "{{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson"
+        headers:
+          Accept: application/json
+        url_username: "{{ cve_analyzer_acs_admin_user }}"
+        url_password: "{{ cve_analyzer_acs_admin_password }}"
+        force_basic_auth: true
+        timeout: "{{ cve_analyzer_acs_http_timeout | int }}"
+        validate_certs: "{{ cve_analyzer_acs_validate_certs | bool }}"
+        force: true
+        mode: "0600"
+      register: cve_analyzer_acs_export_result
+      no_log: true
+      retries: "{{ cve_analyzer_acs_export_retries | default(3) | int }}"
+      delay: "{{ cve_analyzer_acs_export_retry_delay | default(30) | int }}"
+      until: cve_analyzer_acs_export_result is succeeded
+      when: (cve_analyzer_acs_api_token | default('') | length) == 0
+
+    - name: End RHACS Export
+      ansible.builtin.include_tasks: phase_end.yml
+  rescue:
+    - name: Record RHACS Export failure
+      ansible.builtin.include_tasks: phase_fail.yml
+      vars:
+        cve_analyzer_timing_phase: RHACS Export
+    - name: Report ACS export download failure
+      ansible.builtin.fail:
+        msg: >-
+          ACS export download failed from {{ cve_analyzer_acs_central_url }}.
+          {{ ansible_failed_result.msg | default(ansible_failed_result) }}.
+          If Central was recently restored, confirm it returns HTTP 200 at /v1/metadata
+          and wait for sensor sync before re-running.
+
+- name: Stat ACS export file
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson"
+  register: cve_analyzer_export_stat
+
+- name: Record RHACS Export NDJSON size
+  ansible.builtin.include_tasks: record_artifact_stat.yml
+  vars:
+    cve_analyzer_artifact_label: RHACS Export NDJSON
+    cve_analyzer_artifact_path: "{{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson"
+
+- name: Warn when ACS export is empty (sensor may still be syncing)
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: ACS export is empty (0 bytes). Central was recently restored — wait for
+      sensor to sync vulnerability data, then re-run. Export path:
+      {{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson
+  when: cve_analyzer_export_stat.stat.size | default(0) | int == 0
+
+- name: Start CSV Processing
+  ansible.builtin.include_tasks: phase_start.yml
+  vars:
+    cve_analyzer_timing_phase: CSV Processing
+
+- name: CSV Processing (parse + convert)
+  block:
+    - name: Stage RHACS report parser
+      ansible.builtin.copy:
+        src: rhacs_report_parser.py
+        dest: "{{ cve_analyzer_data_dir }}/rhacs_report_parser.py"
+        mode: "0644"
+
+    - name: Parse Central export to scrubbed CSV (mode=all)
+      ansible.builtin.command:
+        argv:
+          - timeout
+          - "{{ cve_analyzer_subprocess_timeout | int }}"
+          - python3
+          - "{{ cve_analyzer_data_dir }}/rhacs_report_parser.py"
+          - all
+          - ""
+          - "{{ cve_analyzer_data_dir }}"
+          - "0"
+          - "0"
+          - "0"
+          - ""
+          - "{{ cve_analyzer_data_dir }}/RHACS_workloads_export.ndjson"
+      register: cve_analyzer_parse
+      changed_when: true
+
+    - name: Find newest scrubbed CSV
+      ansible.builtin.find:
+        paths: "{{ cve_analyzer_data_dir }}"
+        patterns: "RHACS_Vulnerability_Report_SCRUBBED_*.csv"
+      register: cve_analyzer_scrubbed_all
+
+    - name: Select scrubbed CSV path
+      ansible.builtin.set_fact:
+        cve_analyzer_scrubbed_csv: >-
+          {{
+            (cve_analyzer_scrubbed_all.files | default([]) | sort(attribute='mtime', reverse=True) | map(attribute='path') | list | first)
+          }}
+
+    - name: Assert scrubbed CSV exists
+      ansible.builtin.assert:
+        that:
+          - cve_analyzer_scrubbed_csv is defined
+          - (cve_analyzer_scrubbed_csv | default('') | length) > 0
+        fail_msg: ACS export did not produce a scrubbed CSV in {{ cve_analyzer_data_dir }}.
+
+    - name: Stage scrubbed-to-raw converter
+      ansible.builtin.copy:
+        src: convert_scrubbed_to_raw.py
+        dest: "{{ cve_analyzer_data_dir }}/convert_scrubbed_to_raw.py"
+        mode: "0755"
+
+    - name: Convert scrubbed CSV to cve-analyzer raw.csv
+      ansible.builtin.command:
+        argv:
+          - timeout
+          - "{{ cve_analyzer_subprocess_timeout | int }}"
+          - python3
+          - "{{ cve_analyzer_data_dir }}/convert_scrubbed_to_raw.py"
+          - "{{ cve_analyzer_scrubbed_csv }}"
+          - "{{ cve_analyzer_data_dir }}/raw.csv"
+      changed_when: true
+
+    - name: Record scrubbed CSV size
+      ansible.builtin.include_tasks: record_artifact_stat.yml
+      vars:
+        cve_analyzer_artifact_label: Scrubbed CSV
+        cve_analyzer_artifact_path: "{{ cve_analyzer_scrubbed_csv }}"
+
+    - name: Record raw.csv size
+      ansible.builtin.include_tasks: record_artifact_stat.yml
+      vars:
+        cve_analyzer_artifact_label: raw.csv
+        cve_analyzer_artifact_path: "{{ cve_analyzer_data_dir }}/raw.csv"
+
+    - name: End CSV Processing
+      ansible.builtin.include_tasks: phase_end.yml
+
+    - name: Show export summary
+      ansible.builtin.debug:
+        msg:
+          - "Scrubbed CSV: {{ cve_analyzer_scrubbed_csv }}"
+          - "raw.csv ready at {{ cve_analyzer_data_dir }}/raw.csv"
+  rescue:
+    - name: Record CSV Processing failure
+      ansible.builtin.include_tasks: phase_fail.yml
+      vars:
+        cve_analyzer_timing_phase: CSV Processing
+    - name: Re-raise CSV Processing failure
+      ansible.builtin.fail:
+        msg: >-
+          CSV Processing failed.
+          {{ ansible_failed_result.msg | default(ansible_failed_result) | string | truncate(300) }}

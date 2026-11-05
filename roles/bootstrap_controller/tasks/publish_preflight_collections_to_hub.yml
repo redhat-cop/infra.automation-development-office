@@ -118,8 +118,10 @@
         | list
       }}
 
-- name: Publish preflight collections | Build publish list (skip infra.automation_development_office)
+- name: Publish preflight collections | Build publish list (skip infra.ado)
   ansible.builtin.set_fact:
+    # redhat.* stay in the list when hub_publish + hub_publish_repository=rh-certified.
+    # publish_one never creates the reserved namespace; it uploads only if it exists.
     bootstrap_controller_hub_preflight_publish_candidates: >-
       {{
         bootstrap_controller_hub_preflight_manifest.collections
@@ -152,7 +154,8 @@
 - name: Publish preflight collections | Show collections to publish when missing
   ansible.builtin.debug:
     msg: >-
-      Checking preflight tarballs for Hub validated:
+      Checking preflight tarballs for Hub publish
+      (validated or per-item hub_publish_repository):
       {{ bootstrap_controller_hub_preflight_publish_list | map(attribute='name') | list }}
 
 - name: Publish preflight collections | Resolve Hub staging repository pulp href
@@ -195,6 +198,54 @@
     force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
   register: bootstrap_controller_hub_preflight_validated_repo
 
+- name: Publish preflight collections | Resolve Hub published repository pulp href
+  vars:
+    bootstrap_controller_hub_preflight_published_repo_url: >-
+      {{
+        bootstrap_controller_hub_pub_api_host.rstrip('/')
+        ~ '/api/galaxy/pulp/api/v3/repositories/?name=published'
+      }}
+  ansible.builtin.uri:
+    url: "{{ bootstrap_controller_hub_preflight_published_repo_url }}"
+    method: GET
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    status_code: [200]
+    return_content: true
+    headers: "{{ bootstrap_controller_hub_pub_uri_headers }}"
+    user: "{{ bootstrap_controller_hub_pub_uri_user }}"
+    password: "{{ bootstrap_controller_hub_pub_uri_password }}"
+    force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
+  register: bootstrap_controller_hub_preflight_published_repo
+  failed_when: false
+
+- name: Publish preflight collections | Resolve Hub rh-certified repository pulp href
+  vars:
+    bootstrap_controller_hub_preflight_rh_certified_repo_url: >-
+      {{
+        bootstrap_controller_hub_pub_api_host.rstrip('/')
+        ~ '/api/galaxy/pulp/api/v3/repositories/?name=rh-certified'
+      }}
+  ansible.builtin.uri:
+    url: "{{ bootstrap_controller_hub_preflight_rh_certified_repo_url }}"
+    method: GET
+    validate_certs: "{{ controller_validate_certs | default(false) }}"
+    status_code: [200]
+    return_content: true
+    headers: "{{ bootstrap_controller_hub_pub_uri_headers }}"
+    user: "{{ bootstrap_controller_hub_pub_uri_user }}"
+    password: "{{ bootstrap_controller_hub_pub_uri_password }}"
+    force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
+  register: bootstrap_controller_hub_preflight_rh_certified_repo
+  when: >-
+    (
+      bootstrap_controller_hub_preflight_publish_list
+      | default([])
+      | selectattr('hub_publish_repository', 'defined')
+      | selectattr('hub_publish_repository', 'equalto', 'rh-certified')
+      | list
+      | length
+    ) > 0
+
 - name: Publish preflight collections | Assert staging and validated pulp repos were found
   ansible.builtin.assert:
     that:
@@ -205,7 +256,24 @@
       staging={{ bootstrap_controller_hub_preflight_staging_repo.json | default({}) | to_json }}
       validated={{ bootstrap_controller_hub_preflight_validated_repo.json | default({}) | to_json }}
 
-- name: Publish preflight collections | Publish each tarball when missing from validated
+- name: Publish preflight collections | Assert rh-certified pulp repo when needed
+  ansible.builtin.assert:
+    that:
+      - (bootstrap_controller_hub_preflight_rh_certified_repo.json.count | default(0) | int) >= 1
+    fail_msg: >-
+      Could not resolve Hub rh-certified pulp repo for redhat.* publish.
+      rh-certified={{ bootstrap_controller_hub_preflight_rh_certified_repo.json | default({}) | to_json }}
+  when: >-
+    (
+      bootstrap_controller_hub_preflight_publish_list
+      | default([])
+      | selectattr('hub_publish_repository', 'defined')
+      | selectattr('hub_publish_repository', 'equalto', 'rh-certified')
+      | list
+      | length
+    ) > 0
+
+- name: Publish preflight collections | Publish each tarball when missing from target repo
   ansible.builtin.include_tasks: publish_one_preflight_collection.yml
   loop: "{{ bootstrap_controller_hub_preflight_publish_list }}"
   loop_control:

@@ -1,0 +1,39 @@
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: ado-grafana-postgres
+  namespace: grafana
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  valuesFrom:
+    - targetPath: "secureJsonData.password"
+      valueFrom:
+        secretKeyRef:
+          name: cve-intel-postgres-ro
+          key: POSTGRESQL_PASSWORD
+    - targetPath: "user"
+      valueFrom:
+        secretKeyRef:
+          name: cve-intel-postgres-ro
+          key: POSTGRESQL_USER
+    - targetPath: "jsonData.database"
+      valueFrom:
+        secretKeyRef:
+          name: cve-intel-postgres-ro
+          key: POSTGRESQL_DATABASE
+  datasource:
+    name: ADO CVE Intel Postgres
+    type: grafana-postgresql-datasource
+    uid: ado-grafana-postgres
+    access: proxy
+    url: grafana-postgres.grafana.svc:5432
+    user: ${POSTGRESQL_USER}
+    editable: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      database: ${POSTGRESQL_DATABASE}
+    secureJsonData:
+      password: ${POSTGRESQL_PASSWORD}

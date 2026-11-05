@@ -1,0 +1,68 @@
+---
+- name: Assert raw.csv exists before pipeline
+  ansible.builtin.stat:
+    path: "{{ cve_analyzer_data_dir }}/raw.csv"
+  register: cve_analyzer_raw_stat
+
+- name: Fail when raw.csv missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ cve_analyzer_data_dir }}/raw.csv not found. Run fetch_export first or set
+      cve_analyzer_action=full.
+  when: not cve_analyzer_raw_stat.stat.exists
+
+- name: Ensure scripts directory exists
+  ansible.builtin.file:
+    path: "{{ cve_analyzer_data_dir }}/scripts"
+    state: directory
+    mode: "0755"
+
+- name: Stage cve-analyzer scripts
+  ansible.builtin.copy:
+    src: "scripts/{{ item }}"
+    dest: "{{ cve_analyzer_data_dir }}/scripts/{{ item }}"
+    mode: "0755"
+  loop: "{{ cve_analyzer_pipeline_steps | map(attribute='script') | list + ['pipeline.py'] | unique }}"
+
+- name: Run cve-analyzer pipeline step
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ cve_analyzer_data_dir }}/scripts/{{ item.script }}"
+      - "{{ cve_analyzer_data_dir }}"
+    chdir: "{{ cve_analyzer_data_dir }}"
+  environment:
+    CVE_DATA_DIR: "{{ cve_analyzer_data_dir }}"
+    REPORT_NAME: "{{ cve_analyzer_report_name }}"
+    ROX_ENDPOINT: "{{ cve_analyzer_rox_endpoint }}"
+    ROX_API_TOKEN: "{{ cve_analyzer_acs_api_token }}"
+  loop: "{{ cve_analyzer_pipeline_steps }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: cve_analyzer_steps
+  async: "{{ cve_analyzer_step_timeout | int }}"
+  poll: 15
+  changed_when: true
+  no_log: true
+
+- name: Assert pipeline steps succeeded
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: "Pipeline step failed: {{ item.item.name }} (rc={{ item.rc | default('n/a') }})"
+  loop: "{{ cve_analyzer_steps.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name | default('step') }}"
+
+- name: Show pipeline artifacts
+  ansible.builtin.find:
+    paths: "{{ cve_analyzer_data_dir }}"
+    patterns:
+      - "report.html"
+      - "data.json"
+      - "triage.csv"
+  register: cve_analyzer_artifacts
+
+- name: Report pipeline output paths
+  ansible.builtin.debug:
+    var: cve_analyzer_artifacts.files | map(attribute='path') | list

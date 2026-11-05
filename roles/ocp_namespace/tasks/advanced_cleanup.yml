@@ -1,0 +1,27 @@
+---
+# yamllint disable rule:line-length
+# Included only from main.yml when ocp_namespace_advanced_cleanup is true.
+# Sweep and finalizer flags default false in role defaults. This file must
+# not force sweeps on when a flag is unset.
+
+- name: Advanced cleanup | Run explicit ocp_absent_cleanup
+  ansible.builtin.include_role:
+    name: infra.automation_development_office.ocp_absent_cleanup
+  vars:
+    ocp_absent_cleanup_namespaces:
+      - "{{ ocp_namespace_effective }}"
+    ocp_absent_cleanup_mode: cleanup
+    ocp_absent_cleanup_sweep_olm: "{{ ocp_namespace_absent_sweep_olm | default(false) | bool }}"
+    ocp_absent_cleanup_sweep_workloads: "{{ ocp_namespace_absent_sweep_workloads | default(false) | bool }}"
+    ocp_absent_cleanup_csv_name_match: "{{ ocp_namespace_absent_csv_name_match | default('') }}"
+    ocp_absent_cleanup_authorize_csv_delete: "{{ ocp_namespace_absent_authorize_csv_delete | default(false) | bool }}"
+    ocp_absent_cleanup_authorize_unfiltered_csv_delete: "{{ ocp_namespace_absent_authorize_unfiltered_csv_delete | default(false) | bool }}"
+    ocp_absent_cleanup_delete_copied_csvs: "{{ ocp_namespace_absent_delete_copied_csvs | default(false) | bool }}"
+    ocp_absent_cleanup_strip_csv_finalizers: "{{ ocp_namespace_absent_strip_csv_finalizers | default(false) | bool }}"
+    ocp_absent_cleanup_deployment_names: "{{ ocp_namespace_absent_deployment_names | default([]) }}"
+    ocp_absent_cleanup_authorize_unfiltered_workloads: "{{ ocp_namespace_absent_authorize_unfiltered_workloads | default(false) | bool }}"
+    ocp_absent_cleanup_finalize: "{{ ocp_namespace_absent_finalize | default(false) | bool }}"
+    ocp_absent_cleanup_finalize_only_terminating: true
+    ocp_absent_cleanup_fail_if_present: false
+    ocp_absent_cleanup_terminating_retries: "{{ ocp_namespace_terminating_retries | default(12) }}"
+    ocp_absent_cleanup_terminating_delay: "{{ ocp_namespace_terminating_delay | default(5) }}"

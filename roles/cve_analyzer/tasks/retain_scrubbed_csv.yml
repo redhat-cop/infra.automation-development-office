@@ -1,0 +1,282 @@
+---
+# Retain the exact scrubbed RHACS CSV used for Dashboard Build (validation).
+#
+# Expects (when enabled):
+#   cve_analyzer_scrubbed_csv — path to the CSV that fed the builder
+#   cve_analyzer_scrubbed_csv_retention_dir — durable mount (not EE /tmp)
+# Optional facts from publish_rhacs_posture:
+#   cve_analyzer_builder_fingerprint_stat, cve_analyzer_vuln_dashboard_uid
+#
+# Writes CSV + sidecar meta JSON only (no Grafana/ACS credentials).
+# Does not print CSV contents. Retention prune is best-effort after copy.
+#
+# When cve_analyzer_scrubbed_csv_retention_enabled is false → skip (no-op).
+# When true → durable dir is required; failures fail the job (visible).
+
+- name: Skip scrubbed CSV retention when disabled
+  when: not (cve_analyzer_scrubbed_csv_retention_enabled | default(false) | bool)
+  ansible.builtin.debug:
+    msg: >-
+      Scrubbed CSV retention disabled
+      (cve_analyzer_scrubbed_csv_retention_enabled=false).
+      Set true + durable cve_analyzer_scrubbed_csv_retention_dir for
+      same-job CSV validation artifacts.
+
+- name: Retain scrubbed CSV for independent validation
+  when: cve_analyzer_scrubbed_csv_retention_enabled | default(false) | bool
+  block:
+    - name: Resolve scrubbed CSV path for retention
+      ansible.builtin.set_fact:
+        cve_analyzer_scrubbed_csv_retain_src: >-
+          {{
+            (cve_analyzer_scrubbed_csv | default('') | trim)
+            if (cve_analyzer_scrubbed_csv | default('') | trim | length) > 0
+            else (
+              (
+                cve_analyzer_posture_scrubbed.files
+                | default([])
+                | sort(attribute='mtime', reverse=True)
+                | map(attribute='path')
+                | list
+                | first
+                | default('', true)
+              )
+            )
+          }}
+
+    - name: Assert scrubbed CSV path is set for retention
+      ansible.builtin.assert:
+        that:
+          - (cve_analyzer_scrubbed_csv_retain_src | default('') | length) > 0
+        fail_msg: >-
+          Scrubbed CSV retention is enabled but no scrubbed CSV path was
+          found (cve_analyzer_scrubbed_csv / posture find). Refusing to
+          continue without a validation snapshot.
+
+    - name: Stat scrubbed CSV for retention
+      ansible.builtin.stat:
+        path: "{{ cve_analyzer_scrubbed_csv_retain_src }}"
+        checksum_algorithm: sha256
+        get_checksum: true
+      register: cve_analyzer_scrubbed_csv_retain_stat
+
+    - name: Assert scrubbed CSV exists for retention
+      ansible.builtin.assert:
+        that:
+          - cve_analyzer_scrubbed_csv_retain_stat.stat.exists | default(false)
+          - cve_analyzer_scrubbed_csv_retain_stat.stat.isreg | default(false)
+        fail_msg: >-
+          Scrubbed CSV retention enabled but file missing:
+          {{ cve_analyzer_scrubbed_csv_retain_src }}
+
+    - name: Resolve scrubbed CSV retention directory
+      ansible.builtin.set_fact:
+        cve_analyzer_scrubbed_csv_retention_dir_resolved: >-
+          {{ cve_analyzer_scrubbed_csv_retention_dir | default('') | trim }}
+
+    - name: Assert scrubbed CSV retention directory is configured
+      ansible.builtin.assert:
+        that:
+          - (cve_analyzer_scrubbed_csv_retention_dir_resolved | length) > 0
+        fail_msg: >-
+          cve_analyzer_scrubbed_csv_retention_enabled=true requires
+          cve_analyzer_scrubbed_csv_retention_dir (durable NFS/PVC/host
+          mount). Contoller EE /tmp is ephemeral — do not use it.
+
+    - name: Refuse ephemeral /tmp for scrubbed CSV retention
+      when: >-
+        not (cve_analyzer_scrubbed_csv_retention_allow_ephemeral | default(false) | bool)
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (
+              cve_analyzer_scrubbed_csv_retention_dir_resolved == '/tmp'
+              or cve_analyzer_scrubbed_csv_retention_dir_resolved is match('^/tmp/')
+            )
+        fail_msg: >-
+          Scrubbed CSV retention dir must not be under /tmp on Contoller
+          ({{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}). Mount a
+          durable path or set
+          cve_analyzer_scrubbed_csv_retention_allow_ephemeral=true for
+          local/Molecule only.
+
+    - name: Count scrubbed CSV lines (includes header)
+      ansible.builtin.command:
+        argv:
+          - wc
+          - -l
+          - "{{ cve_analyzer_scrubbed_csv_retain_src }}"
+      register: cve_analyzer_scrubbed_csv_wc
+      changed_when: false
+
+    - name: Derive scrubbed CSV data row count (exclude header)
+      ansible.builtin.set_fact:
+        cve_analyzer_scrubbed_csv_row_count: >-
+          {{
+            [
+              0,
+              (
+                (
+                  cve_analyzer_scrubbed_csv_wc.stdout
+                  | default('0')
+                  | trim
+                  | regex_replace('\\s+.*$', '')
+                  | int
+                )
+                - 1
+              )
+            ] | max
+          }}
+
+    - name: Stamp scrubbed CSV retention (UTC)
+      ansible.builtin.set_fact:
+        cve_analyzer_scrubbed_csv_retention_stamp: "{{ now(utc=true).strftime('%Y%m%dT%H%M%SZ') }}"
+        cve_analyzer_scrubbed_csv_retention_job_id: >-
+          {{
+            (
+              tower_job_id
+              | default(awx_job_id | default(lookup('env', 'JOB_ID') | default('', true), true), true)
+            )
+            | string
+            | trim
+          }}
+        cve_analyzer_scrubbed_csv_retention_fingerprint: >-
+          {{
+            (
+              'builder-2.1.2-'
+              ~ (
+                (
+                  cve_analyzer_builder_fingerprint_stat.stat.checksum
+                  | default('')
+                )[:8]
+              )
+            )
+            if (
+              (
+                cve_analyzer_builder_fingerprint_stat.stat.checksum
+                | default('')
+                | length
+              ) >= 8
+            )
+            else ''
+          }}
+        cve_analyzer_scrubbed_csv_retention_basename: >-
+          {{
+            (
+              'job'
+              ~ (
+                (
+                  tower_job_id
+                  | default(awx_job_id | default(lookup('env', 'JOB_ID') | default('local', true), true), true)
+                )
+                | string
+                | trim
+                | regex_replace('[^A-Za-z0-9._-]', '_')
+              )
+              ~ '-'
+              ~ now(utc=true).strftime('%Y%m%dT%H%M%SZ')
+            )
+          }}
+
+    - name: Ensure scrubbed CSV retention directory exists
+      ansible.builtin.file:
+        path: >-
+          {{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}/{{
+            cve_analyzer_scrubbed_csv_retention_basename
+          }}
+        state: directory
+        mode: "0750"
+
+    - name: Copy scrubbed CSV into retention directory
+      ansible.builtin.copy:
+        src: "{{ cve_analyzer_scrubbed_csv_retain_src }}"
+        dest: >-
+          {{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}/{{
+            cve_analyzer_scrubbed_csv_retention_basename
+          }}/{{ cve_analyzer_scrubbed_csv_retain_src | basename }}
+        remote_src: true
+        mode: "0640"
+
+    - name: Write scrubbed CSV retention metadata sidecar
+      ansible.builtin.copy:
+        dest: >-
+          {{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}/{{
+            cve_analyzer_scrubbed_csv_retention_basename
+          }}/validation-meta.json
+        mode: "0640"
+        content: >-
+          {{
+            {
+              'schema': 'ado.cve_analyzer.scrubbed_csv_retention.v1',
+              'retained_at_utc': cve_analyzer_scrubbed_csv_retention_stamp,
+              'controller_job_id': cve_analyzer_scrubbed_csv_retention_job_id,
+              'env': env | default(''),
+              'source_csv_basename': cve_analyzer_scrubbed_csv_retain_src | basename,
+              'source_csv_sha256': cve_analyzer_scrubbed_csv_retain_stat.stat.checksum,
+              'source_csv_bytes': cve_analyzer_scrubbed_csv_retain_stat.stat.size,
+              'source_csv_mtime': cve_analyzer_scrubbed_csv_retain_stat.stat.mtime,
+              'row_count_excluding_header': (
+                cve_analyzer_scrubbed_csv_row_count | default(0) | int
+              ),
+              'builder_fingerprint': cve_analyzer_scrubbed_csv_retention_fingerprint,
+              'builder_sha256': (
+                cve_analyzer_builder_fingerprint_stat.stat.checksum | default('')
+              ),
+              'dashboard_uid': (
+                cve_analyzer_vuln_dashboard_uid | default('') | trim
+              ),
+              'dashboard_title': (
+                cve_analyzer_vuln_dashboard_title | default('') | trim
+              ),
+              'collection_version': '2.1.2',
+              'retention_days': (
+                cve_analyzer_scrubbed_csv_retention_days | default(30) | int
+              ),
+              'note': (
+                'Exact scrubbed CSV used for Dashboard Build. '
+                'Compare Grafana panels to this file only — do not '
+                'substitute another ACS snapshot.'
+              ),
+            } | to_nice_json
+          }}
+
+    - name: Show scrubbed CSV retention location (paths + hashes only)
+      ansible.builtin.debug:
+        msg: >-
+          Retained scrubbed CSV for validation:
+          dir={{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}/{{
+            cve_analyzer_scrubbed_csv_retention_basename
+          }}
+          sha256={{ cve_analyzer_scrubbed_csv_retain_stat.stat.checksum }}
+          rows={{ cve_analyzer_scrubbed_csv_row_count | default('?') }}
+          job_id={{ cve_analyzer_scrubbed_csv_retention_job_id | default('n/a') }}
+          fingerprint={{ cve_analyzer_scrubbed_csv_retention_fingerprint | default('n/a') }}
+          uid={{ cve_analyzer_vuln_dashboard_uid | default('') }}
+
+    - name: Find aged scrubbed CSV retention directories for prune
+      ansible.builtin.find:
+        paths: "{{ cve_analyzer_scrubbed_csv_retention_dir_resolved }}"
+        file_type: directory
+        patterns: "job*"
+        age: "{{ (cve_analyzer_scrubbed_csv_retention_days | default(30) | int) }}d"
+      register: cve_analyzer_scrubbed_csv_retention_aged
+      failed_when: false
+
+    - name: Prune scrubbed CSV retention directories older than retention_days
+      when: (cve_analyzer_scrubbed_csv_retention_aged.files | default([]) | length) > 0
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ cve_analyzer_scrubbed_csv_retention_aged.files | default([]) }}"
+      loop_control:
+        label: "{{ item.path | default(item) }}"
+  rescue:
+    - name: Fail visibly when scrubbed CSV retention fails
+      ansible.builtin.fail:
+        msg: >-
+          Scrubbed CSV retention failed (enabled=true). Dashboard Build may
+          have succeeded, but validation snapshot was not retained.
+          {{ ansible_failed_result.msg | default(ansible_failed_result) }}.
+          Fix cve_analyzer_scrubbed_csv_retention_dir / permissions, or set
+          cve_analyzer_scrubbed_csv_retention_enabled=false only if you
+          intentionally skip same-job CSV validation.

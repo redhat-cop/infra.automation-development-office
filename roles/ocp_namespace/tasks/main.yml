@@ -1,14 +1,44 @@
 ---
 # yamllint disable rule:line-length
 # Prefer ocp_namespace_name when set so playbooks can create a namespace that
-# differs from the framework host fact ``name_space`` (e.g. cert-manager-operator
-# vs operand cert-manager). Role params named ``name_space`` lose to that host
-# fact on Contoller/ansible-core 2.16 in the ``roles:`` section.
+# differs from the framework host fact ``name_space``.
+#
+# state=absent deletes only that Namespace. It does not sweep CSVs, strip
+# finalizers, or delete workloads unless ocp_namespace_advanced_cleanup is true
+# and the matching authorize flags are set.
 
 - name: Resolve effective namespace name
   ansible.builtin.set_fact:
-    ocp_namespace_effective: "{{ ocp_namespace_name | default(name_space) }}"
+    ocp_namespace_effective: "{{ ocp_namespace_name | default(name_space) | string | trim }}"
   changed_when: false
+
+- name: Require one explicit namespace name
+  ansible.builtin.assert:
+    that:
+      - ocp_namespace_effective | infra.automation_development_office.ocp_absent_cleanup_namespace_name_valid
+    fail_msg: >-
+      ocp_namespace requires one DNS-1123 namespace name
+      (got '{{ ocp_namespace_effective | default('') }}').
+      Refusing lists, wildcards, and empty names.
+
+- name: Refuse protected namespaces before delete or advanced cleanup
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (
+          ocp_namespace_effective
+          | infra.automation_development_office.ocp_absent_cleanup_namespace_delete_blocked(
+              ocp_namespace_blocked_namespaces | default([]),
+              ocp_namespace_blocked_namespace_prefixes | default([])
+            )
+        )
+    fail_msg: >-
+      ocp_namespace refuses '{{ ocp_namespace_effective }}' because it is a
+      protected platform namespace. This role will not delete it or run
+      advanced cleanup against it.
+  when: >-
+    (state | default('present')) == 'absent'
+    or (ocp_namespace_advanced_cleanup | default(false) | bool)
 
 - name: Lookup existing namespace
   kubernetes.core.k8s_info:
@@ -18,47 +48,18 @@
   register: ocp_namespace_existing
   failed_when: false
 
-# Reinstall after absent often races a Terminating namespace (OLM leftovers /
-# admission webhooks / ACM conversion list failures). Sweep first, then delete.
-- name: Sweep leftovers before namespace delete
-  ansible.builtin.include_role:
-    name: infra.automation_development_office.ocp_absent_cleanup
-  vars:
-    ocp_absent_cleanup_namespaces:
-      - "{{ ocp_namespace_effective }}"
-    ocp_absent_cleanup_mode: cleanup
-    ocp_absent_cleanup_sweep_olm: "{{ ocp_namespace_absent_sweep_olm | default(true) }}"
-    ocp_absent_cleanup_sweep_workloads: "{{ ocp_namespace_absent_sweep_workloads | default(true) }}"
-    ocp_absent_cleanup_fail_if_present: false
-    # Sweep only — do not finalize Active namespaces before the delete call.
-    ocp_absent_cleanup_finalize: true
-    ocp_absent_cleanup_finalize_only_terminating: true
-    ocp_absent_cleanup_terminating_retries: "{{ ocp_namespace_terminating_retries | default(12) }}"
-    ocp_absent_cleanup_terminating_delay: "{{ ocp_namespace_terminating_delay | default(5) }}"
+- name: Record whether advanced cleanup was requested
+  ansible.builtin.set_fact:
+    ocp_namespace_advanced_cleanup_enabled: "{{ ocp_namespace_advanced_cleanup | default(false) | bool }}"
+    ocp_namespace_advanced_cleanup_requested: "{{ (ocp_namespace_advanced_cleanup | default(false) | bool) and ((ocp_namespace_absent_sweep_olm | default(false) | bool) or (ocp_namespace_absent_sweep_workloads | default(false) | bool) or (ocp_namespace_absent_finalize | default(false) | bool)) }}"
+  changed_when: false
+
+- name: Advanced cleanup before delete
+  ansible.builtin.include_tasks: advanced_cleanup.yml
   when:
     - (state | default('present')) == 'absent'
     - (ocp_namespace_existing.resources | default([]) | length) > 0
-
-# present + Terminating: sweep OLM/workloads + finalize so create is not a no-op
-# on a Terminating NS (k8s state=present returns ok while OG create is Forbidden).
-- name: Sweep Terminating namespace before create
-  ansible.builtin.include_role:
-    name: infra.automation_development_office.ocp_absent_cleanup
-  vars:
-    ocp_absent_cleanup_namespaces:
-      - "{{ ocp_namespace_effective }}"
-    ocp_absent_cleanup_mode: cleanup
-    ocp_absent_cleanup_sweep_olm: "{{ ocp_namespace_absent_sweep_olm | default(true) }}"
-    ocp_absent_cleanup_sweep_workloads: "{{ ocp_namespace_absent_sweep_workloads | default(true) }}"
-    ocp_absent_cleanup_fail_if_present: false
-    ocp_absent_cleanup_terminating_retries: "{{ ocp_namespace_terminating_retries | default(24) }}"
-    ocp_absent_cleanup_terminating_delay: "{{ ocp_namespace_terminating_delay | default(5) }}"
-  when:
-    - (state | default('present')) == 'present'
-    - (ocp_namespace_existing.resources | default([]) | length) == 1
-    - >-
-      (ocp_namespace_existing.resources[0].status.phase | default(''))
-      == 'Terminating'
+    - ocp_namespace_advanced_cleanup_requested | bool
 
 - name: Wait for Terminating namespace to finish deleting before create
   kubernetes.core.k8s_info:
@@ -77,14 +78,21 @@
       (ocp_namespace_existing.resources[0].status.phase | default(''))
       == 'Terminating'
 
-- name: Force-finalize Terminating namespace before create
-  ansible.builtin.include_tasks: finalize_namespace.yml
+- name: Fail when a Terminating namespace is still present
+  ansible.builtin.fail:
+    msg: >-
+      Namespace {{ ocp_namespace_effective }} is still Terminating
+      (finalizers={{
+        ocp_namespace_terminating_wait.resources[0].spec.finalizers | default([])
+      }}).
+      state=present does not sweep CSVs, delete workloads, or strip finalizers.
+      Wait for the namespace to finish deleting, or run state=absent with
+      ocp_namespace_advanced_cleanup and the specific authorize flags.
   when:
     - (state | default('present')) == 'present'
-    - (ocp_namespace_terminating_wait is defined)
+    - ocp_namespace_terminating_wait is defined
+    - not (ocp_namespace_terminating_wait is skipped)
     - (ocp_namespace_terminating_wait.resources | default([]) | length) == 1
-  vars:
-    ocp_namespace_finalize_resource: "{{ ocp_namespace_terminating_wait.resources[0] }}"
 
 - name: Create or delete namespace
   kubernetes.core.k8s:
@@ -96,7 +104,6 @@
       metadata:
         name: "{{ ocp_namespace_effective }}"
         labels: "{{ ocp_namespace_labels | default({}) }}"
-    # Short wait on delete: ACM conversion errors can leave NS Terminating forever.
     wait: "{{ (state | default('present')) == 'absent' }}"
     wait_timeout: "{{ ocp_namespace_delete_wait_timeout | default(45) | int }}"
   register: ocp_namespace_result
@@ -113,8 +120,13 @@
 - name: Fail if namespace still Terminating after create
   ansible.builtin.fail:
     msg: >-
-      Namespace {{ ocp_namespace_effective }} is still Terminating after create.
-      Clear stuck finalizers/OLM leftovers (ocp_absent_cleanup) and re-run.
+      Namespace {{ ocp_namespace_effective }} is still Terminating after create
+      (finalizers={{
+        ocp_namespace_after_create.resources[0].spec.finalizers | default([])
+      }}).
+      state=present does not clear finalizers. Run state=absent with
+      ocp_namespace_advanced_cleanup=true and ocp_namespace_absent_finalize=true
+      only if you intend to clear finalizers on this namespace.
   when:
     - (state | default('present')) == 'present'
     - (ocp_namespace_after_create.resources | default([]) | length) == 1
@@ -122,7 +134,7 @@
       (ocp_namespace_after_create.resources[0].status.phase | default(''))
       == 'Terminating'
 
-- name: Brief settle after delete before finalize check
+- name: Brief settle after delete before presence check
   ansible.builtin.pause:
     seconds: "{{ ocp_namespace_delete_settle_seconds | default(3) | int }}"
   when:
@@ -138,29 +150,64 @@
   failed_when: false
   when: (state | default('present')) == 'absent'
 
-- name: Force-finalize namespace stuck after delete
-  ansible.builtin.include_tasks: finalize_namespace.yml
+- name: Advanced cleanup after delete when the namespace is still present
+  ansible.builtin.include_tasks: advanced_cleanup.yml
   when:
     - (state | default('present')) == 'absent'
     - (ocp_namespace_after_delete.resources | default([]) | length) == 1
-  vars:
-    ocp_namespace_finalize_resource: "{{ ocp_namespace_after_delete.resources[0] }}"
+    - ocp_namespace_advanced_cleanup_requested | bool
 
-# Shared absent gate: sweep leftover OLM/workloads + re-finalize + fail if stuck.
-# Runs for every ocp_namespace state=absent (all OpenShift component uninstalls).
-- name: Run ocp_absent_cleanup gate after namespace delete
-  ansible.builtin.include_role:
-    name: infra.automation_development_office.ocp_absent_cleanup
-  vars:
-    ocp_absent_cleanup_namespaces:
-      - "{{ ocp_namespace_effective }}"
-    ocp_absent_cleanup_mode: cleanup
-    ocp_absent_cleanup_sweep_olm: "{{ ocp_namespace_absent_sweep_olm | default(true) }}"
-    ocp_absent_cleanup_sweep_workloads: "{{ ocp_namespace_absent_sweep_workloads | default(true) }}"
-    ocp_absent_cleanup_fail_if_present: "{{ ocp_namespace_absent_fail_if_present | default(true) }}"
-    ocp_absent_cleanup_terminating_retries: "{{ ocp_namespace_terminating_retries | default(12) }}"
-    ocp_absent_cleanup_terminating_delay: "{{ ocp_namespace_terminating_delay | default(5) }}"
+- name: Lookup namespace after advanced cleanup
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ ocp_namespace_effective }}"
+  register: ocp_namespace_after_advanced
+  failed_when: false
+  when:
+    - (state | default('present')) == 'absent'
+    - ocp_namespace_advanced_cleanup_requested | bool
+    - (ocp_namespace_after_delete.resources | default([]) | length) == 1
+
+- name: Record namespace remaining after delete
+  ansible.builtin.set_fact:
+    ocp_namespace_remaining: "{{ ocp_namespace_after_delete.resources | default([]) }}"
   when: (state | default('present')) == 'absent'
+
+- name: Record namespace remaining after advanced cleanup
+  ansible.builtin.set_fact:
+    ocp_namespace_remaining: "{{ ocp_namespace_after_advanced.resources | default([]) }}"
+  when:
+    - (state | default('present')) == 'absent'
+    - ocp_namespace_after_advanced is defined
+    - not (ocp_namespace_after_advanced is skipped)
+
+- name: Report blockers when namespace delete is stuck
+  ansible.builtin.debug:
+    msg: >-
+      Namespace {{ ocp_namespace_effective }} is still present after deleting
+      only the Namespace resource
+      (phase={{ (ocp_namespace_remaining | default([{}]))[0].status.phase | default('unknown') }},
+      finalizers={{ (ocp_namespace_remaining | default([{}]))[0].spec.finalizers | default([]) }}).
+      Automatic OLM cleanup, workload sweeping, CSV finalizer stripping, and
+      namespace /finalize did not run.
+      Advanced cleanup is {{ 'enabled' if (ocp_namespace_advanced_cleanup_enabled | bool) else 'disabled' }}.
+      To clear a stuck namespace, set ocp_namespace_advanced_cleanup=true and
+      only the authorize flags you intend (see the ocp_namespace README).
+  when:
+    - (state | default('present')) == 'absent'
+    - (ocp_namespace_remaining | default([]) | length) > 0
+
+- name: Fail when namespace remains after delete
+  ansible.builtin.fail:
+    msg: >-
+      Namespace {{ ocp_namespace_effective }} is still present after
+      state=absent. No CSV, workload, or finalizer cleanup ran unless
+      ocp_namespace_advanced_cleanup and its authorize flags were set.
+  when:
+    - (state | default('present')) == 'absent'
+    - ocp_namespace_absent_fail_if_present | bool
+    - (ocp_namespace_remaining | default([]) | length) > 0
 
 - name: Fail if namespace create failed
   ansible.builtin.fail:
