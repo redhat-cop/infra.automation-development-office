@@ -1,7 +1,7 @@
 ---
 bugfixes:
   - >-
-    rhbk / ocp_oidc_auth / satellite_oidc - revert Keycloak modules to
-    ``community.general.keycloak_*``. The middleware_automation.keycloak
-    move broke Contoller/lab runs; keep the prior community.general path
-    (redirect warning / local lint noise is acceptable).
+    rhbk / ocp_oidc_auth / satellite_oidc - keep Keycloak task FQCNs as
+    ``community.general.keycloak_*`` (Contoller-compatible) and depend on
+    ``middleware_automation.keycloak`` so community.general 14+ redirects and
+    ansible-lint ``syntax-check`` can resolve the modules.

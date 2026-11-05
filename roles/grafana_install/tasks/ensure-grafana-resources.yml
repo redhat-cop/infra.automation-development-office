@@ -13,19 +13,21 @@
 
 - name: Collect Grafana containers from the custom resource
   ansible.builtin.set_fact:
+    # Nested default({}) chain — keep paren count balanced (one wrap per attr).
     grafana_install_resource_containers: >-
       {{
         (
           (
             (
               (
-                (grafana_install_resource_cr.resources | first).spec
-                | default({})
-              ).deployment | default({})
-            ).spec | default({})
-          ).template | default({})
-        ).spec | default({})
-      ).containers | default([])
+                (
+                  (grafana_install_resource_cr.resources | first).spec
+                  | default({})
+                ).deployment | default({})
+              ).spec | default({})
+            ).template | default({})
+          ).spec | default({})
+        ).containers | default([])
       }}
   when: (grafana_install_resource_cr.resources | default([]) | length) > 0
 
