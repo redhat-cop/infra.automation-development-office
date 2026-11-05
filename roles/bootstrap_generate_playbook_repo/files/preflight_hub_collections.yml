@@ -4,12 +4,14 @@
 #
 # hub_publish: considered when bootstrap_controller_hub_publish_preflight_collections
 # is true. Upload is skipped when the version already exists in validated,
-# published, rh-certified, or pulp. The reserved ``redhat`` namespace is never
-# created or overwritten. force_when_exists is true only for infra.automation_development_office
+# published, rh-certified, or pulp. Optional hub_publish_repository defaults to
+# validated; redhat.* entries use rh-certified and never create the reserved
+# ``redhat`` namespace (upload only when that namespace already exists on Hub).
+# force_when_exists is true only for infra.automation_development_office
 # (hub_force_ado_collection_update).
 #
 # controller_requirements: listed in git collections/requirements.yml when Hub is
-# the Controller collection source (no vendored trees in git).
+# the Contoller collection source (no vendored trees in git).
 collections:
   - tarball_glob: infra-automation_development_office-*.tar.gz
     name: infra.automation_development_office
@@ -27,12 +29,23 @@ collections:
     hub_publish: true
     force_when_exists: false
 
+  # Transitive dep of infra.aap_configuration (>=2.5); must be on Hub for project sync.
+  - tarball_glob: ansible-eda-*.tar.gz
+    name: ansible.eda
+    namespace: ansible
+    collection: eda
+    controller_requirements: true
+    hub_publish: true
+    force_when_exists: false
+
+  # Reserved Hub namespace — publish into rh-certified only; never create namespace.
   - tarball_glob: redhat-openshift-*.tar.gz
     name: redhat.openshift
     namespace: redhat
     collection: openshift
     controller_requirements: true
     hub_publish: true
+    hub_publish_repository: rh-certified
     force_when_exists: false
 
   - tarball_glob: redhat-satellite-*.tar.gz
@@ -41,6 +54,7 @@ collections:
     collection: satellite
     controller_requirements: true
     hub_publish: true
+    hub_publish_repository: rh-certified
     force_when_exists: false
 
   - tarball_glob: redhat-rhel_idm-*.tar.gz
@@ -49,6 +63,7 @@ collections:
     collection: rhel_idm
     controller_requirements: true
     hub_publish: true
+    hub_publish_repository: rh-certified
     force_when_exists: false
 
   - tarball_glob: redhat-rhel_system_roles-*.tar.gz
@@ -57,6 +72,7 @@ collections:
     collection: rhel_system_roles
     controller_requirements: true
     hub_publish: true
+    hub_publish_repository: rh-certified
     force_when_exists: false
 
   - tarball_glob: community-general-*.tar.gz

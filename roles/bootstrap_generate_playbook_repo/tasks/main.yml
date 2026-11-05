@@ -54,37 +54,9 @@
 - name: Generate playbook repo | Load Hub collections manifest for requirements
   ansible.builtin.include_tasks: load_hub_collections_manifest.yml
 
-- name: Generate playbook repo | Pin infra.automation_development_office from staged tarball when unset
-  when: >-
-    (bootstrap_generate_playbook_repo_infra_ado_collection_version
-     | default('') | string | trim | length) == 0
-  ansible.builtin.set_fact:
-    # Preflight stages the Hub artifact under /workspace (and optionally
-    # /opt/ado-collections). Pin Contoller requirements to that version so
-    # project sync cannot keep resolving legacy infra.ado / an older Hub copy.
-    bootstrap_generate_playbook_repo_infra_ado_collection_version: >-
-      {{
-        (
-          lookup(
-            'ansible.builtin.fileglob',
-            '/workspace/infra-automation_development_office-*.tar.gz',
-            wantlist=True
-          )
-          + lookup(
-            'ansible.builtin.fileglob',
-            '/opt/ado-collections/infra-automation_development_office-*.tar.gz',
-            wantlist=True
-          )
-        )
-        | sort
-        | last
-        | default('')
-        | basename
-        | regex_replace(
-            '^infra-automation_development_office-(.+)\\.tar\\.gz$',
-            '\\1'
-          )
-      }}
+# Never pin collection versions in collections/requirements.yml. Contoller
+# project sync must resolve the latest Hub copy (LooseVersion rejects tarball
+# filenames, and hard pins fight Hub republish of the same or newer build).
 
 - name: Generate playbook repo | Render collection requirements for Hub/Galaxy
   ansible.builtin.template:

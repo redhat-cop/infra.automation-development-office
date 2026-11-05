@@ -73,7 +73,7 @@ Automation Development Office
 | `bootstrap_controller_hub_pub_exist_repos` | Hub content repos treated as already installed (`validated`, `published`, `rh-certified`). |
 | `bootstrap_controller_hub_exist_check_retries` | Retries for Hub skip-if-exists GETs when the route returns 502/503/504. Default `8`. |
 | `bootstrap_controller_hub_exist_check_delay` | Seconds between skip-if-exists retries. Default `15`. |
-| `bootstrap_controller_hub_reserved_namespaces` | Namespaces that additional-collection publish must not create or upload into. Defaults to ``redhat``. |
+| `bootstrap_controller_hub_reserved_namespaces` | Namespaces that additional-collection publish must never create (upload only if the namespace already exists). Defaults to ``redhat``. Manifest entries may set ``hub_publish_repository: rh-certified`` for those collections. |
 | `bootstrap_controller_hub_publish_verify_retries` | Pulp import/promote poll retries. Defaults to `60` (~10m with delay `10`). |
 | `bootstrap_controller_hub_publish_large_bytes` | Tarball size threshold for the large-collection wait path. Defaults to `30000000`. |
 | `bootstrap_controller_hub_publish_large_verify_retries` | Pulp poll retries for large tarballs. Defaults to `120` (~20m). |

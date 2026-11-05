@@ -1,19 +1,10 @@
 ---
 # Controller project sync installs from Hub/Galaxy — no vendored collection trees in git.
+# Do not pin versions here. Contoller must take whatever Hub has for each name.
 collections:
 {% for item in bootstrap_generate_playbook_repo_hub_requirements | default([]) %}
   - name: {{ item.name }}
-{% if item.name == 'infra.automation_development_office'
-      and bootstrap_generate_playbook_repo_infra_ado_collection_version | default('') | string | length > 0
-      and (bootstrap_generate_playbook_repo_infra_ado_collection_version | string) not in ['*', 'latest'] %}
-    version: "{{ bootstrap_generate_playbook_repo_infra_ado_collection_version }}"
-{% elif item.version | default('') | string | length > 0 %}
-    version: "{{ item.version }}"
-{% endif %}
 {% endfor %}
 {% for item in bootstrap_generate_playbook_repo_hub_requirements_galaxy_only | default([]) %}
   - name: {{ item.name }}
-{% if item.version | default('') | string | length > 0 %}
-    version: "{{ item.version }}"
-{% endif %}
 {% endfor %}

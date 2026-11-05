@@ -1,8 +1,10 @@
 ---
-# Publish one preflight tarball to Hub validated (staging upload + pulp move).
-# Skips when version already exists in validated / published / rh-certified / pulp
-# unless __hub_pub_force is true. Never create or upload into reserved namespaces
-# (redhat).
+# Publish one preflight tarball to Hub (staging upload + pulp move).
+# Destination defaults to validated; __hub_pub_item.hub_publish_repository may
+# override (redhat.* → rh-certified). Skips when version already exists in
+# validated / published / rh-certified / pulp unless __hub_pub_force is true.
+# Reserved namespaces (redhat) are never created; upload only if the namespace
+# already exists on Hub.
 #
 # wait:false on ah_collection — the module's import wait polls Hub and can fail
 # with DNS/URLError even after a successful upload. We wait via pulp lookup.
@@ -92,11 +94,20 @@
           {{ bootstrap_controller_hub_pub_tarball | basename }}
           (got '{{ bootstrap_controller_hub_pub_version }}').
 
+    - name: Publish preflight collection | Resolve destination Hub repository
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_dest_repo_name: >-
+          {{
+            __hub_pub_item.hub_publish_repository
+            | default(bootstrap_controller_hub_publish_repository | default('validated'))
+          }}
+
     - name: Publish preflight collection | Show publish target
       ansible.builtin.debug:
         msg: >-
           {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }}
           from {{ bootstrap_controller_hub_pub_tarball }}
+          → {{ bootstrap_controller_hub_pub_dest_repo_name }}
           ({{ bootstrap_controller_hub_pub_tarball_size | default(0) }} bytes;
           pulp wait retries={{ bootstrap_controller_hub_pub_verify_retries }},
           delay={{ bootstrap_controller_hub_pub_verify_delay }}s)
@@ -107,7 +118,7 @@
           {{
             bootstrap_controller_hub_pub_api_host.rstrip('/')
             ~ '/api/galaxy/content/'
-            ~ (bootstrap_controller_hub_publish_repository | default('validated'))
+            ~ bootstrap_controller_hub_pub_dest_repo_name
             ~ '/v3/collections/' ~ __hub_pub_item.namespace
             ~ '/' ~ __hub_pub_item.collection
             ~ '/versions/' ~ bootstrap_controller_hub_pub_version ~ '/'
@@ -128,6 +139,16 @@
             ~ '?namespace=' ~ __hub_pub_item.namespace
             ~ '&name=' ~ __hub_pub_item.collection
             ~ '&version=' ~ bootstrap_controller_hub_pub_version
+          }}
+        bootstrap_controller_hub_pub_dest_repo_pulp_href: >-
+          {{
+            bootstrap_controller_hub_preflight_rh_certified_repo.json.results[0].pulp_href
+            if (
+              bootstrap_controller_hub_pub_dest_repo_name | default('validated')
+            ) == 'rh-certified'
+            else (
+              bootstrap_controller_hub_preflight_validated_repo.json.results[0].pulp_href
+            )
           }}
 
     - name: Publish preflight collection | Check Hub repos for existing version
@@ -180,22 +201,40 @@
       delay: "{{ bootstrap_controller_hub_exist_check_delay | default(15) | int }}"
       failed_when: false
 
-    - name: Publish preflight collection | Decide whether to publish
+    - name: Publish preflight collection | Decide whether already present
       ansible.builtin.set_fact:
+        # Only the destination repo counts. Presence on published/rh-certified must
+        # not skip promote into validated (Contoller Galaxy creds search validated
+        # first — e.g. kubernetes.core 6.6.0 on published left validated at 3.2.0).
         bootstrap_controller_hub_pub_already_present: >-
           {{
             (
               bootstrap_controller_hub_pub_existing.results
               | default([])
+              | selectattr(
+                  'item',
+                  'equalto',
+                  bootstrap_controller_hub_pub_dest_repo_name | default('validated')
+                )
               | selectattr('status', 'equalto', 200)
               | list
               | length
             ) > 0
-            or (
-              bootstrap_controller_hub_pub_cv_present.json.count
-              | default(0)
-              | int
-            ) >= 1
+          }}
+        bootstrap_controller_hub_pub_in_other_repo: >-
+          {{
+            (
+              bootstrap_controller_hub_pub_existing.results
+              | default([])
+              | rejectattr(
+                  'item',
+                  'equalto',
+                  bootstrap_controller_hub_pub_dest_repo_name | default('validated')
+                )
+              | selectattr('status', 'equalto', 200)
+              | list
+              | length
+            ) > 0
           }}
         bootstrap_controller_hub_pub_reserved_namespace: >-
           {{
@@ -211,38 +250,6 @@
               | list
             )
           }}
-
-    - name: Publish preflight collection | Decide publish vs skip
-      ansible.builtin.set_fact:
-        bootstrap_controller_hub_pub_should_publish: >-
-          {{
-            (__hub_pub_force | bool)
-            or (
-              not (bootstrap_controller_hub_pub_already_present | bool)
-              and not (bootstrap_controller_hub_pub_reserved_namespace | bool)
-            )
-          }}
-
-    - name: Publish preflight collection | Skip existing version
-      ansible.builtin.debug:
-        msg: >-
-          Skipping {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} —
-          already on Hub (validated, published, rh-certified, or pulp).
-      when:
-        - not (bootstrap_controller_hub_pub_should_publish | bool)
-        - bootstrap_controller_hub_pub_already_present | bool
-
-    - name: Publish preflight collection | Skip reserved Hub namespace
-      ansible.builtin.debug:
-        msg: >-
-          Skipping {{ __hub_pub_item.name }} — Hub namespace
-          '{{ __hub_pub_item.namespace }}' is reserved (or already owned by
-          certified content). Additional collections never create or overwrite
-          it. Use the Hub rh-certified / published copy.
-      when:
-        - not (bootstrap_controller_hub_pub_should_publish | bool)
-        - bootstrap_controller_hub_pub_reserved_namespace | bool
-        - not (bootstrap_controller_hub_pub_already_present | bool)
 
     - name: Publish preflight collection | Check whether Hub namespace exists
       ansible.builtin.uri:
@@ -262,9 +269,109 @@
         password: "{{ bootstrap_controller_hub_pub_uri_password }}"
         force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
       register: bootstrap_controller_hub_pub_namespace
+      when: __hub_pub_item.namespace | length > 0
+
+    - name: Publish preflight collection | Decide publish vs skip
+      ansible.builtin.set_fact:
+        # Reserved namespaces (redhat): publish only when namespace already exists
+        # (never create). Destination is hub_publish_repository (rh-certified).
+        bootstrap_controller_hub_pub_should_publish: >-
+          {{
+            (
+              (not (bootstrap_controller_hub_pub_reserved_namespace | bool))
+              or (
+                (bootstrap_controller_hub_pub_namespace.status | default(404) | int) == 200
+              )
+            )
+            and (
+              (__hub_pub_force | bool)
+              or (not (bootstrap_controller_hub_pub_already_present | bool))
+            )
+          }}
+
+    - name: Publish preflight collection | Skip existing version
+      ansible.builtin.debug:
+        msg: >-
+          Skipping {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} —
+          already in destination Hub repository
+          '{{ bootstrap_controller_hub_pub_dest_repo_name }}'.
+      when:
+        - not (bootstrap_controller_hub_pub_should_publish | bool)
+        - bootstrap_controller_hub_pub_already_present | bool
+
+    - name: Publish preflight collection | Note version exists outside destination
+      ansible.builtin.debug:
+        msg: >-
+          {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} is on
+          another Hub repo but not
+          '{{ bootstrap_controller_hub_pub_dest_repo_name }}' — will copy/promote
+          into the destination so Contoller can resolve it.
       when:
         - bootstrap_controller_hub_pub_should_publish | bool
-        - __hub_pub_item.namespace | length > 0
+        - bootstrap_controller_hub_pub_in_other_repo | bool
+
+    - name: Publish preflight collection | Resolve alternate Hub source repo
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_source_repo_name: >-
+          {{
+            (
+              bootstrap_controller_hub_pub_existing.results
+              | default([])
+              | rejectattr(
+                  'item',
+                  'equalto',
+                  bootstrap_controller_hub_pub_dest_repo_name | default('validated')
+                )
+              | selectattr('status', 'equalto', 200)
+              | map(attribute='item')
+              | list
+              | first
+              | default('')
+            )
+          }}
+      when: bootstrap_controller_hub_pub_should_publish | bool
+
+    - name: Publish preflight collection | Choose staging vs cross-repo copy path
+      ansible.builtin.set_fact:
+        # Copy from published/rh-certified into destination when the version
+        # already exists there (Contoller often only searches validated first).
+        bootstrap_controller_hub_pub_via_cross_repo_copy: >-
+          {{
+            (bootstrap_controller_hub_pub_should_publish | bool)
+            and (
+              (bootstrap_controller_hub_pub_source_repo_name | default('') | length) > 0
+            )
+            and (
+              (bootstrap_controller_hub_pub_source_repo_name | default('')) != 'staging'
+            )
+          }}
+        bootstrap_controller_hub_pub_via_staging: >-
+          {{
+            (bootstrap_controller_hub_pub_should_publish | bool)
+            and not (
+              (bootstrap_controller_hub_pub_should_publish | bool)
+              and (
+                (bootstrap_controller_hub_pub_source_repo_name | default('') | length) > 0
+              )
+              and (
+                (bootstrap_controller_hub_pub_source_repo_name | default('')) != 'staging'
+              )
+            )
+          }}
+      when: bootstrap_controller_hub_pub_should_publish | bool
+
+    - name: Publish preflight collection | Skip reserved Hub namespace when missing
+      ansible.builtin.debug:
+        msg: >-
+          Skipping {{ __hub_pub_item.name }} — Hub namespace
+          '{{ __hub_pub_item.namespace }}' is reserved and does not exist on this
+          Hub. Bootstrap never creates it; sync rh-certified from console.redhat.com
+          or create the namespace out-of-band, then re-run.
+      when:
+        - not (bootstrap_controller_hub_pub_should_publish | bool)
+        - bootstrap_controller_hub_pub_reserved_namespace | bool
+        - not (bootstrap_controller_hub_pub_already_present | bool)
+        - (bootstrap_controller_hub_pub_namespace.status | default(404) | int) != 200
 
     - name: Publish preflight collection | Ensure Hub namespace exists
       ansible.hub.ah_namespace:
@@ -313,6 +420,7 @@
         )
       when:
         - bootstrap_controller_hub_pub_should_publish | bool
+        - not (bootstrap_controller_hub_pub_reserved_namespace | bool)
         - __hub_pub_item.namespace | length > 0
         - (bootstrap_controller_hub_pub_namespace.status | default(404) | int) == 404
 
@@ -373,7 +481,7 @@
       delay: 10
       until: bootstrap_controller_hub_pub_upload is succeeded
       when:
-        - bootstrap_controller_hub_pub_should_publish | bool
+        - bootstrap_controller_hub_pub_via_staging | default(false) | bool
         - (bootstrap_controller_hub_pub_cv_precheck.json.count | default(0) | int) == 0
           or (__hub_pub_force | bool)
 
@@ -394,6 +502,63 @@
       delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       when: bootstrap_controller_hub_pub_should_publish | bool
 
+    - name: Publish preflight collection | Resolve source pulp href for cross-repo copy
+      ansible.builtin.set_fact:
+        bootstrap_controller_hub_pub_source_repo_pulp_href: >-
+          {{
+            bootstrap_controller_hub_preflight_published_repo.json.results[0].pulp_href
+            if (
+              bootstrap_controller_hub_pub_source_repo_name | default('')
+            ) == 'published'
+            else (
+              bootstrap_controller_hub_preflight_rh_certified_repo.json.results[0].pulp_href
+              if (
+                bootstrap_controller_hub_pub_source_repo_name | default('')
+              ) == 'rh-certified'
+              else (
+                bootstrap_controller_hub_preflight_validated_repo.json.results[0].pulp_href
+                if (
+                  bootstrap_controller_hub_pub_source_repo_name | default('')
+                ) == 'validated'
+                else (
+                  bootstrap_controller_hub_preflight_staging_repo.json.results[0].pulp_href
+                )
+              )
+            )
+          }}
+      when: bootstrap_controller_hub_pub_via_cross_repo_copy | default(false) | bool
+
+    - name: Publish preflight collection | Copy from alternate Hub repo into destination
+      vars:
+        bootstrap_controller_hub_pub_cross_copy_url: >-
+          {{
+            bootstrap_controller_hub_pub_api_host.rstrip('/')
+            ~ bootstrap_controller_hub_pub_source_repo_pulp_href
+            ~ 'copy_collection_version/'
+          }}
+      ansible.builtin.uri:
+        url: "{{ bootstrap_controller_hub_pub_cross_copy_url }}"
+        method: POST
+        body_format: json
+        body:
+          collection_versions:
+            - "{{ bootstrap_controller_hub_pub_cv_lookup.json.results[0].pulp_href }}"
+          destination_repositories:
+            - "{{ bootstrap_controller_hub_pub_dest_repo_pulp_href }}"
+        validate_certs: "{{ controller_validate_certs | default(false) }}"
+        status_code: [200, 202, 400, 409, 500]
+        return_content: true
+        headers: "{{ bootstrap_controller_hub_pub_uri_headers }}"
+        user: "{{ bootstrap_controller_hub_pub_uri_user }}"
+        password: "{{ bootstrap_controller_hub_pub_uri_password }}"
+        force_basic_auth: "{{ bootstrap_controller_hub_pub_uri_force_basic }}"
+      register: bootstrap_controller_hub_pub_cross_copy_attempt
+      until: (bootstrap_controller_hub_pub_cross_copy_attempt.status | default(0) | int) in [200, 202]
+      retries: 6
+      delay: 10
+      failed_when: false
+      when: bootstrap_controller_hub_pub_via_cross_repo_copy | default(false) | bool
+
     # wait:false upload can register pulp content before the version is in the
     # staging repository. Moving too early returns Hub HTTP 500 with empty HTML.
     - name: Publish preflight collection | Wait until version is visible in staging
@@ -411,9 +576,9 @@
       until: (bootstrap_controller_hub_pub_staging_ready.status | default(0) | int) == 200
       retries: "{{ bootstrap_controller_hub_pub_verify_retries | default(bootstrap_controller_hub_publish_verify_retries | default(60)) | int }}"
       delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
-      when: bootstrap_controller_hub_pub_should_publish | bool
+      when: bootstrap_controller_hub_pub_via_staging | default(false) | bool
 
-    - name: Publish preflight collection | Promote from staging to validated via pulp
+    - name: Publish preflight collection | Promote from staging to destination via pulp
       vars:
         bootstrap_controller_hub_pub_pulp_move_url: >-
           {{
@@ -429,7 +594,7 @@
           collection_versions:
             - "{{ bootstrap_controller_hub_pub_cv_lookup.json.results[0].pulp_href }}"
           destination_repositories:
-            - "{{ bootstrap_controller_hub_preflight_validated_repo.json.results[0].pulp_href }}"
+            - "{{ bootstrap_controller_hub_pub_dest_repo_pulp_href }}"
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200, 202, 400, 409, 500]
         return_content: true
@@ -442,9 +607,9 @@
       retries: 6
       delay: 10
       failed_when: false
-      when: bootstrap_controller_hub_pub_should_publish | bool
+      when: bootstrap_controller_hub_pub_via_staging | default(false) | bool
 
-    - name: Publish preflight collection | Copy to validated when move keep failing (Hub 500 workaround)
+    - name: Publish preflight collection | Copy to destination when move keep failing (Hub 500 workaround)
       vars:
         bootstrap_controller_hub_pub_pulp_copy_url: >-
           {{
@@ -460,7 +625,7 @@
           collection_versions:
             - "{{ bootstrap_controller_hub_pub_cv_lookup.json.results[0].pulp_href }}"
           destination_repositories:
-            - "{{ bootstrap_controller_hub_preflight_validated_repo.json.results[0].pulp_href }}"
+            - "{{ bootstrap_controller_hub_pub_dest_repo_pulp_href }}"
         validate_certs: "{{ controller_validate_certs | default(false) }}"
         status_code: [200, 202, 400, 409, 500]
         return_content: true
@@ -474,26 +639,35 @@
       delay: 10
       failed_when: false
       when:
-        - bootstrap_controller_hub_pub_should_publish | bool
+        - bootstrap_controller_hub_pub_via_staging | default(false) | bool
         - (bootstrap_controller_hub_pub_promote_attempt.status | default(0) | int) not in [200, 202]
 
     - name: Publish preflight collection | Resolve pulp task href from move or copy
       ansible.builtin.set_fact:
         bootstrap_controller_hub_pub_async_task: >-
           {{
-            bootstrap_controller_hub_pub_promote_attempt.json.task
+            bootstrap_controller_hub_pub_cross_copy_attempt.json.task
             if (
-              (bootstrap_controller_hub_pub_promote_attempt.status | default(0) | int) in [200, 202]
-              and (bootstrap_controller_hub_pub_promote_attempt.json.task is defined)
+              (bootstrap_controller_hub_pub_cross_copy_attempt is defined)
+              and (bootstrap_controller_hub_pub_cross_copy_attempt.status | default(0) | int) in [200, 202]
+              and (bootstrap_controller_hub_pub_cross_copy_attempt.json.task is defined)
             )
             else (
-              bootstrap_controller_hub_pub_copy_attempt.json.task
+              bootstrap_controller_hub_pub_promote_attempt.json.task
               if (
-                (bootstrap_controller_hub_pub_copy_attempt is defined)
-                and (bootstrap_controller_hub_pub_copy_attempt.status | default(0) | int) in [200, 202]
-                and (bootstrap_controller_hub_pub_copy_attempt.json.task is defined)
+                (bootstrap_controller_hub_pub_promote_attempt is defined)
+                and (bootstrap_controller_hub_pub_promote_attempt.status | default(0) | int) in [200, 202]
+                and (bootstrap_controller_hub_pub_promote_attempt.json.task is defined)
               )
-              else ''
+              else (
+                bootstrap_controller_hub_pub_copy_attempt.json.task
+                if (
+                  (bootstrap_controller_hub_pub_copy_attempt is defined)
+                  and (bootstrap_controller_hub_pub_copy_attempt.status | default(0) | int) in [200, 202]
+                  and (bootstrap_controller_hub_pub_copy_attempt.json.task is defined)
+                )
+                else ''
+              )
             )
           }}
       when: bootstrap_controller_hub_pub_should_publish | bool
@@ -518,7 +692,7 @@
       delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       failed_when: (bootstrap_controller_hub_pub_promote_task.json.state | default('')) == 'failed'
 
-    - name: Publish preflight collection | Re-check validated after promote/copy
+    - name: Publish preflight collection | Re-check destination after promote/copy
       ansible.builtin.uri:
         url: "{{ bootstrap_controller_hub_pub_validated_version_url }}"
         method: GET
@@ -542,14 +716,15 @@
           Hub promote failed for {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }}
           (move HTTP {{ bootstrap_controller_hub_pub_promote_attempt.status | default('?') }},
           copy HTTP {{ bootstrap_controller_hub_pub_copy_attempt.status | default('n/a') }})
-          and version is not in validated. Unselect this collection in Hub → Collections
-          dropdown and retry, or approve it manually in Hub UI.
+          and version is not in {{ bootstrap_controller_hub_pub_dest_repo_name }}.
+          Unselect this collection in Hub → Collections dropdown and retry, or
+          approve it manually in Hub UI.
           move_body={{ bootstrap_controller_hub_pub_promote_attempt.content | default('') }}
       when:
         - bootstrap_controller_hub_pub_should_publish | bool
         - (bootstrap_controller_hub_pub_promote_fallback.status | default(404) | int) != 200
 
-    - name: Publish preflight collection | Verify collection is in validated Hub repository
+    - name: Publish preflight collection | Verify collection is in destination Hub repository
       ansible.builtin.uri:
         url: "{{ bootstrap_controller_hub_pub_validated_version_url }}"
         method: GET
@@ -566,9 +741,9 @@
       delay: "{{ bootstrap_controller_hub_pub_verify_delay | default(bootstrap_controller_hub_publish_verify_delay | default(10)) | int }}"
       when: bootstrap_controller_hub_pub_should_publish | bool
 
-    - name: Publish preflight collection | Confirm publish landed in validated
+    - name: Publish preflight collection | Confirm publish landed in destination
       ansible.builtin.debug:
         msg: >-
           Published {{ __hub_pub_item.name }} {{ bootstrap_controller_hub_pub_version }} to Hub
-          repository '{{ bootstrap_controller_hub_publish_repository | default('validated') }}'.
+          repository '{{ bootstrap_controller_hub_pub_dest_repo_name }}'.
       when: bootstrap_controller_hub_pub_should_publish | bool

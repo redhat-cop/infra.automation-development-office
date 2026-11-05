@@ -37,7 +37,7 @@ tables for a simple OpenShift vs RHEL install/configure checklist.
 | `bootstrap_generate_playbook_repo_git_auth_mode` | `basic` uses the credential store. `bearer` (Bitbucket) uses a mode 0600 include file. An explicit value wins. |
 | `bootstrap_generate_playbook_repo_git_sync_before_push` | Rebase on the remote branch before pushing generated commits. Defaults to `true`. |
 | `bootstrap_generate_playbook_repo_write_galaxy_requirements` | Always true: write Hub/Galaxy `collections/requirements.yml` only. Collection trees are never committed to git. |
-| `bootstrap_generate_playbook_repo_infra_ado_collection_version` | Optional pin used only when Galaxy requirements are written. Empty means latest. |
+| `bootstrap_generate_playbook_repo_infra_ado_collection_version` | Unused. Generated `collections/requirements.yml` never pins collection versions. |
 | `bootstrap_generate_playbook_repo_component` | Component group to generate, such as `all`, `openshift`, or `rhel`. |
 | `bootstrap_generate_playbook_repo_component_map` | Maps component selections to generated playbook groups. |
 | `bootstrap_generate_playbook_repo_generated_playbooks` | Manifest of bundled playbooks copied into the generated repository. |

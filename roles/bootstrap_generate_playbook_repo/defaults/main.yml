@@ -30,7 +30,7 @@ bootstrap_generate_playbook_repo_pause_after_generate: false
 bootstrap_generate_playbook_repo_write_galaxy_requirements: true
 bootstrap_generate_playbook_repo_galaxy_ignore_certs: false
 
-# Leave empty so generated collections/requirements.yml has no version pin. Set only when you must pin.
+# Deprecated / unused. Generated collections/requirements.yml never pins versions.
 bootstrap_generate_playbook_repo_infra_ado_collection_version: ""
 
 bootstrap_generate_playbook_repo_component: all
