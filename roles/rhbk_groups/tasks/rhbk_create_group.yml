@@ -1,5 +1,5 @@
 - name: Create a Keycloak group, authentication with credentials
-  middleware_automation.keycloak.keycloak_group:
+  community.general.keycloak_group:
     name: "{{ rhbk_group_name }}"
     realm: "{{ rhbk_realm }}"
     state: present

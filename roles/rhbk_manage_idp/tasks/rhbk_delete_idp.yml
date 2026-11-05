@@ -1,5 +1,5 @@
 - name: Remove OIDC Identity Provider (Microsoft Entra ID)
-  middleware_automation.keycloak.keycloak_identity_provider:
+  community.general.keycloak_identity_provider:
     state: absent
     auth_keycloak_url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}"
     auth_realm: master

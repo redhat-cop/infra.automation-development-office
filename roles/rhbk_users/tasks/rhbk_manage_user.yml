@@ -1,5 +1,5 @@
 - name: Create a user user1
-  middleware_automation.keycloak.keycloak_user:
+  community.general.keycloak_user:
     auth_keycloak_url: "{{ rhbk_hostname }}"
     auth_username: "{{ rhbk_username }}"
     auth_password: "{{ rhbk_password }}"

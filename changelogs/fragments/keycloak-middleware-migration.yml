@@ -1,8 +1,0 @@
----
-breaking_changes:
-  - >-
-    rhbk / ocp_oidc_auth / satellite_oidc - Keycloak modules moved from
-    ``community.general.keycloak_*`` to
-    ``middleware_automation.keycloak.keycloak_*`` (community.general 14+
-    redirects). Install ``middleware_automation.keycloak`` with the
-    collection dependencies.

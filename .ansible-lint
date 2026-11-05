@@ -158,8 +158,8 @@ mock_modules:
     - amazon.aws.s3_bucket
     - amazon.aws.s3_bucket_info
     - kubernetes.core.helm_info
-    - middleware_automation.keycloak.keycloak_clientsecret_info
-    - middleware_automation.keycloak.keycloak_clientsecret_regenerate
+    - community.general.keycloak_clientsecret_info
+    - community.general.keycloak_clientsecret_regenerate
     - ansible.posix.mount
     - ansible.posix.firewalld
     - infra.automation_development_office.ocp_namespace
@@ -216,15 +216,15 @@ mock_modules:
     - community.general.lvg
     - community.general.lvol
     - community.general.filesystem
-    - middleware_automation.keycloak.keycloak_group
-    - middleware_automation.keycloak.keycloak_client
-    - middleware_automation.keycloak.keycloak_user
-    - middleware_automation.keycloak.keycloak_realm
-    - middleware_automation.keycloak.keycloak_identity_provider
+    - community.general.keycloak_group
+    - community.general.keycloak_client
+    - community.general.keycloak_user
+    - community.general.keycloak_realm
+    - community.general.keycloak_identity_provider
     - redhat.rhel_idm.ipadnsforwardzone
     - redhat.rhel_idm.ipatrust
     - redhat.rhel_idm.ipaidrange
     - redhat.rhel_idm.ipagroup
     - redhat.rhel_idm.ipasudorule
     - kubernetes.core.k8s_json_patch
-    - middleware_automation.keycloak.keycloak_user_federation
+    - community.general.keycloak_user_federation
