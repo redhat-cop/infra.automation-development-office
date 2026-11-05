@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    grafana_install - resolve the Grafana container index with list
+    ``.index('grafana')`` instead of the Jinja ``| index`` filter, which is
+    not available on Contoller / stock EEs.

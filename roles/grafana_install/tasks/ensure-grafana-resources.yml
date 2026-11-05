@@ -33,12 +33,14 @@
 
 - name: Find the Grafana container index
   ansible.builtin.set_fact:
+    # List method .index(), not the missing Jinja | index filter (Contoller EE).
     grafana_install_resource_container_index: >-
       {{
-        grafana_install_resource_containers
-        | map(attribute='name')
-        | list
-        | index('grafana')
+        (
+          grafana_install_resource_containers
+          | map(attribute='name')
+          | list
+        ).index('grafana')
       }}
   when:
     - grafana_install_resource_containers is defined
@@ -49,6 +51,18 @@
       | length > 0
 
 - name: Set Grafana container memory and readiness probe
+  vars:
+    # from_yaml keeps timeoutSeconds / failureThreshold as ints. Bare
+    # "{{ x | int }}" in a mapping stays a string and CRD validation 422s.
+    grafana_install_container_readiness_yaml: |
+      httpGet:
+        path: /api/health
+        port: 3000
+        scheme: HTTP
+      timeoutSeconds: {{ grafana_install_readiness_timeout_seconds | int }}
+      periodSeconds: 10
+      failureThreshold: {{ grafana_install_readiness_failure_threshold | int }}
+      successThreshold: 1
   ansible.builtin.set_fact:
     grafana_install_container_resources:
       requests:
@@ -56,16 +70,8 @@
         memory: "{{ grafana_install_memory_request }}"
       limits:
         memory: "{{ grafana_install_memory_limit }}"
-    grafana_install_container_readiness:
-      httpGet:
-        path: /api/health
-        port: 3000
-        scheme: HTTP
-      timeoutSeconds: "{{ grafana_install_readiness_timeout_seconds | int }}"
-      periodSeconds: 10
-      failureThreshold: >-
-        {{ grafana_install_readiness_failure_threshold | int }}
-      successThreshold: 1
+    grafana_install_container_readiness: >-
+      {{ grafana_install_container_readiness_yaml | from_yaml }}
 
 - name: Add a Grafana container when the custom resource has none
   kubernetes.core.k8s_json_patch:
