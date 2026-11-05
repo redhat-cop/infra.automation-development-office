@@ -83,12 +83,16 @@
           # Do NOT use Jinja namespace() here: OCP plays commonly define a string
           # var ``namespace``, which shadows Jinja's namespace() and raises
           # "'AnsibleUnicode' object is not callable".
+          # Native Jinja only — do not use json_query (needs jmespath; stock
+          # AAP EEs often lack it and fail the until with a filter error).
           until: >-
             (
               ocp_wait_operator__installed_operator_csvs.resources
               | default([])
-              | json_query('[?status.phase==`Succeeded`].metadata.name')
-              | default([])
+              | selectattr('status', 'defined')
+              | selectattr('status.phase', 'defined')
+              | selectattr('status.phase', 'equalto', 'Succeeded')
+              | map(attribute='metadata.name')
               | select('search', ocp_wait_operator_name_substring | regex_escape)
               | list
               | length > 0
@@ -98,8 +102,10 @@
               and (
                 ocp_wait_operator__installed_operator_csvs.resources
                 | default([])
-                | json_query('[?status.phase==`Succeeded`].metadata.name')
-                | default([])
+                | selectattr('status', 'defined')
+                | selectattr('status.phase', 'defined')
+                | selectattr('status.phase', 'equalto', 'Succeeded')
+                | map(attribute='metadata.name')
                 | select('search', ocp_wait_operator__csv_match_alt | regex_escape)
                 | list
                 | length > 0
@@ -115,17 +121,31 @@
             namespace: "{{ ocp_wait_operator__namespace }}"
           register: ocp_wait_operator__subs
 
-        - name: Summarize CSV status for failure
+        - name: Initialize CSV summary
+          ansible.builtin.set_fact:
+            ocp_wait_operator__csv_summary: []
+
+        - name: Build CSV summary strings
           ansible.builtin.set_fact:
             ocp_wait_operator__csv_summary: >-
               {{
-                ocp_wait_operator__installed_operator_csvs.resources
-                | default([])
-                | json_query('[].[metadata.name || `unknown`, status.phase || `unknown`]')
-                | default([])
-                | map('join', '=')
-                | list
+                ocp_wait_operator__csv_summary
+                + [
+                  (item.metadata.name | default('unknown'))
+                  ~ '='
+                  ~ (
+                    item.status.phase
+                    if (
+                      item.status is defined
+                      and item.status.phase is defined
+                    )
+                    else 'unknown'
+                  )
+                ]
               }}
+          loop: "{{ ocp_wait_operator__installed_operator_csvs.resources | default([]) }}"
+          loop_control:
+            label: "{{ item.metadata.name | default('unknown') }}"
 
         - name: Initialize Subscription summary
           ansible.builtin.set_fact:

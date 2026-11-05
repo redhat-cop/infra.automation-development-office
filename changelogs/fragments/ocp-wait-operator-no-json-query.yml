@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_wait_operator - replace ``json_query`` with native Jinja filters when
+    waiting for Operator CSV ``Succeeded``. Contoller/stock EEs often lack
+    ``jmespath``, which made the wait fail with a filter install error instead
+    of polling for the CSV.
