@@ -49,7 +49,7 @@
         openshift_oidc_auth: >-
           {{
             {
-              'keycloak_client_id': (openshift_oidc_client_id | default(rhbk_client | default(''))),
+              'keycloak_client_id': (openshift_oidc_client_id | default('')),
               'openshift_oidc_idp_name': (openshift_oidc_idp_name | default('Keycloak')),
               'openshift_oidc_mapping_method': 'claim',
               'openshift_oauth_resource_name': 'cluster'

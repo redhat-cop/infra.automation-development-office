@@ -1144,6 +1144,16 @@
                 | map('lower')
                 | list
               )
+              and (
+                (
+                  (
+                    (
+                      bootstrap_generate_env_vars_preflight.component_config
+                      | default({})
+                    ).grafana | default({})
+                  ).oidc | default({})
+                ).enabled | default(true) | bool
+              )
             )
             else []
           )
@@ -1470,6 +1480,23 @@
           | default({})
         ).install_during_bootstrap | default(false) | bool
       )
+
+- name: Validate preflight OIDC inputs before generating vars
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/preflight_oidc.py"
+  environment:
+    ADO_PREFLIGHT_JSON: "{{ preflight_json }}"
+    ADO_SELECTED_COMPONENTS: >-
+      {{ bootstrap_generate_env_vars_components | to_json }}
+  args:
+    chdir: "{{ playbook_dir }}"
+  changed_when: false
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - preflight_json is defined
+    - preflight_json | length > 0
 
 - name: Find existing generated component vars files
   ansible.builtin.find:

@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # kubernetes.core.k8s* does not accept validate_certs (causes "conflicting action
 # statements"). Use K8S_AUTH_VERIFY_SSL from the play environment instead.
 - name: Read existing BookStack app secret for OIDC redeploy
@@ -55,6 +56,19 @@
       BookStack OIDC redeploy requires an existing bookstack-app Secret app-key
       (or bookstack_app_key). Run the BookStack install JT before OIDC.
 
+- name: Capture existing BookStack app secret data for OIDC
+  ansible.builtin.set_fact:
+    bookstack_openshift_oidc_existing_secret_data: >-
+      {{
+        (bookstack_openshift_oidc_app_secret.resources[0].data | default({}))
+        if (bookstack_openshift_oidc_app_secret.resources | default([]) | length > 0)
+        else {}
+      }}
+  no_log: true
+
+- name: Resolve BookStack OIDC client secret before applying OAuth config
+  ansible.builtin.include_tasks: resolve-oidc-secret.yml
+
 - name: Patch BookStack app secret with OIDC client credentials
   kubernetes.core.k8s:
     state: present
@@ -67,7 +81,7 @@
         namespace: "{{ bookstack_namespace }}"
       stringData:
         oidc-client-id: "{{ bookstack_oidc_client_id | default('') }}"
-        oidc-client-secret: "{{ bookstack_oidc_client_secret | default('') }}"
+        oidc-client-secret: "{{ bookstack_openshift_oidc_client_secret_effective }}"
   no_log: true
 
 - name: Redeploy BookStack with OIDC environment

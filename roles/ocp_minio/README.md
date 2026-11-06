@@ -37,9 +37,25 @@ See `defaults/main.yml`. Common overrides:
 | `minio_oidc_client_secret` | Leave empty to fetch after client create |
 | `minio_keycloak_realm` | Realm name (lab dev often `Dev`) |
 | `minio_oidc_policy_value` | Token claim value for MinIO policy (default `consoleAdmin`) |
+| `minio_oidc_create_keycloak_client` | Create/update the Keycloak client. Default `true`. A matching `clients[].create_client: false` row wins and disables every Keycloak mutation. |
+| `minio_oidc_create_policy_mapper` | Add the MinIO policy claim mapper when ADO manages the client. Default `true`. Ignored when the client is unmanaged. |
 
-When OIDC is enabled the role creates/updates a Keycloak client, adds a policy
-claim mapper, and stores OpenID env vars in Secret `minio-oidc`.
+When OIDC is enabled and ADO manages the client, this role is the only
+provisioner: it creates/updates the Keycloak client, adds the policy claim
+mapper, and stores OpenID env vars in Secret `minio-oidc`. Overlay does not
+put that client id in `rhbk_clients`, so `ADO | Deploy RHBK Client` cannot
+double-create it.
+
+When the matching Keycloak row has `create_client: false`, ADO does not
+create, update, or add mappers to that client. Application OIDC (issuer,
+client id, secret fetch, MinIO env) still runs. Configure the existing
+client in Keycloak with an OIDC hardcoded-claim mapper:
+
+- claim name: `policy` (or `minio_oidc_claim_name`)
+- claim value: `consoleAdmin` (or `minio_oidc_policy_value`)
+- include the claim on the ID token, access token, and userinfo
+
+Missing `create_client` still means managed.
 
 ## 🚀 Role Usage
 

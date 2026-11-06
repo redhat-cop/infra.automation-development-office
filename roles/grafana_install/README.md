@@ -58,7 +58,7 @@ PostgreSQL resources.
 | `grafana_install_route_backend_svc` | Backend service name for the Route. | ❌ | `grafana-service` |
 | `grafana_install_route_tls_termination` | Route TLS termination mode. | ❌ | `edge` |
 | `route_insecure_edge_policy` | Route `insecureEdgeTerminationPolicy` value. | ❌ | `Redirect` |
-| `oidc` | Optional Keycloak OIDC settings (`enabled`, `client_id`, `role_map`, etc.). | ❌ | — |
+| `oidc` | Optional Keycloak OIDC settings (`enabled`, `client_id`, `role_map`, etc.). Explicit `enabled: false` skips OIDC secret retrieval and the Grafana CR OAuth patch. | ❌ | — |
 | `grafana_install_scope` | `install` (operator+CR), `oidc`, or `email` configure-only patch. | ❌ | `install` |
 | `grafana_install_include_oidc` | Apply OIDC during install scope (usually false; use OIDC JT). | ❌ | `oidc.enabled` |
 | `grafana_install_include_email` | Apply SMTP during install scope (usually false; use Email JT). | ❌ | `grafana_email.enabled` |

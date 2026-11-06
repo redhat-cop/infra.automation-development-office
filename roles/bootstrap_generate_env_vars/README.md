@@ -253,6 +253,172 @@ under ``component_config.aws`` (``access_key_id``, ``secret_access_key``) or
 cert-manager PCA fields (``awspca_access_key_id``, ``awspca_secret_access_key``)
 and re-run bootstrap env-var generation for that ``<env>``.
 
+### OpenShift OIDC (Keycloak/RHBK or an existing Keycloak)
+
+When ``openshift`` is selected with the ``oauth_rhbk`` option, generation
+produces the variables the ``ocp_oidc_auth`` role already reads. There are two
+modes, chosen by whether RHBK is part of the run.
+
+| Input (``openshift.oauth_rhbk.*``) | RHBK in the run | Existing Keycloak (no RHBK in the run) |
+| --- | --- | --- |
+| ``keycloak_hostname`` | optional; empty inherits the RHBK hostname | required |
+| ``realm`` | optional; empty inherits the RHBK realm | required |
+| ``client_id`` | required (see below) | required |
+| ``admin_user`` | optional; empty inherits the RHBK admin user | required |
+| ``admin_password`` | optional; empty inherits the RHBK admin password | required |
+| ``verify_ssl`` | optional, default on (``ocp_rhbk_verify_ssl``) | optional, default on |
+| ``idp_name``, ``mapping_method``, ``extra_scopes`` | optional | optional |
+
+``idp_name`` is the OpenShift OAuth identity-provider name (default
+``Keycloak``). The cluster callback is the exact path
+``https://oauth-openshift.<apps_domain>/oauth2callback/<idp_name>``
+(OpenShift oauth-server does not append a further path segment). Overlay
+writes that URI as ``openshift_oidc_auth.openshift_oauth_redirect_uri``
+and rewrites auto-generated ``oauth2callback`` URIs — including a legacy
+trailing ``/*`` — on **managed** OpenShift client rows in ``rhbk_clients``.
+Externally managed OpenShift clients (``create_client: false``) are not sent
+to ``ADO | Deploy RHBK Client``; register that exact callback URI on the
+existing Keycloak client yourself. Custom non-callback redirect URIs on a
+managed row are left unchanged.
+
+When RHBK is overlaid, ``rhbk_clients`` is always rebuilt from the current
+preflight ``clients`` list. Missing or empty lists drop seed and prior
+``rhbk_clients`` so a retained row cannot keep provisioning an unmanaged or
+MinIO client.
+
+Grafana OIDC ``component_config.grafana.oidc.enabled: false`` is preserved.
+Overlay does not force ``enabled: true``, does not copy that Grafana client
+into ``rhbk_clients``, and does not add the ``grafana_oidc`` job template
+when the flag is explicitly off. Missing ``enabled`` with the Grafana
+``oidc`` option still defaults on.
+
+Keycloak TLS verification is on in both modes. ``verify_ssl`` is parsed
+strictly: blank or missing means on; ``true`` / ``yes`` / ``on`` / ``1`` verify;
+``false`` / ``no`` / ``off`` / ``0`` turn verification off; any other value
+(``garbage``, ``tru``, ``flase``, unexpected numbers) is a validation error and
+is never read as false. Generation writes ``ocp_rhbk_verify_ssl`` only when the
+preflight sets a recognized explicit value, and never removes a value that is
+already in ``vars_rhbk.yml``, so an existing explicit ``ocp_rhbk_verify_ssl:
+false`` keeps working. For a private CA, trust it in the execution environment
+or set ``ocp_oidc_auth_ca_pem`` (see the ``ocp_oidc_auth`` role); verification
+is not turned off for an internal CA.
+
+Neither mode creates or changes a Keycloak client. The role only reads the client
+secret with the admin credentials, so the client must already exist in the realm.
+No ``rhbk_client`` / ``rhbk_clients`` entry is generated for OpenShift OAuth itself.
+
+Keycloak client ownership is per row in ``component_config.rhbk.clients``:
+
+* ``create_client`` omitted, null, blank, or true (default) — ADO creates or
+  updates that client. The id is copied into generated ``rhbk_clients`` for
+  ``ADO | Deploy RHBK Client``.
+* ``create_client: false`` — use an existing client. The row and the
+  application's OIDC client ID stay; the id is **not** copied into
+  ``rhbk_clients``, and a prior run's provision entry for that id is dropped
+  so the next Deploy RHBK Client job cannot recreate it. Dismissing the row is
+  not required.
+
+Existing JSON exports without ``create_client`` keep the automated install
+path. Satellite ``oidc.create_client`` and AAP Gateway OIDC are unchanged.
+
+With RHBK in the run, a value set under ``openshift.oauth_rhbk`` is written as the
+role's own ``ocp_oidc_auth_rhbk_hostname`` / ``_realm`` / ``_admin_user`` /
+``_admin_password`` input; RHBK's own ``rhbk_hostname``, ``rhbk_realm`` and
+``rhbk_admin_*`` are left alone. An override that points at a different Keycloak
+host must bring its own admin user and password. Without RHBK, ``vars_rhbk.yml``
+and ``vault_rhbk.yml`` are created because the OpenShift OAuth playbook loads
+them; a leftover RHBK form that is not selected is ignored. The admin password is
+written only to ``vault_rhbk.yml`` (``vault_ocp_oidc_auth_rhbk_admin_password``);
+``vars_rhbk.yml`` holds a ``{{ vault_... }}`` reference.
+
+The client ID is resolved in this order:
+
+1. ``openshift.oauth_rhbk.client_id`` (or ``keycloak_client_id``)
+2. ``component_config.rhbk.openshift_oidc_client_id``
+3. a row in ``component_config.rhbk.clients`` with ``source: openshift`` or an
+   ``id`` that starts with ``openshift``
+
+The first Keycloak client (``component_config.rhbk.client``) is never used, because
+it can belong to another app such as Grafana. When OpenShift OIDC is not requested,
+no OpenShift OIDC overrides are generated and values left by an earlier run are
+removed.
+
+### OIDC validation before generation
+
+``files/preflight_oidc.py`` validates the preflight JSON before any component vars
+are generated (a role task runs it first; the overlay runs it again). It mirrors
+the Preflight UI so the form is not the only protection:
+
+* OpenShift OIDC must have an explicit client ID (it has no default client);
+* with RHBK in the run, an enabled integration (Grafana, BookStack, NetBox,
+  Quay, MinIO, Developer Hub, OpenShift) must not reference a client listed in
+  ``component_config.rhbk.clients_dismissed`` and absent from ``clients``. An empty
+  client ID means the framework's default client (``grafana-client``, ``bookstack``,
+  ``netbox``, ``quay``, ``minio``, ``rhdh``), so that default is checked too. The
+  defaults are read from ``bootstrap_resolve_component/files/components_defaults.yml``;
+  the Preflight UI resolves blank IDs from a file generated from the same source
+  (``scripts/sync-oidc-client-defaults.py`` in ``ado-preflight-ui``). GitLab is
+  not an OIDC consumer unless ``oidc_enabled`` / ``component_options.gitlab``
+  ``oidc`` is already set in the JSON; selecting GitLab does not add a Keycloak
+  client. When that leftover GitLab OIDC flag is on, GitLab has no default and
+  needs an explicit client ID;
+* without RHBK, or when the component's own "managed elsewhere" flag is set
+  (``grafana.oidc.client_secret_manual``, ``quay``/``minio``
+  ``fetch_oidc_secret_from_rhbk: false``, ``openshift.oauth_rhbk.fetch_client_secret:
+  false``), the client list is not consulted and an existing realm client is accepted;
+* OpenShift OIDC connection inputs in the table above are present, the hostname is
+  a valid host, and ``mapping_method`` is ``claim``, ``lookup`` or ``add``.
+
+Only selected, enabled integrations are checked. Failures stop generation with a
+list of what to fix; secrets are never printed. Run it on its own with
+``ADO_PREFLIGHT_JSON=<file> ADO_SELECTED_COMPONENTS='["openshift"]' python3 roles/bootstrap_generate_env_vars/files/preflight_oidc.py``.
+
+``component_config.rhbk.clients_dismissed`` is Preflight UI bookkeeping for
+clients removed in the form. It is not written to generated vars.
+``create_client`` on a client row is also UI/preflight input; only managed
+clients appear in generated ``rhbk_clients``. The overlay may still copy the
+preflight ``clients`` list into ``vars_rhbk.yml`` as passthrough. ``ADO |
+Deploy RHBK Client`` loops ``rhbk_clients`` (or singular ``rhbk_client`` when
+that dict is empty). No playbook loops the passthrough ``clients`` list to
+create, update, or delete Keycloak clients, so an unmanaged row can remain
+there without being provisioned.
+
+### MinIO and Developer Hub client IDs
+
+MinIO and Developer Hub OIDC client IDs follow the Preflight form through
+generated ``group_vars``. The first Keycloak client row is never substituted.
+
+* MinIO canonical field is ``component_config.minio.oidc_client_id`` (the form
+  field). Nested ``component_config.minio.oidc.client_id`` is accepted for older
+  JSON. When both are set, the top-level field wins. Overlay writes
+  ``minio_oidc_client_id``.
+* Developer Hub canonical field is ``component_config.dev_hub.keycloak_client_id``.
+  ``oidc_client_id`` is a leftover preset field: used when ``keycloak_client_id``
+  is blank, or when the form still has the framework default ``rhdh`` and
+  ``oidc_client_id`` is a different custom value. Overlay writes
+  ``dev_hub_keycloak_client_id`` and drops ``oidc_client_id`` from generated
+  Dev Hub vars so the two fields cannot stay in conflict.
+
+``create_client`` on the matching ``rhbk.clients`` row still controls whether
+ADO may mutate that Keycloak client. Application OIDC vars are written either
+way. The MinIO OIDC client is an exception to ``rhbk_clients``: when MinIO is
+selected, overlay omits that id from ``rhbk_clients`` and writes
+``minio_oidc_create_keycloak_client`` / ``minio_oidc_create_policy_mapper``
+instead. ``ocp_minio`` is the only provisioner for that client (client +
+policy mapper). ``create_client: false`` sets both flags false so the MinIO
+playbook cannot update an externally managed client, including mappers.
+
+GitLab is not an OIDC application in ADO. Overlay omits ``source: gitlab``
+rows and, when GitLab is selected, the historical ``gitlab`` client id /
+``component_config.gitlab.oidc_client_id`` from generated ``rhbk_clients``.
+Existing Keycloak clients and preflight rows are not deleted. A hand-edited
+``rhbk_clients`` entry can still be applied by Deploy RHBK Client.
+
+BookStack OIDC secrets: overlay writes ``bookstack_oidc_client_secret`` only
+when preflight supplies one. The BookStack role fetches the Keycloak secret
+when that value is empty (including unmanaged clients) and fails if the
+secret is still empty.
+
 ## 🚀 Role Usage
 
 ```yaml
