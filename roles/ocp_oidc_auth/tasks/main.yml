@@ -9,6 +9,36 @@
 # ==========================================
 
 # -----------------------------
+# Keycloak TLS verification setting: strict, before anything else runs
+# - unset / null / blank, true, yes, on, 1  -> verify
+# - false, no, off, 0                       -> verification off, explicitly
+# - anything else (garbage, tru, flase, 2)  -> stop. Ansible's bool filter would read
+#   these as false and silently turn verification off, so it is never used on the raw value.
+# Mirrors parse_verify_ssl (preflight_oidc.py), parseVerifySsl (Preflight UI) and verify-ssl.js.
+# -----------------------------
+- name: Read the Keycloak TLS verification setting
+  ansible.builtin.set_fact:
+    # Coerce to a string: an empty Jinja result is None, which is not in the allow-list.
+    # Ansible's bool filter is never used on the raw value.
+    ocp_oidc_auth_verify_ssl_token: "{{ '' if _tok is none else (_tok | string | trim) }}"
+  vars:
+    _tok: >-
+      {%- set raw = ocp_rhbk_verify_ssl | default(none) -%}
+      {%- if raw is none -%}
+      {%- elif raw is float and raw == (raw | int) -%}{{ raw | int }}{%- else -%}{{ raw | string | trim | lower }}{%- endif -%}
+
+- name: Assert the Keycloak TLS verification setting is a recognized value
+  ansible.builtin.assert:
+    that:
+      - (ocp_oidc_auth_verify_ssl_token | default('') | string) in ['', '1', 'true', 'yes', 'on', '0', 'false', 'no', 'off']
+    fail_msg: >-
+      ocp_rhbk_verify_ssl has the value '{{ ocp_oidc_auth_verify_ssl_token | default('') | string | truncate(40, true, '...') }}',
+      which is not recognized. Use true, yes, on or 1 to verify the Keycloak TLS certificate,
+      false, no, off or 0 to turn verification off explicitly, or leave it unset to verify.
+      An unrecognized value is never read as false. Nothing was sent to Keycloak and nothing was
+      changed in OpenShift.
+
+# -----------------------------
 # Map RHBK form vars (hostname / realm / admin / client) onto ocp_rhbk_* + ocp_oidc_auth_config
 # -----------------------------
 - name: Normalize OIDC inputs from RHBK form vars
@@ -82,132 +112,270 @@
       }}
   no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
 
+# -----------------------------
+# TLS verification of Keycloak requests (admin login, client lookup, secret)
+# - Verification is ON unless ocp_rhbk_verify_ssl is explicitly false / no / off / 0.
+# - An internal/private CA is supported, never skipped for you:
+#     * add it to the trust store of the process running this role (for AAP,
+#       the execution environment), or point SSL_CERT_FILE / SSL_CERT_DIR at it;
+#     * or set ocp_oidc_auth_ca_pem to the PEM of the CA that issued Keycloak's
+#       certificate (the same variable that gives OpenShift's oauth-server the CA).
+# -----------------------------
+- name: Resolve Keycloak TLS verification and trust anchor
+  ansible.builtin.set_fact:
+    # Only an explicit false / no / off / 0 turns verification off (the value was validated above).
+    ocp_oidc_auth_verify_ssl: "{{ (ocp_oidc_auth_verify_ssl_token | default('') | string) not in ['0', 'false', 'no', 'off'] }}"
+    ocp_oidc_auth_trust_pem: "{{ ocp_oidc_auth_ca_pem | default('') | string | trim }}"
+
+- name: Assert the CA given for Keycloak TLS is a PEM certificate
+  ansible.builtin.assert:
+    that:
+      - "'-----BEGIN CERTIFICATE-----' in ocp_oidc_auth_trust_pem"
+      - "'-----END CERTIFICATE-----' in ocp_oidc_auth_trust_pem"
+    fail_msg: >-
+      ocp_oidc_auth_ca_pem is set but is not a PEM certificate, so it cannot be used to
+      verify the Keycloak TLS certificate. Provide the PEM of the CA that issued
+      Keycloak's certificate, or leave it empty to use the trust store of this process.
+      Verification was not disabled.
+  when:
+    - ocp_oidc_auth_verify_ssl | bool
+    - ocp_oidc_auth_trust_pem | length > 0
+
 # ==========================================================
 # Fetch Keycloak client secret
 # Prefer module, fallback to REST if module doesn't return it
 # ==========================================================
 
-- name: Try to get Keycloak client secret via module
-  community.general.keycloak_clientsecret_info:
-    auth_keycloak_url: "{{ ocp_oidc_auth_keycloak_base }}"
-    auth_realm: "{{ auth_realm | default('master') }}"
-    auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
-    auth_username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"
-    auth_password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
-    realm: "{{ ocp_oidc_auth_rhbk_realm }}"
-    client_id: "{{ openshift_oidc_auth.keycloak_client_id }}"
-    validate_certs: "{{ ocp_rhbk_verify_ssl | default(false) | bool }}"
-  register: ocp_oidc_auth_client_secret_raw
-  delegate_to: localhost
-  connection: local
-  become: false
-  # Soft-fail: Contoller EEs may lack middleware_automation.keycloak redirects,
-  # or admin login may fail in-module. REST fallback below must still run.
-  failed_when: false
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+- name: Read the client secret from the existing Keycloak client
+  block:
+    - name: Create a temporary file for the Keycloak trust CA
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .keycloak-ca.pem
+      register: ocp_oidc_auth_trust_tmp
+      delegate_to: localhost
+      connection: local
+      become: false
+      when:
+        - ocp_oidc_auth_verify_ssl | bool
+        - ocp_oidc_auth_trust_pem | length > 0
 
-- name: Note Keycloak module secret fetch will use REST fallback
-  ansible.builtin.debug:
-    msg: >-
-      keycloak_clientsecret_info did not return a secret
-      (failed={{ ocp_oidc_auth_client_secret_raw.failed | default(false) }};
-      msg={{ ocp_oidc_auth_client_secret_raw.msg | default('') | truncate(180, true, '…') }}).
-      Continuing with REST fallback.
-  when: >-
-    (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
-    or (
-      (
-        (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
-        | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
-        | default(ocp_oidc_auth_client_secret_raw.secret, true)
-        | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
-        | default(ocp_oidc_auth_client_secret_raw.value, true)
-        | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
-        | default('')
-        | string
-        | length
-      ) == 0
-    )
+    - name: Write the Keycloak trust CA
+      ansible.builtin.copy:
+        content: "{{ ocp_oidc_auth_trust_pem }}\n"
+        dest: "{{ ocp_oidc_auth_trust_tmp.path }}"
+        mode: "0600"
+      delegate_to: localhost
+      connection: local
+      become: false
+      when: ocp_oidc_auth_trust_tmp.path is defined
 
-- name: Extract Keycloak client secret from module result
-  ansible.builtin.set_fact:
-    ocp_oidc_auth_client_secret_value: >-
-      {{
-        ''
-        if (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
-        else (
-          (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
+    - name: Remember the Keycloak trust CA file
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_trust_ca_file: "{{ ocp_oidc_auth_trust_tmp.path | default('') }}"
+
+    - name: Try to get Keycloak client secret via module
+      community.general.keycloak_clientsecret_info:
+        auth_keycloak_url: "{{ ocp_oidc_auth_keycloak_base }}"
+        auth_realm: "{{ auth_realm | default('master') }}"
+        auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
+        auth_username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"
+        auth_password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
+        realm: "{{ ocp_oidc_auth_rhbk_realm }}"
+        client_id: "{{ openshift_oidc_auth.keycloak_client_id }}"
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+      register: ocp_oidc_auth_client_secret_raw
+      # The module has no CA parameter; it uses the process trust store, so an explicit
+      # CA is handed over through the standard OpenSSL variable.
+      environment: "{{ {'SSL_CERT_FILE': ocp_oidc_auth_trust_ca_file} if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else {} }}"
+      delegate_to: localhost
+      connection: local
+      become: false
+      # Soft-fail: Contoller EEs may lack middleware_automation.keycloak redirects,
+      # or admin login may fail in-module. REST fallback below must still run.
+      failed_when: false
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+    - name: Note Keycloak module secret fetch will use REST fallback
+      ansible.builtin.debug:
+        msg: >-
+          keycloak_clientsecret_info did not return a secret
+          (failed={{ ocp_oidc_auth_client_secret_raw.failed | default(false) }};
+          msg={{ ocp_oidc_auth_client_secret_raw.msg | default('') | truncate(180, true, '…') }}).
+          Continuing with REST fallback.
+      when: >-
+        (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
+        or (
+          (
+            (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
             | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
             | default(ocp_oidc_auth_client_secret_raw.secret, true)
             | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
             | default(ocp_oidc_auth_client_secret_raw.value, true)
             | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
             | default('')
+            | string
+            | length
+          ) == 0
         )
-      }}
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
 
-# ---- Fallback path: use Keycloak REST if module didn't give a secret ----
-- name: Get admin access token (fallback path)
-  ansible.builtin.uri:
-    url: "{{ ocp_oidc_auth_keycloak_base }}/realms/{{ auth_realm | default('master') }}/protocol/openid-connect/token"
-    method: POST
-    validate_certs: "{{ ocp_rhbk_verify_ssl | default(false) | bool }}"
-    headers:
-      Content-Type: "application/x-www-form-urlencoded"
-    body_format: form-urlencoded
-    body:
-      grant_type: password
-      client_id: "{{ auth_client_id | default('admin-cli') }}"
-      username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"
-      password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
-  register: ocp_oidc_auth_token_resp
-  when: (ocp_oidc_auth_client_secret_value | string | length) == 0
-  no_log: true
+    - name: Extract Keycloak client secret from module result
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_client_secret_value: >-
+          {{
+            ''
+            if (ocp_oidc_auth_client_secret_raw.failed | default(false) | bool)
+            else (
+              (ocp_oidc_auth_client_secret_raw.clientsecret_info | default({}))['value']
+                | default((ocp_oidc_auth_client_secret_raw.clientsecret_info | default({})).secret, true)
+                | default(ocp_oidc_auth_client_secret_raw.secret, true)
+                | default(ocp_oidc_auth_client_secret_raw.clientsecret, true)
+                | default(ocp_oidc_auth_client_secret_raw.value, true)
+                | default(ocp_oidc_auth_client_secret_raw.clientSecret, true)
+                | default('')
+            )
+          }}
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
 
-- name: Lookup client UUID by clientId (fallback path)
-  ansible.builtin.uri:
-    url: "{{ ocp_oidc_auth_clients_lookup_url }}"
-    method: GET
-    validate_certs: "{{ ocp_rhbk_verify_ssl | default(false) | bool }}"
-    headers:
-      Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
-    status_code:
-      - 200
-  register: ocp_oidc_auth_clients_lookup
-  when: (ocp_oidc_auth_client_secret_value | string | length) == 0
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+    # ---- Fallback path: use Keycloak REST if module didn't give a secret ----
+    # The client must already exist and be readable with the supplied admin
+    # credentials; this role never creates or changes a Keycloak client. Each step
+    # below fails with its own message (asserts carry no secret values, so they are
+    # not hidden by no_log; the HTTP calls stay no_log because they handle tokens).
+    - name: Get admin access token (fallback path)
+      ansible.builtin.uri:
+        url: "{{ ocp_oidc_auth_keycloak_base }}/realms/{{ auth_realm | default('master') }}/protocol/openid-connect/token"
+        method: POST
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+        body_format: form-urlencoded
+        body:
+          grant_type: password
+          client_id: "{{ auth_client_id | default('admin-cli') }}"
+          username: "{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}"
+          password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
+      register: ocp_oidc_auth_token_resp
+      failed_when: false
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+      no_log: true
 
-- name: Assert client exists (fallback path)
-  ansible.builtin.assert:
-    that:
-      - ocp_oidc_auth_clients_lookup.json is defined
-      - (ocp_oidc_auth_clients_lookup.json | length) > 0
-      - ocp_oidc_auth_clients_lookup.json[0].id is defined
-    fail_msg: "Keycloak client '{{ openshift_oidc_auth.keycloak_client_id }}' not found in realm '{{ ocp_oidc_auth_rhbk_realm }}'."
-  when: (ocp_oidc_auth_client_secret_value | string | length) == 0
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+    - name: Assert the Keycloak TLS certificate is trusted (fallback path)
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (
+              ocp_oidc_auth_verify_ssl | bool
+              and (ocp_oidc_auth_token_resp.status | default(0)) == -1
+              and (ocp_oidc_auth_token_resp.msg | default('')) is search('(?i)certificate verify failed|CERTIFICATE_VERIFY_FAILED|hostname mismatch|SSL')
+            )
+        fail_msg: >-
+          The TLS certificate presented by {{ ocp_oidc_auth_keycloak_base }} is not trusted by
+          the process running this role, or does not match the host name (TLS verification is
+          ON). Fix the trust, do not skip it: add the CA that issued Keycloak's certificate to
+          the trust store of this process (for AAP, the execution environment), or set
+          ocp_oidc_auth_ca_pem to that CA's PEM. If you accept the risk, set
+          ocp_rhbk_verify_ssl: false explicitly.
+          ({{ ocp_oidc_auth_token_resp.msg | default('') | truncate(200, true, '...') }})
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
 
-- name: Get client secret via REST (fallback path)
-  ansible.builtin.uri:
-    url: >-
-      https://{{ ocp_oidc_auth_rhbk_hostname }}/admin/realms/{{ ocp_oidc_auth_rhbk_realm }}/clients/
-      {{ ocp_oidc_auth_clients_lookup.json[0].id }}/client-secret
-    method: GET
-    validate_certs: "{{ ocp_rhbk_verify_ssl | default(false) | bool }}"
-    headers:
-      Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
-    status_code:
-      - 200
-  register: ocp_oidc_auth_secret_resp
-  when: (ocp_oidc_auth_client_secret_value | string | length) == 0
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+    - name: Assert Keycloak admin login succeeded (fallback path)
+      ansible.builtin.assert:
+        that:
+          - ocp_oidc_auth_token_resp.status | default(-1) == 200
+          - (ocp_oidc_auth_token_resp.json.access_token | default('') | string | length) > 0
+        fail_msg: >-
+          Cannot read Keycloak client '{{ openshift_oidc_auth.keycloak_client_id }}': admin login
+          to {{ ocp_oidc_auth_keycloak_base }} (realm '{{ auth_realm | default('master') }}')
+          failed for user '{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}'
+          (HTTP {{ ocp_oidc_auth_token_resp.status | default('n/a') }}:
+          {{ ocp_oidc_auth_token_resp.msg | default('no response') | truncate(160, true, '...') }}).
+          Check the Keycloak admin user and password.
+          Nothing was created or changed in Keycloak or OpenShift.
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
 
-- name: Set secret value from REST (fallback path)
-  ansible.builtin.set_fact:
-    ocp_oidc_auth_client_secret_value: "{{ ocp_oidc_auth_secret_resp.json.value | default('') }}"
-  when: (ocp_oidc_auth_client_secret_value | string | length) == 0
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+    - name: Lookup client UUID by clientId (fallback path)
+      ansible.builtin.uri:
+        url: "{{ ocp_oidc_auth_clients_lookup_url }}"
+        method: GET
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
+        headers:
+          Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
+        status_code:
+          - 200
+      register: ocp_oidc_auth_clients_lookup
+      failed_when: false
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+    - name: Assert Keycloak allowed the client lookup (fallback path)
+      ansible.builtin.assert:
+        that:
+          - ocp_oidc_auth_clients_lookup.status | default(-1) == 200
+        fail_msg: >-
+          Keycloak did not allow user '{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}'
+          to list clients in realm '{{ ocp_oidc_auth_rhbk_realm }}'
+          (HTTP {{ ocp_oidc_auth_clients_lookup.status | default('n/a') }}). The account needs
+          permission to view clients in that realm (realm-management view-clients or
+          manage-clients). Nothing was created or changed in Keycloak or OpenShift.
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+
+    - name: Assert client exists (fallback path)
+      ansible.builtin.assert:
+        that:
+          - ocp_oidc_auth_clients_lookup.json is defined
+          - (ocp_oidc_auth_clients_lookup.json | length) > 0
+          - ocp_oidc_auth_clients_lookup.json[0].id is defined
+        fail_msg: >-
+          Keycloak client '{{ openshift_oidc_auth.keycloak_client_id }}' not found in realm
+          '{{ ocp_oidc_auth_rhbk_realm }}'. Create it in Keycloak (or correct the client ID /
+          realm); this role only reads an existing client and never creates one.
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+
+    - name: Get client secret via REST (fallback path)
+      ansible.builtin.uri:
+        url: "{{ ocp_oidc_auth_keycloak_base }}/admin/realms/{{ ocp_oidc_auth_rhbk_realm }}/clients/{{ ocp_oidc_auth_clients_lookup.json[0].id }}/client-secret"
+        method: GET
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
+        headers:
+          Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
+        status_code:
+          - 200
+      register: ocp_oidc_auth_secret_resp
+      failed_when: false
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+    - name: Assert Keycloak allowed reading the client secret (fallback path)
+      ansible.builtin.assert:
+        that:
+          - ocp_oidc_auth_secret_resp.status | default(-1) == 200
+        fail_msg: >-
+          Keycloak did not allow user '{{ auth_username | default(ocp_oidc_auth_rhbk_admin_user) }}'
+          to read the secret of client '{{ openshift_oidc_auth.keycloak_client_id }}' in realm
+          '{{ ocp_oidc_auth_rhbk_realm }}' (HTTP {{ ocp_oidc_auth_secret_resp.status | default('n/a') }}).
+          The account needs permission to manage clients in that realm.
+          Nothing was created or changed in Keycloak or OpenShift.
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+
+    - name: Set secret value from REST (fallback path)
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_client_secret_value: "{{ ocp_oidc_auth_secret_resp.json.value | default('') }}"
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+  always:
+    - name: Remove the temporary Keycloak trust CA file
+      ansible.builtin.file:
+        path: "{{ ocp_oidc_auth_trust_ca_file }}"
+        state: absent
+      delegate_to: localhost
+      connection: local
+      become: false
+      when: (ocp_oidc_auth_trust_ca_file | default('') | length) > 0
 
 - name: Assert client secret was retrieved
   ansible.builtin.assert:
@@ -216,7 +384,7 @@
     fail_msg: >-
       Failed to retrieve Keycloak client secret for client_id={{ openshift_oidc_auth.keycloak_client_id }} in realm={{ ocp_oidc_auth_rhbk_realm }}.
       Ensure the client is confidential (public_client: false) and has a secret.
-  no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+      Nothing was created or changed in Keycloak or OpenShift.
 
 # -----------------------------
 # Create/update OpenShift secret

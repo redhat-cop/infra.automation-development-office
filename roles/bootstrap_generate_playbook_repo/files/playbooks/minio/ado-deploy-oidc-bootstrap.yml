@@ -20,6 +20,8 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.automation_development_office.bootstrap_resolve_component
+    # Keycloak create/mapper is gated in ocp_minio from
+    # clients[].create_client and minio_oidc_create_keycloak_client.
     - name: ADO | Enable MinIO OIDC configuration
       ansible.builtin.set_fact:
         minio_oidc_enabled: true

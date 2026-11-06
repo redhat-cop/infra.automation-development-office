@@ -1,0 +1,95 @@
+---
+# One role run. The role must either stop with a message containing case.expect, or
+# (case.reaches) get past the Keycloak secret read and stop at the OpenShift step,
+# which is unreachable here by design (see the play-level environment).
+#
+# ocp_rhbk_verify_ssl is loaded from YAML so the role sees the typed value (bool,
+# int, float, list, null), not the string that "{{ case.verify_ssl }}" would make.
+# Ansible's bool filter is never used on that value; the role parses it strictly.
+- name: "Case: {{ case.name }}"
+  block:
+    - name: Remember how much Keycloak has already been asked
+      ansible.builtin.stat:
+        path: "{{ work_dir }}/requests.log"
+      register: oidc_log_before
+
+    - name: Write the typed verify_ssl value for this case
+      ansible.builtin.copy:
+        dest: "{{ work_dir }}/case-verify-ssl.yml"
+        content: "{{ {'ocp_rhbk_verify_ssl': case.verify_ssl if (case.verify_ssl is defined) else none} | to_nice_yaml }}"
+        mode: "0600"
+
+    - name: Load the typed verify_ssl value
+      ansible.builtin.include_vars:
+        file: "{{ work_dir }}/case-verify-ssl.yml"
+
+    - name: Run the role
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_oidc_auth
+      vars:
+        ocp_oidc_auth_rhbk_hostname: "127.0.0.1:{{ mock_port }}"
+        ocp_oidc_auth_rhbk_realm: corp
+        ocp_oidc_auth_rhbk_admin_user: "{{ case.user }}"
+        ocp_oidc_auth_rhbk_admin_password: "{{ case.password }}"
+        ocp_oidc_auth_ca_pem: "{{ case.ca_pem | default('') }}"
+        openshift_oidc_auth:
+          keycloak_client_id: "{{ case.client }}"
+          openshift_oidc_idp_name: Corp-SSO
+
+    - name: Remember that the role did not fail
+      ansible.builtin.set_fact:
+        oidc_case_failure: ""
+        oidc_case_failed_task: ""
+  rescue:
+    - name: Remember the failure
+      ansible.builtin.set_fact:
+        oidc_case_failure: "{{ ansible_failed_result.msg | default('') }}"
+        oidc_case_failed_task: "{{ ansible_failed_task.name | default('') }}"
+
+- name: "Case: {{ case.name }} - the role stopped with the expected message"
+  ansible.builtin.assert:
+    that:
+      - oidc_case_failure | length > 0
+      - case.expect in oidc_case_failure
+      - case.password not in oidc_case_failure
+    fail_msg: >-
+      Expected a clear failure containing "{{ case.expect }}" but got
+      "{{ oidc_case_failure | default('<no failure>') }}".
+  when: case.expect is defined
+
+- name: "Case: {{ case.name }} - the role stopped at the expected task"
+  ansible.builtin.assert:
+    that:
+      - oidc_case_failed_task == case.expect_task
+    fail_msg: >-
+      Expected the role to stop at "{{ case.expect_task }}" but it stopped at
+      "{{ oidc_case_failed_task }}".
+  when: case.expect_task is defined
+
+- name: "Case: {{ case.name }} - Keycloak was not contacted"
+  ansible.builtin.stat:
+    path: "{{ work_dir }}/requests.log"
+  register: oidc_log_after
+  when: case.expect_task is defined
+
+- name: "Case: {{ case.name }} - no Keycloak request was sent"
+  ansible.builtin.assert:
+    that:
+      - (oidc_log_before.stat.exists | default(false) | bool)
+        == (oidc_log_after.stat.exists | default(false) | bool)
+      - (oidc_log_before.stat.size | default(0)) == (oidc_log_after.stat.size | default(0))
+    fail_msg: >-
+      An unrecognized verify_ssl must fail before any Keycloak request. The mock
+      request log grew from {{ oidc_log_before.stat.size | default(0) }} to
+      {{ oidc_log_after.stat.size | default(0) }} bytes.
+  when: case.expect_task is defined
+
+- name: "Case: {{ case.name }} - the Keycloak secret was read and the role moved on"
+  ansible.builtin.assert:
+    that:
+      - oidc_case_failed_task == 'Create OpenShift OIDC client secret'
+    fail_msg: >-
+      Expected the role to read the Keycloak client secret and stop only at the OpenShift
+      step, but it stopped at "{{ oidc_case_failed_task }}":
+      "{{ oidc_case_failure | default('<no failure>') }}".
+  when: case.reaches | default(false) | bool

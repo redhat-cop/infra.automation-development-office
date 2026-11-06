@@ -467,7 +467,7 @@ components_env:
         rhbk_service_accounts_enabled: true
         rhbk_public_client: false
         rhbk_redirect_uris:
-          - "https://oauth-openshift.{{ '{{ app_domain }}' }}/oauth2callback/Keycloak/*"
+          - "https://oauth-openshift.{{ '{{ app_domain }}' }}/oauth2callback/Keycloak"
         rhbk_web_origins:
           - "https://oauth-openshift.{{ '{{ app_domain }}' }}"
       openshift_dev:
@@ -483,16 +483,7 @@ components_env:
           - "https://grafana.{{ '{{ app_domain }}' }}/*"
         rhbk_web_origins:
           - "https://grafana.{{ '{{ app_domain }}' }}"
-      minio_client:
-        rhbk_client_name: "MinIO Console"
-        rhbk_description: "MinIO console OIDC"
-        rhbk_public_client: false
-        rhbk_redirect_uris:
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}/oauth_callback"
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}/*"
-        rhbk_web_origins:
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}"
-          - "+"
+      # MinIO's Keycloak client is provisioned by ocp_minio, not Deploy RHBK Client.
       quay_client:
         client_id: quay
         rhbk_client_name: "Quay Registry"

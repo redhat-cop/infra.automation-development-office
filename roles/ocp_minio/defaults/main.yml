@@ -35,6 +35,9 @@ minio_oidc_policy_value: consoleAdmin
 minio_oidc_scopes: "openid,profile,email"
 minio_oidc_config_url: ""
 minio_oidc_issuer: ""
+# Default yes so legacy playbooks without create_client stay managed.
+# Matching rhbk.clients[].create_client=false (or an explicit false here)
+# skips every Keycloak mutation, including the policy mapper.
 minio_oidc_create_keycloak_client: true
 minio_oidc_create_policy_mapper: true
 

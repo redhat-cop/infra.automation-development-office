@@ -1,0 +1,27 @@
+---
+dependency:
+  name: shell
+  command: echo "No galaxy install - runs against a local mock Keycloak only"
+
+driver:
+  name: default
+
+platforms:
+  - name: localhost
+
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+  playbooks:
+    converge: converge.yml
+
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - converge

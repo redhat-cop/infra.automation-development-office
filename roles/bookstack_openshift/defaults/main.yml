@@ -75,6 +75,8 @@ bookstack_oidc_enabled: false
 bookstack_oidc_name: Keycloak
 bookstack_oidc_display_name: Lab SSO
 bookstack_oidc_client_id: bookstack
+# Empty means fetch from Keycloak at runtime.
+# Never apply OIDC with an empty secret.
 bookstack_oidc_client_secret: ""
 # Live realm/host come from vars_rhbk.yml (playbook) or ocp_rhbk_* at runtime.
 bookstack_oidc_issuer: ""
