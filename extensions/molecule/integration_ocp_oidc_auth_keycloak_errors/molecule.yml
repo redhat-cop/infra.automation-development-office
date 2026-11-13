@@ -1,11 +1,16 @@
 ---
 dependency:
   name: shell
-  # community.general 14+ redirects keycloak_* to middleware_automation.keycloak.
-  # Install that collection so converge can resolve keycloak_clientsecret_info.
+  # Install into ~/.ansible/collections (on Ansible's default search path).
+  # Ephemeral -p paths are ignored unless COLLECTIONS_PATH is rewritten, and
+  # Molecule CI already uses ~/.ansible/collections.
+  # kubernetes.core is required because ocp_oidc_auth references kubernetes.core.k8s
+  # (Ansible resolves the FQCN when the role is loaded, even for cases that
+  # fail before the OpenShift step).
   command: >-
-    ansible-galaxy collection install middleware_automation.keycloak
-    -p "${MOLECULE_EPHEMERAL_DIRECTORY}/collections"
+    ansible-galaxy collection install
+    middleware_automation.keycloak kubernetes.core
+    -p "${HOME}/.ansible/collections"
     --force
 
 driver:
@@ -16,9 +21,6 @@ platforms:
 
 provisioner:
   name: ansible
-  env:
-    ANSIBLE_COLLECTIONS_PATH: >-
-      ${MOLECULE_EPHEMERAL_DIRECTORY}/collections:${ANSIBLE_COLLECTIONS_PATH}
   inventory:
     hosts:
       all:
