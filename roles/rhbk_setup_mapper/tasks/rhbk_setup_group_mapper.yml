@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Assert LDAP group mapper config is present
   ansible.builtin.assert:
     that:
@@ -109,17 +110,19 @@
     validate_certs: "{{ rhbk_verify_ssl }}"
   register: rhbk_setup_mapper_ldap_mappers
 
-- name: Check if ldap-group-mapper already exists
+- name: Locate existing ldap-group-mapper when present
   ansible.builtin.set_fact:
-    rhbk_setup_mapper_ldap_group_mapper_exists: >-
+    rhbk_setup_mapper_ldap_group_mapper: >-
       {{
         rhbk_setup_mapper_ldap_mappers.json
         | default([])
         | selectattr('name', 'equalto', 'ldap-group-mapper')
-        | list | length > 0
+        | list
+        | first
+        | default({}, true)
       }}
 
-- name: Create LDAP Group Mapper
+- name: Create LDAP Group Mapper when missing
   ansible.builtin.uri:
     url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/components"
     method: POST
@@ -137,4 +140,60 @@
     status_code:
       - 201
       - 409
-  when: not (rhbk_setup_mapper_ldap_group_mapper_exists | bool)
+  when: (rhbk_setup_mapper_ldap_group_mapper.id | default('') | length) == 0
+
+- name: Update LDAP Group Mapper when configuration changed
+  ansible.builtin.uri:
+    url: >-
+      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/components/{{ rhbk_setup_mapper_ldap_group_mapper.id }}
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ rhbk_setup_mapper_auth.json.access_token }}"
+      Content-Type: "application/json"
+    body_format: json
+    body:
+      id: "{{ rhbk_setup_mapper_ldap_group_mapper.id }}"
+      name: "ldap-group-mapper"
+      parentId: "{{ rhbk_setup_mapper_ldap_component_id }}"
+      providerId: "group-ldap-mapper"
+      providerType: "org.keycloak.storage.ldap.mappers.LDAPStorageMapper"
+      config: "{{ rhbk_setup_mapper_ldap_group_config }}"
+    validate_certs: "{{ rhbk_verify_ssl }}"
+    status_code:
+      - 204
+      - 200
+  when: (rhbk_setup_mapper_ldap_group_mapper.id | default('') | length) > 0
+
+- name: Re-read LDAP mappers and confirm group mapper is present
+  vars:
+    rhbk_setup_mapper_ldap_mappers_url: >-
+      {{
+        (rhbk_keycloak_base_url | default('https://' ~ rhbk_host))
+        ~ '/admin/realms/' ~ rhbk_realm
+        ~ '/components?parent=' ~ rhbk_setup_mapper_ldap_component_id
+        ~ '&type=org.keycloak.storage.ldap.mappers.LDAPStorageMapper'
+      }}
+  ansible.builtin.uri:
+    url: "{{ rhbk_setup_mapper_ldap_mappers_url }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ rhbk_setup_mapper_auth.json.access_token }}"
+    return_content: true
+    validate_certs: "{{ rhbk_verify_ssl }}"
+  register: rhbk_setup_mapper_ldap_mappers_after
+
+- name: Assert ldap-group-mapper exists after apply
+  ansible.builtin.assert:
+    that:
+      - >
+        (
+          rhbk_setup_mapper_ldap_mappers_after.json
+          | default([])
+          | selectattr('name', 'equalto', 'ldap-group-mapper')
+          | list
+          | length
+        ) > 0
+    fail_msg: >-
+      LDAP group mapper 'ldap-group-mapper' was not found under federation
+      '{{ rhbk_federation_name }}' after create/update. Check ldap_group_config
+      and Keycloak Admin API errors.

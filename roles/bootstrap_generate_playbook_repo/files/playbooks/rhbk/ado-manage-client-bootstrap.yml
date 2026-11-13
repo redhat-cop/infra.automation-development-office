@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: ADO | Manage RHBK client
   hosts: localhost
   gather_facts: false
@@ -37,7 +38,10 @@
         rhbk_service_accounts_enabled: "{{ item.value.rhbk_service_accounts_enabled | default(false) }}"
         rhbk_public_client: "{{ item.value.rhbk_public_client | default(false) }}"
         rhbk_standard_flow_enabled: "{{ item.value.rhbk_standard_flow_enabled | default(true) }}"
+        rhbk_implicit_flow_enabled: "{{ item.value.rhbk_implicit_flow_enabled | default(false) }}"
         rhbk_direct_access_grants_enabled: "{{ item.value.rhbk_direct_access_grants_enabled | default(false) }}"
+        rhbk_client_authenticator_type: >-
+          {{ item.value.rhbk_client_authenticator_type | default('client-secret') }}
         rhbk_redirect_uris: "{{ item.value.rhbk_redirect_uris | default(item.value.redirect_uris | default(omit)) }}"
         rhbk_web_origins: "{{ item.value.rhbk_web_origins | default(item.value.web_origins | default(omit)) }}"
         rhbk_root_url: "{{ item.value.rhbk_root_url | default(omit) }}"

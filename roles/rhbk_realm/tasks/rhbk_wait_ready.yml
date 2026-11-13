@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Wait until the Keycloak route answers over TLS before realm API calls.
 # UNEXPECTED_EOF usually means ingress/pod TLS is not ready yet (or broken cert).
 - name: Normalize Keycloak hostname for realm wait
@@ -67,3 +68,56 @@
       delete the bad secret {{ ocp_rhbk_tls_secret_name | default('keycloak-tls-secret') }}
       in namespace {{ name_space | default('keycloak') }} and redeploy.
   when: rhbk_realm_wait_https is failed
+
+# GET /realms/master can succeed while the master-realm token endpoint is still
+# slow or wedged (seen as "read operation timed out" on admin-cli password grant).
+# Probe the token endpoint with a longer timeout and retries before realm create.
+- name: Wait for Keycloak master-realm admin token endpoint
+  when:
+    - rhbk_admin_user is defined
+    - (rhbk_admin_user | string | length) > 0
+    - rhbk_admin_password is defined
+    - (rhbk_admin_password | string | length) > 0
+  ansible.builtin.uri:
+    url: >-
+      {{
+        (
+          rhbk_keycloak_base_url
+          | default('https://' ~ rhbk_realm_wait_hostname)
+        )
+        ~ '/realms/master/protocol/openid-connect/token'
+      }}
+    method: POST
+    validate_certs: "{{ rhbk_verify_ssl | default(rhbk_realm_verify_ssl) | default(false) | bool }}"
+    body_format: form-urlencoded
+    body:
+      grant_type: password
+      client_id: admin-cli
+      username: "{{ rhbk_admin_user }}"
+      password: "{{ rhbk_admin_password }}"
+    status_code: [200]
+    timeout: "{{ rhbk_realm_token_wait_timeout | default(60) | int }}"
+  register: rhbk_realm_wait_token
+  until: rhbk_realm_wait_token is succeeded
+  retries: "{{ rhbk_realm_token_wait_retries | default(12) | int }}"
+  delay: "{{ rhbk_realm_token_wait_delay | default(10) | int }}"
+  changed_when: false
+  no_log: true
+  ignore_errors: true
+
+- name: Fail with actionable Keycloak admin-token timeout guidance
+  when:
+    - rhbk_admin_user is defined
+    - (rhbk_admin_user | string | length) > 0
+    - rhbk_admin_password is defined
+    - (rhbk_admin_password | string | length) > 0
+    - rhbk_realm_wait_token is failed
+  ansible.builtin.fail:
+    msg: >-
+      Keycloak admin token request timed out or failed at
+      {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_realm_wait_hostname) }}/realms/master/protocol/openid-connect/token
+      ({{ rhbk_realm_wait_token.msg | default(rhbk_realm_wait_token) }}).
+      This is separate from LDAP federation. Check Keycloak pod Ready,
+      PostgreSQL health, and recent pod logs in namespace
+      {{ name_space | default('keycloak') }} before retrying realm configuration.
+      Do not treat this as an LDAP connection failure.

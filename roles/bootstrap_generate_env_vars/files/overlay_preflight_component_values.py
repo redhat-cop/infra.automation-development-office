@@ -15,6 +15,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import preflight_oidc  # noqa: E402  (shared OIDC rules; same file the pre-generation check runs)
+import rhbk_ldap_federation  # noqa: E402  (RHBK LDAP federation ldap_config builder)
 
 
 class NoAliasDumper(yaml.SafeDumper):
@@ -2827,21 +2828,47 @@ def merge_component(component, cfg):
                         if part.strip()
                     ]
                 redirect_uris = _split(client.get("redirect_uris"))
-                if preflight_oidc.row_is_openshift_oidc_client(
+                is_openshift_oidc = preflight_oidc.row_is_openshift_oidc_client(
                     preflight, client_id, client
-                ):
+                )
+                if is_openshift_oidc:
                     redirect_uris = (
                         preflight_oidc.rewrite_openshift_oauth_redirect_uris(
                             redirect_uris, preflight
                         )
                     )
-                rhbk_clients[client_id] = {
+                # Confidential OIDC defaults: authorization code only (no
+                # implicit / direct-grant unless the form explicitly enables them).
+                client_entry = {
                     "rhbk_client_name": str(client.get("name") or client_id),
                     "rhbk_redirect_uris": redirect_uris,
                     "rhbk_web_origins": _split(client.get("web_origins")),
                     "rhbk_default_client_scopes": ["groups"],
                     "rhbk_attach_default_client_scopes": True,
+                    "rhbk_public_client": bool(client.get("public_client", False)),
+                    "rhbk_standard_flow_enabled": bool(
+                        client.get("standard_flow_enabled", True)
+                    ),
+                    "rhbk_implicit_flow_enabled": bool(
+                        client.get("implicit_flow_enabled", False)
+                    ),
+                    "rhbk_direct_access_grants_enabled": bool(
+                        client.get("direct_access_grants_enabled", False)
+                    ),
+                    "rhbk_protocol": str(
+                        client.get("protocol") or "openid-connect"
+                    ),
+                    "rhbk_client_authenticator_type": str(
+                        client.get("client_authenticator_type")
+                        or "client-secret"
+                    ),
                 }
+                if is_openshift_oidc and not client_entry["rhbk_public_client"]:
+                    # OpenShift OAuth IdP expects a confidential client secret.
+                    client_entry["rhbk_service_accounts_enabled"] = bool(
+                        client.get("service_accounts_enabled", False)
+                    )
+                rhbk_clients[client_id] = client_entry
             if rhbk_clients:
                 vars_data["rhbk_clients"] = rhbk_clients
                 vars_data["components_env"]["rhbk"]["rhbk_clients"] = copy.deepcopy(
@@ -3069,33 +3096,63 @@ def merge_component(component, cfg):
             elif "client_scopes" in (preflight.get("component_options") or {}).get("rhbk", []):
                 vars_data["client_scope_name"] = "groups"
                 vars_data["rhbk_client_scope_name"] = "groups"
-            bind_password = first_present(secret_values.get("federation_bind_password"))
-            ldap_updates = {}
-            if public_values.get("federation_ldap_url") is not None:
-                ldap_updates["connectionUrl"] = str(public_values.get("federation_ldap_url"))
-            if public_values.get("federation_bind_dn") is not None:
-                ldap_updates["bindDn"] = str(public_values.get("federation_bind_dn"))
-            if bind_password is not None:
-                ldap_updates["bindCredential"] = str(bind_password)
-            if public_values.get("federation_users_dn") is not None:
-                ldap_updates["usersDn"] = str(public_values.get("federation_users_dn"))
-            if ldap_updates:
+            # Build Keycloak ldap_config for rhbk_manage_federation.
+            # Empty form strings must never wipe connectionUrl / bindDn (that left
+            # Keycloak with blank Connection URL / Bind DN while bindCredential stayed set).
+            rhbk_opts = (preflight.get("component_options") or {}).get("rhbk") or []
+            federation_selected = (
+                "federation" in [str(x) for x in rhbk_opts]
+                or bool(str(public_values.get("federation_ldap_url") or "").strip())
+                or bool(str(public_values.get("federation_bind_dn") or "").strip())
+                or bool(str(public_values.get("federation_users_dn") or "").strip())
+                or bool(str(secret_values.get("federation_bind_password") or "").strip())
+            )
+            if federation_selected:
                 existing_ldap = vault_data.get("ldap_config")
-                if isinstance(existing_ldap, dict):
-                    merged_ldap = dict(existing_ldap)
-                    merged_ldap.update(ldap_updates)
-                    vault_data["ldap_config"] = merged_ldap
+                if not isinstance(existing_ldap, dict):
+                    existing_ldap = vars_data.get("ldap_config")
+                if not isinstance(existing_ldap, dict):
+                    existing_ldap = {}
+                built_ldap = rhbk_ldap_federation.build_rhbk_ldap_config(
+                    public=public_values,
+                    secret=secret_values,
+                    existing=existing_ldap,
+                    apply_freeipa_defaults=True,
+                )
+                if rhbk_ldap_federation.merge_ldap_config_into_vault(vault_data, built_ldap):
                     vault_data_changed = True
+                # Keep bindCredential only in vault. Non-secret keys in vars help
+                # operators inspect Connection URL / Bind DN without opening vault.
+                public_ldap = {
+                    key: value
+                    for key, value in built_ldap.items()
+                    if key != "bindCredential" and str(value or "").strip()
+                }
+                if public_ldap:
+                    vars_data["ldap_config_public"] = public_ldap
+                    vars_data_changed = True
+                group_cfg = vars_data.get("ldap_group_config")
+                if not isinstance(group_cfg, dict) or not group_cfg:
+                    defaults = rhbk_ldap_federation.freeipa_ldap_group_mapper_defaults(
+                        str(built_ldap.get("usersDn") or "")
+                    )
+                    if defaults.get("groups.dn"):
+                        vars_data["ldap_group_config"] = defaults
+                        vars_data_changed = True
             fed_name = first_present(public_values.get("federation_name"))
-            if fed_name is not None:
-                vault_data["rhbk_federation_name"] = str(fed_name)
+            if fed_name is not None and str(fed_name).strip():
+                vault_data["rhbk_federation_name"] = str(fed_name).strip()
+                vars_data["rhbk_federation_name"] = str(fed_name).strip()
+                vars_data["federation_name"] = str(fed_name).strip()
                 vault_data_changed = True
-            elif "federation" in (preflight.get("component_options") or {}).get("rhbk", []):
+                vars_data_changed = True
+            elif "federation" in [str(x) for x in rhbk_opts]:
                 default_fed = "LDAP"
                 vars_data["federation_name"] = default_fed
                 vars_data["rhbk_federation_name"] = default_fed
                 vault_data["rhbk_federation_name"] = default_fed
                 vault_data_changed = True
+                vars_data_changed = True
 
             if not rhbk_standalone_selected:
                 purge_standalone_install_vars(vars_data, "rhbk")

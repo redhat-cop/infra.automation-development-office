@@ -50,17 +50,18 @@ def test_tls_fail_msg_is_actionable_and_cert_only() -> None:
     block = text[start:login_start]
     login = text[login_start : text.index("Get the Keycloak realm (fallback path)")]
     assert "Keycloak TLS certificate verification failed" in block
-    assert "Preflight → Step 2 → OAuth / RHBK" in block
-    assert "uncheck" in block
-    assert "Verify Keycloak TLS certificate" in block
-    assert "regenerate the configuration" in block
-    assert "trusted CA" in block
+    assert "trust source=" in block
+    assert "idm_ca_bundle_pem" in block
+    assert "Keep verification enabled" in block
+    assert "ocp_oidc_auth_ca_pem" in block
     assert "certificate verify failed" in block
     assert "CERTIFICATE_VERIFY_FAILED" in block
     assert "self-signed certificate" in block
     assert "|SSL')" not in block
     assert "ocp_oidc_auth_verify_ssl | bool" in block
     assert "Keycloak TLS certificate verification failed" not in login
+    # Do not suggest disabling TLS verification.
+    assert "uncheck" not in block
     assert "uncheck" not in login
 
 

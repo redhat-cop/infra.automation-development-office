@@ -6,13 +6,14 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def _load():
     path = ROOT / "plugins" / "filter" / "tls_trust_bundle.py"
     spec = importlib.util.spec_from_file_location("tls_trust_bundle_filter", path)
     module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
 
@@ -27,7 +28,7 @@ INTERMEDIATE = """-----BEGIN CERTIFICATE-----
 INTERMEDIATEDATA
 -----END CERTIFICATE-----"""
 
-ROOT = """-----BEGIN CERTIFICATE-----
+ROOT_CERT = """-----BEGIN CERTIFICATE-----
 ROOTDATA
 -----END CERTIFICATE-----"""
 
@@ -37,7 +38,7 @@ OTHERCADATA
 
 
 def test_split_pem_certificates():
-    chain = f"{LEAF}\n{INTERMEDIATE}\n{ROOT}\n"
+    chain = f"{LEAF}\n{INTERMEDIATE}\n{ROOT_CERT}\n"
     certs = F.split_pem_certificates(chain)
     assert len(certs) == 3
     assert "LEAFDATA" in certs[0]
@@ -45,13 +46,13 @@ def test_split_pem_certificates():
 
 
 def test_idm_acme_style_secret_prefers_ca_crt():
-    bundle = F.trust_bundle_from_tls_secret(ca_crt=ROOT, tls_crt=f"{LEAF}\n{INTERMEDIATE}")
+    bundle = F.trust_bundle_from_tls_secret(ca_crt=ROOT_CERT, tls_crt=f"{LEAF}\n{INTERMEDIATE}")
     assert "ROOTDATA" in bundle
     assert "LEAFDATA" not in bundle
 
 
 def test_chain_without_ca_crt_drops_leaf():
-    bundle = F.trust_bundle_from_tls_secret(ca_crt="", tls_crt=f"{LEAF}\n{INTERMEDIATE}\n{ROOT}")
+    bundle = F.trust_bundle_from_tls_secret(ca_crt="", tls_crt=f"{LEAF}\n{INTERMEDIATE}\n{ROOT_CERT}")
     assert "LEAFDATA" not in bundle
     assert "INTERMEDIATEDATA" in bundle
     assert "ROOTDATA" in bundle
@@ -68,7 +69,7 @@ def test_public_style_empty_inputs_yield_empty_bundle():
 
 
 def test_custom_ca_bundle_selected_from_candidates():
-    bundle = F.first_pem_trust_bundle("", "garbage", OTHER_CA, ROOT)
+    bundle = F.first_pem_trust_bundle("", "garbage", OTHER_CA, ROOT_CERT)
     assert "OTHERCADATA" in bundle
     assert F.pem_looks_like_certificate(bundle) is True
 
