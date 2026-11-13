@@ -186,6 +186,76 @@
     kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
     validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
 
+- name: NFS CSI | Resolve desired StorageClass mountOptions
+  ansible.builtin.set_fact:
+    ocp_nfs_storage_desired_mount_options: >-
+      {{
+        []
+        if (
+          (ocp_nfs_storage_nfs_version | default('') | string | trim | lower)
+          in ['', 'auto', 'none']
+        )
+        else (
+          ['nfsvers=' ~ (ocp_nfs_storage_nfs_version | string | trim)]
+        )
+      }}
+
+- name: NFS CSI | Look up existing StorageClass before apply
+  kubernetes.core.k8s_info:
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: "{{ ocp_nfs_storage_class_name }}"
+    host: "{{ ocp_nfs_storage_k8s_auth.host | default(omit) }}"
+    api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
+    kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
+    validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_sc_lookup
+  failed_when: false
+
+- name: NFS CSI | Compare existing vs desired nfsvers
+  when: (ocp_nfs_storage_sc_lookup.resources | default([]) | length) > 0
+  ansible.builtin.set_fact:
+    ocp_nfs_storage_existing_nfsvers: >-
+      {{
+        ocp_nfs_storage_sc_lookup.resources[0].mountOptions
+        | default([])
+        | select('match', '(?i)^nfsvers=')
+        | map('regex_replace', '(?i)^nfsvers=', '')
+        | map('lower')
+        | list
+        | sort
+      }}
+    ocp_nfs_storage_desired_nfsvers: >-
+      {{
+        ocp_nfs_storage_desired_mount_options
+        | select('match', '(?i)^nfsvers=')
+        | map('regex_replace', '(?i)^nfsvers=', '')
+        | map('lower')
+        | list
+        | sort
+      }}
+
+- name: NFS CSI | Fail when existing StorageClass nfsvers conflicts
+  when:
+    - (ocp_nfs_storage_sc_lookup.resources | default([]) | length) > 0
+    - ocp_nfs_storage_existing_nfsvers is defined
+    - ocp_nfs_storage_desired_nfsvers is defined
+    - ocp_nfs_storage_existing_nfsvers != ocp_nfs_storage_desired_nfsvers
+  ansible.builtin.fail:
+    msg: >-
+      StorageClass {{ ocp_nfs_storage_class_name }} already exists with
+      mountOptions
+      {{ ocp_nfs_storage_sc_lookup.resources[0].mountOptions | default([]) }},
+      but this run requests
+      {{
+        ocp_nfs_storage_desired_mount_options
+        if (ocp_nfs_storage_desired_mount_options | length > 0)
+        else '(no nfsvers — Auto)'
+      }}.
+      ADO will not change mountOptions on an existing StorageClass.
+      Use a new StorageClass name (for example nfs-csi-v3), or remove only
+      this unused class after confirming no PVCs depend on it.
+
 - name: NFS CSI | Apply NFS StorageClass
   kubernetes.core.k8s:
     state: present

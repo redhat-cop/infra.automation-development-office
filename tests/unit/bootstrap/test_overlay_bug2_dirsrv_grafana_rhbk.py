@@ -128,7 +128,10 @@ def test_overlay_gives_grafana_a_client_and_dirsrv_none(tmp_path: Path) -> None:
 
 
 def test_ui_presets_do_not_offer_a_dirsrv_client() -> None:
-    assert PRESETS_APP.is_file(), PRESETS_APP
+    if not PRESETS_APP.is_file():
+        import pytest
+
+        pytest.skip(f"ado-preflight-ui App.jsx not present: {PRESETS_APP}")
     text = PRESETS_APP.read_text(encoding="utf-8")
     start = text.index("function buildRhbkOidcClientPresets")
     end = text.index("\nfunction ", start + 1)

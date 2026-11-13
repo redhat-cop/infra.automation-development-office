@@ -22,3 +22,7 @@ bugfixes:
     ocp_nfs_storage - Report driver install, StorageClass, test namespace, and
     test PVC Bound status independently; fail Bootstrap when required NFS
     validation does not succeed (does not patch or delete existing lab PVCs).
+  - >-
+    ocp_nfs_storage - Support ``auto`` NFS version (omit ``nfsvers`` mount
+    option). Look up an existing StorageClass and fail clearly when nfsvers
+    conflicts instead of silently changing mountOptions.

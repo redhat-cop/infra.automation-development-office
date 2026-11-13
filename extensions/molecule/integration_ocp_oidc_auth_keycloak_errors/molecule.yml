@@ -1,7 +1,12 @@
 ---
 dependency:
   name: shell
-  command: echo "No galaxy install - runs against a local mock Keycloak only"
+  # community.general 14+ redirects keycloak_* to middleware_automation.keycloak.
+  # Install that collection so converge can resolve keycloak_clientsecret_info.
+  command: >-
+    ansible-galaxy collection install middleware_automation.keycloak
+    -p "${MOLECULE_EPHEMERAL_DIRECTORY}/collections"
+    --force
 
 driver:
   name: default
@@ -11,6 +16,9 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    ANSIBLE_COLLECTIONS_PATH: >-
+      ${MOLECULE_EPHEMERAL_DIRECTORY}/collections:${ANSIBLE_COLLECTIONS_PATH}
   inventory:
     hosts:
       all:

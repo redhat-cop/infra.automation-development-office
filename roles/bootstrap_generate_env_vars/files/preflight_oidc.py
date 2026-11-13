@@ -557,7 +557,7 @@ OIDC_CONSUMERS = (
     {
         "key": "minio",
         "label": "MinIO",
-        "client": lambda p: resolve_minio_oidc_client_id(p),
+        "client": resolve_minio_oidc_client_id,
         "enabled": lambda p: component_config(p, "minio").get("oidc_enabled"),
         "independent": lambda p: component_config(p, "minio").get("fetch_oidc_secret_from_rhbk")
         is False,
@@ -566,7 +566,7 @@ OIDC_CONSUMERS = (
     {
         "key": "dev_hub",
         "label": "Developer Hub",
-        "client": lambda p: resolve_dev_hub_keycloak_client_id(p),
+        "client": resolve_dev_hub_keycloak_client_id,
         "enabled": lambda p: None,
         "fix": "component_config.dev_hub.keycloak_client_id",
     },

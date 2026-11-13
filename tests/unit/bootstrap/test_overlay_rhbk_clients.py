@@ -111,7 +111,7 @@ def _overlay(
         "ADO_SELECTED_COMPONENTS": json.dumps(selected),
     }
     result = None
-    for _ in range(2):
+    for _unused in range(2):
         result = subprocess.run(
             [sys.executable, str(SCRIPT)],
             env=env,
@@ -253,7 +253,7 @@ def test_external_keycloak_requires_explicit_openshift_client(
         "admin_user": "admin",
         "admin_password": "external-pass",
     }
-    code, err, _ = _overlay(tmp_path, selected=["openshift"], rhbk=None, oauth=oauth)
+    code, err, _unused = _overlay(tmp_path, selected=["openshift"], rhbk=None, oauth=oauth)
     assert code != 0
     assert "externally managed Keycloak client but no client ID" in err
 
@@ -268,7 +268,7 @@ def test_external_keycloak_with_explicit_client_is_accepted(
         "admin_user": "admin",
         "admin_password": "external-pass",
     }
-    code, err, _ = _overlay(tmp_path, selected=["openshift"], rhbk=None, oauth=oauth)
+    code, err, _unused = _overlay(tmp_path, selected=["openshift"], rhbk=None, oauth=oauth)
     assert code == 0, err
 
 

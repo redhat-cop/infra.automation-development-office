@@ -30,7 +30,7 @@ Automation Development Office
 | `ocp_nfs_storage_driver_version` | Helm chart version (no leading ``v``). Default: `4.11.0`. Must match a bundled ``files/charts/csi-driver-nfs-<version>.tgz`` when using the default local chart. |
 | `ocp_nfs_storage_use_bundled_chart` | Use the chart shipped in the role (default ``true``). Set ``false`` to ``helm repo add`` the upstream GitHub charts URL. |
 | `ocp_nfs_storage_chart_path` | Optional absolute path to a chart ``.tgz`` or directory. Overrides the bundled archive when set. |
-| `ocp_nfs_storage_nfs_version` | NFS protocol version. Default: `4.1`. |
+| `ocp_nfs_storage_nfs_version` | NFS protocol for StorageClass ``mountOptions`` (``nfsvers=…``). Default: `4.1`. Use ``auto`` (or empty) to omit an explicit nfsvers option. Existing StorageClasses are not updated when nfsvers differs — choose a new class name instead. |
 | `ocp_nfs_storage_namespace` | Driver namespace. Default: `csi-driver-nfs`. |
 | `ocp_nfs_storage_reclaim_policy` | StorageClass reclaimPolicy. Default: `Delete`. |
 | `ocp_nfs_storage_binding_mode` | volumeBindingMode. Default: `Immediate`. |

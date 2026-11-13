@@ -65,3 +65,19 @@ def test_no_self_default_assignment_pattern():
         flags=re.MULTILINE,
     ):
         raise AssertionError(f"self-default assignment found: {match.group(0).strip()}")
+
+
+def test_storageclass_template_supports_auto_omit_nfsvers():
+    template = (
+        ROOT / "roles" / "ocp_nfs_storage" / "templates" / "storageclass.yaml.j2"
+    ).read_text(encoding="utf-8")
+    assert "nfsvers={{ _nfs_ver }}" in template
+    assert "auto" in template
+    assert "mountOptions:" in template
+
+
+def test_storageclass_conflict_check_present():
+    tasks = ROLE_TASKS.read_text(encoding="utf-8")
+    assert "NFS CSI | Look up existing StorageClass before apply" in tasks
+    assert "NFS CSI | Fail when existing StorageClass nfsvers conflicts" in tasks
+    assert "nfs-csi-v3" in tasks

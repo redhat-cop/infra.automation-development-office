@@ -343,7 +343,7 @@ def test_external_mode_requires_every_input(tmp_path, missing, fragment):
 
 
 def test_rhbk_mode_requires_an_admin_password_from_somewhere(tmp_path):
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(rhbk=rhbk_form(admin_password=""), oauth={"client_id": "OpenshiftDev"}),
         ["rhbk", "openshift"],
@@ -480,7 +480,7 @@ def test_leftover_oauth_hostname_url_is_ignored_when_rhbk_is_selected(tmp_path):
     ],
 )
 def test_invalid_openshift_oidc_inputs_are_rejected(tmp_path, override, fragment):
-    result, _ = run(tmp_path, make_preflight(oauth=external_oauth(**override)), ["openshift"])
+    result, _unused = run(tmp_path, make_preflight(oauth=external_oauth(**override)), ["openshift"])
     assert result.returncode != 0
     assert fragment in result.stderr
 
@@ -661,7 +661,7 @@ def test_active_integration_pointing_at_removed_client_blocks_generation(tmp_pat
 
 def test_removed_client_is_fine_when_the_integration_is_disabled(tmp_path):
     grafana = {"oidc": {"enabled": False, "client_id": "grafana-client"}}
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(
@@ -679,7 +679,7 @@ def test_removed_client_is_fine_when_the_integration_is_disabled(tmp_path):
 
 
 def test_removed_openshift_client_blocks_when_rhbk_manages_clients(tmp_path):
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(clients=[copy.deepcopy(GRAFANA)], clients_dismissed=["OpenshiftDev"]),
@@ -693,7 +693,7 @@ def test_removed_openshift_client_blocks_when_rhbk_manages_clients(tmp_path):
 
 def test_dismissed_name_does_not_block_an_external_client(tmp_path):
     """No RHBK in this run: the client list is not consulted."""
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             oauth=external_oauth(client_id="OpenshiftDev"),
@@ -706,7 +706,7 @@ def test_dismissed_name_does_not_block_an_external_client(tmp_path):
 
 
 def test_client_managed_elsewhere_flag_skips_the_client_list(tmp_path):
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(clients=[], clients_dismissed=["OpenshiftDev"]),
@@ -719,7 +719,7 @@ def test_client_managed_elsewhere_flag_skips_the_client_list(tmp_path):
 
 def test_integrations_that_are_not_selected_are_not_checked(tmp_path):
     grafana = {"oidc": {"enabled": True, "client_id": "gone"}}
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(clients_dismissed=["gone"]),
@@ -741,7 +741,7 @@ def test_json_round_trip_and_rerun_generate_identical_files(tmp_path):
     first, env_dir = run(tmp_path, preflight, ["openshift"])
     assert first.returncode == 0, first.stderr
     before = tree_text(env_dir)
-    second, _ = run(tmp_path, imported, ["openshift"])
+    second, _unused = run(tmp_path, imported, ["openshift"])
     assert second.returncode == 0, second.stderr
     assert tree_text(env_dir) == before
     assert load(env_dir, "vars_rhbk.yml")["ocp_rhbk_verify_ssl"] is True
@@ -764,7 +764,7 @@ def test_leftover_openshift_connection_overrides_are_ignored_on_first_run(tmp_pa
     assert data["openshift_oidc_auth"]["issuer"] == (
         "https://keycloak.apps.example.test/realms/demo"
     )
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(rhbk=rhbk_form(), oauth={"client_id": "OpenshiftDev"}),
         ["rhbk", "openshift"],
@@ -809,7 +809,7 @@ def test_admin_password_only_ever_lands_in_the_vault_file(tmp_path, mode):
 
 def test_validation_errors_never_echo_secrets(tmp_path):
     oauth = external_oauth(realm="")
-    result, _ = run(tmp_path, make_preflight(oauth=oauth), ["openshift"])
+    result, _unused = run(tmp_path, make_preflight(oauth=oauth), ["openshift"])
     assert result.returncode != 0
     assert EXTERNAL_PASSWORD not in result.stdout + result.stderr
 
@@ -841,7 +841,7 @@ def test_validator_flags_bypassed_ui_guard_for_other_components(tmp_path):
         apps=["rhbk", "bookstack"],
         config={"bookstack": bookstack},
     )
-    result, _ = run(tmp_path, preflight, ["rhbk", "openshift", "bookstack"], script=VALIDATOR)
+    result, _unused = run(tmp_path, preflight, ["rhbk", "openshift", "bookstack"], script=VALIDATOR)
     assert result.returncode != 0
     assert 'BookStack OIDC still uses Keycloak client "bookstack-gone"' in result.stderr
 
@@ -849,7 +849,7 @@ def test_validator_flags_bypassed_ui_guard_for_other_components(tmp_path):
 def test_blank_client_id_means_the_framework_default_client(tmp_path):
     """Quay with OIDC on and no client ID uses the default ``quay`` client."""
     quay = {"oidc_enabled": True}
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(),
@@ -865,7 +865,7 @@ def test_blank_client_id_means_the_framework_default_client(tmp_path):
 
 def test_blank_client_id_is_blocked_when_the_default_client_was_removed(tmp_path):
     quay = {"oidc_enabled": True}
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(clients_dismissed=["quay"]),
@@ -943,19 +943,19 @@ def test_changing_the_defaults_file_changes_the_resolved_client(tmp_path, monkey
     )
     monkeypatch.setenv("ADO_COMPONENTS_DEFAULTS", str(changed))
     # the old default is no longer referenced when blank; the new one is
-    result, _ = _blank_default_run(tmp_path, "quay", rhbk_form(clients_dismissed=["quay"]))
+    result, _unused = _blank_default_run(tmp_path, "quay", rhbk_form(clients_dismissed=["quay"]))
     assert result.returncode == 0, result.stderr
-    result, _ = _blank_default_run(tmp_path, "quay", rhbk_form(clients_dismissed=["quay-renamed"]))
+    result, _unused = _blank_default_run(tmp_path, "quay", rhbk_form(clients_dismissed=["quay-renamed"]))
     assert result.returncode != 0
     assert 'Quay OIDC still uses Keycloak client "quay-renamed"' in result.stderr
 
 
 @pytest.mark.parametrize("component", DEFAULTED)
 def test_blank_client_id_resolves_the_default_for_every_defaulted_component(tmp_path, component):
-    result, _ = _blank_default_run(tmp_path, component, rhbk_form())
+    result, _unused = _blank_default_run(tmp_path, component, rhbk_form())
     assert result.returncode == 0, result.stderr
     # external Keycloak (no RHBK in this run) accepts it too
-    result, _ = _blank_default_run(tmp_path, component, None)
+    result, _unused = _blank_default_run(tmp_path, component, None)
     assert result.returncode == 0, result.stderr
 
 
@@ -963,7 +963,7 @@ def test_blank_client_id_resolves_the_default_for_every_defaulted_component(tmp_
 def test_removed_default_client_is_not_silently_referenced(tmp_path, component):
     default = _defaults_module().load_default_client_ids()[component]
     removed = rhbk_form(clients=[copy.deepcopy(OPENSHIFT)], clients_dismissed=[default])
-    result, _ = _blank_default_run(tmp_path, component, removed)
+    result, _unused = _blank_default_run(tmp_path, component, removed)
     assert result.returncode != 0
     assert f'still uses Keycloak client "{default}"' in result.stderr
     # operator put it back: valid again
@@ -974,12 +974,12 @@ def test_removed_default_client_is_not_silently_referenced(tmp_path, component):
             {"id": default, "name": default, "redirect_uris": "", "web_origins": ""},
         ],
     )
-    result, _ = _blank_default_run(tmp_path, component, restored)
+    result, _unused = _blank_default_run(tmp_path, component, restored)
     assert result.returncode == 0, result.stderr
 
 
 def test_gitlab_has_no_default_client_and_needs_an_explicit_one(tmp_path):
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(),
@@ -997,7 +997,7 @@ def test_gitlab_has_no_default_client_and_needs_an_explicit_one(tmp_path):
 
 def test_openshift_never_gets_a_default_client(tmp_path):
     assert "openshift" not in _defaults_module().load_default_client_ids()
-    result, _ = run(
+    result, _unused = run(
         tmp_path,
         make_preflight(rhbk=rhbk_form(clients=[copy.deepcopy(GRAFANA)])),
         ["rhbk", "openshift"],
@@ -1101,7 +1101,7 @@ def test_existing_false_in_vars_survives_regeneration(tmp_path, mode):
     result, env_dir = run(tmp_path, build(), selected)
     assert result.returncode == 0, result.stderr
     assert load(env_dir, "vars_rhbk.yml")["ocp_rhbk_verify_ssl"] is False
-    again, _ = run(tmp_path, build(), selected)
+    again, _unused = run(tmp_path, build(), selected)
     assert again.returncode == 0, again.stderr
     assert load(env_dir, "vars_rhbk.yml")["ocp_rhbk_verify_ssl"] is False
 
@@ -1191,7 +1191,11 @@ def _id(value):
 
 
 @pytest.mark.parametrize("mode", [MODE_A, MODE_B], ids=["mode-a-rhbk", "mode-b-external"])
-@pytest.mark.parametrize("value, expected", VERIFY_VALUES, ids=[_id(v) for v, _ in VERIFY_VALUES])
+@pytest.mark.parametrize(
+    "value, expected",
+    VERIFY_VALUES,
+    ids=[_id(v) for v, _unused in VERIFY_VALUES],
+)
 def test_accepted_verify_ssl_spellings(tmp_path, mode, value, expected):
     build, selected = mode
     preflight = build(verify_ssl=value)
@@ -1222,7 +1226,7 @@ def test_unrecognized_verify_ssl_is_rejected_before_anything_is_generated(tmp_pa
     assert "ocp_rhbk_verify_ssl" not in tree_text(env_dir)
     assert not (env_dir / "vars_rhbk.yml").exists()
     # The same check, run on its own before generation (what the role task runs).
-    standalone, _ = run(tmp_path, preflight, selected, script=VALIDATOR)
+    standalone, _unused = run(tmp_path, preflight, selected, script=VALIDATOR)
     assert standalone.returncode != 0
     assert "not a recognized value" in standalone.stderr
     settings = _validator_settings(preflight, selected)
@@ -1251,7 +1255,7 @@ def test_invalid_verify_ssl_is_ignored_when_openshift_oidc_is_not_requested(tmp_
 
 
 def test_error_text_names_the_field_and_the_accepted_values(tmp_path):
-    result, _ = run(
+    result, _unused = run(
         tmp_path, make_preflight(oauth=external_oauth(verify_ssl="flase")), ["openshift"]
     )
     assert result.returncode != 0
