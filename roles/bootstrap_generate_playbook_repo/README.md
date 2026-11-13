@@ -38,9 +38,15 @@ tables for a simple OpenShift vs RHEL install/configure checklist.
 | `bootstrap_generate_playbook_repo_git_sync_before_push` | Rebase on the remote branch before pushing generated commits. Defaults to `true`. |
 | `bootstrap_generate_playbook_repo_write_galaxy_requirements` | Always true: write Hub/Galaxy `collections/requirements.yml` only. Collection trees are never committed to git. |
 | `bootstrap_generate_playbook_repo_infra_ado_collection_version` | Unused. Generated `collections/requirements.yml` never pins collection versions. |
-| `bootstrap_generate_playbook_repo_component` | Component group to generate, such as `all`, `openshift`, or `rhel`. |
+| `bootstrap_generate_playbook_repo_component` | Component group to generate, such as `all`, `openshift`, or `rhel`. Used only when `bootstrap_generate_playbook_repo_selected_components` is unset (CLI full catalog). |
+| `bootstrap_generate_playbook_repo_selected_components` | Explicit playbook/JT selector list from preflight. An empty list generates no component playbooks (Galaxy / AAP-tabs-only). `all` in the list dumps the catalog. Unset plus `component=all` is the CLI full-catalog path. |
 | `bootstrap_generate_playbook_repo_component_map` | Maps component selections to generated playbook groups. |
 | `bootstrap_generate_playbook_repo_generated_playbooks` | Manifest of bundled playbooks copied into the generated repository. |
+
+Generated `ansible.cfg` sets `display_skipped_hosts = False` so Controller
+and local CLI recaps omit skipped tasks. Set
+`ANSIBLE_DISPLAY_SKIPPED_HOSTS=true` on a job or shell when debugging
+`when:` conditions.
 
 This role always writes Hub/Galaxy `collections/requirements.yml` and removes
 any vendored collection trees from the git playbook repo. Contoller project
@@ -90,8 +96,15 @@ The plan includes only selected executable playbooks, excluding supporting task
 files. When `cert_manager` is selected, IdM ACME and AWSPCA playbooks are
 included only for the matching cert-manager mode, and the default-ingress
 playbook only when `update_default_ingress` is enabled (same gates as
-Contoller). Cert-manager ``state=absent`` deletes only ADO ClusterIssuers
-(``idm-acme``, ``root-ca-issuer``, and optional
+Contoller). The ingress keep/drop gate reads
+``bootstrap_controller_update_default_ingress`` when set (AAP /
+``aap_config_vars.yml``), otherwise falls back to preflight
+``component_config.cert_manager.update_default_ingress`` / OpenShift option
+``update_default_ingress`` so No-AAP runs that skip ``aap_config_vars.yml``
+still emit ``ado-update-default-ingress-cert-bootstrap.yml``. Ingress-only
+selection does not keep the Deploy cert-manager playbook; that requires an
+explicit Certificate Manager app selection. Cert-manager ``state=absent``
+deletes only ADO ClusterIssuers (``idm-acme``, ``root-ca-issuer``, and optional
 ``bootstrap_cert_manager_extra_clusterissuers``), not every ClusterIssuer
 on the cluster. Existing job-template surveys supply step inputs; existing workflow
 success edges determine execution order (nested workflows such as

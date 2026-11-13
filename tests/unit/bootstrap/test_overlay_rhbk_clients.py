@@ -216,7 +216,11 @@ def test_stale_openshift_client_from_previous_run_is_dropped(
         "component_options": {"rhbk": ["client"]},
         "openshift": {"apps_domain": "apps.example.test"},
         "component_config": {
-            "rhbk": {"hostname": "keycloak.apps.example.test", "clients": [GRAFANA]}
+            "rhbk": {
+                "hostname": "keycloak.apps.example.test",
+                "realm": "demo",
+                "clients": [GRAFANA],
+            }
         },
     }
     preflight_path = tmp_path / "preflight.json"

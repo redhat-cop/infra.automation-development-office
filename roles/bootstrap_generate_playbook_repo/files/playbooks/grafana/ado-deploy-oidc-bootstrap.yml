@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: ADO | Configure Grafana OIDC
   hosts: localhost
   gather_facts: false
@@ -20,5 +21,53 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.automation_development_office.bootstrap_resolve_component
+    - name: ADO | Prefer the RHBK Keycloak connection for Grafana OIDC  # noqa: var-naming[no-role-prefix]
+      ansible.builtin.set_fact:
+        ocp_rhbk_hostname: >-
+          {{
+            (
+              (
+                rhbk_hostname | default(rhbk_host | default('', true), true)
+              )
+              if (
+                (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+              )
+              else (
+                ocp_rhbk_hostname | default(hostname | default('', true), true)
+              )
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+            | trim
+          }}
+        rhbk_hostname: >-
+          {{
+            (
+              (
+                rhbk_hostname | default(rhbk_host | default('', true), true)
+              )
+              if (
+                (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+              )
+              else (
+                ocp_rhbk_hostname | default(hostname | default('', true), true)
+              )
+            )
+            | regex_replace('^https?://', '')
+            | regex_replace('/.*$', '')
+            | trim
+          }}
+        ocp_rhbk_realm: >-
+          {{
+            (rhbk_realm | default('', true) | string | trim)
+            if ((rhbk_realm | default('', true) | string | trim | length) > 0)
+            else (ocp_rhbk_realm | default('', true) | string | trim)
+          }}
+        rhbk_realm: >-
+          {{
+            (rhbk_realm | default('', true) | string | trim)
+            if ((rhbk_realm | default('', true) | string | trim | length) > 0)
+            else (ocp_rhbk_realm | default('', true) | string | trim)
+          }}
   roles:
     - role: infra.automation_development_office.grafana_install

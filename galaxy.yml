@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
 name: "automation_development_office"
-version: 2.1.2
+version: 2.1.4
 readme: README.md
 authors:
   - Automation Development Office
@@ -38,7 +38,6 @@ dependencies:
   "community.crypto": ">=2.0.0"
   "community.general": ">=8.0.0"
   "community.grafana": ">=1.5.0"
-  "middleware_automation.keycloak": ">=2.0.0"
   "freeipa.ansible_freeipa": ">=1.0.0"
   "infra.aap_configuration": ">=4.6.0"
   "infra.aap_utilities": ">=3.5.0"

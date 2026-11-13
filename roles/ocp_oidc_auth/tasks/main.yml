@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # ==========================================
 # OpenShift OIDC Auth (Keycloak/RHBK)
 # - Uses ocp_oidc_auth_rhbk_hostname + ocp_oidc_auth_rhbk_realm resolved by component: rhbk
@@ -20,19 +21,30 @@
   ansible.builtin.set_fact:
     # Coerce to a string: an empty Jinja result is None, which is not in the allow-list.
     # Ansible's bool filter is never used on the raw value.
-    ocp_oidc_auth_verify_ssl_token: "{{ '' if _tok is none else (_tok | string | trim) }}"
+    # | lower is required. Ansible 2.15 re-parses templated true back into
+    # a boolean; `| string` then becomes `True` and the allow-list rejected
+    # YAML `ocp_rhbk_verify_ssl: true` on AAP EE 2.15.13.
+    ocp_oidc_auth_verify_ssl_token: "{{ '' if _tok is none else (_tok | string | trim | lower) }}"
   vars:
     _tok: >-
       {%- set raw = ocp_rhbk_verify_ssl | default(none) -%}
       {%- if raw is none -%}
-      {%- elif raw is float and raw == (raw | int) -%}{{ raw | int }}{%- else -%}{{ raw | string | trim | lower }}{%- endif -%}
+      {%- elif raw is boolean -%}{{ 'true' if raw else 'false' }}{%- elif raw is float and raw == (raw | int) -%}{{ raw | int }}{%- else -%}{{ raw | string | trim | lower }}{%- endif -%}
 
 - name: Assert the Keycloak TLS verification setting is a recognized value
   ansible.builtin.assert:
     that:
-      - (ocp_oidc_auth_verify_ssl_token | default('') | string) in ['', '1', 'true', 'yes', 'on', '0', 'false', 'no', 'off']
+      # Inline | lower. Do not store the token as a fact named `true`/`false`:
+      # Ansible 2.15 re-parses those strings into booleans, then `| string`
+      # becomes `True` and this assert fails.
+      - >-
+        (ocp_oidc_auth_verify_ssl_token | default('') | string | trim | lower)
+        in ['', '1', 'true', 'yes', 'on', '0', 'false', 'no', 'off']
     fail_msg: >-
-      ocp_rhbk_verify_ssl has the value '{{ ocp_oidc_auth_verify_ssl_token | default('') | string | truncate(40, true, '...') }}',
+      ocp_rhbk_verify_ssl has the value '{{
+        ocp_oidc_auth_verify_ssl_token | default('') | string | trim | lower
+        | truncate(40, true, '...')
+      }}',
       which is not recognized. Use true, yes, on or 1 to verify the Keycloak TLS certificate,
       false, no, off or 0 to turn verification off explicitly, or leave it unset to verify.
       An unrecognized value is never read as false. Nothing was sent to Keycloak and nothing was
@@ -43,20 +55,47 @@
 # -----------------------------
 - name: Normalize OIDC inputs from RHBK form vars
   ansible.builtin.set_fact:
+    # Prefer rhbk_* (the same connection the RHBK Client job uses). Leftover
+    # ocp_oidc_auth_rhbk_* overrides from an earlier generate must not win.
     ocp_oidc_auth_rhbk_hostname: >-
       {{
         (
-          ocp_oidc_auth_rhbk_hostname
-          | default(rhbk_hostname, true)
-          | default(rhbk_host, true)
-          | default(hostname, true)
+          (
+            rhbk_hostname | default(rhbk_host | default('', true), true)
+          )
+          if (
+            (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+          )
+          else (
+            ocp_oidc_auth_rhbk_hostname
+            | default(hostname, true)
+          )
         )
         | regex_replace('^https?://', '')
         | regex_replace('/.*$', '')
+        | trim
       }}
-    ocp_oidc_auth_rhbk_realm: "{{ ocp_oidc_auth_rhbk_realm | default(rhbk_realm | default(realm | default('', true), true), true) }}"
-    ocp_oidc_auth_rhbk_admin_user: "{{ ocp_oidc_auth_rhbk_admin_user | default(rhbk_admin_user | default('admin', true), true) }}"
-    ocp_oidc_auth_rhbk_admin_password: "{{ ocp_oidc_auth_rhbk_admin_password | default(rhbk_admin_password | default('', true), true) }}"
+    ocp_oidc_auth_rhbk_realm: >-
+      {{
+        (
+          (rhbk_realm | default(ocp_rhbk_realm | default('', true), true) | string | trim)
+          if (
+            (rhbk_realm | default(ocp_rhbk_realm | default('', true), true) | string | trim | length) > 0
+          )
+          else (ocp_oidc_auth_rhbk_realm | default(realm | default('', true), true) | string | trim)
+        )
+      }}
+    ocp_oidc_auth_rhbk_admin_user: >-
+      {{
+        (
+          (rhbk_admin_user | default(ocp_rhbk_admin_user | default('', true), true) | string | trim)
+          if (
+            (rhbk_admin_user | default(ocp_rhbk_admin_user | default('', true), true) | string | trim | length) > 0
+          )
+          else (ocp_oidc_auth_rhbk_admin_user | default('admin', true) | string | trim)
+        )
+      }}
+    ocp_oidc_auth_rhbk_admin_password: "{{ rhbk_admin_password | default(ocp_oidc_auth_rhbk_admin_password | default('', true), true) }}"
     ocp_oidc_auth_config: >-
       {{
         {
@@ -86,15 +125,14 @@
       - (ocp_oidc_auth_rhbk_admin_password | string | length) > 0
       - (openshift_oidc_auth.keycloak_client_id | string | length) > 0
       - (openshift_oidc_auth.openshift_oidc_idp_name | string | length) > 0
-    fail_msg: >
-      Missing required vars.
-      Required:
-        - ocp_oidc_auth_rhbk_hostname
-        - ocp_oidc_auth_rhbk_realm
-        - ocp_oidc_auth_rhbk_admin_user
-        - ocp_oidc_auth_rhbk_admin_password
-        - openshift_oidc_auth.keycloak_client_id
-        - openshift_oidc_auth.openshift_oidc_idp_name
+    fail_msg: >-
+      OpenShift OAuth is missing required Keycloak connection settings
+      (hostname, realm, admin credentials, or OpenShift OIDC client ID).
+      Effective target: host='{{ ocp_oidc_auth_rhbk_hostname | default('') }}'
+      realm='{{ ocp_oidc_auth_rhbk_realm | default('') }}'
+      client='{{ openshift_oidc_auth.keycloak_client_id | default('') }}'.
+      When RHBK is selected, set those on Preflight → RHBK. When RHBK is not
+      selected, set them on Preflight → OAuth / RHBK. Nothing was sent to Keycloak.
 
 # -----------------------------
 # Build Keycloak endpoints
@@ -112,6 +150,12 @@
       }}
   no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
 
+- name: Show the effective Keycloak target
+  ansible.builtin.debug:
+    msg: >-
+      OpenShift OAuth will read client '{{ openshift_oidc_auth.keycloak_client_id }}'
+      from Keycloak {{ ocp_oidc_auth_keycloak_base }}/realms/{{ ocp_oidc_auth_rhbk_realm }}.
+
 # -----------------------------
 # TLS verification of Keycloak requests (admin login, client lookup, secret)
 # - Verification is ON unless ocp_rhbk_verify_ssl is explicitly false / no / off / 0.
@@ -124,7 +168,7 @@
 - name: Resolve Keycloak TLS verification and trust anchor
   ansible.builtin.set_fact:
     # Only an explicit false / no / off / 0 turns verification off (the value was validated above).
-    ocp_oidc_auth_verify_ssl: "{{ (ocp_oidc_auth_verify_ssl_token | default('') | string) not in ['0', 'false', 'no', 'off'] }}"
+    ocp_oidc_auth_verify_ssl: "{{ (ocp_oidc_auth_verify_ssl_token | default('') | string | trim | lower) not in ['0', 'false', 'no', 'off'] }}"
     ocp_oidc_auth_trust_pem: "{{ ocp_oidc_auth_ca_pem | default('') | string | trim }}"
 
 - name: Assert the CA given for Keycloak TLS is a PEM certificate
@@ -183,7 +227,9 @@
         auth_password: "{{ auth_password | default(ocp_oidc_auth_rhbk_admin_password) }}"
         realm: "{{ ocp_oidc_auth_rhbk_realm }}"
         client_id: "{{ openshift_oidc_auth.keycloak_client_id }}"
-        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        # | bool | string | lower -> "true"/"false". Jinja's {{ bool }} is
+        # "True"/"False"; a non-empty string is a CA path for requests.
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool | string | lower }}"
       register: ocp_oidc_auth_client_secret_raw
       # The module has no CA parameter; it uses the process trust store, so an explicit
       # CA is handed over through the standard OpenSSL variable.
@@ -195,6 +241,19 @@
       # or admin login may fail in-module. REST fallback below must still run.
       failed_when: false
       no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+    - name: Assert the Keycloak realm exists (module path)
+      ansible.builtin.assert:
+        that:
+          - >-
+            (ocp_oidc_auth_client_secret_raw.msg | default('') | string)
+            is not search('(?i)realm not found')
+        fail_msg: >-
+          Keycloak realm '{{ ocp_oidc_auth_rhbk_realm }}' does not exist on
+          {{ ocp_oidc_auth_keycloak_base }}. This role does not create realms.
+          Set an existing realm on Preflight → Step 2 → OAuth / RHBK, regenerate
+          the configuration, and rerun. Nothing was created or changed in Keycloak
+          or OpenShift.
 
     - name: Note Keycloak module secret fetch will use REST fallback
       ansible.builtin.debug:
@@ -239,14 +298,17 @@
 
     # ---- Fallback path: use Keycloak REST if module didn't give a secret ----
     # The client must already exist and be readable with the supplied admin
-    # credentials; this role never creates or changes a Keycloak client. Each step
-    # below fails with its own message (asserts carry no secret values, so they are
-    # not hidden by no_log; the HTTP calls stay no_log because they handle tokens).
+    # credentials; this role never creates or changes a Keycloak client or realm.
+    # Each step below fails with its own message (asserts carry no secret values,
+    # so they are not hidden by no_log; the HTTP calls stay no_log because they
+    # handle tokens).
     - name: Get admin access token (fallback path)
       ansible.builtin.uri:
         url: "{{ ocp_oidc_auth_keycloak_base }}/realms/{{ auth_realm | default('master') }}/protocol/openid-connect/token"
         method: POST
-        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        # | bool | string | lower -> "true"/"false". Jinja's {{ bool }} is
+        # "True"/"False"; a non-empty string is a CA path for requests.
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool | string | lower }}"
         ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
         headers:
           Content-Type: "application/x-www-form-urlencoded"
@@ -268,15 +330,16 @@
             not (
               ocp_oidc_auth_verify_ssl | bool
               and (ocp_oidc_auth_token_resp.status | default(0)) == -1
-              and (ocp_oidc_auth_token_resp.msg | default('')) is search('(?i)certificate verify failed|CERTIFICATE_VERIFY_FAILED|hostname mismatch|SSL')
+              and (ocp_oidc_auth_token_resp.msg | default('')) is search(
+                '(?i)certificate verify failed|CERTIFICATE_VERIFY_FAILED|hostname mismatch|self-signed certificate'
+              )
             )
         fail_msg: >-
-          The TLS certificate presented by {{ ocp_oidc_auth_keycloak_base }} is not trusted by
-          the process running this role, or does not match the host name (TLS verification is
-          ON). Fix the trust, do not skip it: add the CA that issued Keycloak's certificate to
-          the trust store of this process (for AAP, the execution environment), or set
-          ocp_oidc_auth_ca_pem to that CA's PEM. If you accept the risk, set
-          ocp_rhbk_verify_ssl: false explicitly.
+          Keycloak TLS certificate verification failed. The certificate presented by
+          {{ ocp_oidc_auth_keycloak_base }} is not trusted by the environment running Ansible.
+          For a lab environment, go to Preflight → Step 2 → OAuth / RHBK, uncheck
+          Verify Keycloak TLS certificate, regenerate the configuration, and rerun.
+          For production, keep verification enabled and configure a trusted CA.
           ({{ ocp_oidc_auth_token_resp.msg | default('') | truncate(200, true, '...') }})
       when: (ocp_oidc_auth_client_secret_value | string | length) == 0
 
@@ -295,11 +358,50 @@
           Nothing was created or changed in Keycloak or OpenShift.
       when: (ocp_oidc_auth_client_secret_value | string | length) == 0
 
+    - name: Get the Keycloak realm (fallback path)
+      ansible.builtin.uri:
+        url: "{{ ocp_oidc_auth_keycloak_base }}/admin/realms/{{ ocp_oidc_auth_rhbk_realm }}"
+        method: GET
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool | string | lower }}"
+        ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
+        headers:
+          Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
+        status_code:
+          - 200
+          - 401
+          - 403
+          - 404
+      register: ocp_oidc_auth_realm_resp
+      failed_when: false
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+      no_log: "{{ ocp_rhbk_no_log | default(true) | bool }}"
+
+    - name: Assert the Keycloak realm exists (fallback path)
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (
+              (ocp_oidc_auth_realm_resp.status | default(-1)) == 404
+              or ((ocp_oidc_auth_realm_resp.json | default({}))['error'] | default('') | string)
+              is search('(?i)realm not found')
+              or (ocp_oidc_auth_realm_resp.msg | default('') | string)
+              is search('(?i)realm not found')
+            )
+        fail_msg: >-
+          Keycloak realm '{{ ocp_oidc_auth_rhbk_realm }}' does not exist on
+          {{ ocp_oidc_auth_keycloak_base }}. This role does not create realms.
+          Set an existing realm on Preflight → Step 2 → OAuth / RHBK, regenerate
+          the configuration, and rerun. Nothing was created or changed in Keycloak
+          or OpenShift.
+      when: (ocp_oidc_auth_client_secret_value | string | length) == 0
+
     - name: Lookup client UUID by clientId (fallback path)
       ansible.builtin.uri:
         url: "{{ ocp_oidc_auth_clients_lookup_url }}"
         method: GET
-        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        # | bool | string | lower -> "true"/"false". Jinja's {{ bool }} is
+        # "True"/"False"; a non-empty string is a CA path for requests.
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool | string | lower }}"
         ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
         headers:
           Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
@@ -338,7 +440,9 @@
       ansible.builtin.uri:
         url: "{{ ocp_oidc_auth_keycloak_base }}/admin/realms/{{ ocp_oidc_auth_rhbk_realm }}/clients/{{ ocp_oidc_auth_clients_lookup.json[0].id }}/client-secret"
         method: GET
-        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool }}"
+        # | bool | string | lower -> "true"/"false". Jinja's {{ bool }} is
+        # "True"/"False"; a non-empty string is a CA path for requests.
+        validate_certs: "{{ ocp_oidc_auth_verify_ssl | bool | string | lower }}"
         ca_path: "{{ ocp_oidc_auth_trust_ca_file if (ocp_oidc_auth_trust_ca_file | default('') | length) > 0 else omit }}"
         headers:
           Authorization: "Bearer {{ ocp_oidc_auth_token_resp.json.access_token }}"
@@ -538,7 +642,7 @@
   ansible.builtin.set_fact:
     ocp_oidc_auth_provider_def:
       name: "{{ openshift_oidc_auth.openshift_oidc_idp_name }}"
-      mappingMethod: "{{ openshift_oidc_auth.openshift_oidc_mapping_method | default('claim') }}"
+      mappingMethod: "{{ openshift_oidc_auth.openshift_oidc_mapping_method | default('add') }}"
       type: OpenID
       openID: >-
         {{

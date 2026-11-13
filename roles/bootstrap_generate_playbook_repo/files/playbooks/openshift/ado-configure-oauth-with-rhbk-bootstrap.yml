@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: ADO | Configure OpenShift OAuth with RHBK
   hosts: localhost
   gather_facts: false
@@ -22,36 +23,62 @@
         ocp_rhbk_hostname: >-
           {{
             (
-              ocp_rhbk_hostname
-              | default(rhbk_hostname, true)
-              | default(rhbk_host, true)
-              | default(hostname, true)
-              | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com'))), true)
+              (
+                rhbk_hostname | default(rhbk_host | default('', true), true)
+              )
+              if (
+                (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+              )
+              else (
+                ocp_rhbk_hostname | default(hostname | default('', true), true)
+              )
             )
             | regex_replace('^https?://', '')
             | regex_replace('/.*$', '')
+            | trim
           }}
         rhbk_hostname: >-
           {{
             (
-              rhbk_hostname
-              | default(ocp_rhbk_hostname, true)
-              | default(rhbk_host, true)
-              | default(hostname, true)
+              (
+                rhbk_hostname | default(rhbk_host | default('', true), true)
+              )
+              if (
+                (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+              )
+              else (
+                ocp_rhbk_hostname | default(hostname | default('', true), true)
+              )
             )
             | regex_replace('^https?://', '')
             | regex_replace('/.*$', '')
+            | trim
           }}
-        ocp_rhbk_realm: "{{ ocp_rhbk_realm | default(rhbk_realm | default(realm | default('rhlab', true), true), true) }}"
-        rhbk_realm: "{{ rhbk_realm | default(ocp_rhbk_realm | default(realm | default('rhlab', true), true), true) }}"
-        ocp_rhbk_admin_user: "{{ ocp_rhbk_admin_user | default(rhbk_admin_user | default('admin', true), true) }}"
-        ocp_rhbk_admin_password: "{{ ocp_rhbk_admin_password | default(rhbk_admin_password | default('redhat123', true), true) }}"
+        ocp_rhbk_realm: >-
+          {{
+            (rhbk_realm | default('', true) | string | trim)
+            if ((rhbk_realm | default('', true) | string | trim | length) > 0)
+            else (ocp_rhbk_realm | default('', true) | string | trim)
+          }}
+        rhbk_realm: >-
+          {{
+            (rhbk_realm | default('', true) | string | trim)
+            if ((rhbk_realm | default('', true) | string | trim | length) > 0)
+            else (ocp_rhbk_realm | default('', true) | string | trim)
+          }}
+        ocp_rhbk_admin_user: >-
+          {{
+            (rhbk_admin_user | default('', true) | string | trim)
+            if ((rhbk_admin_user | default('', true) | string | trim | length) > 0)
+            else (ocp_rhbk_admin_user | default('admin', true) | string | trim)
+          }}
+        ocp_rhbk_admin_password: "{{ rhbk_admin_password | default(ocp_rhbk_admin_password | default('', true), true) }}"
         openshift_oidc_auth: >-
           {{
             {
               'keycloak_client_id': (openshift_oidc_client_id | default('')),
               'openshift_oidc_idp_name': (openshift_oidc_idp_name | default('Keycloak')),
-              'openshift_oidc_mapping_method': 'claim',
+              'openshift_oidc_mapping_method': 'add',
               'openshift_oauth_resource_name': 'cluster'
             }
             | combine(openshift_oidc_auth | default({}), recursive=True)

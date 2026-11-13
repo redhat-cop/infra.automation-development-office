@@ -3,7 +3,7 @@
 # Do not use meta: end_role (ansible-core 2.18+ only). requires_ansible is
 # >=2.17.0, and older EEs fail with invalid meta action requested: end_role.
 - name: Deploy Keycloak login-events exporter when enabled
-  when: keycloak_login_events_exporter_enabled | default(true) | bool
+  when: keycloak_login_events_exporter_enabled | default(false) | bool
   block:
     - name: Assert Keycloak URL and admin password for login-events exporter
       ansible.builtin.assert:

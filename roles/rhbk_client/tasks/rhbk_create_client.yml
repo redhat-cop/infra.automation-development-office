@@ -1,3 +1,5 @@
+---
+# yamllint disable rule:line-length
 - name: Assert required inputs are set
   ansible.builtin.assert:
     that:
@@ -6,7 +8,11 @@
       - rhbk_admin_password | length > 0
       - rhbk_realm | length > 0
       - rhbk_client | length > 0
-    fail_msg: "Set rhbk_hostname, rhbk_admin_user, rhbk_admin_password, rhbk_realm, rhbk_client."
+    fail_msg: >-
+      RHBK Client needs rhbk_hostname, rhbk_admin_user, rhbk_admin_password,
+      rhbk_realm, and rhbk_client before contacting Keycloak. For a Client-only
+      run set the existing Keycloak hostname and realm on Preflight → RHBK
+      (Realm creation being unselected does not remove the existing realm name).
 
 - name: Build Keycloak base URL
   ansible.builtin.set_fact:
@@ -20,6 +26,12 @@
             )
         )
       }}
+
+- name: Show the effective Keycloak target
+  ansible.builtin.debug:
+    msg: >-
+      RHBK Client will create or update '{{ rhbk_client }}' on
+      {{ rhbk_client_kc_url }} in realm '{{ rhbk_realm }}'.
 
 # Create / update the client with requireds + optionals (sent only if defined)
 - name: Create or update Keycloak client

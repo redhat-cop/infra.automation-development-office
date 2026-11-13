@@ -470,24 +470,27 @@ def apply_storage_var(vars_data, component, preflight, storage_value, vars_data_
 
 
 def rhbk_oidc_issuer_url(preflight, vars_data=None):
-    """Build https://<keycloak-host>/realms/<realm> from preflight RHBK + generated vars."""
+    """Build https://<keycloak-host>/realms/<realm> from this run's RHBK values.
+
+    Prefers the preflight RHBK hostname/realm so leftover ``ocp_rhbk_*`` from an
+    earlier generate cannot point Grafana (or other app OIDC) at a different
+    Keycloak. Does not invent ``Dev``, ``Prod``, or ``rhlab`` when realm is blank.
+    """
     vars_data = vars_data or {}
     rhbk_cfg = (preflight.get("component_config") or {}).get("rhbk") or {}
     apps_domain = str(((preflight.get("openshift") or {}).get("apps_domain")) or "").strip()
     host = first_present(
-        vars_data.get("ocp_rhbk_hostname"),
-        vars_data.get("rhbk_hostname"),
         rhbk_cfg.get("hostname"),
         rhbk_cfg.get("rhbk_hostname"),
+        vars_data.get("rhbk_hostname"),
+        vars_data.get("ocp_rhbk_hostname"),
         f"keycloak.{apps_domain}" if apps_domain else None,
     )
     realm = first_present(
-        vars_data.get("ocp_rhbk_realm"),
-        vars_data.get("rhbk_realm"),
         rhbk_cfg.get("realm"),
         rhbk_cfg.get("rhbk_realm"),
-        env_label_suffix(preflight.get("environment")),
-        "rhlab",
+        vars_data.get("rhbk_realm"),
+        vars_data.get("ocp_rhbk_realm"),
     )
     host_clean = strip_host(host)
     if not host_clean or not realm:
@@ -1258,6 +1261,14 @@ def merge_component(component, cfg):
                 )
             if public_values.get("hostname"):
                 vars_data["components_env"]["grafana"]["hostname"] = public_values["hostname"]
+            try:
+                grafana_replicas = int(public_values.get("replicas"))
+            except (TypeError, ValueError):
+                grafana_replicas = None
+            if grafana_replicas is not None and grafana_replicas > 0:
+                vars_data["grafana_replicas"] = grafana_replicas
+                vars_data["grafana_install_replicas"] = grafana_replicas
+                vars_data["components_env"]["grafana"]["replicas"] = grafana_replicas
             folders = public_values.get("folders")
             if isinstance(folders, list):
                 cleaned_folders = []
@@ -2553,14 +2564,34 @@ def merge_component(component, cfg):
             ).strip()
             if public_values.get("storage"):
                 vars_data["components_env"]["rhbk"]["storage"] = public_values["storage"]
-            _realm = str(
-                first_present(
-                    public_values.get("realm"),
-                    env_suffix if preflight.get("environment") else None,
-                    "rhlab",
+            _rhbk_existing_ops = {
+                "client",
+                "realm",
+                "idp",
+                "federation",
+                "group_mapper",
+                "client_scopes",
+                "client_mappers",
+            }
+            _explicit_realm = str(public_values.get("realm") or "").strip()
+            if _rhbk_existing_ops.intersection(rhbk_opts_lower):
+                if not _explicit_realm:
+                    raise SystemExit(
+                        "RHBK Client (and other existing-Keycloak operations) need "
+                        "component_config.rhbk.realm set to the existing realm name. "
+                        "Realm creation being unselected does not remove this field. "
+                        "Nothing was generated."
+                    )
+                _realm = _explicit_realm
+            else:
+                _realm = str(
+                    first_present(
+                        _explicit_realm or None,
+                        env_suffix if preflight.get("environment") else None,
+                        "rhlab",
+                    )
+                    or "rhlab"
                 )
-                or "rhlab"
-            )
             vars_data["rhbk_realm"] = _realm
             vars_data["ocp_rhbk_realm"] = _realm
             vars_data["components_env"]["rhbk"]["rhbk_realm"] = _realm
@@ -2621,14 +2652,14 @@ def merge_component(component, cfg):
             ] = _event_metrics
             vars_data["install_rhbk_metrics_enabled"] = True
             vars_data["rhbk_metrics_enabled"] = True
-            # Admin event-store exporter (username labels). Default on.
+            # Admin event-store exporter (username labels). Default off.
             _login_exporter = as_bool(
                 first_present(
                     public_values.get("login_events_exporter_enabled"),
                     public_values.get("keycloak_login_events_exporter_enabled"),
-                    True,
+                    False,
                 ),
-                True,
+                False,
             )
             vars_data["keycloak_login_events_exporter_enabled"] = _login_exporter
             vars_data["components_env"]["rhbk"][
@@ -2865,7 +2896,9 @@ def merge_component(component, cfg):
                     "enabled": True,
                     "keycloak_client_id": str(_oidc_client),
                     "openshift_oidc_idp_name": _oidc_idp,
-                    "openshift_oidc_mapping_method": "claim",
+                    "openshift_oidc_mapping_method": (
+                        preflight_oidc.OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
+                    ),
                     "openshift_oauth_resource_name": "cluster",
                     "extra_scopes": ["groups"],
                     "openshift_oauth_redirect_uri": (
@@ -5120,11 +5153,40 @@ def merge_component(component, cfg):
 component_options = preflight.get("component_options") or {}
 openshift_options = set(component_options.get("openshift") or [])
 openshift = preflight.get("openshift") or {}
-if openshift:
-    if "openshift" not in selected_components:
-        openshift = {}
 
-if openshift:
+# Shared connection files (infra_config_vars.yml + vault_openshift.yml) are
+# required by Virt and other OCP playbooks even when the OpenShift *platform*
+# group is not selected. Always refresh host/token/TLS from preflight.openshift.
+_openshift_api_host = first_present(
+    openshift.get("api_host"),
+    openshift.get("host"),
+)
+if openshift and (
+    _openshift_api_host
+    or openshift.get("token") is not None
+    or openshift.get("apps_domain") is not None
+):
+    infra_path = env_dir / "infra_config_vars.yml"
+    infra_data = load_yaml(infra_path) if infra_path.exists() else {}
+    if not isinstance(infra_data, dict):
+        infra_data = {}
+    if _openshift_api_host:
+        infra_data["api_host"] = str(_openshift_api_host)
+        infra_data["host"] = str(_openshift_api_host)
+    if preflight.get("domain") is not None:
+        infra_data["domain"] = preflight.get("domain")
+    if openshift.get("apps_domain") is not None:
+        infra_data["apps_domain"] = openshift.get("apps_domain")
+        infra_data["app_domain"] = openshift.get("apps_domain")
+    _skip_tls = bool(openshift.get("skip_tls_verify", True))
+    infra_data["skip_tls_verify"] = _skip_tls
+    infra_data["verify_ssl"] = not _skip_tls
+    infra_data["validate_certs"] = not _skip_tls
+    write_yaml(infra_path, infra_data, "0600")
+
+# Platform-specific vars_openshift.yml (HTPasswd, NFS, banner, …) only when the
+# OpenShift platform group is selected. Shared auth above already ran.
+if openshift and "openshift" in selected_components:
     vars_path = env_dir / "vars_openshift.yml"
     vault_path = env_dir / "vault_openshift.yml"
 
@@ -5245,7 +5307,22 @@ if openshift:
         vars_data["ocp_nfs_storage_test_namespace"] = str(
             first_present(
                 openshift.get("nfs_test_namespace"),
-                "synology-nfs-pv",
+                "ado-nfs-csi-test",
+            )
+        )
+        # Dedicated claim name — never default to lab PVC synology-nfs-pvc.
+        vars_data["ocp_nfs_storage_test_pvc_name"] = str(
+            first_present(
+                openshift.get("nfs_test_pvc_name"),
+                openshift.get("ocp_nfs_storage_test_pvc_name"),
+                "ado-nfs-csi-test-pvc",
+            )
+        )
+        vars_data["ocp_nfs_storage_test_pvc_size"] = str(
+            first_present(
+                openshift.get("nfs_test_pvc_size"),
+                openshift.get("ocp_nfs_storage_test_pvc_size"),
+                "1Gi",
             )
         )
     else:
@@ -5260,6 +5337,8 @@ if openshift:
             "ocp_nfs_storage_create_test_namespace",
             "ocp_nfs_storage_create_test_pvc",
             "ocp_nfs_storage_test_namespace",
+            "ocp_nfs_storage_test_pvc_name",
+            "ocp_nfs_storage_test_pvc_size",
         ):
             vars_data.pop(nfs_key, None)
 

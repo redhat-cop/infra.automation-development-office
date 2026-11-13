@@ -13,10 +13,50 @@ def load(path):
     return yaml.safe_load(path.read_text()) or {}
 
 
-def filter_cert_manager(catalogue, mode='cert', update_default_ingress=False):
+def resolve_cert_manager_playbook_intent(preflight=None, **overrides):
+    """Resolve deploy vs default-ingress intent from preflight (AAP and No-AAP).
+
+    Ingress is an OpenShift option / cert_manager config flag — not the same as
+    selecting Certificate Manager for operator deploy.
+    """
+    data = preflight if isinstance(preflight, dict) else {}
+    cm = (data.get('component_config') or {}).get('cert_manager') or {}
+    opts = (data.get('component_options') or {}).get('openshift') or []
+    apps = (data.get('component_apps') or {}).get('openshift') or []
+    selected = data.get('selected_component_apps') or []
+    components = data.get('components') or []
+
+    want_ingress = bool(overrides['update_default_ingress']) if (
+        'update_default_ingress' in overrides
+    ) else (
+        str(cm.get('update_default_ingress', '')).lower() in ('1', 'true', 'yes', 'on')
+        or 'update_default_ingress' in [str(x) for x in opts]
+    )
+    want_deploy = bool(overrides['want_deploy']) if 'want_deploy' in overrides else (
+        'cert_manager' in [str(x) for x in apps]
+        or 'cert_manager' in [str(x) for x in selected]
+        or 'cert_manager' in [str(x) for x in components]
+    )
+    mode = str(
+        overrides.get('mode', cm.get('mode', 'cert')) or 'cert'
+    ).strip() or 'cert'
+    return {
+        'want_ingress': want_ingress,
+        'want_deploy': want_deploy,
+        'mode': mode,
+    }
+
+
+def filter_cert_manager(
+    catalogue,
+    mode='cert',
+    update_default_ingress=False,
+    want_deploy=True,
+):
     """Keep cert_manager playbooks aligned with Contoller mode/ingress gates."""
     mode = (mode or 'cert').strip() or 'cert'
     ingress = bool(update_default_ingress)
+    deploy = bool(want_deploy)
     kept = []
     for item in catalogue:
         dest = item.get('dest') or ''
@@ -25,6 +65,9 @@ def filter_cert_manager(catalogue, mode='cert', update_default_ingress=False):
         if dest.endswith('ado-install-and-configure-awspca-bootstrap.yml') and mode != 'aws_pca':
             continue
         if dest.endswith('ado-update-default-ingress-cert-bootstrap.yml') and not ingress:
+            continue
+        if dest.endswith('ado-deploy-and-configure-bootstrap.yml') and not deploy:
+            # Only the Deploy operator playbook is gated; supporting task files stay.
             continue
         kept.append(item)
     return kept

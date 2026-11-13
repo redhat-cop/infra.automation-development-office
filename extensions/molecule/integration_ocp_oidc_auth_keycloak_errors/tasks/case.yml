@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # One role run. The role must either stop with a message containing case.expect, or
 # (case.reaches) get past the Keycloak secret read and stop at the OpenShift step,
 # which is unreachable here by design (see the play-level environment).
@@ -28,7 +29,7 @@
         name: infra.automation_development_office.ocp_oidc_auth
       vars:
         ocp_oidc_auth_rhbk_hostname: "127.0.0.1:{{ mock_port }}"
-        ocp_oidc_auth_rhbk_realm: corp
+        ocp_oidc_auth_rhbk_realm: "{{ case.realm | default('corp') }}"
         ocp_oidc_auth_rhbk_admin_user: "{{ case.user }}"
         ocp_oidc_auth_rhbk_admin_password: "{{ case.password }}"
         ocp_oidc_auth_ca_pem: "{{ case.ca_pem | default('') }}"

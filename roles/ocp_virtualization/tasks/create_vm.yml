@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Build the VirtualMachine spec (DataSource + Multus/cloud-init) and apply it
 # with kubernetes.core.k8s when that VM is not already in the namespace.
 
@@ -20,7 +21,18 @@
 # Namespace creation is handled by infra.automation_development_office.ocp_namespace in the playbook
 # (do not create Namespace inline here — reuse the ADO role).
 
-- name: Ensure Multus NetworkAttachmentDefinition exists for bridge mode
+# Lookup first. Patching an existing NAD with kubernetes.core.k8s can coerce
+# spec.config from a JSON string into an object and the CRD rejects it (422).
+- name: Lookup Multus NetworkAttachmentDefinition for bridge mode
+  kubernetes.core.k8s_info:
+    api_version: k8s.cni.cncf.io/v1
+    kind: NetworkAttachmentDefinition
+    name: "{{ multus_nad_name }}"
+    namespace: "{{ vm_namespace }}"
+  register: ocp_virtualization_multus_nad_lookup
+  when: (network_mode | default('masquerade') | lower) in ['bridge', 'multus']
+
+- name: Create Multus NetworkAttachmentDefinition when missing
   kubernetes.core.k8s:
     state: present
     definition:
@@ -48,7 +60,9 @@
               )
             )
           }}
-  when: (network_mode | default('masquerade') | lower) in ['bridge', 'multus']
+  when:
+    - (network_mode | default('masquerade') | lower) in ['bridge', 'multus']
+    - (ocp_virtualization_multus_nad_lookup.resources | default([]) | length) == 0
 
 - name: Resolve Multus networkName for this namespace
   ansible.builtin.set_fact:
@@ -188,6 +202,10 @@
                 networkData: "{{ cloud_init_network_data | default('') }}"
   when: (network_mode | default('masquerade') | lower) not in ['bridge', 'multus']
 
+# Custom (no VirtualMachineClusterInstancetype): set explicit topology.
+# Preferences such as rhel.9 require sockets (>=1). cores-only yields 0 sockets
+# and KubeVirt admission rejects the VM. Map cpu_cores → sockets so total
+# vCPU = sockets * cores * threads (default 1 core / 1 thread per socket).
 - name: Add custom compute when no instance type is selected
   ansible.builtin.set_fact:
     ocp_virtualization_vm_spec: >-
@@ -197,7 +215,15 @@
             'template': {
               'spec': {
                 'domain': {
-                  'cpu': {'cores': cpu_cores | default(4) | int},
+                  'cpu': {
+                    'sockets': (
+                      cpu_sockets
+                      | default(cpu_cores | default(2), true)
+                      | int
+                    ),
+                    'cores': (cpu_cores_per_socket | default(1) | int),
+                    'threads': (cpu_threads | default(1) | int)
+                  },
                   'memory': {'guest': memory | default('8Gi')}
                 }
               }

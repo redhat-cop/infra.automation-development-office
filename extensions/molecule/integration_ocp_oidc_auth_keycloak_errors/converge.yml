@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # ocp_oidc_auth reads the client secret of an EXISTING Keycloak client with admin
 # credentials. When that cannot work (wrong login, no permission, client missing,
 # client without a secret, TLS) the play must stop with a specific message and
@@ -26,6 +27,13 @@
         client: no-such-client
         verify_ssl: false
         expect: "Keycloak client 'no-such-client' not found in realm 'corp'"
+      - name: realm does not exist
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        realm: Dev
+        verify_ssl: false
+        expect: "Keycloak realm 'Dev' does not exist"
       - name: wrong admin password
         user: kcadmin
         password: WRONG
@@ -49,18 +57,18 @@
         user: kcadmin
         password: GOOD
         client: existing-confidential
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: TLS verification explicitly on against an untrusted certificate
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: true
-        expect: "is not trusted by the process running this role"
+        expect: "Keycloak TLS certificate verification failed"
       - name: TLS failure also reported on the REST fallback path
         user: restonly
         password: GOOD
         client: existing-confidential
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: explicit verify_ssl false still works against an untrusted certificate
         user: kcadmin
         password: GOOD
@@ -91,7 +99,7 @@
         password: GOOD
         client: existing-confidential
         ca_pem: "{{ mock_other_cert_pem }}"
-        expect: "is not trusted by the process running this role"
+        expect: "Keycloak TLS certificate verification failed"
       - name: a CA value that is not a PEM certificate is rejected without disabling verification
         user: kcadmin
         password: GOOD
@@ -262,67 +270,67 @@
         password: GOOD
         client: existing-confidential
         verify_ssl: "on"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'ON' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "ON"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'yes' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "yes"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'Yes' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "Yes"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl '1' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "1"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 1 keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: 1
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 1.0 keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: 1.0
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'true' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "true"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'TRUE' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: "TRUE"
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl '' keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: ""
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl null keeps verification on
         user: kcadmin
         password: GOOD
         client: existing-confidential
         verify_ssl: null
-        expect: "TLS verification is ON"
+        expect: "Keycloak TLS certificate verification failed"
 
   tasks:
     - name: Mock Keycloak and role runs

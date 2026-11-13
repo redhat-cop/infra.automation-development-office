@@ -1,0 +1,24 @@
+---
+bugfixes:
+  - >-
+    ocp_nfs_storage - Use dedicated ``ado-nfs-csi-test`` /
+    ``ado-nfs-csi-test-pvc`` for optional validation. Look up the claim before
+    apply; if it exists with a different StorageClass, fail clearly and never
+    patch or delete the bound PVC (including lab ``synology-nfs-pvc``).
+  - >-
+    bootstrap_generate_env_vars / bootstrap_controller - Pin the dedicated NFS
+    test PVC name/namespace from preflight so stale ``synology-nfs-pvc``
+    defaults cannot be reintroduced.
+  - >-
+    bootstrap_controller - Resolve NFS test namespace/PVC/size into distinct
+    ``bootstrap_controller_nfs_csi_*`` facts before ``include_role`` so
+    role vars are never templated as
+    ``… | default(ocp_nfs_storage_test_namespace)`` (Ansible recursive loop).
+  - >-
+    bootstrap_controller - Defer HTPasswd / registry / NFS / iSCSI cluster prep
+    until after playbook generation so a prep failure cannot leave a stale
+    ``component-run-plan.json`` from a prior selection.
+  - >-
+    ocp_nfs_storage - Report driver install, StorageClass, test namespace, and
+    test PVC Bound status independently; fail Bootstrap when required NFS
+    validation does not succeed (does not patch or delete existing lab PVCs).

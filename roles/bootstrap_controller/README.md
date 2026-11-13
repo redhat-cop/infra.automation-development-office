@@ -82,6 +82,15 @@ Automation Development Office
 
 Galaxy credential apply (`apply_galaxy_hub_credentials.yml`) runs when preflight
 `aap.galaxy_setup_enabled` is true, including hub-only / AAP-tabs-only runs.
+Empty `components[]` plus Galaxy or Hub tabs is AAP-tabs-only: skip component
+playbooks and Controller JT/workflow scaffolding.
+An empty job-template selection copies no JTs and deletes leftover
+``configs/job_templates/*.jt.yml`` so Controller apply cannot dispatch the
+full catalog after Overwrite all.
+When that leaves zero generated templates (Hub force-update, AAP-tabs-only,
+or OpenShift selected with no apps), apply does not fail the
+``TEST |`` / org-prefix template lookup. A skipped lookup is not treated as
+``count=0``. Hub publish is independent of that check.
 It does not require `aap.galaxy_hub_token`. Credentials are created from
 generated `controller_bootstrap_controller_credentials` (name + URL) and
 attached to the form organization in search order.

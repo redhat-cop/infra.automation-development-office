@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Controller jobs resolve infra.automation_development_office.* FQCN roles from the vendored collection
 # tree in the git project. Ansible requires galaxy.yml at the collection root.
 # Contoller project sync installs this via collections/requirements.yml
@@ -101,6 +102,7 @@
                 "host_key_checking = False",
                 "retry_files_enabled = False",
                 "stdout_callback = default",
+                "display_skipped_hosts = False",
                 "interpreter_python = auto_silent",
                 (
                     "collections_paths = /runner/project/collections:"

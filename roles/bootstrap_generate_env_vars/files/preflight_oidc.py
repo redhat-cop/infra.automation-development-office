@@ -12,12 +12,15 @@ protection: a JSON file that bypasses the form is checked the same way.
 Two OpenShift OIDC modes (``openshift.oauth_rhbk``):
 
 * RHBK in this run: hostname, realm and admin credentials are inherited from the
-  RHBK component unless the OpenShift section sets its own values.
+  RHBK component. Leftover ``openshift.oauth_rhbk`` connection overrides are
+  ignored so they cannot point OAuth at a different Keycloak.
 * Existing / external Keycloak (RHBK not in this run): hostname, realm, client ID,
   admin user and admin password must all be set in ``openshift.oauth_rhbk``.
 
 Neither mode creates or changes a Keycloak client. The ``ocp_oidc_auth`` role only
-reads the client secret; the client must already exist in the realm.
+reads the client secret; the client must already exist in the realm. Client-only
+and other existing-Keycloak RHBK operations still require
+``component_config.rhbk.realm``; overlay does not invent ``Dev`` or ``rhlab``.
 
 Rows in ``component_config.rhbk.clients`` may set ``create_client`` (default yes
 when omitted). Only managed rows are copied into generated ``rhbk_clients`` for
@@ -30,7 +33,9 @@ when omitted). Only managed rows are copied into generated ``rhbk_clients`` for
   list and are not deleted;
 * Grafana Keycloak clients when Grafana OIDC is explicitly disabled
   (``grafana.oidc.enabled: false``): the row stays in the preflight list and
-  is not deleted, but it is omitted from ``rhbk_clients``.
+  is not deleted, but it is omitted from ``rhbk_clients``. When Grafana OIDC
+  is on and RHBK is in the run, the issuer is inherited from the same RHBK
+  hostname/realm as Client/OAuth. Overlay does not invent ``Dev`` or ``rhlab``.
 
 ``create_client: false`` means ADO must not mutate that Keycloak client at all,
 including mappers. Application OIDC configuration is independent of that flag.
@@ -48,8 +53,30 @@ import sys
 from pathlib import Path
 
 MAPPING_METHODS = ("claim", "lookup", "add")
+RHBK_EXISTING_CONNECTION_OPTIONS = (
+    "client",
+    "realm",
+    "idp",
+    "federation",
+    "group_mapper",
+    "client_scopes",
+    "client_mappers",
+)
 _HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(:\d{1,5})?$")
 CREATE_CLIENT_FALSE = ("0", "false", "no", "n", "off")
+RHBK_EXISTING_REALM_MESSAGE = (
+    "RHBK Client (and other existing-Keycloak operations) need "
+    "component_config.rhbk.realm set to the existing realm name. "
+    "Realm creation being unselected does not remove this field."
+)
+KEYCLOAK_HOSTNAME_SCHEME_MESSAGE = (
+    "OpenShift OIDC: Keycloak hostname must be the route host only. "
+    "Remove http:// or https:// (for example keycloak.example.com)."
+)
+KEYCLOAK_HOSTNAME_PATH_MESSAGE = (
+    "OpenShift OIDC: Keycloak hostname must be the route host only. "
+    "Remove any trailing / or path (for example keycloak.example.com)."
+)
 
 
 def text(value):
@@ -94,8 +121,12 @@ def first_text(*values):
 
 
 def normalize_host(value):
-    host = re.sub(r"^https?://", "", text(value))
+    host = re.sub(r"^https?://", "", text(value), flags=re.I)
     return re.sub(r"/.*$", "", host).strip()
+
+
+def hostname_has_scheme(value):
+    return bool(re.match(r"^https?://", text(value).strip(), flags=re.I))
 
 
 def component_config(preflight, key):
@@ -359,6 +390,9 @@ def gitlab_keycloak_client_should_not_be_provisioned(
 
 
 OPENSHIFT_OIDC_DEFAULT_IDP_NAME = "Keycloak"
+# claim fails with "Could not create user" when that OpenShift username already
+# exists from another IdP (htpasswd admin). add matches ocp_htpasswd_admin.
+OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD = "add"
 # OpenShift oauth-server redirects to this exact path (no extra segment):
 # https://oauth-openshift.<apps_domain>/oauth2callback/<idp_name>
 # A trailing /* does not match that URL in Keycloak.
@@ -449,6 +483,15 @@ def grafana_oidc_is_enabled(preflight):
     if token in ("1", "true", "yes", "y", "on"):
         return True
     return bool(raw)
+
+
+def grafana_oidc_requested(preflight, selected):
+    """True when Grafana OIDC should run (option or enabled, not standalone)."""
+    if not is_selected(preflight, selected, "grafana"):
+        return False
+    if "standalone" in component_options(preflight, "grafana"):
+        return False
+    return grafana_oidc_is_enabled(preflight)
 
 
 def grafana_keycloak_client_should_not_be_provisioned(
@@ -724,9 +767,10 @@ def resolve_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
             "admin",
         )
 
-    own_host = normalize_host(oauth.get("keycloak_hostname"))
-    own_user = text(oauth.get("admin_user"))
-    own_password = text(oauth.get("admin_password"))
+    own_host = "" if rhbk_mode else normalize_host(oauth.get("keycloak_hostname"))
+    own_realm = "" if rhbk_mode else text(oauth.get("realm"))
+    own_user = "" if rhbk_mode else text(oauth.get("admin_user"))
+    own_password = "" if rhbk_mode else text(oauth.get("admin_password"))
     rhbk_password = text(rhbk.get("admin_password")) or (
         "vault" if text(rhbk_vars.get("rhbk_admin_password")) else ""
     )
@@ -742,11 +786,13 @@ def resolve_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
         "hostname": own_host or inherited_host,
         "inheritedHostname": inherited_host,
         "hostnameExplicit": bool(own_host),
-        "realm": first_text(oauth.get("realm"), inherited_realm),
-        "realmExplicit": bool(text(oauth.get("realm"))),
+        "realm": own_realm or inherited_realm,
+        "realmExplicit": bool(own_realm),
         "clientId": resolve_openshift_oidc_client_id(preflight),
         "idpName": first_text(oauth.get("idp_name"), OPENSHIFT_OIDC_DEFAULT_IDP_NAME),
-        "mappingMethod": first_text(oauth.get("mapping_method"), "claim"),
+        "mappingMethod": first_text(
+            oauth.get("mapping_method"), OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
+        ),
         "extraScopes": _scopes(oauth.get("extra_scopes")),
         "verifySsl": parse_verify_ssl(oauth.get("verify_ssl"))[0],
         "verifySslValid": parse_verify_ssl(oauth.get("verify_ssl"))[1],
@@ -776,14 +822,18 @@ def validate_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
             "invalid-verify-ssl",
             verify_ssl_error_message(oauth_config(preflight).get("verify_ssl")),
         )
-    if not s["hostname"]:
+    raw_oauth_host = text(oauth_config(preflight).get("keycloak_hostname")) if external else ""
+    if hostname_has_scheme(raw_oauth_host):
+        add("hostname-has-scheme", KEYCLOAK_HOSTNAME_SCHEME_MESSAGE)
+    elif "/" in raw_oauth_host:
+        add("hostname-has-path", KEYCLOAK_HOSTNAME_PATH_MESSAGE)
+    elif not s["hostname"]:
         add(
             "missing-hostname",
             (
                 f"{where}: set the Keycloak hostname (openshift.oauth_rhbk.keycloak_hostname)."
                 if external
-                else "OpenShift OIDC: no Keycloak hostname. Set the RHBK hostname or "
-                "openshift.oauth_rhbk.keycloak_hostname."
+                else "OpenShift OIDC: no Keycloak hostname. Set the RHBK hostname."
             ),
         )
     elif not _HOST_RE.match(s["hostname"]):
@@ -800,8 +850,7 @@ def validate_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
             (
                 f"{where}: set the Keycloak realm (openshift.oauth_rhbk.realm)."
                 if external
-                else "OpenShift OIDC: no Keycloak realm. Set the RHBK realm or "
-                "openshift.oauth_rhbk.realm."
+                else "OpenShift OIDC: no Keycloak realm. Set the RHBK realm."
             ),
         )
     if s["mappingMethod"] not in MAPPING_METHODS:
@@ -828,32 +877,76 @@ def validate_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
                 "(openshift.oauth_rhbk.admin_password). The job uses it only to read the "
                 "client secret; the client is never created or changed."
                 if external
-                else "OpenShift OIDC: no Keycloak admin password. Set the RHBK admin password "
-                "or openshift.oauth_rhbk.admin_password."
-            ),
-        )
-    if (
-        not external
-        and s["hostnameExplicit"]
-        and s["inheritedHostname"]
-        and s["hostname"].lower() != s["inheritedHostname"].lower()
-        and (not text(oauth_config(preflight).get("admin_password")) or not s["adminUserExplicit"])
-    ):
-        add(
-            "credential-host-mismatch",
-            (
-                f'OpenShift OIDC points at "{s["hostname"]}", not the RHBK in this run '
-                f'("{s["inheritedHostname"]}"). The RHBK admin credentials do not apply '
-                "there: set openshift.oauth_rhbk.admin_user and "
-                "openshift.oauth_rhbk.admin_password, or clear the hostname to use RHBK."
+                else "OpenShift OIDC: no Keycloak admin password. Set the RHBK admin password."
             ),
         )
     return errors
 
 
+def rhbk_existing_connection_requested(preflight):
+    opts = {text(x).lower() for x in component_options(preflight, "rhbk")}
+    return bool(opts.intersection(RHBK_EXISTING_CONNECTION_OPTIONS))
+
+
+def validate_rhbk_existing_connection(preflight, selected):
+    """Client-only (and similar) operations need an existing realm name."""
+    if not is_selected(preflight, selected, "rhbk"):
+        return []
+    if not rhbk_existing_connection_requested(preflight):
+        return []
+    if text(component_config(preflight, "rhbk").get("realm")):
+        return []
+    return [_error("rhbk", "RHBK", "missing-realm", RHBK_EXISTING_REALM_MESSAGE)]
+
+
+def validate_grafana_oidc_settings(preflight, selected):
+    """When Grafana OIDC is on and RHBK is in the run, require that connection.
+
+    Grafana-only (no RHBK) uses the pasted issuer and secret. Mapping method is
+    OpenShift-specific and is not applied here.
+    """
+    if not grafana_oidc_requested(preflight, selected):
+        return []
+    if not is_selected(preflight, selected, "rhbk"):
+        return []
+    rhbk = component_config(preflight, "rhbk")
+    apps_domain = text((preflight.get("openshift") or {}).get("apps_domain"))
+    host = normalize_host(
+        first_text(
+            rhbk.get("hostname"),
+            rhbk.get("rhbk_hostname"),
+            f"keycloak.{apps_domain}" if apps_domain else "",
+        )
+    )
+    realm = first_text(rhbk.get("realm"), rhbk.get("rhbk_realm"))
+    errors = []
+    if not host:
+        errors.append(
+            _error(
+                "grafana",
+                "Grafana",
+                "missing-hostname",
+                "Grafana OIDC: no Keycloak hostname. Set the RHBK hostname.",
+            )
+        )
+    if not realm:
+        errors.append(
+            _error(
+                "grafana",
+                "Grafana",
+                "missing-realm",
+                "Grafana OIDC: no Keycloak realm. Set the RHBK realm.",
+            )
+        )
+    return errors
+
+
 def validate_preflight_oidc(preflight, selected, rhbk_vars=None):
-    return validate_client_references(preflight, selected) + validate_openshift_oauth_settings(
-        preflight, selected, rhbk_vars
+    return (
+        validate_rhbk_existing_connection(preflight, selected)
+        + validate_client_references(preflight, selected)
+        + validate_openshift_oauth_settings(preflight, selected, rhbk_vars)
+        + validate_grafana_oidc_settings(preflight, selected)
     )
 
 

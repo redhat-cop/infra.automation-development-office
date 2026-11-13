@@ -362,7 +362,8 @@
 
       rhbk:
         - ado-rhbk-deploy-and-configure-bootstrap.jt.yml
-        - ado-install-rhbk-standalone-bootstrap.jt.yml
+
+      rhbk_login_events_exporter:
         - ado-rhbk-login-events-exporter-bootstrap.jt.yml
 
       rhbk_standalone:
@@ -577,8 +578,10 @@
     default_environment = "{{ env | default(bootstrap_controller_default_environment | default(controller_bootstrap_default_environment | default('prod')), true) }}"
 
     selected = {{ bootstrap_controller_job_template_files_selected | default([]) | to_json }}
-    if not selected:
-        selected = [p.name for p in sorted(src_dir.glob("*.jt.yml"))]
+    # Empty means no component JTs (Grafana-only miss, Galaxy/AAP-tabs-only).
+    # Never dump the full files/job_templates catalog.
+    if not isinstance(selected, list):
+        selected = []
 
     env_name = "{{ env | default('prod', true) }}"
     virt_vars_path = Path("{{ playbook_dir }}") / "group_vars" / "all" / env_name / "vars_openshift_virt.yml"
@@ -785,11 +788,14 @@
         copied.append(name)
 
     selected_set = set(selected)
-    if force_overwrite:
-        for existing in dest_dir.glob("*.jt.yml"):
-            if existing.name not in selected_set:
-                existing.unlink()
+    # Controller apply loads every *.jt.yml in dest. Drop JTs that this run
+    # did not select so leftover files are not dispatched. Overwrite-all
+    # already wiped dest; this still catches a missed wipe or a prior dump-all.
+    for existing in dest_dir.glob("*.jt.yml"):
+        if existing.name not in selected_set:
+            existing.unlink()
 
+    print("Selected job templates:", len(selected))
     print("Copied job templates:", len(copied))
     PYCODE
   args:
@@ -890,8 +896,11 @@
       }}/configs/workflows/ado-rhbk-workflow-bootstrap.wf.yml
     mode: "0644"
     force: "{{ bootstrap_controller_jt_wf_force | bool }}"
-  when:
-    - "'rhbk' in bootstrap_controller_effective_components"
+  when: >-
+    (bootstrap_controller_effective_components
+    | select('match', '^rhbk')
+    | list
+    | length) > 0
 
 - name: AAP configs | Copy Grafana workflow when selected
   ansible.builtin.copy:
@@ -917,12 +926,12 @@
       }}/configs/workflows/ado-{{ item.slug }}-workflow-bootstrap.wf.yml
     mode: "0644"
   loop:
-    - { slug: quay, component: quay }
-    - { slug: minio, component: minio }
-    - { slug: dev-hub, component: dev_hub }
-    - { slug: bookstack, component: bookstack }
-    - { slug: netbox, component: netbox }
-    - { slug: zabbix, component: zabbix }
+    - {slug: quay, component: quay}
+    - {slug: minio, component: minio}
+    - {slug: dev-hub, component: dev_hub}
+    - {slug: bookstack, component: bookstack}
+    - {slug: netbox, component: netbox}
+    - {slug: zabbix, component: zabbix}
   when:
     - item.component in bootstrap_controller_effective_components
 
@@ -1057,7 +1066,11 @@
     state: absent
   when:
     - bootstrap_controller_jt_wf_force | bool
-    - "'rhbk' not in bootstrap_controller_effective_components"
+    - >-
+      (bootstrap_controller_effective_components
+      | select('match', '^rhbk')
+      | list
+      | length) == 0
 
 - name: AAP configs | Remove Grafana workflow when unselected
   ansible.builtin.file:
@@ -1082,12 +1095,12 @@
       }}/configs/workflows/ado-{{ item.slug }}-workflow-bootstrap.wf.yml
     state: absent
   loop:
-    - { slug: quay, component: quay }
-    - { slug: minio, component: minio }
-    - { slug: dev-hub, component: dev_hub }
-    - { slug: bookstack, component: bookstack }
-    - { slug: netbox, component: netbox }
-    - { slug: zabbix, component: zabbix }
+    - {slug: quay, component: quay}
+    - {slug: minio, component: minio}
+    - {slug: dev-hub, component: dev_hub}
+    - {slug: bookstack, component: bookstack}
+    - {slug: netbox, component: netbox}
+    - {slug: zabbix, component: zabbix}
   when:
     - bootstrap_controller_jt_wf_force | bool
     - item.component not in bootstrap_controller_effective_components

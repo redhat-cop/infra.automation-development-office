@@ -37,7 +37,10 @@ Automation Development Office
 | `ocp_nfs_storage_allow_volume_expansion` | AllowVolumeExpansion. Default: `true`. |
 | `ocp_nfs_storage_create_test_namespace` | Create a sample namespace. Default: `true`. |
 | `ocp_nfs_storage_create_test_pvc` | Create a sample PVC. Default: `false`. |
+| `ocp_nfs_storage_test_namespace` | Namespace for the optional validation PVC. Default: `ado-nfs-csi-test` (not lab `synology-nfs-pv`). |
+| `ocp_nfs_storage_test_pvc_name` | Dedicated validation PVC name. Default: `ado-nfs-csi-test-pvc`. Never reuses lab claims such as `synology-nfs-pvc`. If a same-named PVC already exists with a different StorageClass, the role fails clearly and does not patch or delete it. |
 | `ocp_nfs_storage_connection` | Optional ``host`` / ``api_key`` / ``kubeconfig`` / ``validate_certs``. |
+| `ocp_nfs_storage_result` | Fact set at end of the role: independent ``driver_install``, ``storage_class``, ``test_namespace``, ``test_pvc``, and ``overall`` statuses (``ok`` / ``failed`` / ``skipped``). Bootstrap fails when ``overall`` is not ``ok``. |
 
 Aliases accepted by env generation: ``nfs_server``, ``nfs_share``,
 ``nfs_storage_class_name``.

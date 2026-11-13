@@ -1,6 +1,6 @@
 # Role: infra.automation_development_office.ocp_oidc_auth
 
-Ocp Oidc Auth automation role. Primary tasks include: Assert required OIDC inputs are set; Build Keycloak URLs; Try to get Keycloak client secret via module.
+Ocp Oidc Auth automation role. Primary tasks include: Assert required OIDC inputs are set; Build Keycloak URLs; Show the effective Keycloak target; Try to get Keycloak client secret via module.
 
 ## Role Author
 
@@ -19,6 +19,7 @@ Automation Development Office
 | `ocp_oidc_auth_state` | Desired state used by role tasks when supported. |
 | `ocp_rhbk_verify_ssl` | Verify the Keycloak TLS certificate. Unset, null or blank means on. `true` / `yes` / `on` / `1` verify. `false` / `no` / `off` / `0` turn verification off. Any other value is an error; it is never read as false. |
 | `ocp_oidc_auth_ca_pem` | PEM of the CA that issued Keycloak's certificate. Optional. Used to verify Keycloak and, as before, given to OpenShift's oauth-server. |
+| `openshift_oidc_auth.openshift_oidc_mapping_method` | OpenShift OAuth mapping method. Default `add` so a Keycloak username that already exists (htpasswd `admin`) can sign in. `claim` fails with `Could not create user` when that User already exists. |
 
 ### Existing Keycloak client and failure behavior
 
@@ -34,21 +35,33 @@ change redirect URIs on the existing Keycloak client. Register the exact
 callback URI on the external client before login will succeed. Overlay
 writes it as `openshift_oidc_auth.openshift_oauth_redirect_uri`.
 
+When `rhbk_hostname` and `rhbk_realm` are set (RHBK is in the run), this role
+uses those values and ignores leftover `ocp_oidc_auth_rhbk_hostname` /
+`ocp_oidc_auth_rhbk_realm` overrides from an earlier generate. That keeps
+OpenShift OAuth on the same Keycloak the RHBK Client job used. Without RHBK
+vars, the role uses its own `ocp_oidc_auth_rhbk_*` connection settings.
+
+The play prints the effective Keycloak hostname, realm, and client ID before
+it contacts Keycloak. Missing hostname, realm, admin credentials, or client ID
+stop the play at that point.
+
 The role reads the client secret of a Keycloak client that **already exists**,
 using the Keycloak admin credentials. It never creates, updates or deletes a
-Keycloak client. When the secret cannot be read the play stops, before anything
-is written to OpenShift, with one of these messages:
+Keycloak client or realm. When the secret cannot be read the play stops, before
+anything is written to OpenShift, with one of these messages:
 
 | Situation | Message starts with |
 |----------|---------------------|
 | Wrong admin user/password | `Cannot read Keycloak client '<id>': admin login to <url> ... failed` |
-| Keycloak certificate not trusted (verification is on) | `The TLS certificate presented by <url> is not trusted by the process running this role` |
+| Keycloak certificate not trusted (verification is on) | `Keycloak TLS certificate verification failed` |
 | Unrecognized `ocp_rhbk_verify_ssl` (`garbage`, `tru`, `flase`, `2`, ...) | `ocp_rhbk_verify_ssl has the value '...', which is not recognized` |
 | `ocp_oidc_auth_ca_pem` is set but is not a PEM certificate | `ocp_oidc_auth_ca_pem is set but is not a PEM certificate` |
+| Keycloak realm does not exist | `Keycloak realm '<realm>' does not exist` |
 | Admin account may not list clients in the realm | `Keycloak did not allow user '<user>' to list clients in realm '<realm>'` |
 | Client ID not in the realm | `Keycloak client '<id>' not found in realm '<realm>'` |
 | Account may not read the client secret | `Keycloak did not allow user '<user>' to read the secret of client` |
 | Client is public or has no secret | `Failed to retrieve Keycloak client secret for client_id=<id>` |
+| OpenShift console `Could not create user` after Keycloak login | OpenShift `mappingMethod` is `claim` and that username already exists (htpasswd `admin`). Use `add`. |
 
 Messages never contain passwords, tokens or secrets.
 
@@ -63,7 +76,8 @@ separate:
   `no` / `off` / `0`. An existing configuration with that explicit value keeps
   working unchanged. Unrecognized values (`garbage`, `tru`, `flase`, `2`, ...)
   stop the play before any Keycloak request; Ansible's `bool` filter is never
-  used on the raw value, because it would treat those as false.
+  used on the raw value, because it would treat those as false. Keycloak HTTPS
+  calls receive `validate_certs: true` or `false` (not Jinja `True` / `False`).
 - *Trust* is the CA that the requesting process accepts. Either add the CA to the
   trust store of the process that runs this role (for AAP, the execution
   environment image), or set `ocp_oidc_auth_ca_pem` to the CA's PEM. The role
@@ -72,10 +86,12 @@ separate:
   to the `keycloak_clientsecret_info` module, which has no CA option.
 
 If the certificate is not trusted the play stops with
-`The TLS certificate presented by <url> is not trusted by the process running this
-role ...` before anything is written to OpenShift. It does not retry with
-verification off. `ocp_oidc_auth_ca_pem` must hold a PEM certificate; anything
-else stops the play with its own message.
+`Keycloak TLS certificate verification failed` before anything is written to
+OpenShift. It does not retry with verification off. For a lab, uncheck
+**Verify Keycloak TLS certificate** on Preflight Step 2 → OAuth / RHBK,
+regenerate, and rerun. For production, keep verification on and configure a
+trusted CA. `ocp_oidc_auth_ca_pem` must hold a PEM certificate; anything else
+stops the play with its own message.
 
 Limits: the role does not discover the CA on its own for the Keycloak calls (a
 Keycloak route that uses the cluster's default ingress certificate needs that
@@ -115,6 +131,7 @@ This role runs tasks such as:
 
 - Assert required OIDC inputs are set
 - Build Keycloak URLs
+- Show the effective Keycloak target
 - Try to get Keycloak client secret via module
 - Extract Keycloak client secret from module result
 

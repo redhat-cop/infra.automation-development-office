@@ -1715,6 +1715,15 @@
       (controller_workflows | default([]) | length > 0)
     - controller_bootstrap_organization | default(bootstrap_controller_organization, true) | length > 0
 
+- name: AAP 2.5+ | Skip organization template verification when none were generated
+  ansible.builtin.debug:
+    msg: >-
+      No generated job or workflow templates to verify.
+      Hub collection publish does not require Controller templates.
+  when:
+    - (controller_templates | default([]) | length) == 0
+    - (controller_workflows | default([]) | length) == 0
+
 - name: AAP 2.5+ | Report organization template verification
   ansible.builtin.debug:
     msg: >-
@@ -1724,7 +1733,9 @@
         bootstrap_controller_org_template_lookup.json.count
         | default('unknown')
       }}
-  when: bootstrap_controller_org_template_lookup is defined
+  when:
+    - bootstrap_controller_org_template_lookup is defined
+    - bootstrap_controller_org_template_lookup is not skipped
 
 - name: AAP 2.5+ | Fail if generated organization templates were not found
   ansible.builtin.assert:
@@ -1735,4 +1746,6 @@
       organization prefix
       '{{ controller_bootstrap_organization | default(bootstrap_controller_organization) }} |'
       after template creation.
-  when: bootstrap_controller_org_template_lookup is defined
+  when:
+    - bootstrap_controller_org_template_lookup is defined
+    - bootstrap_controller_org_template_lookup is not skipped

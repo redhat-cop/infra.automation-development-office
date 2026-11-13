@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 vm_name: >-
   {{ provision_openshift_virt_vm_name | default('satellite-server') }}
 # Lab build VMs live here (bridge + Multus), not in rhev-vms by default.
@@ -14,7 +15,18 @@ source_namespace: >-
 instance_type: >-
   {{ provision_openshift_virt_instance_type | default('u1.large') }}
 preference: "{{ provision_openshift_virt_preference | default('rhel.9') }}"
+# Total guest vCPUs for instance_type=custom (mapped to domain.cpu.sockets).
 cpu_cores: "{{ provision_openshift_virt_cpu_cores | default(2) }}"
+# Topology for custom compute. Preferences such as rhel.9 require sockets.
+# Default: sockets=cpu_cores, cores=1, threads=1 (total vCPU = sockets).
+cpu_sockets: >-
+  {{
+    provision_openshift_virt_cpu_sockets
+    | default(provision_openshift_virt_cpu_cores | default(2))
+  }}
+cpu_cores_per_socket: >-
+  {{ provision_openshift_virt_cpu_cores_per_socket | default(1) }}
+cpu_threads: "{{ provision_openshift_virt_cpu_threads | default(1) }}"
 memory: "{{ provision_openshift_virt_memory | default('8Gi') }}"
 storage_class: "{{ provision_openshift_virt_storage_class | default('synology-nfs-csi') }}"
 root_disk_size: >-

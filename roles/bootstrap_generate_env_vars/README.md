@@ -3,6 +3,15 @@
 Generate environment group variables and vault files used by the ADO bootstrap
 playbook repository.
 
+When Default Ingress Certificate is selected
+(``component_options.openshift`` contains ``update_default_ingress`` or
+``component_config.cert_manager.update_default_ingress``), this role publishes
+``bootstrap_controller_update_default_ingress`` and
+``bootstrap_controller_cert_manager_explicit`` from preflight so No-AAP runs
+(that skip ``aap_config_vars.yml``) still keep the ingress playbook gate
+aligned with AAP mode. Ingress-only does not mark Certificate Manager deploy
+as an explicit selection.
+
 ## Role Author
 
 Automation Development Office
@@ -261,13 +270,13 @@ modes, chosen by whether RHBK is part of the run.
 
 | Input (``openshift.oauth_rhbk.*``) | RHBK in the run | Existing Keycloak (no RHBK in the run) |
 | --- | --- | --- |
-| ``keycloak_hostname`` | optional; empty inherits the RHBK hostname | required |
-| ``realm`` | optional; empty inherits the RHBK realm | required |
+| ``keycloak_hostname`` | ignored; always inherited from the RHBK hostname. Route host only, no ``http://``, ``https://``, or trailing ``/``. | required; same host-only rule |
+| ``realm`` | ignored; always inherited from the RHBK realm | required |
 | ``client_id`` | required (see below) | required |
-| ``admin_user`` | optional; empty inherits the RHBK admin user | required |
-| ``admin_password`` | optional; empty inherits the RHBK admin password | required |
+| ``admin_user`` | ignored; always inherited from the RHBK admin user | required |
+| ``admin_password`` | ignored; always inherited from the RHBK admin password | required |
 | ``verify_ssl`` | optional, default on (``ocp_rhbk_verify_ssl``) | optional, default on |
-| ``idp_name``, ``mapping_method``, ``extra_scopes`` | optional | optional |
+| ``idp_name``, ``mapping_method``, ``extra_scopes`` | optional. ``mapping_method`` defaults to ``add`` (``claim`` fails with ``Could not create user`` when that OpenShift username already exists) | optional. same default |
 
 ``idp_name`` is the OpenShift OAuth identity-provider name (default
 ``Keycloak``). The cluster callback is the exact path
@@ -290,7 +299,11 @@ Grafana OIDC ``component_config.grafana.oidc.enabled: false`` is preserved.
 Overlay does not force ``enabled: true``, does not copy that Grafana client
 into ``rhbk_clients``, and does not add the ``grafana_oidc`` job template
 when the flag is explicitly off. Missing ``enabled`` with the Grafana
-``oidc`` option still defaults on.
+``oidc`` option still defaults on. When RHBK is in the run, Grafana OIDC
+inherits hostname and realm from the RHBK component (same Keycloak as
+Client and OpenShift OAuth). Leftover ``oidc.issuer`` values are replaced
+unless ``issuer_manual`` is true. Overlay does not invent ``Dev`` or
+``rhlab``. Mapping method is OpenShift-only.
 
 Keycloak TLS verification is on in both modes. ``verify_ssl`` is parsed
 strictly: blank or missing means on; ``true`` / ``yes`` / ``on`` / ``1`` verify;
@@ -321,14 +334,17 @@ Keycloak client ownership is per row in ``component_config.rhbk.clients``:
 Existing JSON exports without ``create_client`` keep the automated install
 path. Satellite ``oidc.create_client`` and AAP Gateway OIDC are unchanged.
 
-With RHBK in the run, a value set under ``openshift.oauth_rhbk`` is written as the
-role's own ``ocp_oidc_auth_rhbk_hostname`` / ``_realm`` / ``_admin_user`` /
-``_admin_password`` input; RHBK's own ``rhbk_hostname``, ``rhbk_realm`` and
-``rhbk_admin_*`` are left alone. An override that points at a different Keycloak
-host must bring its own admin user and password. Without RHBK, ``vars_rhbk.yml``
-and ``vault_rhbk.yml`` are created because the OpenShift OAuth playbook loads
-them; a leftover RHBK form that is not selected is ignored. The admin password is
-written only to ``vault_rhbk.yml`` (``vault_ocp_oidc_auth_rhbk_admin_password``);
+With RHBK in the run, OpenShift OAuth always uses that Keycloak instance and
+realm. Leftover ``openshift.oauth_rhbk`` hostname, realm, and admin values are
+ignored so a previous export cannot silently point OAuth at a different
+Keycloak. Client-only and other existing-Keycloak RHBK operations require
+``component_config.rhbk.realm``; overlay does not invent ``Dev`` or ``rhlab``
+from the environment name. Use the OAuth-only path (RHBK not selected) for an
+external Keycloak. RHBK's own ``rhbk_hostname``, ``rhbk_realm`` and ``rhbk_admin_*``
+are left alone. Without RHBK, ``vars_rhbk.yml`` and ``vault_rhbk.yml`` are
+created because the OpenShift OAuth playbook loads them; a leftover RHBK form
+that is not selected is ignored. The admin password is written only to
+``vault_rhbk.yml`` (``vault_ocp_oidc_auth_rhbk_admin_password``);
 ``vars_rhbk.yml`` holds a ``{{ vault_... }}`` reference.
 
 The client ID is resolved in this order:
@@ -367,7 +383,10 @@ the Preflight UI so the form is not the only protection:
   ``fetch_oidc_secret_from_rhbk: false``, ``openshift.oauth_rhbk.fetch_client_secret:
   false``), the client list is not consulted and an existing realm client is accepted;
 * OpenShift OIDC connection inputs in the table above are present, the hostname is
-  a valid host, and ``mapping_method`` is ``claim``, ``lookup`` or ``add``.
+  a valid host with no ``http://`` or ``https://`` scheme and no trailing ``/``,
+  and ``mapping_method`` is ``claim``, ``lookup`` or ``add``;
+* Client-only and other existing-Keycloak RHBK operations require
+  ``component_config.rhbk.realm`` even when Realm creation is unselected.
 
 Only selected, enabled integrations are checked. Failures stop generation with a
 list of what to fix; secrets are never printed. Run it on its own with
@@ -382,6 +401,17 @@ Deploy RHBK Client`` loops ``rhbk_clients`` (or singular ``rhbk_client`` when
 that dict is empty). No playbook loops the passthrough ``clients`` list to
 create, update, or delete Keycloak clients, so an unmanaged row can remain
 there without being provisioned.
+
+RHBK playbook and job-template selection follows the same pattern as Grafana.
+``component_apps.openshift`` ``rhbk`` with no ``component_options.rhbk`` (or
+with ``install``) generates ``ADO | Deploy RHBK``. Selecting only ``client``
+generates ``ADO | Deploy RHBK Client`` and does not install Keycloak, create
+client scopes, or deploy the login-events exporter. ``client_scopes`` is
+generated only when that option is checked. The login-events exporter is
+optional Keycloak login/logout monitoring and stays off unless
+``component_config.rhbk.login_events_exporter_enabled`` is true.
+``Configure OAuth/RHBK in OpenShift`` is the OpenShift ``oauth_rhbk`` option,
+not an RHBK client option.
 
 ### MinIO and Developer Hub client IDs
 
@@ -476,7 +506,8 @@ re-enable its public source. New Preflight defaults leave public Galaxy disabled
 
 Galaxy setup (`aap.galaxy_setup_enabled`) creates and attaches Controller Galaxy
 credentials from each enabled `aap.galaxy_credentials[]` entry that has a name
-and URL. The shared `aap.galaxy_hub_token` is optional. A per-credential
+and URL. With no platforms in `components[]`, that is AAP-tabs-only: do not
+expand an empty list into every OpenShift/RHEL playbook. The shared `aap.galaxy_hub_token` is optional. A per-credential
 `token` is used when set; otherwise the shared Hub token is used; otherwise the
 credential is created with an empty token so public Galaxy or later token
 updates still work. Hub-only collection publish without Galaxy setup still

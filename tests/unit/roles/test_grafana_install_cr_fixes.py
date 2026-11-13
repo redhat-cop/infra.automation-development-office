@@ -17,7 +17,7 @@ OIDC = ROOT / "roles/grafana_install/tasks/configure-grafana-oidc.yml"
 
 def test_container_index_uses_list_index_not_jinja_filter() -> None:
     text = RESOURCES.read_text(encoding="utf-8")
-    assert ").index('grafana')" in text
+    assert ".index('grafana')" in text
     assert "List method .index(), not the missing Jinja | index filter" in text
     for line in text.splitlines():
         stripped = line.strip()
@@ -29,11 +29,16 @@ def test_container_index_uses_list_index_not_jinja_filter() -> None:
 
 def test_nested_jinja_defaults_on_cr_container_path() -> None:
     text = RESOURCES.read_text(encoding="utf-8")
-    assert ").deployment | default({})" in text
-    assert ").spec | default({})" in text
-    assert ").template | default({})" in text
-    assert ").containers | default([])" in text
-    assert "Nested default({}) chain" in text
+    assert "grafana_install_resource_spec.deployment | default({})" in text
+    assert "grafana_install_resource_deployment.spec | default({})" in text
+    assert "grafana_install_resource_deploy_spec.template | default({})" in text
+    assert "grafana_install_resource_pod_spec.containers | default([])" in text
+    assert "ansible-core 2.16" in text
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        assert ").deployment | default({})" not in stripped
 
 
 def test_readiness_probe_values_are_integers_via_from_yaml() -> None:
@@ -43,6 +48,20 @@ def test_readiness_probe_values_are_integers_via_from_yaml() -> None:
     assert "failureThreshold: {{ grafana_install_readiness_failure_threshold | int }}" in text
     assert 'readinessProbe: "{{ grafana_install_container_readiness }}"' in text
     assert "from_yaml keeps timeoutSeconds / failureThreshold as ints" in text
+
+
+def test_container_index_and_replicas_are_one_line_jinja() -> None:
+    text = RESOURCES.read_text(encoding="utf-8")
+    assert "grafana_install_resource_container_names.index('grafana')" in text
+    assert "grafana_install_replicas | int" in text
+    install = (ROOT / "roles/grafana_install/tasks/install-grafana-operator.yml").read_text(
+        encoding="utf-8"
+    )
+    # to_json|from_json keeps replicas as a real int through AAP/Jinja stringification
+    assert (
+        'replicas: "{{ grafana_install_replicas | int | to_json | from_json }}"'
+        in install
+    )
 
 
 def test_oidc_enabled_uses_nested_default() -> None:

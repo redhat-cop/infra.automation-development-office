@@ -1,0 +1,18 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - when RHBK is in the run, OpenShift OIDC
+    inherits Keycloak hostname, realm, and admin credentials from the RHBK
+    component. Leftover ``openshift.oauth_rhbk`` connection overrides are
+    ignored so they cannot silently point OAuth at a different Keycloak.
+    Client-only and other existing-Keycloak operations require
+    ``component_config.rhbk.realm``; overlay no longer invents ``Dev`` or
+    ``rhlab``.
+  - >-
+    ocp_oidc_auth - when ``rhbk_hostname`` / ``rhbk_realm`` are set, leftover
+    ``ocp_oidc_auth_rhbk_*`` overrides are ignored so OAuth uses the same
+    Keycloak as ``rhbk_client``. The play prints the effective hostname, realm
+    and client ID before contacting Keycloak.
+  - >-
+    rhbk_client - prints the effective Keycloak hostname, realm and client ID
+    before create or update, and fails clearly when those inputs are missing.

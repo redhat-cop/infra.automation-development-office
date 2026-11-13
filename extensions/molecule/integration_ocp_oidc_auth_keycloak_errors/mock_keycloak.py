@@ -12,6 +12,7 @@ scenario can prove the role only reads. Behaviour is chosen by user and client:
 * client ``existing-confidential``: exists and has a secret
 * client ``existing-public``: exists, the secret endpoint returns no value
 * any other client ID: not found
+* realm ``corp`` exists; any other realm returns 404 Realm not found
 """
 
 import json
@@ -64,6 +65,10 @@ class Handler(BaseHTTPRequestHandler):
         if auth != "Bearer tok-kcadmin":
             return self._send(401, {"error": "HTTP 401 Unauthorized"})
         parts = url.path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "admin" and parts[1] == "realms" and parts[2] != "corp":
+            return self._send(404, {"error": "Realm not found."})
+        if len(parts) == 3 and parts[0] == "admin" and parts[1] == "realms":
+            return self._send(200, {"realm": parts[2]})
         if parts[-1] == "clients":
             client = (parse_qs(url.query).get("clientId") or [""])[0]
             if client.startswith("existing-"):

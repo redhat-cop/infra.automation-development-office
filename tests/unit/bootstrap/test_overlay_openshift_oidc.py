@@ -3,7 +3,8 @@
 Runs the real ``overlay_preflight_component_values.py`` and
 ``preflight_oidc.py`` against a throwaway env dir. Covers:
 
-* RHBK selected: Keycloak host / realm / credentials are inherited;
+* RHBK selected: Keycloak host / realm / credentials are inherited, and leftover
+  ``openshift.oauth_rhbk`` connection overrides are ignored;
 * external Keycloak only: ``openshift.oauth_rhbk`` supplies everything the
   existing ``ocp_oidc_auth`` role reads, and no Keycloak client is created;
 * explicit client precedence, missing or conflicting inputs, dismissed clients,
@@ -62,7 +63,7 @@ def rhbk_form(**extra):
 def external_oauth(**extra):
     return {
         "idp_name": "Corp-SSO",
-        "keycloak_hostname": "https://sso.corp.example.test/",
+        "keycloak_hostname": "sso.corp.example.test",
         "realm": "corp",
         "client_id": "corp-openshift",
         "admin_user": "kcadmin",
@@ -140,6 +141,7 @@ def test_rhbk_selected_inherits_host_realm_and_credentials(tmp_path):
     assert oidc["keycloak_client_id"] == "OpenshiftDev"
     assert oidc["issuer"] == "https://keycloak.apps.example.test/realms/demo"
     assert oidc["openshift_oidc_idp_name"] == "Keycloak"
+    assert oidc["openshift_oidc_mapping_method"] == "add"
     # Nothing OpenShift-specific is written for inherited values: the role falls
     # back to RHBK's own rhbk_hostname / rhbk_realm / rhbk_admin_*.
     for key in (
@@ -183,7 +185,7 @@ def test_rhbk_admin_user_is_not_overridden_by_the_vault_default(tmp_path):
     assert effective["vault_rhbk_admin_password"] == RHBK_PASSWORD
 
 
-def test_rhbk_selected_explicit_openshift_values_override_inherited_ones(tmp_path):
+def test_rhbk_selected_leftover_openshift_connection_overrides_are_ignored(tmp_path):
     oauth = {
         "client_id": "OpenshiftDev",
         "keycloak_hostname": "kc2.example.test",
@@ -200,15 +202,16 @@ def test_rhbk_selected_explicit_openshift_values_override_inherited_ones(tmp_pat
     )
     assert result.returncode == 0, result.stderr
     data = load(env_dir, "vars_rhbk.yml")
-    assert data["ocp_oidc_auth_rhbk_hostname"] == "kc2.example.test"
-    assert data["ocp_oidc_auth_rhbk_realm"] == "other"
-    assert data["ocp_oidc_auth_rhbk_admin_user"] == "otheradmin"
-    assert data["ocp_oidc_auth_rhbk_admin_password"] == (
-        "{{ vault_ocp_oidc_auth_rhbk_admin_password }}"
-    )
+    for key in (
+        "ocp_oidc_auth_rhbk_hostname",
+        "ocp_oidc_auth_rhbk_realm",
+        "ocp_oidc_auth_rhbk_admin_user",
+        "ocp_oidc_auth_rhbk_admin_password",
+    ):
+        assert key not in data
     assert data["ocp_rhbk_verify_ssl"] is True
     oidc = data["openshift_oidc_auth"]
-    assert oidc["issuer"] == "https://kc2.example.test/realms/other"
+    assert oidc["issuer"] == "https://keycloak.apps.example.test/realms/demo"
     assert oidc["openshift_oidc_mapping_method"] == "lookup"
     assert oidc["extra_scopes"] == ["groups", "roles"]
     assert oidc["openshift_oidc_idp_name"] == "KC2"
@@ -218,7 +221,7 @@ def test_rhbk_selected_explicit_openshift_values_override_inherited_ones(tmp_pat
     assert data["rhbk_realm"] == "demo"
     vault = load(env_dir, "vault_rhbk.yml")
     assert vault["vault_rhbk_admin_password"] == RHBK_PASSWORD
-    assert vault["vault_ocp_oidc_auth_rhbk_admin_password"] == OTHER_PASSWORD
+    assert "vault_ocp_oidc_auth_rhbk_admin_password" not in vault
 
 
 def test_rhbk_selected_does_not_create_or_change_keycloak_clients(tmp_path):
@@ -257,7 +260,7 @@ def test_external_keycloak_generates_what_the_existing_role_reads(tmp_path):
         "enabled": True,
         "openshift_oidc_idp_name": "Corp-SSO",
         "keycloak_client_id": "corp-openshift",
-        "openshift_oidc_mapping_method": "claim",
+        "openshift_oidc_mapping_method": "add",
         "openshift_oauth_resource_name": "cluster",
         "extra_scopes": ["groups"],
         "issuer": "https://sso.corp.example.test/realms/corp",
@@ -349,7 +352,22 @@ def test_rhbk_mode_requires_an_admin_password_from_somewhere(tmp_path):
     assert "no Keycloak admin password" in result.stderr
 
 
-def test_other_keycloak_host_needs_its_own_credentials(tmp_path):
+def test_explicit_claim_mapping_method_is_kept(tmp_path):
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(),
+            oauth={"client_id": "OpenshiftDev", "mapping_method": "claim"},
+        ),
+        ["rhbk", "openshift"],
+    )
+    assert result.returncode == 0, result.stderr
+    assert load(env_dir, "vars_rhbk.yml")["openshift_oidc_auth"][
+        "openshift_oidc_mapping_method"
+    ] == "claim"
+
+
+def test_leftover_oauth_hostname_does_not_replace_the_rhbk_host(tmp_path):
     result, env_dir = run(
         tmp_path,
         make_preflight(
@@ -358,13 +376,73 @@ def test_other_keycloak_host_needs_its_own_credentials(tmp_path):
         ),
         ["rhbk", "openshift"],
     )
+    assert result.returncode == 0, result.stderr
+    data = load(env_dir, "vars_rhbk.yml")
+    assert data["openshift_oidc_auth"]["issuer"] == (
+        "https://keycloak.apps.example.test/realms/demo"
+    )
+    assert "ocp_oidc_auth_rhbk_hostname" not in data
+
+
+def test_client_and_oauth_jobs_share_rhbk_target_when_json_has_two_hosts(tmp_path):
+    """RHBK Client vars and OpenShift OAuth issuer must resolve to the same Keycloak."""
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(
+                hostname="keycloak.apps.ocp-dev.example.test",
+                realm="rhlab",
+            ),
+            oauth={
+                "client_id": "OpenshiftDev",
+                "keycloak_hostname": "keycloak.apps.ocp.prod.example.test",
+                "realm": "other",
+                "admin_user": "otheradmin",
+                "admin_password": OTHER_PASSWORD,
+            },
+        ),
+        ["rhbk", "openshift"],
+    )
+    assert result.returncode == 0, result.stderr
+    data = load(env_dir, "vars_rhbk.yml")
+    expected_host = "keycloak.apps.ocp-dev.example.test"
+    expected_realm = "rhlab"
+    assert data["rhbk_hostname"] == expected_host
+    assert data["rhbk_realm"] == expected_realm
+    assert data["ocp_rhbk_hostname"] == expected_host
+    assert data["ocp_rhbk_realm"] == expected_realm
+    assert data["openshift_oidc_auth"]["issuer"] == (
+        f"https://{expected_host}/realms/{expected_realm}"
+    )
+    assert data["openshift_oidc_auth"]["keycloak_client_id"] == "OpenshiftDev"
+    for leftover in (
+        "ocp_oidc_auth_rhbk_hostname",
+        "ocp_oidc_auth_rhbk_realm",
+        "ocp_oidc_auth_rhbk_admin_user",
+    ):
+        assert leftover not in data
+
+
+def test_blank_rhbk_realm_fails_for_client_only_before_generation(tmp_path):
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(realm=""),
+            oauth={
+                "client_id": "OpenshiftDev",
+                "keycloak_hostname": "keycloak.apps.ocp.prod.example.test",
+                "realm": "rhlab",
+            },
+        ),
+        ["rhbk", "openshift"],
+    )
     assert result.returncode != 0
-    assert "RHBK admin credentials do not apply" in result.stderr
+    assert "existing realm name" in result.stderr
     assert tree_text(env_dir) == {}
 
 
-def test_same_host_spelled_as_url_is_not_a_conflict(tmp_path):
-    result, _ = run(
+def test_leftover_oauth_hostname_url_is_ignored_when_rhbk_is_selected(tmp_path):
+    result, env_dir = run(
         tmp_path,
         make_preflight(
             rhbk=rhbk_form(),
@@ -376,6 +454,10 @@ def test_same_host_spelled_as_url_is_not_a_conflict(tmp_path):
         ["rhbk", "openshift"],
     )
     assert result.returncode == 0, result.stderr
+    data = load(env_dir, "vars_rhbk.yml")
+    assert data["openshift_oidc_auth"]["issuer"] == (
+        "https://keycloak.apps.example.test/realms/demo"
+    )
 
 
 @pytest.mark.parametrize(
@@ -383,6 +465,18 @@ def test_same_host_spelled_as_url_is_not_a_conflict(tmp_path):
     [
         ({"mapping_method": "bogus"}, 'mapping method "bogus"'),
         ({"keycloak_hostname": "sso corp"}, "is not a valid host"),
+        (
+            {"keycloak_hostname": "https://sso.corp.example.test/"},
+            "http:// or https://",
+        ),
+        (
+            {"keycloak_hostname": "HTTP://sso.corp.example.test"},
+            "http:// or https://",
+        ),
+        (
+            {"keycloak_hostname": "sso.corp.example.test/"},
+            "trailing /",
+        ),
     ],
 )
 def test_invalid_openshift_oidc_inputs_are_rejected(tmp_path, override, fragment):
@@ -453,6 +547,75 @@ def test_mixed_ownership_provisions_grafana_only_and_keeps_openshift_oidc(tmp_pa
     assert rhbk_vars["openshift_oidc_auth"]["keycloak_client_id"] == "OpenshiftDev"
     assert grafana_vars["oidc"]["client_id"] == "grafana-client"
     assert grafana_vars["oidc"]["enabled"] is True
+    assert grafana_vars["oidc"]["issuer"] == "https://keycloak.apps.example.test/realms/demo"
+
+
+def test_grafana_oidc_issuer_ignores_leftover_when_rhbk_is_selected(tmp_path):
+    grafana = {
+        "oidc": {
+            "enabled": True,
+            "client_id": "grafana-client",
+            "issuer": "https://kc2.example.test/realms/other",
+        }
+    }
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(),
+            oauth={"client_id": "OpenshiftDev"},
+            apps=["rhbk", "grafana"],
+            options={"grafana": ["oidc"]},
+            config={"grafana": grafana},
+        ),
+        ["rhbk", "openshift", "grafana"],
+    )
+    assert result.returncode == 0, result.stderr
+    grafana_vars = load(env_dir, "vars_grafana.yml")
+    assert grafana_vars["oidc"]["issuer"] == "https://keycloak.apps.example.test/realms/demo"
+    assert "issuer_manual" not in grafana_vars["oidc"]
+
+
+def test_grafana_oidc_manual_issuer_is_kept(tmp_path):
+    grafana = {
+        "oidc": {
+            "enabled": True,
+            "client_id": "grafana-client",
+            "issuer": "https://kc2.example.test/realms/other",
+            "issuer_manual": True,
+        }
+    }
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(),
+            oauth={"client_id": "OpenshiftDev"},
+            apps=["rhbk", "grafana"],
+            options={"grafana": ["oidc"]},
+            config={"grafana": grafana},
+        ),
+        ["rhbk", "openshift", "grafana"],
+    )
+    assert result.returncode == 0, result.stderr
+    grafana_vars = load(env_dir, "vars_grafana.yml")
+    assert grafana_vars["oidc"]["issuer"] == "https://kc2.example.test/realms/other"
+
+
+def test_grafana_oidc_blank_rhbk_realm_fails_and_does_not_invent(tmp_path):
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=rhbk_form(realm=""),
+            oauth={"client_id": "OpenshiftDev"},
+            apps=["rhbk", "grafana"],
+            options={"grafana": ["oidc"]},
+            config={"grafana": {"oidc": {"enabled": True, "client_id": "grafana-client"}}},
+        ),
+        ["rhbk", "openshift", "grafana"],
+    )
+    assert result.returncode != 0
+    assert "Grafana OIDC: no Keycloak realm" in result.stderr
+    assert "rhlab" not in result.stderr.lower()
+    assert tree_text(env_dir) == {}
 
 
 def test_unmanaged_openshift_client_still_configures_oauth(tmp_path):
@@ -584,7 +747,7 @@ def test_json_round_trip_and_rerun_generate_identical_files(tmp_path):
     assert load(env_dir, "vars_rhbk.yml")["ocp_rhbk_verify_ssl"] is True
 
 
-def test_clearing_openshift_overrides_removes_them_on_rerun(tmp_path):
+def test_leftover_openshift_connection_overrides_are_ignored_on_first_run(tmp_path):
     oauth = {
         "client_id": "OpenshiftDev",
         "keycloak_hostname": "kc2.example.test",
@@ -596,7 +759,11 @@ def test_clearing_openshift_overrides_removes_them_on_rerun(tmp_path):
         tmp_path, make_preflight(rhbk=rhbk_form(), oauth=oauth), ["rhbk", "openshift"]
     )
     assert result.returncode == 0, result.stderr
-    assert "ocp_oidc_auth_rhbk_hostname" in load(env_dir, "vars_rhbk.yml")
+    data = load(env_dir, "vars_rhbk.yml")
+    assert "ocp_oidc_auth_rhbk_hostname" not in data
+    assert data["openshift_oidc_auth"]["issuer"] == (
+        "https://keycloak.apps.example.test/realms/demo"
+    )
     result, _ = run(
         tmp_path,
         make_preflight(rhbk=rhbk_form(), oauth={"client_id": "OpenshiftDev"}),
@@ -631,7 +798,7 @@ def test_admin_password_only_ever_lands_in_the_vault_file(tmp_path, mode):
             },
         )
         selected = ["rhbk", "openshift"]
-        password = OTHER_PASSWORD
+        password = RHBK_PASSWORD
     result, env_dir = run(tmp_path, preflight, selected)
     assert result.returncode == 0, result.stderr
     assert password not in result.stdout + result.stderr
@@ -908,6 +1075,11 @@ def test_explicit_false_is_preserved(tmp_path, mode):
     assert result.returncode == 0, result.stderr
     assert load(env_dir, "vars_rhbk.yml")["ocp_rhbk_verify_ssl"] is False
     assert _validator_settings(preflight, selected)["verifySsl"] is False
+    text = (env_dir / "vars_rhbk.yml").read_text(encoding="utf-8")
+    assert "ocp_rhbk_verify_ssl: false" in text
+    assert "ocp_rhbk_verify_ssl: False" not in text
+    assert 'ocp_rhbk_verify_ssl: "false"' not in text
+    assert "ocp_rhbk_verify_ssl: 'False'" not in text
 
 
 @pytest.mark.parametrize("mode", [MODE_A, MODE_B], ids=["mode-a-rhbk", "mode-b-external"])
