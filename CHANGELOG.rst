@@ -4,6 +4,83 @@ Infra Ado Collection Release Notes
 
 .. contents:: Topics
 
+v2.1.2
+======
+
+Minor Changes
+-------------
+
+- bootstrap - Wired optional ``cve_analyzer`` component: thin Contoller playbook seed, per-action job templates, dedicated CVE Analyzer workflow (fetch → posture → metrics), ``components_defaults``, and ``vars_cve_analyzer`` / ``vault_cve_analyzer`` generation. Workflow is separate from ACS report and OpenShift deploy workflows. Preflight UI fields and ``send_report`` remain deferred.
+- bootstrap_controller - Publish RHACS Posture and Full Workflow job templates now survey ``cve_analyzer_vuln_dashboard_uid``, ``cve_analyzer_vuln_dashboard_title``, and ``cve_analyzer_phase0_publish_only`` so Contoller accepts Phase 0 overrides (undeclared extra_vars were previously stripped and fell through to production ``ado-rhacs-vuln-posture``).
+- collection - Bump version to 2.1.2 so AAP/Hub consumers pick up filter-contract and Phase 0 publish-safety fixes without same-version cache collisions from 2.1.1 republishes.
+- cve_analyzer - Add standalone ``repair_posture_metrics`` action (modes ``repair`` / ``verify``) to create or check the Findings over time scrape stack without ACS export or Grafana dashboard overwrite; supports durable ``cve_analyzer_metrics_input_dir`` for Contoller jobs that do not share ``/tmp``.
+- cve_analyzer - Added ``infra.automation_development_office.cve_analyzer`` from the lab CVE Analyzer package. Action dispatcher supports ``fetch_export``, ``pipeline``, ``publish_grafana``, ``publish_rhacs_posture``, ``publish_metrics``, ``cve_intel``, ``full``, and a new compound ``enrichment`` action (fetch → enrichment → triage Grafana → RHACS posture in one timing session). Enrichment uses a per-invocation ``cve_analyzer_effective_run_enrichment`` flag and does not mutate caller ``cve_analyzer_run_enrichment``. Playbook-shell checks (env, URLs, banner/recap) live in role tasks so future bootstrap seeds stay thin. Phase 0 UID allowlisting and production ``ado-rhacs-vuln-posture`` protections are preserved. Contoller JT / workflow / Preflight wiring and ``send_report`` are deferred.
+- cve_analyzer - Before overwriting a Grafana posture dashboard, GET the existing JSON and write it under ``cve_analyzer_grafana_dashboard_backup_dir/<uid>/`` (persistent path, not Contoller EE ``/tmp``). Missing dashboards (HTTP 404) skip backup; backup failure refuses publish. Credentials are never stored in backup files.
+- cve_analyzer - Embed ``builder-<version>-<sha8>`` fingerprint in RHACS posture dashboard tags and Contoller job logs so same-version Hub/Contoller delivery can be audited.
+- cve_analyzer - Optional same-job scrubbed CSV retention after Dashboard Build (cve_analyzer_scrubbed_csv_retention_*): durable dir plus validation-meta.json with Contoller job id, SHA256, row count, builder fingerprint, and dashboard UID. Default off so existing schedules are unchanged; when enabled, retention failures fail the job visibly. Never stores finding rows in Contoller logs or Git.
+
+Breaking Changes / Porting Guide
+--------------------------------
+
+- ocp_absent_cleanup - ``ocp_absent_cleanup_sweep_olm``, ``ocp_absent_cleanup_sweep_workloads``, and ``ocp_absent_cleanup_finalize`` now default to ``false``. Callers that still want those actions must set the matching authorize flags. Subscription absent sets a package prefix only. Cert-manager uninstall sets that prefix plus a Deployment allowlist, and does not finalize namespaces.
+- ocp_namespace - ``ocp_namespace_absent_sweep_olm`` and ``ocp_namespace_absent_sweep_workloads`` now default to ``false``. ``ocp_absent_cleanup`` runs only on ``state=absent`` when ``ocp_namespace_advanced_cleanup`` is true and at least one of sweep OLM, sweep workloads, or namespace finalize is also true. ``state=present`` does not run that cleanup, including when the namespace is ``Terminating``.
+
+Security Fixes
+--------------
+
+- cert-manager uninstall - Workload cleanup is limited to the cert-manager controller, cainjector, webhook, and operator-controller Deployments. Unfiltered Pod deletion and namespace ``/finalize`` are off. CSV cleanup uses the ``cert-manager-operator`` package prefix.
+- ocp_absent_cleanup - CSV and InstallPlan deletion requires ``ocp_absent_cleanup_authorize_csv_delete``. An empty name filter no longer selects every CSV; unfiltered deletion also requires ``ocp_absent_cleanup_authorize_unfiltered_csv_delete``. OLM copied CSVs (label ``olm.copiedFrom``, or ``olm.operatorNamespace`` pointing at another namespace) are skipped unless ``ocp_absent_cleanup_delete_copied_csvs`` is true. CSV finalizers are stripped only when ``ocp_absent_cleanup_strip_csv_finalizers`` is true and only for CSVs already selected in that namespace.
+- ocp_namespace - ``state=absent`` deletes only the requested Namespace. It no longer deletes ClusterServiceVersions, strips CSV finalizers, or sweeps Deployments and Pods. Platform namespaces, including ``openshift-operators``, are refused. A stuck namespace is reported and the role stops.
+- ocp_operator_subscription - Uninstall matches an exact CSV name or ``<package>.<version>`` only. A substring such as ``operator`` no longer selects other operators. Each selected CSV is asserted before deletion. InstallPlans are removed only when every referenced CSV matches that same package.
+
+Bugfixes
+--------
+
+- bootstrap_controller - Hub pulp collection-version lookup uses ``automation_development_office`` (not legacy ``ado``) so staging→validated promote succeeds after rename.
+- bootstrap_controller - treat Hub publish as complete only when the version is in the destination repo (usually validated). If it already exists on published/rh-certified (e.g. ``kubernetes.core`` 6.6.0), copy it into the destination instead of skipping — Contoller Galaxy creds search validated first.
+- bootstrap_controller / bootstrap_generate_playbook_repo - publish ``redhat.openshift``, ``redhat.satellite``, ``redhat.rhel_idm``, and ``redhat.rhel_system_roles`` into Hub ``rh-certified`` (not validated). Never create the reserved ``redhat`` namespace; upload only when it already exists so Contoller project sync can resolve those collections.
+- bootstrap_generate_env_vars - Derive ``acs_central_url`` / ``grafana_url`` for ``cve_analyzer`` from ACS/Grafana hostnames when explicit URLs are unset.
+- bootstrap_generate_playbook_repo - add ``ansible.eda`` to the preflight Hub publish / Contoller requirements manifest (required by ``infra.aap_configuration``).
+- bootstrap_generate_playbook_repo - stop writing ``version:`` into generated ``collections/requirements.yml`` (including auto-pin from the staged ``infra-automation_development_office-*.tar.gz`` name). Contoller project sync installs unpinned Hub collection names so LooseVersion is not fed a tarball filename.
+- cve_analyzer - Aligned RHACS posture dashboard title to ``RHACS Vulnerability Posture (ADO)`` across static samples and Grafana seed JSON that share UID ``ado-rhacs-vuln-posture``. Publish now refuses empty/invalid UIDs, verifies Grafana response UID, and asserts title after publish so repeated runs update the same board instead of drifting names or accepting a random Grafana UID.
+- cve_analyzer - Create ``cve_intel/`` under the data dir before staging intelligence panel scripts (copy no longer fails on missing destination).
+- cve_analyzer - Detail panel (id 90) uses a ``SourceAll`` sentinel for Source=All instead of doubling every drilldown row, so Full posture JSON stays under Grafana's 16 MB publish limit (HTTP 413).
+- cve_analyzer - Fail closed before Grafana writes: require an explicit dashboard UID (no silent fall-through to ``ado-rhacs-vuln-posture``), default ``cve_analyzer_phase0_publish_only`` to true, and require ``cve_analyzer_allow_production_publish`` (derived from Refuse production=false) before any production UID/alias overwrite. Re-check the publish UID list immediately before the Grafana API call.
+- cve_analyzer - Findings by namespace now honors Component, SRE managed, and Finding age (filter component×ownership slices, then roll up). SRE-managed OpenShift bar chart keeps a Category string field so empty filters no longer show "Bar charts require a string or time field".
+- cve_analyzer - Findings over time metrics publish creates the missing ConfigMap/Deployment/Service/ServiceMonitor scrape stack (via ``publish_ns_metrics`` / ``ensure_ns_metrics_workload``) instead of failing when the ConfigMap is absent; durable ``cve_posture.prom`` ConfigMap handoff plus scrubbed-CSV rebuild covers Contoller jobs that do not share ``/tmp``; Prometheus datasource UID resolves explicitly or only when Grafana has a single Prometheus datasource; ``METRICS_FAILED`` fails the Contoller job (no silent SUCCESS).
+- cve_analyzer - Findings over time metrics publish now creates the scrape stack (ConfigMap, Deployment, Service, ServiceMonitor) when missing instead of failing solely because the ConfigMap was absent. Posture reuses ``publish_ns_metrics.yml``. Required ``METRICS_FAILED`` statuses fail the Contoller job before Grafana publish so an updated dashboard cannot ship with empty trend panels. Empty ``cve_analyzer_prometheus_datasource_uid`` resolves from Grafana (exactly one Prometheus datasource) or fails when zero/many exist. Cross-job handoff stores ``cve_posture.prom`` on the ConfigMap so workflow Metrics nodes do not need shared ``/tmp``. Merge replaces prior ``cve_posture_findings*`` families (no duplicate series).
+- cve_analyzer - Findings-over-time panels aggregate ``last_over_time(cve_posture_findings*[1d])`` as per-pod sums then a median across pods (``quantile by (severity) (0.5, sum by (severity, pod) (…))``). That removes stale-pod and double-publish inflation while preserving multi-cluster / multi-namespace totals inside each scrape. Metric names, job, and stored Prometheus samples are unchanged.
+- cve_analyzer - Grafana dashboard existence probe uses ``/api/search?dashboardUIDs=`` with a Basic auth header (not ``uri`` ``password=``) and streams full JSON backups via ``get_url``, avoiding false HTTP 0 from censored uri results and multi‑MB dashboard bodies.
+- cve_analyzer - Phase 0 RHACS dashboard filter contract: Source is a multiselect like other toolbar filters (``allValue`` stays All-sources only to avoid KPI double-count); Simple view honors Cluster/Source/ Namespace/Finding age; SRE-managed OpenShift cluster-wide panels honor Cluster and Source while still ignoring Namespace; component/image/ ownership/remediation/over-30 tables carry Source slices; Component and SRE managed are multiselect. Findings-over-time filterable keeps cluster/namespace/severity only — Source/Age/Component/SRE remain unsupported until Prometheus labels exist. Legacy all-cluster trend stays filter-independent. CVE-by-age OpenShift panels remain full age distributions (Finding age toolbar does not apply).
+- cve_analyzer - Production posture UID ``ado-rhacs-vuln-posture`` again ships both Findings-over-time panels (filterable Panel 11 + legacy all-cluster Panel 12) and sets Cluster/Namespace ``allValue`` to ``name1|name2|…|__ALL__`` so Total/Critical/Important/Moderate/Low/Fixable KPIs match the scrubbed CSV when All is selected (bare ``__ALL__`` left additive KPIs at zero while Unique CVEs still worked).
+- cve_analyzer - RH+NRS Source multi-select emits Unique rollups for every Age key (including individual ages), not only ``Age=__ALL__``.
+- cve_analyzer - RHACS posture publish no longer silently falls back to a static sample dashboard after Dashboard Build failure; Contoller fails with the captured builder error, skips Grafana overwrite without a live build, verifies dashboard UID/title via the Grafana API after publish, and avoids recursive templating of ``cve_analyzer_require_posture_metrics`` in ``publish_ns_metrics``. Production UID ``ado-rhacs-vuln-posture`` remains protected from Lite/compare.
+- cve_analyzer - SRE-managed OpenShift bar chart keeps the ``Category`` string field after groupBy (fixes blank panel ``Bar charts require a string or time field``).
+- cve_analyzer - Severity toolbar removed (trend always shows all severities; hidden var kept for Detail drills).
+- cve_analyzer - Source dropdown no longer lists redundant ``All sources`` beside Grafana All; All maps to the All-sources slice via ``allValue``.
+- cve_analyzer - Top KPI cards, Remediation Paths, and the OCP bar honor SRE managed (Ownership dimension).
+- cve_analyzer - Top KPI stat cards no longer sum hierarchical ``namespace_rollups`` together with per-namespace slices under Phase 1 Cluster/Namespace All filters (``name|…|__ALL__``), which inflated Total findings ~4× versus the older dashboard on the same CSV. Additive KPIs use age slices plus all-ages per real cluster+namespace only; Unique CVEs keeps the grand-total rollup.
+- cve_analyzer - Trim Phase 0 RHACS dashboard JSON under Grafana's 16 MiB publish limit by capping Detail rows at 16000 while keeping Unique KPI equal-key rollups (including combined-age set unions) under the size budget.
+- cve_analyzer - Unique CVE combined Finding age (Over 14 / Over 30 / multi-select) now uses exact CVE set unions. Grafana Unique Age filter is equal-key (not regex) so bucket Uniques are never summed. Unsupported age multis show ``n/a``.
+- cve_analyzer - Unique CVEs KPI includes per Finding-age cross-cluster rollups so the card stays populated when Finding age is not All (previously only ``__ALL__`` ages, which blanked the panel).
+- cve_analyzer - Unique CVEs KPI now uses exact COUNT(DISTINCT CVE) rollups keyed by Source/Cluster/Ownership (``__ALL__`` + supported multi-select unions) instead of summing overlapping ownership/source rows; coordinated ``sre`` ``allValue=__ALL__`` with OwnershipAll on additive KPIs, Panel 16, and remediation tables.
+- cve_analyzer - When ``cve_analyzer_phase0_publish_only`` is true, refuse production UID/aliases before Grafana publish and log the effective UID/title for launch verification.
+- grafana_install - build the Grafana readinessProbe via ``from_yaml`` so ``timeoutSeconds`` and ``failureThreshold`` stay integers. Templated ``| int`` values were still strings and the Grafana CR rejected the patch with HTTP 422.
+- grafana_install - fix unbalanced parentheses in the Grafana CR container collect expression so set_fact no longer fails with ``unexpected ')'``.
+- grafana_install - resolve the Grafana container index with list ``.index('grafana')`` instead of the Jinja ``| index`` filter, which is not available on Contoller / stock EEs.
+- ocp_htpasswd_admin - use ``ado.infra/htpasswd-synced-at`` for the oauth-openshift rollout annotation. The previous ``infra.automation_development_office/...`` prefix is invalid for Kubernetes (underscores are not allowed in annotation prefixes).
+- ocp_oidc_auth / satellite_oidc - soft-fail ``keycloak_clientsecret_info`` so the REST client-secret fallback still runs when Contoller EEs lack the Keycloak module/redirect or the module login fails (``no_log`` previously hid a hard failure with no fallback).
+- ocp_wait_operator - replace ``json_query`` with native Jinja filters when waiting for Operator CSV ``Succeeded``. Contoller/stock EEs often lack ``jmespath``, which made the wait fail with a filter install error instead of polling for the CSV.
+- rhbk / ocp_oidc_auth / satellite_oidc - keep Keycloak task FQCNs as ``community.general.keycloak_*`` (Contoller-compatible) and depend on ``middleware_automation.keycloak`` so community.general 14+ redirects and ansible-lint ``syntax-check`` can resolve the modules.
+
+Documentation Changes
+---------------------
+
+- cve_analyzer - Document Phase 0 rename + filter validation procedure (collection 2.1.2 → AAP → Phase 0 only).
+- cve_analyzer - Document Unique CVE age set-unions, severity Unknown gap, Detail 16k / 16 MiB headroom, Hub/Contoller 2.1.2 fingerprint delivery, and Gate 2 CSV-to-dashboard validation via retained scrubbed CSV.
+- cve_analyzer - Document dashboard size headroom as a pre-production gate alongside Unique CVE live verification.
+- cve_analyzer - Documented 27-panel filter coverage matrix and Prom metric label gaps in ``files/tests/test_filter_contract.py``.
+
 v2.1.1
 ======
 
