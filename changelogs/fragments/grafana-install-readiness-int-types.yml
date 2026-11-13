@@ -1,7 +1,0 @@
----
-bugfixes:
-  - >-
-    grafana_install - build the Grafana readinessProbe via ``from_yaml`` so
-    ``timeoutSeconds`` and ``failureThreshold`` stay integers. Templated
-    ``| int`` values were still strings and the Grafana CR rejected the patch
-    with HTTP 422.
