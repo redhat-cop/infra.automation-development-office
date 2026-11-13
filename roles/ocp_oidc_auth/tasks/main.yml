@@ -159,23 +159,21 @@
 # -----------------------------
 # TLS verification of Keycloak requests (admin login, client lookup, secret)
 # - Verification is ON unless ocp_rhbk_verify_ssl is explicitly false / no / off / 0.
-# - An internal/private CA is supported, never skipped for you:
-#     * add it to the trust store of the process running this role (for AAP,
-#       the execution environment), or point SSL_CERT_FILE / SSL_CERT_DIR at it;
-#     * or set ocp_oidc_auth_ca_pem to the PEM of the CA that issued Keycloak's
-#       certificate (the same variable that gives OpenShift's oauth-server the CA).
+# - Discover CA trust BEFORE API calls (IdM bundle, Keycloak TLS Secret, cert-manager
+#   issuer caBundle, then ingress CA). Same PEM is reused for OpenShift oauth-server.
+# - Never disable verification here; empty discovery falls back to the process trust store.
 # -----------------------------
-- name: Resolve Keycloak TLS verification and trust anchor
+- name: Resolve Keycloak TLS verification flag
   ansible.builtin.set_fact:
     # Only an explicit false / no / off / 0 turns verification off (the value was validated above).
     ocp_oidc_auth_verify_ssl: "{{ (ocp_oidc_auth_verify_ssl_token | default('') | string | trim | lower) not in ['0', 'false', 'no', 'off'] }}"
-    ocp_oidc_auth_trust_pem: "{{ ocp_oidc_auth_ca_pem | default('') | string | trim }}"
 
-- name: Assert the CA given for Keycloak TLS is a PEM certificate
+- name: Assert an explicitly provided Keycloak CA is a PEM certificate
   ansible.builtin.assert:
     that:
-      - "'-----BEGIN CERTIFICATE-----' in ocp_oidc_auth_trust_pem"
-      - "'-----END CERTIFICATE-----' in ocp_oidc_auth_trust_pem"
+      - >-
+        ocp_oidc_auth_ca_pem | default('')
+        | infra.automation_development_office.tls_pem_looks_like_certificate
     fail_msg: >-
       ocp_oidc_auth_ca_pem is set but is not a PEM certificate, so it cannot be used to
       verify the Keycloak TLS certificate. Provide the PEM of the CA that issued
@@ -183,7 +181,10 @@
       Verification was not disabled.
   when:
     - ocp_oidc_auth_verify_ssl | bool
-    - ocp_oidc_auth_trust_pem | length > 0
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) > 0
+
+- name: Discover Keycloak TLS trust bundle before API calls
+  ansible.builtin.include_tasks: resolve_keycloak_trust.yml
 
 # ==========================================================
 # Fetch Keycloak client secret
@@ -336,10 +337,13 @@
             )
         fail_msg: >-
           Keycloak TLS certificate verification failed. The certificate presented by
-          {{ ocp_oidc_auth_keycloak_base }} is not trusted by the environment running Ansible.
-          For a lab environment, go to Preflight → Step 2 → OAuth / RHBK, uncheck
-          Verify Keycloak TLS certificate, regenerate the configuration, and rerun.
-          For production, keep verification enabled and configure a trusted CA.
+          {{ ocp_oidc_auth_keycloak_base }} is not trusted
+          (trust source={{ ocp_oidc_auth_trust_source | default('none') }}).
+          ADO tried ocp_oidc_auth_ca_pem, idm_ca_bundle_pem, the Keycloak TLS Secret
+          ca.crt / tls.crt intermediates, cert-manager issuer ACME caBundle, and
+          default-ingress-cert. Keep verification enabled and fix the CA chain
+          (for ClusterIssuer/idm-acme ensure idm_ca_bundle_pem or Secret ca.crt),
+          or set ocp_oidc_auth_ca_pem to the issuing CA PEM.
           ({{ ocp_oidc_auth_token_resp.msg | default('') | truncate(200, true, '...') }})
       when: (ocp_oidc_auth_client_secret_value | string | length) == 0
 
@@ -557,59 +561,7 @@
 # OpenShift oauth-server must trust Keycloak's TLS issuer or the IdP is
 # present in the OAuth CR but never shown on the console
 # (authentication Degraded: x509 unknown authority).
-# Prefer the cluster ingress CA (issuer of *.apps routes), not the leaf
-# server cert — a leaf in ca.crt does not establish trust.
-- name: Resolve cluster ingress CA for OpenShift OIDC trust
-  when: (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
-  block:
-    - name: Read default-ingress-cert CA from openshift-config-managed
-      kubernetes.core.k8s_info:
-        api_version: v1
-        kind: ConfigMap
-        namespace: openshift-config-managed
-        name: default-ingress-cert
-      register: ocp_oidc_auth_ingress_ca
-      failed_when: false
-
-    - name: Set OIDC CA PEM from default-ingress-cert
-      ansible.builtin.set_fact:
-        ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_ingress_ca.resources[0].data['ca-bundle.crt'] }}"
-      when:
-        - ocp_oidc_auth_ingress_ca.resources | default([]) | length > 0
-        - ocp_oidc_auth_ingress_ca.resources[0].data['ca-bundle.crt'] is defined
-      no_log: true
-
-- name: Resolve Keycloak TLS secret when ingress CA unavailable
-  kubernetes.core.k8s_info:
-    api_version: v1
-    kind: Secret
-    namespace: "{{ ocp_oidc_auth_keycloak_namespace | default(keycloak_namespace | default(name_space | default('keycloak'))) }}"
-    name: "{{ ocp_oidc_auth_keycloak_tls_secret | default(rhbk_tls_secret_name | default('keycloak-tls-secret')) }}"
-  register: ocp_oidc_auth_keycloak_tls
-  when: (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
-  failed_when: false
-
-- name: Set OIDC CA PEM from Keycloak TLS secret (ca.crt or full tls.crt chain)
-  ansible.builtin.set_fact:
-    ocp_oidc_auth_ca_pem: >-
-      {{
-        (
-          ocp_oidc_auth_keycloak_tls.resources[0].data['ca.crt']
-          | default(ocp_oidc_auth_keycloak_tls.resources[0].data['tls.crt'])
-        )
-        | b64decode
-      }}
-  when:
-    - (ocp_oidc_auth_ca_pem | default('') | string | length) == 0
-    - ocp_oidc_auth_keycloak_tls is defined
-    - ocp_oidc_auth_keycloak_tls.resources | default([]) | length > 0
-    - >-
-      (
-        ocp_oidc_auth_keycloak_tls.resources[0].data['ca.crt'] is defined
-        or ocp_oidc_auth_keycloak_tls.resources[0].data['tls.crt'] is defined
-      )
-  no_log: true
-
+# Reuse the same CA bundle discovered before Keycloak API calls (never a leaf).
 - name: Create OpenShift OIDC CA ConfigMap for oauth-server trust
   kubernetes.core.k8s:
     state: present
@@ -628,12 +580,16 @@
   ansible.builtin.assert:
     that:
       - (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
+      - >-
+        ocp_oidc_auth_ca_pem
+        | infra.automation_development_office.tls_pem_looks_like_certificate
     fail_msg: >-
       OpenShift OIDC requires a CA ConfigMap for oauth-server to trust Keycloak.
-      Could not read openshift-config-managed/default-ingress-cert or Keycloak TLS
-      secret. Without openID.ca the IdP is written to the OAuth CR but the
-      authentication operator stays Degraded (x509 unknown authority) and
-      Keycloak never appears on the console login page.
+      Could not build a CA trust bundle (source={{ ocp_oidc_auth_trust_source | default('none') }}).
+      Checked ocp_oidc_auth_ca_pem, idm_ca_bundle_pem, Keycloak TLS Secret ca.crt /
+      tls.crt intermediates, cert-manager issuer ACME caBundle, and
+      default-ingress-cert. Without openID.ca the IdP is written to the OAuth CR
+      but the authentication operator stays Degraded (x509 unknown authority).
 
 # -----------------------------
 # Define OIDC provider

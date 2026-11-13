@@ -78,27 +78,25 @@ separate:
   stop the play before any Keycloak request; Ansible's `bool` filter is never
   used on the raw value, because it would treat those as false. Keycloak HTTPS
   calls receive `validate_certs: true` or `false` (not Jinja `True` / `False`).
-- *Trust* is the CA that the requesting process accepts. Either add the CA to the
-  trust store of the process that runs this role (for AAP, the execution
-  environment image), or set `ocp_oidc_auth_ca_pem` to the CA's PEM. The role
-  writes that PEM to a temporary `0600` file for the run and removes it
-  afterwards. It is passed as `ca_path` to the REST calls and as `SSL_CERT_FILE`
-  to the `keycloak_clientsecret_info` module, which has no CA option.
+- *Trust* is discovered **before** admin / client-secret API calls, then reused
+  for the OpenShift oauth-server CA ConfigMap. Order:
+  1. `ocp_oidc_auth_ca_pem` when set (must be PEM)
+  2. `idm.ca_bundle_pem` / `idm_ca_bundle_pem` (IdM ACME / lab IdM)
+  3. Keycloak TLS Secret `ca.crt`, else intermediates from `tls.crt` (leaf dropped)
+  4. cert-manager Issuer / ClusterIssuer ACME `caBundle`
+  5. `openshift-config-managed/default-ingress-cert` (last resort)
+  6. Empty → process trust store (public CAs / EE image)
 
-If the certificate is not trusted the play stops with
-`Keycloak TLS certificate verification failed` before anything is written to
-OpenShift. It does not retry with verification off. For a lab, uncheck
-**Verify Keycloak TLS certificate** on Preflight Step 2 → OAuth / RHBK,
-regenerate, and rerun. For production, keep verification on and configure a
-trusted CA. `ocp_oidc_auth_ca_pem` must hold a PEM certificate; anything else
-stops the play with its own message.
+The discovered PEM is written to a temporary `0600` file for the run and
+removed afterwards. It is passed as `ca_path` to REST calls and as
+`SSL_CERT_FILE` to `keycloak_clientsecret_info` (no CA module option). A
+leaf-only `tls.crt` is never used as a trust anchor.
 
-Limits: the role does not discover the CA on its own for the Keycloak calls (a
-Keycloak route that uses the cluster's default ingress certificate needs that
-CA in the execution environment or in `ocp_oidc_auth_ca_pem`). Nothing in
-Preflight writes `ocp_oidc_auth_ca_pem`; set it in the environment's
-`vars_rhbk.yml`.
-
+If the certificate is still not trusted the play stops with
+`Keycloak TLS certificate verification failed` (includes the trust source)
+before anything is written to OpenShift. It does not retry with verification
+off. For production, keep verification on and fix the CA chain
+(`idm_ca_bundle_pem`, Secret `ca.crt`, or `ocp_oidc_auth_ca_pem`).
 ## 🚀 Role Usage
 
 ```yaml
@@ -132,6 +130,7 @@ This role runs tasks such as:
 - Assert required OIDC inputs are set
 - Build Keycloak URLs
 - Show the effective Keycloak target
+- Discover Keycloak TLS trust bundle before API calls
 - Try to get Keycloak client secret via module
 - Extract Keycloak client secret from module result
 
@@ -149,6 +148,8 @@ roles/ocp_oidc_auth/
   handlers/
   meta/
   tasks/
+    main.yml
+    resolve_keycloak_trust.yml
   tests/
   vars/
 ```

@@ -1,0 +1,191 @@
+---
+# yamllint disable rule:line-length
+# Discover a CA trust bundle for Keycloak HTTPS *before* admin/API calls.
+# Prefer explicit PEM, then IdM / cert-manager issuer material, then the
+# Keycloak TLS Secret CA chain. Never disable verification here.
+# Ingress default CA is last resort (only helps when Keycloak uses that CA).
+# Publicly trusted Keycloak may leave ca_pem empty and use the process trust store.
+
+- name: Keep an explicitly provided Keycloak trust CA
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_ca_pem | string | trim }}"
+    ocp_oidc_auth_trust_source: explicit
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) > 0
+    - >-
+      ocp_oidc_auth_ca_pem | default('')
+      | infra.automation_development_office.tls_pem_looks_like_certificate
+
+- name: Prefer IdM CA bundle when available (cert-manager idm-acme / lab IdM)
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: >-
+      {{
+        (
+          idm.ca_bundle_pem
+          | default(idm_ca_bundle_pem | default('', true), true)
+        )
+        | string
+        | trim
+      }}
+    ocp_oidc_auth_trust_source: idm_ca_bundle
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - >-
+      (
+        idm.ca_bundle_pem
+        | default(idm_ca_bundle_pem | default('', true), true)
+        | string
+        | trim
+        | length
+      ) > 0
+    - >-
+      (
+        idm.ca_bundle_pem
+        | default(idm_ca_bundle_pem | default('', true), true)
+      )
+      | infra.automation_development_office.tls_pem_looks_like_certificate
+
+- name: Read Keycloak TLS Secret for CA material
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    namespace: "{{ ocp_oidc_auth_keycloak_namespace | default(keycloak_namespace | default(name_space | default('keycloak'))) }}"
+    name: "{{ ocp_oidc_auth_keycloak_tls_secret | default(rhbk_tls_secret_name | default(ocp_rhbk_tls_secret_name | default('keycloak-tls-secret'))) }}"
+  register: ocp_oidc_auth_keycloak_tls_early
+  when: (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+  failed_when: false
+
+- name: Build trust PEM from Keycloak TLS Secret (ca.crt, else tls.crt without leaf)
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - ocp_oidc_auth_keycloak_tls_early is defined
+    - ocp_oidc_auth_keycloak_tls_early.resources | default([]) | length > 0
+  no_log: true
+  block:
+    - name: Decode Keycloak TLS Secret certificate fields
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_secret_ca_decoded: "{{ ocp_oidc_auth_keycloak_tls_early.resources[0].data['ca.crt'] | default('') | b64decode }}"
+        ocp_oidc_auth_secret_tls_decoded: "{{ ocp_oidc_auth_keycloak_tls_early.resources[0].data['tls.crt'] | default('') | b64decode }}"
+
+    - name: Apply TLS Secret trust-bundle filter
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_secret_trust_pem: >-
+          {{
+            ocp_oidc_auth_secret_ca_decoded
+            | infra.automation_development_office.tls_trust_bundle_from_secret(
+                ocp_oidc_auth_secret_tls_decoded
+              )
+          }}
+
+    - name: Accept TLS Secret trust bundle when non-empty
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_secret_trust_pem }}"
+        ocp_oidc_auth_trust_source: keycloak_tls_secret
+      when: (ocp_oidc_auth_secret_trust_pem | default('') | length) > 0
+
+- name: Read cert-manager ClusterIssuer CA bundle when configured
+  kubernetes.core.k8s_info:
+    api_version: cert-manager.io/v1
+    kind: ClusterIssuer
+    name: "{{ ocp_rhbk_issuer_name | default(rhbk_issuer_name) }}"
+  register: ocp_oidc_auth_clusterissuer_info
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - (ocp_rhbk_issuer_name | default(rhbk_issuer_name | default('')) | string | trim | length) > 0
+    - (ocp_rhbk_issuer_kind | default(rhbk_issuer_kind | default('ClusterIssuer')) | string) == 'ClusterIssuer'
+  failed_when: false
+
+- name: Read cert-manager Issuer CA bundle when configured
+  kubernetes.core.k8s_info:
+    api_version: cert-manager.io/v1
+    kind: Issuer
+    name: "{{ ocp_rhbk_issuer_name | default(rhbk_issuer_name) }}"
+    namespace: "{{ ocp_oidc_auth_keycloak_namespace | default(keycloak_namespace | default(name_space | default('keycloak'))) }}"
+  register: ocp_oidc_auth_namespaced_issuer_info
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - (ocp_rhbk_issuer_name | default(rhbk_issuer_name | default('')) | string | trim | length) > 0
+    - (ocp_rhbk_issuer_kind | default(rhbk_issuer_kind | default('ClusterIssuer')) | string) == 'Issuer'
+  failed_when: false
+
+- name: Use ACME caBundle from ClusterIssuer
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_clusterissuer_info.resources[0].spec.acme.caBundle | b64decode }}"
+    ocp_oidc_auth_trust_source: cert_manager_issuer_cabundle
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - ocp_oidc_auth_clusterissuer_info is defined
+    - ocp_oidc_auth_clusterissuer_info.resources | default([]) | length > 0
+    - ocp_oidc_auth_clusterissuer_info.resources[0].spec.acme.caBundle is defined
+    - (ocp_oidc_auth_clusterissuer_info.resources[0].spec.acme.caBundle | string | length) > 0
+    - >-
+      (ocp_oidc_auth_clusterissuer_info.resources[0].spec.acme.caBundle | b64decode)
+      | infra.automation_development_office.tls_pem_looks_like_certificate
+  no_log: true
+
+- name: Use ACME caBundle from namespaced Issuer
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_namespaced_issuer_info.resources[0].spec.acme.caBundle | b64decode }}"
+    ocp_oidc_auth_trust_source: cert_manager_issuer_cabundle
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - ocp_oidc_auth_namespaced_issuer_info is defined
+    - ocp_oidc_auth_namespaced_issuer_info.resources | default([]) | length > 0
+    - ocp_oidc_auth_namespaced_issuer_info.resources[0].spec.acme.caBundle is defined
+    - (ocp_oidc_auth_namespaced_issuer_info.resources[0].spec.acme.caBundle | string | length) > 0
+    - >-
+      (ocp_oidc_auth_namespaced_issuer_info.resources[0].spec.acme.caBundle | b64decode)
+      | infra.automation_development_office.tls_pem_looks_like_certificate
+  no_log: true
+
+- name: Fall back to cluster default ingress CA only when still unresolved
+  when: (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+  block:
+    - name: Read default-ingress-cert CA from openshift-config-managed
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: ConfigMap
+        namespace: openshift-config-managed
+        name: default-ingress-cert
+      register: ocp_oidc_auth_ingress_ca_early
+      failed_when: false
+
+    - name: Set trust PEM from default-ingress-cert
+      ansible.builtin.set_fact:
+        ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_ingress_ca_early.resources[0].data['ca-bundle.crt'] }}"
+        ocp_oidc_auth_trust_source: default_ingress_cert
+      when:
+        - ocp_oidc_auth_ingress_ca_early.resources | default([]) | length > 0
+        - ocp_oidc_auth_ingress_ca_early.resources[0].data['ca-bundle.crt'] is defined
+        - >-
+          ocp_oidc_auth_ingress_ca_early.resources[0].data['ca-bundle.crt']
+          | infra.automation_development_office.tls_pem_looks_like_certificate
+      no_log: true
+
+- name: Normalize discovered Keycloak trust PEM
+  ansible.builtin.set_fact:
+    ocp_oidc_auth_ca_pem: "{{ ocp_oidc_auth_ca_pem | default('') | string | trim }}"
+    ocp_oidc_auth_trust_pem: "{{ ocp_oidc_auth_ca_pem | default('') | string | trim }}"
+    ocp_oidc_auth_trust_source: "{{ ocp_oidc_auth_trust_source | default('none') }}"
+
+- name: Report Keycloak TLS trust source
+  ansible.builtin.debug:
+    msg: >-
+      Keycloak TLS trust source={{ ocp_oidc_auth_trust_source }}
+      (verify_ssl={{ ocp_oidc_auth_verify_ssl | bool }};
+      ca_pem_bytes={{ ocp_oidc_auth_trust_pem | length }}).
+      Empty ca_pem uses the process trust store (public CAs / EE image).
+
+- name: Warn when verification is on and no CA bundle was discovered
+  ansible.builtin.debug:
+    msg: >-
+      No Keycloak CA bundle was discovered (checked ocp_oidc_auth_ca_pem,
+      idm_ca_bundle_pem, Keycloak TLS Secret ca.crt / tls.crt intermediates,
+      cert-manager issuer ACME caBundle, default-ingress-cert). Ansible will
+      use the process trust store. If Keycloak uses a private CA
+      (for example ClusterIssuer/idm-acme), set idm_ca_bundle_pem or
+      ocp_oidc_auth_ca_pem, or ensure the TLS Secret includes ca.crt.
+      Verification remains enabled.
+  when:
+    - ocp_oidc_auth_verify_ssl | bool
+    - (ocp_oidc_auth_trust_pem | length) == 0
