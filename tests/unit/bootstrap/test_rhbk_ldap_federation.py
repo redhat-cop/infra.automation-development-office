@@ -229,7 +229,7 @@ def test_overlay_builds_ldap_config_without_empty_wipe(tmp_path: Path):
 
 
 def test_overlay_empty_form_keeps_seed_password_and_fills_url(tmp_path: Path):
-    # Form left password blank; URL provided — must keep seed password, fill URL.
+    # Form left password blank; URL provided - must keep seed password, fill URL.
     out = _run_overlay(
         tmp_path,
         {

@@ -62,7 +62,7 @@
         rhbk_keycloak_base_url | default('https://' ~ rhbk_realm_wait_hostname)
       }}/realms/master
       is not reachable ({{ rhbk_realm_wait_https.msg | default(rhbk_realm_wait_https) }}).
-      Common cause: broken Keycloak tlsSecret (empty default-ingress PEM) →
+      Common cause: broken Keycloak tlsSecret (empty default-ingress PEM) ->
       SSL UNEXPECTED_EOF. Fix: re-run Deploy RHBK with edge TLS defaults,
       or run Update Default Ingress / enable cert_manager for Keycloak, then
       delete the bad secret {{ ocp_rhbk_tls_secret_name | default('keycloak-tls-secret') }}

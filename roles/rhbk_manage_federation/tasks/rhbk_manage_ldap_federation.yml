@@ -177,7 +177,7 @@
           Keycloak could not reach LDAP at
           {{ rhbk_manage_federation_ldap_config.connectionUrl }}
           (HTTP {{ rhbk_manage_federation_ldap_conn_test.status | default('n/a') }}:
-          {{ rhbk_manage_federation_ldap_conn_test.json | default(rhbk_manage_federation_ldap_conn_test.msg) | truncate(200, true, '…') }}).
+          {{ rhbk_manage_federation_ldap_conn_test.json | default(rhbk_manage_federation_ldap_conn_test.msg) | truncate(200, true, '...') }}).
           Fix the Connection URL / network / TLS trust, then rerun.
           The LDAP provider may already exist; connection was not validated as successful.
 
@@ -210,7 +210,7 @@
           Keycloak LDAP bind failed for bindDn={{ rhbk_manage_federation_ldap_config.bindDn }}
           against {{ rhbk_manage_federation_ldap_config.connectionUrl }}
           (HTTP {{ rhbk_manage_federation_ldap_bind_test.status | default('n/a') }}:
-          {{ rhbk_manage_federation_ldap_bind_test.json | default(rhbk_manage_federation_ldap_bind_test.msg) | truncate(200, true, '…') }}).
+          {{ rhbk_manage_federation_ldap_bind_test.json | default(rhbk_manage_federation_ldap_bind_test.msg) | truncate(200, true, '...') }}).
           Check Bind DN and bind password. Sync was not run.
 
     - name: Read back LDAP federation component and confirm required fields
@@ -291,7 +291,7 @@
             fail_msg: >-
               Keycloak LDAP sync failed for '{{ rhbk_federation_name }}'
               (HTTP {{ rhbk_manage_federation_sync.status | default('n/a') }}:
-              {{ rhbk_manage_federation_sync.json | default(rhbk_manage_federation_sync.msg) | truncate(300, true, '…') }}).
+              {{ rhbk_manage_federation_sync.json | default(rhbk_manage_federation_sync.msg) | truncate(300, true, '...') }}).
               Connection/bind may be OK while sync still fails (mapper/UUID/scope).
               Check Keycloak pod logs for UnknownError and fix uuidLDAPAttribute /
               searchScope / usersDn for FreeIPA (ipaUniqueID, searchScope=2).

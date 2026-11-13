@@ -4,7 +4,7 @@
 FreeIPA (IdM) runs on 389 Directory Server. Keycloak's vendor label is often
 ``rhds``, but FreeIPA-specific attributes (``ipaUniqueID``, subtree search,
 posix object classes) must still be applied. Never invent bind credentials,
-Base DN, or server URLs — only fill attribute defaults when the operator
+Base DN, or server URLs - only fill attribute defaults when the operator
 selected federation and left those fields unset.
 """
 
@@ -58,7 +58,7 @@ def freeipa_ldap_attribute_defaults() -> dict[str, str]:
         # FreeIPA unique id (not RHDS nsuniqueid).
         "uuidLDAPAttribute": "ipaUniqueID",
         "userObjectClasses": "inetOrgPerson, posixAccount",
-        # SUBTREE — FreeIPA accounts are not always one level under usersDn.
+        # SUBTREE - FreeIPA accounts are not always one level under usersDn.
         "searchScope": "2",
         "connectionPooling": "true",
         "pagination": "true",
@@ -78,7 +78,7 @@ def freeipa_ldap_group_mapper_defaults(users_dn: str = "") -> dict[str, str]:
     if users.lower().startswith("cn=users,"):
         groups_dn = "cn=groups," + users[len("cn=users,") :]
     elif "cn=accounts" in users.lower():
-        # Fallback: replace users → groups in the RDN only.
+        # Fallback: replace users -> groups in the RDN only.
         groups_dn = users.replace("cn=users", "cn=groups", 1)
     return {
         "groups.dn": groups_dn,

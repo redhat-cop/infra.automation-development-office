@@ -1,7 +1,7 @@
 # Role: infra.automation_development_office.rhbk_manage_federation
 
 Create or update a Keycloak / RHBK LDAP user federation provider, then validate
-connection URL and bind authentication. Does not treat “provider present” as
+connection URL and bind authentication. Does not treat "provider present" as
 proof that LDAP sync works.
 
 ## Role Author
@@ -19,7 +19,7 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
-| `ldap_config` | Keycloak LDAP config map (`connectionUrl`, `bindDn`, `usersDn`, `bindCredential`, …). Preferred source. |
+| `ldap_config` | Keycloak LDAP config map (`connectionUrl`, `bindDn`, `usersDn`, `bindCredential`, ...). Preferred source. |
 | `federation_ldap_url` / `federation_bind_dn` / `federation_users_dn` / `federation_bind_password` | Preflight aliases; used when `ldap_config` fields are blank. |
 | `rhbk_federation_name` / `federation_name` | Provider name (default `LDAP`). |
 | `rhbk_realm` | Target realm. |
