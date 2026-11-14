@@ -1048,7 +1048,12 @@ def resolve_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
     verify_raw = cfg.get("keycloak_verify_ssl")
     if verify_raw is None:
         verify_raw = cfg.get("rhbk_verify_ssl")
-    verify, verify_valid, verify_explicit = parse_verify_ssl(verify_raw)
+    # MinIO OIDC default (when unset): skip Keycloak TLS verify → rhbk_verify_ssl false.
+    # OpenShift OIDC still defaults to verify-on via parse_verify_ssl(None).
+    if verify_raw is None:
+        verify, verify_valid, verify_explicit = False, True, True
+    else:
+        verify, verify_valid, verify_explicit = parse_verify_ssl(verify_raw)
 
     return {
         "mode": "rhbk" if rhbk_mode else "external",

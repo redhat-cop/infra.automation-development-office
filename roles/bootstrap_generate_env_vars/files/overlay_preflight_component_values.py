@@ -6046,7 +6046,11 @@ def apply_minio_keycloak_connection():
     if settings["adminUser"]:
         minio_vars["minio_keycloak_admin_user"] = settings["adminUser"]
         minio_vars_changed = True
-    if settings["verifySslExplicit"] and settings["verifySslValid"]:
+    # Always write MinIO-scoped TLS flag into vars_minio.yml so it overrides any
+    # shared vars_rhbk rhbk_verify_ssl from OpenShift OIDC / RHBK (playbook loads
+    # vars_minio after vars_rhbk). Do not set ocp_rhbk_verify_ssl here — that is
+    # OpenShift OIDC only.
+    if settings["verifySslValid"]:
         minio_vars["minio_keycloak_verify_ssl"] = settings["verifySsl"]
         minio_vars["rhbk_verify_ssl"] = settings["verifySsl"]
         minio_vars_changed = True
@@ -6070,9 +6074,8 @@ def apply_minio_keycloak_connection():
         rhbk_vars["ocp_rhbk_admin_user"] = settings["adminUser"]
         rhbk_vars["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
         rhbk_vars["ocp_rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
-        if settings["verifySslExplicit"] and settings["verifySslValid"]:
-            rhbk_vars["rhbk_verify_ssl"] = settings["verifySsl"]
-            rhbk_vars["ocp_rhbk_verify_ssl"] = settings["verifySsl"]
+        # MinIO TLS preference stays in vars_minio.yml only (loaded last by the
+        # MinIO OIDC playbook). Do not clobber OpenShift OIDC's ocp_rhbk_verify_ssl.
         rhbk_vault["vault_rhbk_admin_password"] = QuotedString(settings["adminPassword"])
         rhbk_vault["rhbk_admin_password"] = QuotedString(settings["adminPassword"])
         write_yaml(rhbk_vars_path, rhbk_vars, "0644")

@@ -90,3 +90,43 @@ def test_validate_preflight_oidc_includes_minio():
     pf = base_preflight()
     errors = preflight_oidc.validate_preflight_oidc(pf, {"minio"})
     assert any(e["component"] == "minio" for e in errors)
+
+
+def test_minio_verify_ssl_defaults_to_skip_when_unset():
+    pf = base_preflight(
+        minio={
+            "keycloak_hostname": "keycloak.lab.example",
+            "keycloak_admin_user": "admin",
+            "keycloak_admin_password": "kc-pass",
+        }
+    )
+    settings = preflight_oidc.resolve_minio_keycloak_settings(pf, {"minio"})
+    assert settings["verifySsl"] is False
+    assert settings["verifySslValid"] is True
+    assert settings["verifySslExplicit"] is True
+
+
+def test_minio_verify_ssl_explicit_true_and_false():
+    for value, expected in ((False, False), (True, True), ("false", False), ("true", True)):
+        pf = base_preflight(
+            minio={
+                "keycloak_hostname": "keycloak.lab.example",
+                "keycloak_admin_user": "admin",
+                "keycloak_admin_password": "kc-pass",
+                "keycloak_verify_ssl": value,
+            }
+        )
+        settings = preflight_oidc.resolve_minio_keycloak_settings(pf, {"minio"})
+        assert settings["verifySsl"] is expected
+        assert settings["verifySslValid"] is True
+
+
+def test_minio_verify_ssl_not_taken_from_openshift_oauth_when_rhbk_selected():
+    pf = base_preflight(rhbk=True, minio={"keycloak_verify_ssl": False})
+    pf["openshift"] = {
+        "apps_domain": "apps.example.test",
+        "oauth_rhbk": {"verify_ssl": True},
+    }
+    settings = preflight_oidc.resolve_minio_keycloak_settings(pf, {"minio", "rhbk"})
+    assert settings["mode"] == "rhbk"
+    assert settings["verifySsl"] is False

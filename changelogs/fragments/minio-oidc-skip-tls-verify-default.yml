@@ -1,0 +1,5 @@
+bugfixes:
+  - bootstrap_generate_env_vars - MinIO OIDC defaults ``keycloak_verify_ssl`` /
+    ``rhbk_verify_ssl`` to false when unset, always writes the MinIO-scoped
+    value into ``vars_minio.yml``, and no longer sets ``ocp_rhbk_verify_ssl``
+    from the MinIO path so OpenShift OIDC TLS settings are not overwritten.
