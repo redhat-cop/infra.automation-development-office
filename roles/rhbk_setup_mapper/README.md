@@ -33,7 +33,8 @@ Automation Development Office.
 | `rhbk_setup_ldap_user_mappers` | When true with `state: present`, create `ldap_user_mappers` after group mapper. | No | `true` |
 
 > **Notes:**
-> `state: present` creates mapper `ldap-group-mapper` only when it does not already exist.
+> `state: present` creates `ldap-group-mapper` when missing, or **updates** its
+> config when the mapper already exists, then verifies it is present.
 > `state: absent` removes mapper `ldap-group-mapper` when found.
 
 ## 🚀 Role Usage

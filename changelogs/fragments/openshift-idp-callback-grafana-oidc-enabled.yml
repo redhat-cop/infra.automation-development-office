@@ -1,0 +1,15 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Derive the OpenShift Keycloak redirect URI
+    from ``openshift.oauth_rhbk.idp_name`` (default ``Keycloak``) instead of
+    a hardcoded ``/oauth2callback/Keycloak/*`` path. Managed OpenShift client
+    rows in ``rhbk_clients`` are rewritten to match. Externally managed
+    clients are not updated in Keycloak; the required callback is written as
+    ``openshift_oidc_auth.openshift_oauth_redirect_uri``.
+  - >-
+    bootstrap_generate_env_vars / grafana_install - Preserve explicit
+    ``grafana.oidc.enabled: false``. Overlay no longer forces Grafana OIDC
+    on, omits the Grafana client from ``rhbk_clients``, and does not generate
+    the Grafana OIDC job template. The Grafana OIDC role skips Keycloak
+    secret retrieval and CR patch when OIDC is disabled.

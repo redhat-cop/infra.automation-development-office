@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - an empty job-template selection no longer copies
+    every ``files/job_templates/*.jt.yml``. Overwrite all / Grafana-only
+    runs were applying the leftover full catalog (100+ JTs) because
+    Controller apply loads every file in ``configs/job_templates``.

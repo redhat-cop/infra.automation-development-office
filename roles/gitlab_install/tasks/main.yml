@@ -1,4 +1,11 @@
 ---
+# yamllint disable rule:line-length
+- name: Recover GitLab pods stuck on NotReady nodes
+  ansible.builtin.import_tasks: recover-stuck-pods.yml
+  when:
+    - state == "present"
+    - gitlab_install_recover_stuck_pods | default(true) | bool
+
 - name: Install Gitlab operator
   ansible.builtin.import_tasks: install-gitlab-operator.yml
   when: state == "present"

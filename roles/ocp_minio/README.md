@@ -32,14 +32,49 @@ See `defaults/main.yml`. Common overrides:
 | `minio_storage_size` | PVC size (default `20Gi`) |
 | `minio_root_user` / `minio_root_password` | S3 root credentials (Secret `minio-creds`) |
 | `minio_console_hostname` / `minio_api_hostname` | Route hosts |
+| `minio_container_name` | Container name to patch for OIDC (default `minio`) |
+| `minio_oidc_config_url` | Full OpenID discovery URL. Empty means derive from issuer or Keycloak host/realm |
+| `minio_oidc_issuer` | Issuer base URL (`https://<host>/realms/<realm>`). Used when config URL is empty |
 | `minio_oidc_enabled` | Enable console OpenID (also `oidc.enabled` from registry) |
 | `minio_oidc_client_id` | Keycloak client id |
 | `minio_oidc_client_secret` | Leave empty to fetch after client create |
-| `minio_keycloak_realm` | Realm name (lab dev often `Dev`) |
+| `minio_keycloak_realm` | Realm name (lab often `rhlab` / `Dev`) |
+| `minio_keycloak_hostname` | Existing Keycloak host when RHBK is not in the run (Preflight `component_config.minio.keycloak_hostname`) |
+| `minio_keycloak_admin_user` / `minio_keycloak_admin_password` | Admin API credentials for client create/secret fetch without selecting RHBK |
 | `minio_oidc_policy_value` | Token claim value for MinIO policy (default `consoleAdmin`) |
+| `minio_oidc_create_keycloak_client` | Create/update the Keycloak client. Default `true`. A matching `clients[].create_client: false` row wins and disables every Keycloak mutation. |
+| `minio_oidc_create_policy_mapper` | Add the MinIO policy claim mapper when ADO manages the client. Default `true`. Ignored when the client is unmanaged. |
 
-When OIDC is enabled the role creates/updates a Keycloak client, adds a policy
-claim mapper, and stores OpenID env vars in Secret `minio-oidc`.
+When RHBK is selected in Preflight, hostname/realm/admin credentials are
+inherited from the RHBK component. When RHBK is not selected, set the MinIO
+Existing Keycloak fields; selecting RHBK is not required. This role still
+does not deploy or reconfigure the Keycloak server itself.
+
+When OIDC is enabled and ADO manages the client, this role is the only
+provisioner: it creates/updates the Keycloak client, adds the policy claim
+mapper, and stores OpenID env vars in Secret `minio-oidc`. Overlay does not
+put that client id in `rhbk_clients`, so `ADO | Deploy RHBK Client` cannot
+double-create it.
+
+When the matching Keycloak row has `create_client: false`, ADO does not
+create, update, or add mappers to that client. Application OIDC (issuer,
+client id, secret fetch, MinIO env) still runs. Configure the existing
+client in Keycloak with an OIDC hardcoded-claim mapper:
+
+- claim name: `policy` (or `minio_oidc_claim_name`)
+- claim value: `consoleAdmin` (or `minio_oidc_policy_value`)
+- include the claim on the ID token, access token, and userinfo
+
+Missing `create_client` still means managed.
+
+OIDC patches the **live** MinIO Deployment (full object) so `envFrom` gains
+Secret `minio-oidc` without replacing the `containers` array. Do not use JSON
+merge with a partial container definition for this step.
+
+`MINIO_IDENTITY_OPENID_CONFIG_URL` is resolved before the Secret is written.
+An empty `minio_oidc_config_url` is treated as unset; the role derives
+`https://<keycloak>/realms/<realm>/.well-known/openid-configuration` and fails
+clearly if nothing usable is configured (avoids MinIO `unexpected scheme found`).
 
 ## 🚀 Role Usage
 
@@ -87,6 +122,9 @@ roles/ocp_minio/
   README.md
   defaults/main.yml
   meta/main.yml
+  files/
+    minio_oidc_deployment_patch.py
+    minio_oidc_discovery_url.py
   tasks/
     main.yml
     install-minio.yml

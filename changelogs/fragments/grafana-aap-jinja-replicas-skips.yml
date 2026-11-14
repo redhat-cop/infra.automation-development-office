@@ -1,0 +1,16 @@
+---
+bugfixes:
+  - >-
+    grafana_install - collect Grafana CR containers with one-line Jinja hops.
+    Nested folded ``{{ ((((x).spec | default({})).deployment)) }}`` parsed on
+    ansible-core 2.15 (Preflight pod) but raised ``unexpected ')'`` on
+    ansible-core 2.16 in AAP ``ee-supported-rhel9``.
+  - >-
+    grafana_install / bootstrap_generate_env_vars - Preflight Grafana
+    Replicas now writes ``grafana_install_replicas`` onto the Grafana CR
+    ``spec.deployment.spec.replicas``.
+  - >-
+    bootstrap_generate_playbook_repo - generated ``ansible.cfg`` sets
+    ``display_skipped_hosts = False`` so Controller and CLI recaps are not
+    flooded with skipped tasks. Set ``ANSIBLE_DISPLAY_SKIPPED_HOSTS=true``
+    to see them while debugging.

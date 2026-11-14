@@ -1,0 +1,13 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - selecting only the RHBK Client option no
+    longer generates Deploy RHBK, client scopes, or the login-events
+    exporter. Install is a separate option, same pattern as Grafana.
+  - >-
+    bootstrap_generate_playbook_repo - the client-scopes playbook is tagged
+    ``rhbk_client_scopes`` so a client-only run does not seed that playbook.
+  - >-
+    keycloak_login_events_exporter - default off. The exporter is optional
+    Keycloak login/logout monitoring; its playbook and job template are
+    generated only when enabled.

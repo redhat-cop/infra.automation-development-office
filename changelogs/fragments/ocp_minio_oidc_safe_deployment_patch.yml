@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - ocp_minio - Patch MinIO OIDC onto the live Deployment without JSON merge
+    replacing the ``containers`` array, which dropped image, mounts, probes,
+    and resources (``Deployment.apps is invalid``).
+doc_changes:
+  - ocp_minio - Document the OIDC Deployment patch failure and safe recovery
+    (rerun Configure MinIO OIDC after collection rebuild; do not recreate PVC).

@@ -1,6 +1,8 @@
 # Role: infra.automation_development_office.rhbk_client
 
-Rhbk Client automation role. Primary tasks include: Create RHBK Client; Delete RHBK client; Assert required inputs are set.
+Rhbk Client automation role. Primary tasks include: Create RHBK Client; Delete RHBK client; Assert required inputs are set; Show the effective Keycloak target.
+
+When Keycloak client create/update fails, the role keeps ``no_log`` on the API call and fails with a non-secret failure category (`tls`, `auth`, `not-found`, `unreachable`, or `api`) plus the target URL/realm/client id. Credentials and API bodies are not printed.
 
 ## Role Author
 
@@ -16,6 +18,11 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
+| `rhbk_hostname` | Keycloak route host used to create or update the client. |
+| `rhbk_realm` | Existing realm that already contains, or will contain, the client. Required even when Realm creation is not selected. Overlay does not invent `Dev` or `rhlab`. |
+| `rhbk_client` | Client ID to create or update. |
+| `rhbk_admin_user` | Keycloak admin user. |
+| `rhbk_admin_password` | Keycloak admin password. |
 | `rhbk_client_state` | Desired state used by role tasks when supported. |
 | `rhbk_default_client_scopes` | Client scope names to attach as defaults after create (e.g. `groups`). |
 | `rhbk_attach_default_client_scopes` | When true, attach `rhbk_default_client_scopes` after client create. |
@@ -74,6 +81,7 @@ This role runs tasks such as:
 - Delete RHBK client
 - Assert required inputs are set
 - Build Keycloak base URL
+- Show the effective Keycloak target
 
 ```bash
 cd roles/rhbk_client

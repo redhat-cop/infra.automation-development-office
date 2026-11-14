@@ -1,6 +1,10 @@
 ---
+# yamllint disable rule:line-length
 # Shared OIDC secret fetch + Grafana auth.generic_oauth config fragment.
-- name: Derive RHBK host/realm from Grafana OIDC issuer when unset
+# Prefer rhbk_hostname / rhbk_realm (the same connection the RHBK Client and
+# OpenShift OAuth jobs use). Leftover ocp_rhbk_* from an earlier generate must
+# not win. Do not invent a realm. Mapping method is OpenShift-only.
+- name: Derive Grafana OIDC issuer string
   ansible.builtin.set_fact:
     grafana_install_oidc_issuer_parsed: >-
       {{
@@ -15,61 +19,28 @@
     - grafana_install_oidc_enabled | default(false) | bool
   changed_when: false
 
-- name: Set RHBK lookup vars from parsed Grafana issuer URL
-  ansible.builtin.set_fact:
-    grafana_install_ocp_rhbk_secret_hostname: >-
-      {{
-        (
-          ocp_rhbk_hostname
-          | default(rhbk_hostname)
-          | default(
-              (
-                grafana_install_oidc_issuer_parsed
-                | regex_replace('^https?://', '')
-                | regex_replace('/realms/.*$', '')
-              ),
-              true
-            )
-        )
-        | regex_replace('^https?://', '')
-        | regex_replace('/.*$', '')
-        | trim
-      }}
-    grafana_install_ocp_rhbk_secret_realm: >-
-      {{
-        ocp_rhbk_realm
-        | default(rhbk_realm)
-        | default(
-            (
-              grafana_install_oidc_issuer_parsed
-              | regex_replace('^https?://[^/]+/realms/', '')
-              | regex_replace('/.*$', '')
-              | regex_replace('\\?.*$', '')
-            ),
-            true
-          )
-        | trim
-      }}
-  when:
-    - grafana_install_oidc_enabled | default(false) | bool
-    - (grafana_install_oidc_issuer_parsed | default('') | string | length) > 0
-  changed_when: false
-
-- name: Resolve Keycloak host/realm for Grafana OIDC secret fetch
+- name: Resolve Keycloak host/realm for Grafana OIDC
   ansible.builtin.set_fact:
     grafana_install_oidc_secret_hostname: >-
       {{
         (
-          grafana_install_ocp_rhbk_secret_hostname
-          | default(ocp_rhbk_hostname | default(rhbk_hostname | default('')), true)
-          | default(
-              (
-                grafana_install_oidc_issuer_parsed | default('')
-                | regex_replace('^https?://', '')
-                | regex_replace('/realms/.*$', '')
-              ),
-              true
-            )
+          (
+            rhbk_hostname | default(rhbk_host | default('', true), true)
+          )
+          if (
+            (rhbk_hostname | default(rhbk_host | default('', true), true) | string | trim | length) > 0
+          )
+          else (
+            ocp_rhbk_hostname
+            | default(
+                (
+                  grafana_install_oidc_issuer_parsed | default('')
+                  | regex_replace('^https?://', '')
+                  | regex_replace('/realms/.*$', '')
+                ),
+                true
+              )
+          )
         )
         | regex_replace('^https?://', '')
         | regex_replace('/.*$', '')
@@ -77,35 +48,120 @@
       }}
     grafana_install_oidc_secret_realm: >-
       {{
-        grafana_install_ocp_rhbk_secret_realm
-        | default(ocp_rhbk_realm | default(rhbk_realm | default('')), true)
-        | default(
-            (
-              grafana_install_oidc_issuer_parsed | default('')
-              | regex_replace('^https?://[^/]+/realms/', '')
-              | regex_replace('/.*$', '')
-              | regex_replace('\\?.*$', '')
-            ),
-            true
+        (
+          (rhbk_realm | default('', true) | string | trim)
+          if ((rhbk_realm | default('', true) | string | trim | length) > 0)
+          else (
+            ocp_rhbk_realm
+            | default(
+                (
+                  grafana_install_oidc_issuer_parsed | default('')
+                  | regex_replace('^https?://[^/]+/realms/', '')
+                  | regex_replace('/.*$', '')
+                  | regex_replace('\\?.*$', '')
+                ),
+                true
+              )
+            | string
+            | trim
           )
-        | trim
+        )
       }}
+    grafana_install_oidc_client_id: "{{ (oidc.client_id | default(client_id | default('grafana-client'))) }}"
   when:
     - grafana_install_oidc_enabled | default(false) | bool
   changed_when: false
 
-- name: Fetch Keycloak client secret for Grafana (when OIDC enabled) # noqa var-naming[no-role-prefix]
+- name: Read the Keycloak TLS verification setting for Grafana OIDC
+  ansible.builtin.set_fact:
+    grafana_install_oidc_verify_ssl_token: "{{ '' if _tok is none else (_tok | string | trim | lower) }}"
+  vars:
+    _tok: >-
+      {%- set raw = ocp_rhbk_verify_ssl | default(none) -%}
+      {%- if raw is none -%}
+      {%- elif raw is boolean -%}{{ 'true' if raw else 'false' }}{%- elif raw is float and raw == (raw | int) -%}{{ raw | int }}{%- else -%}{{ raw | string | trim | lower }}{%- endif -%}
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+
+- name: Assert the Grafana OIDC Keycloak TLS verification setting is a recognized value
+  ansible.builtin.assert:
+    that:
+      - >-
+        (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower)
+        in ['', '1', 'true', 'yes', 'on', '0', 'false', 'no', 'off']
+    fail_msg: >-
+      ocp_rhbk_verify_ssl has the value '{{
+        grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower
+        | truncate(40, true, '...')
+      }}',
+      which is not recognized. Use true, yes, on or 1 to verify the Keycloak TLS
+      certificate, false, no, off or 0 to turn verification off explicitly, or
+      leave it unset to verify. An unrecognized value is never read as false.
+      Nothing was sent to Keycloak.
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+
+- name: Resolve Grafana OIDC Keycloak TLS verification
+  ansible.builtin.set_fact:
+    grafana_install_oidc_verify_ssl: "{{ (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower) not in ['0', 'false', 'no', 'off'] }}"
+    grafana_install_oidc_tls_skip_verify: "{{ (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower) in ['0', 'false', 'no', 'off'] }}"
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+  changed_when: false
+
+- name: Use Grafana OIDC client secret from vars when already set
+  ansible.builtin.set_fact:
+    grafana_install_oidc_client_secret: "{{ oidc.client_secret }}"
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - grafana_install_oidc_client_secret is not defined
+    - (oidc.client_secret | default('') | string | length) > 0
+  no_log: true
+
+- name: Fail if Grafana OIDC Keycloak connection is missing
+  ansible.builtin.fail:
+    msg: >-
+      Grafana OIDC is missing required Keycloak connection settings
+      (hostname, realm, or client ID).
+      Effective target: host='{{ grafana_install_oidc_secret_hostname | default('') }}'
+      realm='{{ grafana_install_oidc_secret_realm | default('') }}'
+      client='{{ grafana_install_oidc_client_id | default('') }}'.
+      When RHBK is selected, set those on Preflight → RHBK. When RHBK is not
+      selected, set Grafana OIDC issuer and client secret. Nothing was sent to
+      Keycloak.
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - grafana_install_oidc_client_secret is not defined
+    - (
+        (grafana_install_oidc_secret_hostname | default('') | string | length) == 0
+        or (grafana_install_oidc_secret_realm | default('') | string | length) == 0
+        or (grafana_install_oidc_client_id | default('') | string | length) == 0
+      )
+
+- name: Show the effective Keycloak target
+  ansible.builtin.debug:
+    msg: >-
+      Grafana OIDC will read client '{{ grafana_install_oidc_client_id }}'
+      from Keycloak https://{{ grafana_install_oidc_secret_hostname }}/realms/{{ grafana_install_oidc_secret_realm }}.
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - (grafana_install_oidc_secret_hostname | default('') | string | length) > 0
+    - (grafana_install_oidc_secret_realm | default('') | string | length) > 0
+
+- name: Fetch Keycloak client secret for Grafana (when OIDC enabled)  # noqa var-naming[no-role-prefix]
   ansible.builtin.include_role:
     name: infra.automation_development_office.ocp_rhbk_client_secrets
   vars:
-    grafana_install_ocp_rhbk_secret_hostname: "{{ grafana_install_oidc_secret_hostname }}"
-    grafana_install_ocp_rhbk_secret_realm: "{{ grafana_install_oidc_secret_realm }}"
-    ocp_rhbk_secret_client_id: "{{ (oidc.client_id | default(client_id | default('grafana-client'))) }}"
+    ocp_rhbk_secret_hostname: "{{ grafana_install_oidc_secret_hostname }}"
+    ocp_rhbk_secret_realm: "{{ grafana_install_oidc_secret_realm }}"
+    ocp_rhbk_secret_client_id: "{{ grafana_install_oidc_client_id }}"
     ocp_rhbk_secret_client_key: "{{ (oidc.client_key | default('grafana-client')) }}"
     ocp_rhbk_secret_target_var: "grafana_install_oidc_client_secret"
+    ocp_rhbk_secret_validate_certs: "{{ grafana_install_oidc_verify_ssl | bool | string | lower }}"
     ocp_rhbk_component_name: "rhbk"
   when:
     - grafana_install_oidc_enabled | default(false) | bool
+    - grafana_install_oidc_client_secret is not defined
     - (grafana_install_oidc_secret_realm | default('') | string | length) > 0
     - (grafana_install_oidc_secret_hostname | default('') | string | length) > 0
   no_log: true
@@ -124,7 +180,9 @@
   ansible.builtin.fail:
     msg: >-
       Grafana OIDC enabled but grafana_install_oidc_client_secret is not defined.
-      clientId='{{ (oidc.client_id | default(client_id | default("grafana"))) }}'
+      Effective target: host='{{ grafana_install_oidc_secret_hostname | default('') }}'
+      realm='{{ grafana_install_oidc_secret_realm | default('') }}'
+      client='{{ grafana_install_oidc_client_id | default('') }}'
   when:
     - grafana_install_oidc_enabled | default(false) | bool
     - grafana_install_oidc_client_secret is not defined
@@ -133,24 +191,32 @@
 - name: Derive issuer URL for Keycloak
   ansible.builtin.set_fact:
     grafana_install_oidc_issuer_url: >-
-      https://{{ ocp_rhbk_client_secrets__hostname }}/realms/{{ ocp_rhbk_client_secrets__realm }}
+      {{
+        (
+          'https://' ~ grafana_install_oidc_secret_hostname
+          ~ '/realms/' ~ grafana_install_oidc_secret_realm
+        )
+        if (
+          (grafana_install_oidc_secret_hostname | default('') | string | length) > 0
+          and (grafana_install_oidc_secret_realm | default('') | string | length) > 0
+        )
+        else (grafana_install_oidc_issuer_parsed | default(''))
+      }}
   when:
     - grafana_install_oidc_enabled | default(false) | bool
-    - ocp_rhbk_client_secrets__hostname is defined
-    - (ocp_rhbk_client_secrets__hostname | length) > 0
-    - ocp_rhbk_client_secrets__realm is defined
-    - (ocp_rhbk_client_secrets__realm | length) > 0
-  no_log: true
 
 - name: Fail if OIDC enabled but issuer URL cannot be derived
   ansible.builtin.fail:
     msg: >-
       Grafana OIDC enabled but grafana_install_oidc_issuer_url could not be built.
-      Ensure rhbk component has ocp_rhbk_hostname + ocp_rhbk_realm and
-      infra.automation_development_office.ocp_rhbk_client_secrets exports hostname/realm facts.
+      Effective target: host='{{ grafana_install_oidc_secret_hostname | default('') }}'
+      realm='{{ grafana_install_oidc_secret_realm | default('') }}'
+      client='{{ grafana_install_oidc_client_id | default('') }}'.
+      When RHBK is selected, set rhbk_hostname and rhbk_realm. Nothing was sent
+      to Keycloak.
   when:
     - grafana_install_oidc_enabled | default(false) | bool
-    - grafana_install_oidc_issuer_url is not defined
+    - (grafana_install_oidc_issuer_url | default('') | string | length) == 0
 
 - name: Build Grafana role_attribute_path expression from oidc.role_map (optional)
   ansible.builtin.set_fact:
@@ -173,7 +239,7 @@
         enabled: "true"
         name: "Keycloak"
         allow_sign_up: "true"
-        client_id: "{{ (oidc.client_id | default(client_id | default('grafana'))) }}"
+        client_id: "{{ grafana_install_oidc_client_id }}"
         client_secret: "{{ grafana_install_oidc_client_secret }}"
         scopes: "{{ ((oidc.scopes | default(['openid', 'profile', 'email'])) + ['groups']) | unique | join(' ') }}"
         auth_url: "{{ grafana_install_oidc_issuer_url }}/protocol/openid-connect/auth"
@@ -186,7 +252,7 @@
         role_attribute_path: "{{ grafana_install_role_attribute_path | default(omit) }}"
         role_attribute_strict: "{{ (oidc.role_attribute_strict | default(true)) | ternary('true', 'false') }}"
         allow_assign_grafana_admin: "{{ (oidc.allow_assign_grafana_admin | default(true)) | ternary('true', 'false') }}"
-        tls_skip_verify_insecure: "true"
+        tls_skip_verify_insecure: "{{ grafana_install_oidc_tls_skip_verify | ternary('true', 'false') }}"
   when:
     - grafana_install_oidc_enabled | default(false) | bool
   no_log: true

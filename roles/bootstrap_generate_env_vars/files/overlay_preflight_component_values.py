@@ -8,9 +8,14 @@ import json
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import preflight_oidc  # noqa: E402  (shared OIDC rules; same file the pre-generation check runs)
+import rhbk_ldap_federation  # noqa: E402  (RHBK LDAP federation ldap_config builder)
 
 
 class NoAliasDumper(yaml.SafeDumper):
@@ -228,6 +233,15 @@ _cm = (preflight.get("component_config") or {}).get("cert_manager") or {}
 if str(_cm.get("update_default_ingress", "")).lower() in ("1", "true", "yes", "on"):
     selected_components.add("cert_manager")
 
+# Same OIDC rules as the form. The role also runs preflight_oidc.py before any
+# component vars are generated; this keeps a direct overlay run honest too.
+_oidc_errors = preflight_oidc.validate_preflight_oidc(preflight, selected_components)
+if _oidc_errors:
+    raise SystemExit(
+        "Preflight OIDC validation failed; nothing was generated.\n"
+        + preflight_oidc.format_errors(_oidc_errors)
+    )
+
 
 def is_secret_key(key):
     k = str(key or "").lower()
@@ -268,6 +282,20 @@ def first_present(*values):
         if value is not None and value != "":
             return value
     return None
+
+
+def openshift_oidc_requested():
+    """True when the form asked for OpenShift OAuth against Keycloak/RHBK."""
+    return preflight_oidc.openshift_oidc_requested(preflight, selected_components)
+
+
+def resolve_openshift_oidc_client_id(rhbk_config):
+    """OpenShift OIDC client id or "" (explicit OpenShift client only; see preflight_oidc)."""
+    return preflight_oidc.resolve_openshift_oidc_client_id(preflight, rhbk_config or {})
+
+
+def fail_openshift_oidc_client_missing():
+    raise SystemExit(preflight_oidc.openshift_oidc_client_missing_message())
 
 
 def merge_shared_aws_vault(values):
@@ -443,24 +471,27 @@ def apply_storage_var(vars_data, component, preflight, storage_value, vars_data_
 
 
 def rhbk_oidc_issuer_url(preflight, vars_data=None):
-    """Build https://<keycloak-host>/realms/<realm> from preflight RHBK + generated vars."""
+    """Build https://<keycloak-host>/realms/<realm> from this run's RHBK values.
+
+    Prefers the preflight RHBK hostname/realm so leftover ``ocp_rhbk_*`` from an
+    earlier generate cannot point Grafana (or other app OIDC) at a different
+    Keycloak. Does not invent ``Dev``, ``Prod``, or ``rhlab`` when realm is blank.
+    """
     vars_data = vars_data or {}
     rhbk_cfg = (preflight.get("component_config") or {}).get("rhbk") or {}
     apps_domain = str(((preflight.get("openshift") or {}).get("apps_domain")) or "").strip()
     host = first_present(
-        vars_data.get("ocp_rhbk_hostname"),
-        vars_data.get("rhbk_hostname"),
         rhbk_cfg.get("hostname"),
         rhbk_cfg.get("rhbk_hostname"),
+        vars_data.get("rhbk_hostname"),
+        vars_data.get("ocp_rhbk_hostname"),
         f"keycloak.{apps_domain}" if apps_domain else None,
     )
     realm = first_present(
-        vars_data.get("ocp_rhbk_realm"),
-        vars_data.get("rhbk_realm"),
         rhbk_cfg.get("realm"),
         rhbk_cfg.get("rhbk_realm"),
-        env_label_suffix(preflight.get("environment")),
-        "rhlab",
+        vars_data.get("rhbk_realm"),
+        vars_data.get("ocp_rhbk_realm"),
     )
     host_clean = strip_host(host)
     if not host_clean or not realm:
@@ -1036,11 +1067,16 @@ def merge_component(component, cfg):
             "install_eda",
             "install_lightspeed",
             "controller_replicas",
+            "controller_projects_persistence",
+            "controller_projects_storage_size",
+            "eda_replicas",
             "hub_storage_type",
+            "hub_storage_override",
             "hub_storage_class",
             "hub_storage_size",
             "hub_s3_secret",
             "hub_azure_secret",
+            "storage",
             "platform_manifest_overrides",
             "controller_manifest_overrides",
             "hub_manifest_overrides",
@@ -1075,6 +1111,8 @@ def merge_component(component, cfg):
         for rhbk_key in (
             "standalone_zip_upload_path",
             "standalone_zip_content_base64",
+            # Preflight UI bookkeeping for removed Keycloak clients; not bootstrap input.
+            "clients_dismissed",
         ):
             passthrough_public_values.pop(rhbk_key, None)
             vars_data.pop(rhbk_key, None)
@@ -1229,6 +1267,14 @@ def merge_component(component, cfg):
                 )
             if public_values.get("hostname"):
                 vars_data["components_env"]["grafana"]["hostname"] = public_values["hostname"]
+            try:
+                grafana_replicas = int(public_values.get("replicas"))
+            except (TypeError, ValueError):
+                grafana_replicas = None
+            if grafana_replicas is not None and grafana_replicas > 0:
+                vars_data["grafana_replicas"] = grafana_replicas
+                vars_data["grafana_install_replicas"] = grafana_replicas
+                vars_data["components_env"]["grafana"]["replicas"] = grafana_replicas
             folders = public_values.get("folders")
             if isinstance(folders, list):
                 cleaned_folders = []
@@ -1419,7 +1465,14 @@ def merge_component(component, cfg):
                 oidc_cfg = vars_data.get("oidc")
                 if not isinstance(oidc_cfg, dict):
                     oidc_cfg = {}
-                if oidc_cfg.get("enabled") is not True:
+                if preflight_oidc.grafana_oidc_is_explicitly_disabled(preflight):
+                    oidc_cfg = {**oidc_cfg, "enabled": False}
+                    vars_data["oidc"] = copy.deepcopy(oidc_cfg)
+                    vars_data["components_env"]["grafana"]["oidc"] = copy.deepcopy(
+                        oidc_cfg
+                    )
+                    vars_data_changed = True
+                elif oidc_cfg.get("enabled") is not True:
                     oidc_cfg = {
                         **oidc_cfg,
                         "enabled": True,
@@ -1449,6 +1502,7 @@ def merge_component(component, cfg):
                 and not grafana_standalone
                 and "oidc" in grafana_opts_lower
                 and not grafana_issuer_manual
+                and not preflight_oidc.grafana_oidc_is_explicitly_disabled(preflight)
             ):
                 oidc_cfg = vars_data.get("oidc")
                 if not isinstance(oidc_cfg, dict):
@@ -2048,9 +2102,11 @@ def merge_component(component, cfg):
                 vars_data.setdefault("components_env", {}).setdefault("dev_hub", {})
                 vars_data["components_env"]["dev_hub"]["keycloak_hostname"] = rhbk_host
                 vars_data_changed = True
-            dev_client = first_present(
-                public_values.get("keycloak_client_id"),
-                "rhdh",
+            dev_client = (
+                preflight_oidc.resolve_dev_hub_keycloak_client_id_from_config(
+                    public_values
+                )
+                or preflight_oidc.load_default_client_ids().get("dev_hub", "rhdh")
             )
             dev_instance = first_present(public_values.get("instance_name"), "chad-lab")
             if dev_realm:
@@ -2060,8 +2116,23 @@ def merge_component(component, cfg):
                 vars_data_changed = True
             if dev_client:
                 vars_data["dev_hub_keycloak_client_id"] = str(dev_client)
+                vars_data.setdefault("components_env", {}).setdefault("dev_hub", {})
                 vars_data["components_env"]["dev_hub"]["keycloak_client_id"] = str(dev_client)
+                vars_data.setdefault("component_config", {}).setdefault("dev_hub", {})
+                vars_data["component_config"]["dev_hub"]["keycloak_client_id"] = str(
+                    dev_client
+                )
                 vars_data_changed = True
+            # Pre-Phase-2 preset leftover; the role reads keycloak_client_id only.
+            if vars_data.pop("oidc_client_id", None) is not None:
+                vars_data_changed = True
+            env_hub = (vars_data.get("components_env") or {}).get("dev_hub")
+            if isinstance(env_hub, dict):
+                env_hub.pop("oidc_client_id", None)
+            cfg_hub = (vars_data.get("component_config") or {}).get("dev_hub")
+            if isinstance(cfg_hub, dict):
+                if cfg_hub.pop("oidc_client_id", None) is not None:
+                    vars_data_changed = True
             if dev_instance:
                 vars_data["dev_hub_instance_name"] = str(dev_instance)
                 vars_data["components_env"]["dev_hub"]["instance_name"] = str(dev_instance)
@@ -2307,6 +2378,13 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["minio"]["keycloak_realm"] = str(minio_realm)
                 vars_data_changed = True
             minio_issuer, _minio_realm_from_rhbk = rhbk_oidc_issuer_url(preflight, vars_data)
+            minio_discovery = preflight_oidc.resolve_minio_oidc_discovery_url(
+                preflight, selected_components, vars_data
+            )
+            if not minio_discovery and minio_issuer:
+                minio_discovery = preflight_oidc.ensure_minio_oidc_discovery_url(
+                    minio_issuer
+                )
             if minio_issuer:
                 vars_data["minio_oidc_issuer"] = minio_issuer
                 vars_data.setdefault("components_env", {}).setdefault("minio", {})
@@ -2314,14 +2392,68 @@ def merge_component(component, cfg):
                 vars_data.setdefault("component_config", {}).setdefault("minio", {})
                 vars_data["component_config"]["minio"]["oidc_issuer"] = minio_issuer
                 vars_data_changed = True
-            oidc = public_values.get("oidc") or {}
-            if oidc:
+            if minio_discovery:
+                vars_data["minio_oidc_config_url"] = minio_discovery
                 vars_data.setdefault("components_env", {}).setdefault("minio", {})
-                vars_data["components_env"]["minio"]["oidc"] = copy.deepcopy(oidc)
+                vars_data["components_env"]["minio"]["oidc_config_url"] = minio_discovery
+                vars_data.setdefault("component_config", {}).setdefault("minio", {})
+                vars_data["component_config"]["minio"]["oidc_config_url"] = (
+                    minio_discovery
+                )
+                vars_data_changed = True
+            oidc = public_values.get("oidc") if isinstance(
+                public_values.get("oidc"), dict
+            ) else {}
+            minio_id = preflight_oidc.resolve_minio_oidc_client_id_from_config(
+                public_values
+            )
+            if not minio_id:
+                oidc_enabled_raw = public_values.get("oidc_enabled")
+                if oidc_enabled_raw is None:
+                    oidc_enabled_raw = oidc.get("enabled")
+                if oidc_enabled_raw is not None and as_bool(oidc_enabled_raw, True):
+                    minio_id = preflight_oidc.load_default_client_ids().get(
+                        "minio", "minio"
+                    )
+            if minio_id:
+                vars_data["minio_oidc_client_id"] = str(minio_id)
+                vars_data.setdefault("components_env", {}).setdefault("minio", {})
+                vars_data["components_env"]["minio"]["oidc_client_id"] = str(minio_id)
+                vars_data.setdefault("component_config", {}).setdefault("minio", {})
+                vars_data["component_config"]["minio"]["oidc_client_id"] = str(minio_id)
+                vars_data_changed = True
+            minio_managed = preflight_oidc.minio_keycloak_is_managed(
+                preflight, public_values
+            )
+            vars_data["minio_oidc_create_keycloak_client"] = minio_managed
+            vars_data.setdefault("components_env", {}).setdefault("minio", {})
+            vars_data["components_env"]["minio"]["minio_oidc_create_keycloak_client"] = (
+                minio_managed
+            )
+            if not minio_managed:
+                # Unmanaged: no client create/update and no mapper changes.
+                vars_data["minio_oidc_create_policy_mapper"] = False
+                vars_data["components_env"]["minio"]["minio_oidc_create_policy_mapper"] = (
+                    False
+                )
+            else:
+                mapper_raw = public_values.get("minio_oidc_create_policy_mapper")
+                if mapper_raw is None:
+                    mapper_raw = oidc.get("create_policy_mapper")
+                mapper = True if mapper_raw is None else as_bool(mapper_raw, True)
+                vars_data["minio_oidc_create_policy_mapper"] = mapper
+                vars_data["components_env"]["minio"]["minio_oidc_create_policy_mapper"] = (
+                    mapper
+                )
+            vars_data_changed = True
+            if oidc:
+                oidc_copy = copy.deepcopy(oidc)
+                if minio_id:
+                    oidc_copy["client_id"] = str(minio_id)
+                vars_data.setdefault("components_env", {}).setdefault("minio", {})
+                vars_data["components_env"]["minio"]["oidc"] = oidc_copy
                 if oidc.get("enabled") is not None:
                     vars_data["minio_oidc_enabled"] = as_bool(oidc.get("enabled"), True)
-                if oidc.get("client_id"):
-                    vars_data["minio_oidc_client_id"] = str(oidc.get("client_id"))
                 vars_data_changed = True
             elif public_values.get("oidc_enabled") is not None:
                 vars_data["minio_oidc_enabled"] = as_bool(public_values.get("oidc_enabled"), True)
@@ -2454,14 +2586,34 @@ def merge_component(component, cfg):
             ).strip()
             if public_values.get("storage"):
                 vars_data["components_env"]["rhbk"]["storage"] = public_values["storage"]
-            _realm = str(
-                first_present(
-                    public_values.get("realm"),
-                    env_suffix if preflight.get("environment") else None,
-                    "rhlab",
+            _rhbk_existing_ops = {
+                "client",
+                "realm",
+                "idp",
+                "federation",
+                "group_mapper",
+                "client_scopes",
+                "client_mappers",
+            }
+            _explicit_realm = str(public_values.get("realm") or "").strip()
+            if _rhbk_existing_ops.intersection(rhbk_opts_lower):
+                if not _explicit_realm:
+                    raise SystemExit(
+                        "RHBK Client (and other existing-Keycloak operations) need "
+                        "component_config.rhbk.realm set to the existing realm name. "
+                        "Realm creation being unselected does not remove this field. "
+                        "Nothing was generated."
+                    )
+                _realm = _explicit_realm
+            else:
+                _realm = str(
+                    first_present(
+                        _explicit_realm or None,
+                        env_suffix if preflight.get("environment") else None,
+                        "rhlab",
+                    )
+                    or "rhlab"
                 )
-                or "rhlab"
-            )
             vars_data["rhbk_realm"] = _realm
             vars_data["ocp_rhbk_realm"] = _realm
             vars_data["components_env"]["rhbk"]["rhbk_realm"] = _realm
@@ -2522,14 +2674,14 @@ def merge_component(component, cfg):
             ] = _event_metrics
             vars_data["install_rhbk_metrics_enabled"] = True
             vars_data["rhbk_metrics_enabled"] = True
-            # Admin event-store exporter (username labels). Default on.
+            # Admin event-store exporter (username labels). Default off.
             _login_exporter = as_bool(
                 first_present(
                     public_values.get("login_events_exporter_enabled"),
                     public_values.get("keycloak_login_events_exporter_enabled"),
-                    True,
+                    False,
                 ),
-                True,
+                False,
             )
             vars_data["keycloak_login_events_exporter_enabled"] = _login_exporter
             vars_data["components_env"]["rhbk"][
@@ -2552,6 +2704,11 @@ def merge_component(component, cfg):
             vars_data["ocp_rhbk_admin_user"] = _admin_user
             vars_data["components_env"]["rhbk"]["rhbk_admin_user"] = _admin_user
             vars_data["components_env"]["rhbk"]["ocp_rhbk_admin_user"] = _admin_user
+            # vault_rhbk.yml loads after vars_rhbk.yml and pins ``admin`` by default; keep
+            # the user the form set so it is not overridden (and paired with its password).
+            vault_data["rhbk_admin_user"] = _admin_user
+            vault_data["ocp_rhbk_admin_user"] = _admin_user
+            vault_data_changed = True
             _admin_password = first_present(
                 secret_values.get("admin_password"),
                 secret_values.get("standalone_admin_password"),
@@ -2646,67 +2803,131 @@ def merge_component(component, cfg):
             if issuer_name:
                 vars_data["ocp_rhbk_issuer_name"] = str(issuer_name)
             clients = public_values.get("clients")
-            if isinstance(clients, list) and clients:
-                rhbk_clients = {}
-                for client in clients:
-                    if not isinstance(client, dict):
-                        continue
-                    client_id = str(client.get("id") or client.get("client_id") or "").strip()
-                    if not client_id:
-                        continue
+            if not isinstance(clients, list):
+                clients = []
+            # Always rebuild. A missing or empty preflight list must drop
+            # seed/prior rhbk_clients so a retained row cannot keep
+            # provisioning unmanaged or MinIO clients.
+            rhbk_clients = {}
+            for client in clients:
+                if not isinstance(client, dict):
+                    continue
+                client_id = str(client.get("id") or client.get("client_id") or "").strip()
+                if not client_id:
+                    continue
+                # create_client false: keep the row for app OIDC, do not provision.
+                if not preflight_oidc.rhbk_client_is_managed(client):
+                    continue
+                # MinIO's OIDC playbook owns this client (and its policy mapper).
+                # Leaving it in rhbk_clients would double-create/update it.
+                if preflight_oidc.minio_role_owns_keycloak_client_id(
+                    preflight, selected_components, client_id
+                ):
+                    continue
+                # GitLab has no OIDC role. Do not create or update a GitLab
+                # client just because GitLab is selected or a leftover
+                # source:gitlab row is still in the preflight list.
+                if preflight_oidc.gitlab_keycloak_client_should_not_be_provisioned(
+                    preflight, selected_components, client_id, client
+                ):
+                    continue
+                if preflight_oidc.grafana_keycloak_client_should_not_be_provisioned(
+                    preflight, selected_components, client_id, client
+                ):
+                    continue
 
-                    def _split(value):
-                        if isinstance(value, list):
-                            return [
-                                str(v).strip() for v in value if str(v).strip()
-                            ]
+                def _split(value):
+                    if isinstance(value, list):
                         return [
-                            part.strip()
-                            for part in str(value or "")
-                            .replace("\n", ",")
-                            .split(",")
-                            if part.strip()
+                            str(v).strip() for v in value if str(v).strip()
                         ]
-                    rhbk_clients[client_id] = {
-                        "rhbk_client_name": str(client.get("name") or client_id),
-                        "rhbk_redirect_uris": _split(client.get("redirect_uris")),
-                        "rhbk_web_origins": _split(client.get("web_origins")),
-                        "rhbk_default_client_scopes": ["groups"],
-                        "rhbk_attach_default_client_scopes": True,
-                    }
-                if rhbk_clients:
-                    vars_data["rhbk_clients"] = rhbk_clients
-                    vars_data["components_env"]["rhbk"]["rhbk_clients"] = copy.deepcopy(
-                        rhbk_clients)
-            if public_values.get("client"):
-                vars_data["rhbk_client"] = str(public_values.get("client"))
-            _oidc_client = first_present(
-                public_values.get("openshift_oidc_client_id"),
-                public_values.get("client"),
-                vars_data.get("rhbk_client"),
-            )
-            clients = public_values.get("clients")
-            if not _oidc_client and isinstance(clients, list):
-                for client in clients:
-                    if not isinstance(client, dict):
-                        continue
-                    client_id = str(client.get("id") or client.get("client_id") or "").strip()
-                    if not client_id:
-                        continue
-                    source = str(client.get("source") or "").strip().lower()
-                    if source == "openshift" or "openshift" in client_id.lower():
-                        _oidc_client = client_id
-                        break
-                if not _oidc_client:
-                    for client in clients:
-                        if not isinstance(client, dict):
-                            continue
-                        client_id = str(client.get("id") or client.get("client_id") or "").strip()
-                        if client_id:
-                            _oidc_client = client_id
-                            break
-            if not _oidc_client:
-                _oidc_client = f"Openshift{env_suffix}"
+                    return [
+                        part.strip()
+                        for part in str(value or "")
+                        .replace("\n", ",")
+                        .split(",")
+                        if part.strip()
+                    ]
+                redirect_uris = _split(client.get("redirect_uris"))
+                is_openshift_oidc = preflight_oidc.row_is_openshift_oidc_client(
+                    preflight, client_id, client
+                )
+                if is_openshift_oidc:
+                    redirect_uris = (
+                        preflight_oidc.rewrite_openshift_oauth_redirect_uris(
+                            redirect_uris, preflight
+                        )
+                    )
+                # Confidential OIDC defaults: authorization code only (no
+                # implicit / direct-grant unless the form explicitly enables them).
+                client_entry = {
+                    "rhbk_client_name": str(client.get("name") or client_id),
+                    "rhbk_redirect_uris": redirect_uris,
+                    "rhbk_web_origins": _split(client.get("web_origins")),
+                    "rhbk_default_client_scopes": ["groups"],
+                    "rhbk_attach_default_client_scopes": True,
+                    "rhbk_public_client": bool(client.get("public_client", False)),
+                    "rhbk_standard_flow_enabled": bool(
+                        client.get("standard_flow_enabled", True)
+                    ),
+                    "rhbk_implicit_flow_enabled": bool(
+                        client.get("implicit_flow_enabled", False)
+                    ),
+                    "rhbk_direct_access_grants_enabled": bool(
+                        client.get("direct_access_grants_enabled", False)
+                    ),
+                    "rhbk_protocol": str(
+                        client.get("protocol") or "openid-connect"
+                    ),
+                    "rhbk_client_authenticator_type": str(
+                        client.get("client_authenticator_type")
+                        or "client-secret"
+                    ),
+                }
+                if is_openshift_oidc and not client_entry["rhbk_public_client"]:
+                    # OpenShift OAuth IdP expects a confidential client secret.
+                    client_entry["rhbk_service_accounts_enabled"] = bool(
+                        client.get("service_accounts_enabled", False)
+                    )
+                rhbk_clients[client_id] = client_entry
+            if rhbk_clients:
+                vars_data["rhbk_clients"] = rhbk_clients
+                vars_data["components_env"]["rhbk"]["rhbk_clients"] = copy.deepcopy(
+                    rhbk_clients)
+            else:
+                # All rows unmanaged, omitted, or blank: drop a prior run's
+                # provision list so Deploy RHBK Client cannot recreate them.
+                if vars_data.pop("rhbk_clients", None) is not None:
+                    vars_data_changed = True
+                env_rhbk = (vars_data.get("components_env") or {}).get("rhbk")
+                if isinstance(env_rhbk, dict) and env_rhbk.pop(
+                    "rhbk_clients", None
+                ) is not None:
+                    vars_data_changed = True
+            legacy_client = str(public_values.get("client") or "").strip()
+            if legacy_client:
+                matching_row = next(
+                    (
+                        row
+                        for row in (clients if isinstance(clients, list) else [])
+                        if isinstance(row, dict)
+                        and str(row.get("id") or row.get("client_id") or "").strip()
+                        == legacy_client
+                    ),
+                    None,
+                )
+                if matching_row is not None and not preflight_oidc.rhbk_client_is_managed(
+                    matching_row
+                ):
+                    if vars_data.pop("rhbk_client", None) is not None:
+                        vars_data_changed = True
+                else:
+                    vars_data["rhbk_client"] = legacy_client
+            # Never fall back to the first/legacy client or an invented name: that can
+            # wire OpenShift OAuth to another app's client (for example Grafana).
+            _oidc_client = resolve_openshift_oidc_client_id(public_values)
+            if not _oidc_client and openshift_oidc_requested():
+                fail_openshift_oidc_client_missing()
             _oidc_idp = str(
                 first_present(
                     public_values.get("openshift_oidc_idp_name"),
@@ -2718,21 +2939,36 @@ def merge_component(component, cfg):
                 or "Keycloak"
             )
             _issuer_host = _rhbk_host or strip_host(vars_data.get("ocp_rhbk_hostname"))
-            oidc_auth = {
-                "enabled": True,
-                "keycloak_client_id": str(_oidc_client),
-                "openshift_oidc_idp_name": _oidc_idp,
-                "openshift_oidc_mapping_method": "claim",
-                "openshift_oauth_resource_name": "cluster",
-                "extra_scopes": ["groups"],
-            }
-            if _issuer_host:
-                oidc_auth["issuer"] = f"https://{_issuer_host}/realms/{_realm}"
-            if not rhbk_standalone_selected:
-                vars_data["openshift_oidc_auth"] = oidc_auth
-                vars_data["components_env"]["rhbk"]["openshift_oidc_auth"] = copy.deepcopy(
-                    oidc_auth)
-                vars_data_changed = True
+            if _oidc_client:
+                oidc_auth = {
+                    "enabled": True,
+                    "keycloak_client_id": str(_oidc_client),
+                    "openshift_oidc_idp_name": _oidc_idp,
+                    "openshift_oidc_mapping_method": (
+                        preflight_oidc.OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
+                    ),
+                    "openshift_oauth_resource_name": "cluster",
+                    "extra_scopes": ["groups"],
+                    "openshift_oauth_redirect_uri": (
+                        preflight_oidc.openshift_oauth_redirect_uri(
+                            preflight, _oidc_idp
+                        )
+                    ),
+                }
+                if _issuer_host:
+                    oidc_auth["issuer"] = f"https://{_issuer_host}/realms/{_realm}"
+                if not rhbk_standalone_selected:
+                    vars_data["openshift_oidc_client_id"] = str(_oidc_client)
+                    vars_data["openshift_oidc_auth"] = oidc_auth
+                    vars_data["components_env"]["rhbk"]["openshift_oidc_auth"] = copy.deepcopy(
+                        oidc_auth)
+                    vars_data_changed = True
+            else:
+                # No OpenShift client and OpenShift OIDC not requested: drop values a
+                # previous run generated for a client that may since have been removed.
+                for stale_key in ("openshift_oidc_client_id", "openshift_oidc_auth"):
+                    if vars_data.pop(stale_key, None) is not None:
+                        vars_data_changed = True
             # Standalone ZIP / hostname / TLS only when option is selected.
             # Do not let UI default standalone_hostname force platform=rhel on OCP.
             if rhbk_standalone_selected:
@@ -2881,33 +3117,63 @@ def merge_component(component, cfg):
             elif "client_scopes" in (preflight.get("component_options") or {}).get("rhbk", []):
                 vars_data["client_scope_name"] = "groups"
                 vars_data["rhbk_client_scope_name"] = "groups"
-            bind_password = first_present(secret_values.get("federation_bind_password"))
-            ldap_updates = {}
-            if public_values.get("federation_ldap_url") is not None:
-                ldap_updates["connectionUrl"] = str(public_values.get("federation_ldap_url"))
-            if public_values.get("federation_bind_dn") is not None:
-                ldap_updates["bindDn"] = str(public_values.get("federation_bind_dn"))
-            if bind_password is not None:
-                ldap_updates["bindCredential"] = str(bind_password)
-            if public_values.get("federation_users_dn") is not None:
-                ldap_updates["usersDn"] = str(public_values.get("federation_users_dn"))
-            if ldap_updates:
+            # Build Keycloak ldap_config for rhbk_manage_federation.
+            # Empty form strings must never wipe connectionUrl / bindDn (that left
+            # Keycloak with blank Connection URL / Bind DN while bindCredential stayed set).
+            rhbk_opts = (preflight.get("component_options") or {}).get("rhbk") or []
+            federation_selected = (
+                "federation" in [str(x) for x in rhbk_opts]
+                or bool(str(public_values.get("federation_ldap_url") or "").strip())
+                or bool(str(public_values.get("federation_bind_dn") or "").strip())
+                or bool(str(public_values.get("federation_users_dn") or "").strip())
+                or bool(str(secret_values.get("federation_bind_password") or "").strip())
+            )
+            if federation_selected:
                 existing_ldap = vault_data.get("ldap_config")
-                if isinstance(existing_ldap, dict):
-                    merged_ldap = dict(existing_ldap)
-                    merged_ldap.update(ldap_updates)
-                    vault_data["ldap_config"] = merged_ldap
+                if not isinstance(existing_ldap, dict):
+                    existing_ldap = vars_data.get("ldap_config")
+                if not isinstance(existing_ldap, dict):
+                    existing_ldap = {}
+                built_ldap = rhbk_ldap_federation.build_rhbk_ldap_config(
+                    public=public_values,
+                    secret=secret_values,
+                    existing=existing_ldap,
+                    apply_freeipa_defaults=True,
+                )
+                if rhbk_ldap_federation.merge_ldap_config_into_vault(vault_data, built_ldap):
                     vault_data_changed = True
+                # Keep bindCredential only in vault. Non-secret keys in vars help
+                # operators inspect Connection URL / Bind DN without opening vault.
+                public_ldap = {
+                    key: value
+                    for key, value in built_ldap.items()
+                    if key != "bindCredential" and str(value or "").strip()
+                }
+                if public_ldap:
+                    vars_data["ldap_config_public"] = public_ldap
+                    vars_data_changed = True
+                group_cfg = vars_data.get("ldap_group_config")
+                if not isinstance(group_cfg, dict) or not group_cfg:
+                    defaults = rhbk_ldap_federation.freeipa_ldap_group_mapper_defaults(
+                        str(built_ldap.get("usersDn") or "")
+                    )
+                    if defaults.get("groups.dn"):
+                        vars_data["ldap_group_config"] = defaults
+                        vars_data_changed = True
             fed_name = first_present(public_values.get("federation_name"))
-            if fed_name is not None:
-                vault_data["rhbk_federation_name"] = str(fed_name)
+            if fed_name is not None and str(fed_name).strip():
+                vault_data["rhbk_federation_name"] = str(fed_name).strip()
+                vars_data["rhbk_federation_name"] = str(fed_name).strip()
+                vars_data["federation_name"] = str(fed_name).strip()
                 vault_data_changed = True
-            elif "federation" in (preflight.get("component_options") or {}).get("rhbk", []):
+                vars_data_changed = True
+            elif "federation" in [str(x) for x in rhbk_opts]:
                 default_fed = "LDAP"
                 vars_data["federation_name"] = default_fed
                 vars_data["rhbk_federation_name"] = default_fed
                 vault_data["rhbk_federation_name"] = default_fed
                 vault_data_changed = True
+                vars_data_changed = True
 
             if not rhbk_standalone_selected:
                 purge_standalone_install_vars(vars_data, "rhbk")
@@ -2987,20 +3253,25 @@ def merge_component(component, cfg):
                 public_values.get("minimal_footprint"),
                 False,
             )
+            # Explicit install_* wins. Legacy: minimal_footprint alone (no install_hub /
+            # install_eda keys) still disables Hub/EDA. New UI always sends install_*.
             install_controller = as_bool(
                 public_values.get("install_controller"),
                 True,
             )
-            install_hub = as_bool(public_values.get("install_hub"), True)
-            install_eda = as_bool(public_values.get("install_eda"), True)
-            install_lightspeed = as_bool(
-                public_values.get("install_lightspeed"),
-                False,
+
+            def _install_flag(key, default_when_absent=True, legacy_minimal_off=False):
+                if key in public_values and public_values.get(key) not in (None, ""):
+                    return as_bool(public_values.get(key), default_when_absent)
+                if legacy_minimal_off and minimal_footprint:
+                    return False
+                return default_when_absent
+
+            install_hub = _install_flag("install_hub", True, legacy_minimal_off=True)
+            install_eda = _install_flag("install_eda", True, legacy_minimal_off=True)
+            install_lightspeed = _install_flag(
+                "install_lightspeed", False, legacy_minimal_off=True
             )
-            if minimal_footprint:
-                install_hub = False
-                install_eda = False
-                install_lightspeed = False
             openshift_values = preflight.get("openshift") or {}
             api_host = first_present(
                 openshift_values.get("api_host"),
@@ -3320,20 +3591,68 @@ def merge_component(component, cfg):
                         public_values.get("platform_manifest_overrides") or {}
                     ),
                 }
-                vars_data["aap_ocp_install_controller"] = {
+                try:
+                    controller_replicas = int(
+                        public_values.get("controller_replicas")
+                        or public_values.get("replicas")
+                        or 1
+                    )
+                except (TypeError, ValueError):
+                    controller_replicas = 1
+                if controller_replicas < 1:
+                    controller_replicas = 1
+                # Thin Minimal Footprint profile (supported aap_ocp_install keys only).
+                # Does not disable components and does not invent CPU/memory requests.
+                if minimal_footprint:
+                    controller_replicas = 1
+                controller_cfg = {
                     "instance_name": f"{instance_name}-controller",
                     "namespace": namespace,
                     "install": install_controller,
                     "admin_user": admin_username,
-                    "replicas": int(
-                        public_values.get("controller_replicas")
-                        or public_values.get("replicas")
-                        or 1
+                    "replicas": controller_replicas,
+                    "create_preload_data": (
+                        False
+                        if minimal_footprint
+                        else as_bool(
+                            public_values.get("create_preload_data"), True
+                        )
                     ),
                     "controller_manifest_overrides": copy.deepcopy(
                         public_values.get("controller_manifest_overrides") or {}
                     ),
                 }
+                projects_persistence = as_bool(
+                    public_values.get("controller_projects_persistence"), False
+                )
+                if minimal_footprint and not projects_persistence:
+                    controller_cfg["projects_persistence"] = False
+                elif projects_persistence:
+                    controller_cfg["projects_persistence"] = True
+                    controller_cfg["projects_storage_size"] = str(
+                        public_values.get("controller_projects_storage_size")
+                        or "8Gi"
+                    )
+                vars_data["aap_ocp_install_controller"] = controller_cfg
+                # Hub file StorageClass: explicit hub_storage_class when override
+                # is on; otherwise inherit General component_config.aap.storage.
+                default_storage = str(
+                    first_present(
+                        public_values.get("storage"),
+                        "nfs-csi",
+                    )
+                    or "nfs-csi"
+                ).strip()
+                hub_override = as_bool(
+                    public_values.get("hub_storage_override"), False
+                )
+                hub_storage_class = str(
+                    public_values.get("hub_storage_class") or ""
+                ).strip()
+                if hub_override and hub_storage_class:
+                    effective_hub_sc = hub_storage_class
+                else:
+                    effective_hub_sc = default_storage
                 vars_data["aap_ocp_install_hub"] = {
                     "instance_name": f"{instance_name}-hub",
                     "namespace": namespace,
@@ -3341,9 +3660,7 @@ def merge_component(component, cfg):
                     "storage_type": str(
                         public_values.get("hub_storage_type") or "file"
                     ),
-                    "file_storage_storage_class": str(
-                        public_values.get("hub_storage_class") or ""
-                    ),
+                    "file_storage_storage_class": effective_hub_sc,
                     "file_storage_size": str(
                         public_values.get("hub_storage_size") or "20Gi"
                     ),
@@ -3357,7 +3674,7 @@ def merge_component(component, cfg):
                         public_values.get("hub_manifest_overrides") or {}
                     ),
                 }
-                vars_data["aap_ocp_install_eda"] = {
+                eda_cfg = {
                     "instance_name": f"{instance_name}-eda",
                     "namespace": namespace,
                     "install": install_eda,
@@ -3365,6 +3682,27 @@ def merge_component(component, cfg):
                         public_values.get("eda_manifest_overrides") or {}
                     ),
                 }
+                eda_replicas = public_values.get("eda_replicas")
+                if eda_replicas not in (None, ""):
+                    try:
+                        eda_cfg["replicas"] = int(eda_replicas)
+                    except (TypeError, ValueError):
+                        eda_cfg["replicas"] = 1
+                elif install_eda:
+                    eda_cfg["replicas"] = 1
+                if minimal_footprint and install_eda:
+                    eda_cfg["replicas"] = 1
+                vars_data["aap_ocp_install_eda"] = eda_cfg
+                if minimal_footprint:
+                    vars_data["aap_minimal_footprint_profile"] = (
+                        "thin-replicas-preload"
+                    )
+                    vars_data["aap_minimal_footprint_notes"] = (
+                        "Applies controller/EDA replicas=1, "
+                        "create_preload_data=false, and projects_persistence=false "
+                        "unless projects PVC is explicitly enabled. Does not change "
+                        "Operator CPU/memory request defaults or disable Hub/EDA."
+                    )
                 vars_data["aap_ocp_install_lightspeed"] = {
                     "install": install_lightspeed
                 }
@@ -4965,11 +5303,40 @@ def merge_component(component, cfg):
 component_options = preflight.get("component_options") or {}
 openshift_options = set(component_options.get("openshift") or [])
 openshift = preflight.get("openshift") or {}
-if openshift:
-    if "openshift" not in selected_components:
-        openshift = {}
 
-if openshift:
+# Shared connection files (infra_config_vars.yml + vault_openshift.yml) are
+# required by Virt and other OCP playbooks even when the OpenShift *platform*
+# group is not selected. Always refresh host/token/TLS from preflight.openshift.
+_openshift_api_host = first_present(
+    openshift.get("api_host"),
+    openshift.get("host"),
+)
+if openshift and (
+    _openshift_api_host
+    or openshift.get("token") is not None
+    or openshift.get("apps_domain") is not None
+):
+    infra_path = env_dir / "infra_config_vars.yml"
+    infra_data = load_yaml(infra_path) if infra_path.exists() else {}
+    if not isinstance(infra_data, dict):
+        infra_data = {}
+    if _openshift_api_host:
+        infra_data["api_host"] = str(_openshift_api_host)
+        infra_data["host"] = str(_openshift_api_host)
+    if preflight.get("domain") is not None:
+        infra_data["domain"] = preflight.get("domain")
+    if openshift.get("apps_domain") is not None:
+        infra_data["apps_domain"] = openshift.get("apps_domain")
+        infra_data["app_domain"] = openshift.get("apps_domain")
+    _skip_tls = bool(openshift.get("skip_tls_verify", True))
+    infra_data["skip_tls_verify"] = _skip_tls
+    infra_data["verify_ssl"] = not _skip_tls
+    infra_data["validate_certs"] = not _skip_tls
+    write_yaml(infra_path, infra_data, "0600")
+
+# Platform-specific vars_openshift.yml (HTPasswd, NFS, banner, …) only when the
+# OpenShift platform group is selected. Shared auth above already ran.
+if openshift and "openshift" in selected_components:
     vars_path = env_dir / "vars_openshift.yml"
     vault_path = env_dir / "vault_openshift.yml"
 
@@ -5090,7 +5457,22 @@ if openshift:
         vars_data["ocp_nfs_storage_test_namespace"] = str(
             first_present(
                 openshift.get("nfs_test_namespace"),
-                "synology-nfs-pv",
+                "ado-nfs-csi-test",
+            )
+        )
+        # Dedicated claim name — never default to lab PVC synology-nfs-pvc.
+        vars_data["ocp_nfs_storage_test_pvc_name"] = str(
+            first_present(
+                openshift.get("nfs_test_pvc_name"),
+                openshift.get("ocp_nfs_storage_test_pvc_name"),
+                "ado-nfs-csi-test-pvc",
+            )
+        )
+        vars_data["ocp_nfs_storage_test_pvc_size"] = str(
+            first_present(
+                openshift.get("nfs_test_pvc_size"),
+                openshift.get("ocp_nfs_storage_test_pvc_size"),
+                "1Gi",
             )
         )
     else:
@@ -5105,6 +5487,8 @@ if openshift:
             "ocp_nfs_storage_create_test_namespace",
             "ocp_nfs_storage_create_test_pvc",
             "ocp_nfs_storage_test_namespace",
+            "ocp_nfs_storage_test_pvc_name",
+            "ocp_nfs_storage_test_pvc_size",
         ):
             vars_data.pop(nfs_key, None)
 
@@ -5443,109 +5827,126 @@ if "ldap_auth" in openshift_options:
             ldap_vault["ldap_config"] = ldap_config
         write_yaml(ldap_vault_path, ldap_vault, "0600")
 
-if "oauth_rhbk" in openshift_options:
-    rhbk_vars_path = env_dir / "vars_rhbk.yml"
-    oauth_cfg = openshift.get("oauth_rhbk") or {}
-    if rhbk_vars_path.exists():
-        rhbk_vars = load_yaml(rhbk_vars_path)
-        idp_name = str(
-            first_present(
-                oauth_cfg.get("idp_name"),
-                "Keycloak",
-            )
-        ).strip()
-        client_id = str(
-            first_present(
-                oauth_cfg.get("client_id"),
-                oauth_cfg.get("keycloak_client_id"),
-                rhbk_vars.get("rhbk_client"),
-            )
-            or ""
-        ).strip()
-        realm = str(
-            first_present(
-                oauth_cfg.get("realm"),
-                rhbk_vars.get("rhbk_realm"),
-                rhbk_vars.get("ocp_rhbk_realm"),
-                "rhlab",
-            )
-            or "rhlab"
-        ).strip()
-        keycloak_host = str(
-            first_present(
-                oauth_cfg.get("keycloak_hostname"),
-                rhbk_vars.get("ocp_rhbk_hostname"),
-                rhbk_vars.get("rhbk_hostname"),
-            )
-            or ""
-        ).strip()
-        keycloak_host = re.sub(r"^https?://", "", keycloak_host)
-        keycloak_host = re.sub(r"/.*$", "", keycloak_host)
-        scopes_raw = first_present(oauth_cfg.get("extra_scopes"), "groups")
-        if isinstance(scopes_raw, list):
-            extra_scopes = [str(s).strip() for s in scopes_raw if str(s).strip()]
-        else:
-            extra_scopes = [
-                part.strip()
-                for part in str(scopes_raw or "groups").replace("\n", ",").split(",")
-                if part.strip()
-            ]
-        if not extra_scopes:
-            extra_scopes = ["groups"]
-        mapping_method = str(
-            first_present(oauth_cfg.get("mapping_method"), "claim") or "claim"
-        )
-        if idp_name:
-            rhbk_vars["openshift_oidc_idp_name"] = idp_name
-        if client_id:
-            rhbk_vars["rhbk_client"] = client_id
-            rhbk_vars["openshift_oidc_client_id"] = client_id
-        if realm:
-            rhbk_vars["rhbk_realm"] = realm
-            rhbk_vars["ocp_rhbk_realm"] = realm
-        if keycloak_host:
-            rhbk_vars["ocp_rhbk_hostname"] = keycloak_host
-            rhbk_vars["rhbk_hostname"] = keycloak_host
-        oidc_auth = rhbk_vars.get("openshift_oidc_auth")
-        if not isinstance(oidc_auth, dict):
-            oidc_auth = {}
-        oidc_auth = {
-            **oidc_auth,
-            "enabled": True,
-            "openshift_oidc_idp_name": (
-                idp_name
-                or oidc_auth.get("openshift_oidc_idp_name")
-                or "Keycloak"
-            ),
-            "keycloak_client_id": client_id or oidc_auth.get("keycloak_client_id") or "",
-            "openshift_oidc_mapping_method": mapping_method,
-            "openshift_oauth_resource_name": "cluster",
-            "extra_scopes": extra_scopes,
-        }
-        if keycloak_host and realm:
-            oidc_auth["issuer"] = f"https://{keycloak_host}/realms/{realm}"
-        rhbk_vars["openshift_oidc_auth"] = oidc_auth
-        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
 
-        rhbk_vault_path = env_dir / "vault_rhbk.yml"
-        if rhbk_vault_path.exists():
-            rhbk_vault = load_yaml(rhbk_vault_path)
-            rhbk_vault_changed = False
-            for stale_key in (
-                "openshift_oidc_idp_name",
-                "rhbk_client",
-                "openshift_oidc_client_id",
-                "rhbk_realm",
-                "ocp_rhbk_realm",
-                "ocp_rhbk_hostname",
-                "rhbk_hostname",
-                "openshift_oidc_auth",
-            ):
-                if stale_key in rhbk_vault:
-                    rhbk_vault.pop(stale_key, None)
-                    rhbk_vault_changed = True
-            if rhbk_vault_changed:
-                write_yaml(rhbk_vault_path, rhbk_vault, "0600")
+def apply_openshift_oauth_rhbk():
+    """Write the vars the existing ``ocp_oidc_auth`` role reads for OpenShift OIDC.
+
+    Runs after the component pass so the OpenShift OIDC settings are the last word
+    on ``openshift_oidc_auth`` and the role's own ``ocp_oidc_auth_rhbk_*`` inputs.
+
+    * RHBK in this run: hostname, realm and admin credentials are inherited from
+      the RHBK component. ``ocp_oidc_auth_rhbk_*`` is written only for values the
+      OpenShift section sets itself, so RHBK's own vars are never rewritten.
+    * Existing / external Keycloak (no RHBK in this run): everything the role needs
+      comes from ``openshift.oauth_rhbk``; ``vars_rhbk.yml`` / ``vault_rhbk.yml``
+      are created because the OpenShift OAuth playbook loads them.
+
+    No Keycloak client is created or changed in either mode (the role only reads
+    the client secret), so ``rhbk_client`` / ``rhbk_clients`` are not touched.
+    """
+    if not openshift_oidc_requested():
+        return
+    rhbk_vars_path = env_dir / "vars_rhbk.yml"
+    rhbk_vault_path = env_dir / "vault_rhbk.yml"
+    rhbk_vars = load_yaml(rhbk_vars_path)
+    if not preflight_oidc.resolve_openshift_oidc_client_id(preflight):
+        fail_openshift_oidc_client_missing()
+    errors = preflight_oidc.validate_openshift_oauth_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    if errors:
+        raise SystemExit(
+            "OpenShift OIDC (openshift.oauth_rhbk) is not complete:\n"
+            + preflight_oidc.format_errors(errors)
+        )
+    settings = preflight_oidc.resolve_openshift_oauth_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    oauth_cfg = openshift.get("oauth_rhbk") or {}
+    external = settings["mode"] == "external"
+    rhbk_vault = load_yaml(rhbk_vault_path)
+    vault_changed = False
+
+    oidc_auth = rhbk_vars.get("openshift_oidc_auth")
+    oidc_auth = dict(oidc_auth) if isinstance(oidc_auth, dict) else {}
+    oidc_auth.update({
+        "enabled": True,
+        "openshift_oidc_idp_name": settings["idpName"],
+        "keycloak_client_id": settings["clientId"],
+        "openshift_oidc_mapping_method": settings["mappingMethod"],
+        "openshift_oauth_resource_name": "cluster",
+        "extra_scopes": settings["extraScopes"],
+        "issuer": f"https://{settings['hostname']}/realms/{settings['realm']}",
+        "openshift_oauth_redirect_uri": preflight_oidc.openshift_oauth_redirect_uri(
+            preflight, settings["idpName"]
+        ),
+    })
+    rhbk_vars["openshift_oidc_idp_name"] = settings["idpName"]
+    rhbk_vars["openshift_oidc_client_id"] = settings["clientId"]
+    rhbk_vars["openshift_oidc_auth"] = oidc_auth
+    components_env = rhbk_vars.get("components_env")
+    if isinstance(components_env, dict) and isinstance(components_env.get("rhbk"), dict):
+        components_env["rhbk"]["openshift_oidc_auth"] = copy.deepcopy(oidc_auth)
+
+    # Role-native inputs, written only when the OpenShift section owns the value.
+    own_values = {}
+    if external or settings["hostnameExplicit"]:
+        own_values["ocp_oidc_auth_rhbk_hostname"] = settings["hostname"]
+    if external or settings["realmExplicit"]:
+        own_values["ocp_oidc_auth_rhbk_realm"] = settings["realm"]
+    if external or settings["adminUserExplicit"]:
+        own_values["ocp_oidc_auth_rhbk_admin_user"] = settings["adminUser"]
+    # Keycloak TLS verification is ON by default in the role. Only an explicit
+    # preflight value is written; an existing explicit value (for example a
+    # hand-set ``ocp_rhbk_verify_ssl: false``) is left alone, never cleared.
+    # Validated strictly (preflight_oidc.parse_verify_ssl) before generation; an
+    # unrecognized value never reaches this point.
+    if settings["verifySslExplicit"] and settings["verifySslValid"]:
+        own_values["ocp_rhbk_verify_ssl"] = settings["verifySsl"]
+    if settings["adminPassword"]:
+        own_values["ocp_oidc_auth_rhbk_admin_password"] = vault_ref(
+            "vault_ocp_oidc_auth_rhbk_admin_password"
+        )
+        if rhbk_vault.get("vault_ocp_oidc_auth_rhbk_admin_password") != settings["adminPassword"]:
+            rhbk_vault["vault_ocp_oidc_auth_rhbk_admin_password"] = QuotedString(
+                settings["adminPassword"]
+            )
+            vault_changed = True
+    elif rhbk_vault.pop("vault_ocp_oidc_auth_rhbk_admin_password", None) is not None:
+        vault_changed = True
+    for key in (
+        "ocp_oidc_auth_rhbk_hostname",
+        "ocp_oidc_auth_rhbk_realm",
+        "ocp_oidc_auth_rhbk_admin_user",
+        "ocp_oidc_auth_rhbk_admin_password",
+    ):
+        if key in own_values:
+            rhbk_vars[key] = own_values[key]
+        else:
+            rhbk_vars.pop(key, None)
+    if "ocp_rhbk_verify_ssl" in own_values:
+        rhbk_vars["ocp_rhbk_verify_ssl"] = own_values["ocp_rhbk_verify_ssl"]
+    write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+
+    for stale_key in (
+        "openshift_oidc_idp_name",
+        "rhbk_client",
+        "openshift_oidc_client_id",
+        "rhbk_realm",
+        "ocp_rhbk_realm",
+        "ocp_rhbk_hostname",
+        "rhbk_hostname",
+        "ocp_oidc_auth_rhbk_hostname",
+        "ocp_oidc_auth_rhbk_realm",
+        "ocp_oidc_auth_rhbk_admin_user",
+        "openshift_oidc_auth",
+    ):
+        if stale_key in rhbk_vault:
+            rhbk_vault.pop(stale_key, None)
+            vault_changed = True
+    if vault_changed:
+        write_yaml(rhbk_vault_path, rhbk_vault, "0600")
+
 
 route_options = {
     opt
@@ -5685,6 +6086,116 @@ for component, cfg in (preflight.get("component_config") or {}).items():
     if component not in selected_components:
         continue
     merge_component(component, cfg)
+
+apply_openshift_oauth_rhbk()
+
+
+def apply_minio_keycloak_connection():
+    """Ensure MinIO OIDC has Keycloak admin connection vars without requiring RHBK.
+
+    * RHBK in this run: hostname/realm/admin come from the RHBK component
+      (already written into vars_rhbk / vault_rhbk). MinIO keeps client-specific
+      fields only.
+    * Existing Keycloak (no RHBK): write connection details from
+      ``component_config.minio`` into ``vars_minio.yml`` / ``vault_minio.yml``
+      and into ``vars_rhbk.yml`` / ``vault_rhbk.yml`` so the MinIO OIDC
+      playbook (which loads both) can call ``rhbk_client`` without selecting
+      the RHBK component. Does not deploy or modify the Keycloak server.
+    """
+    if not preflight_oidc.minio_oidc_requested(preflight, selected_components):
+        return
+    rhbk_vars_path = env_dir / "vars_rhbk.yml"
+    rhbk_vault_path = env_dir / "vault_rhbk.yml"
+    minio_vars_path = env_dir / "vars_minio.yml"
+    minio_vault_path = env_dir / "vault_minio.yml"
+    rhbk_vars = load_yaml(rhbk_vars_path) if rhbk_vars_path.exists() else {}
+    settings = preflight_oidc.resolve_minio_keycloak_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    errors = preflight_oidc.validate_minio_keycloak_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    if errors:
+        raise SystemExit(
+            "MinIO OIDC Keycloak connection is not complete:\n"
+            + preflight_oidc.format_errors(errors)
+        )
+
+    minio_vars = load_yaml(minio_vars_path) if minio_vars_path.exists() else {}
+    minio_vault = load_yaml(minio_vault_path) if minio_vault_path.exists() else {}
+    minio_vars_changed = False
+    minio_vault_changed = False
+
+    minio_vars["minio_keycloak_realm"] = settings["realm"]
+    minio_vars["minio_oidc_client_id"] = settings["clientId"]
+    minio_vars_changed = True
+    if settings["hostname"]:
+        minio_vars["minio_keycloak_hostname"] = settings["hostname"]
+        minio_vars["keycloak_hostname"] = settings["hostname"]
+        minio_vars["rhbk_hostname"] = settings["hostname"]
+        minio_issuer = settings.get("issuer") or (
+            f"https://{settings['hostname']}/realms/{settings['realm']}"
+        )
+        minio_discovery = settings.get("discoveryUrl") or (
+            f"{minio_issuer}/.well-known/openid-configuration"
+        )
+        minio_vars["minio_oidc_issuer"] = minio_issuer
+        # Always write a non-empty discovery URL. Role defaults used "" which
+        # Ansible | default() treated as set, wiping the Secret CONFIG_URL.
+        minio_vars["minio_oidc_config_url"] = minio_discovery
+        minio_vars_changed = True
+    if settings["adminUser"]:
+        minio_vars["minio_keycloak_admin_user"] = settings["adminUser"]
+        minio_vars_changed = True
+    # Always write MinIO-scoped TLS flag into vars_minio.yml so it overrides any
+    # shared vars_rhbk rhbk_verify_ssl from OpenShift OIDC / RHBK (playbook loads
+    # vars_minio after vars_rhbk). Do not set ocp_rhbk_verify_ssl here — that is
+    # OpenShift OIDC only.
+    if settings["verifySslValid"]:
+        minio_vars["minio_keycloak_verify_ssl"] = settings["verifySsl"]
+        minio_vars["rhbk_verify_ssl"] = settings["verifySsl"]
+        minio_vars_changed = True
+
+    if settings["mode"] == "external" and settings["adminPassword"]:
+        minio_vars["minio_keycloak_admin_password"] = vault_ref(
+            "vault_minio_keycloak_admin_password"
+        )
+        minio_vault["vault_minio_keycloak_admin_password"] = QuotedString(
+            settings["adminPassword"]
+        )
+        minio_vault_changed = True
+        # Playbook also loads vault_rhbk.yml; keep rhbk_admin_* in sync so
+        # rhbk_client / ocp_minio resolve the same password.
+        rhbk_vault = load_yaml(rhbk_vault_path) if rhbk_vault_path.exists() else {}
+        rhbk_vars["rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["ocp_rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["rhbk_realm"] = settings["realm"]
+        rhbk_vars["ocp_rhbk_realm"] = settings["realm"]
+        rhbk_vars["rhbk_admin_user"] = settings["adminUser"]
+        rhbk_vars["ocp_rhbk_admin_user"] = settings["adminUser"]
+        rhbk_vars["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
+        rhbk_vars["ocp_rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
+        # MinIO TLS preference stays in vars_minio.yml only (loaded last by the
+        # MinIO OIDC playbook). Do not clobber OpenShift OIDC's ocp_rhbk_verify_ssl.
+        rhbk_vault["vault_rhbk_admin_password"] = QuotedString(settings["adminPassword"])
+        rhbk_vault["rhbk_admin_password"] = QuotedString(settings["adminPassword"])
+        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+        write_yaml(rhbk_vault_path, rhbk_vault, "0600")
+    elif settings["mode"] == "external" and settings["hostname"]:
+        # Hostname/realm only (for example unmanaged client + pasted secret).
+        rhbk_vars["rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["ocp_rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["rhbk_realm"] = settings["realm"]
+        rhbk_vars["ocp_rhbk_realm"] = settings["realm"]
+        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+
+    if minio_vars_changed:
+        write_yaml(minio_vars_path, minio_vars, "0644")
+    if minio_vault_changed:
+        write_yaml(minio_vault_path, minio_vault, "0600")
+
+
+apply_minio_keycloak_connection()
 
 quay_vars_path = env_dir / "vars_quay.yml"
 if quay_vars_path.exists():

@@ -16,21 +16,36 @@
       }}
   changed_when: false
 
-- name: Enable Grafana OIDC configuration
+- name: Resolve Grafana OIDC enabled from generated vars
+  ansible.builtin.set_fact:
+    grafana_install_oidc_enabled: >-
+      {{ (oidc | default({})).enabled | default(false) | bool }}
+  changed_when: false
+
+- name: Align Grafana OIDC include flag when enabled
   ansible.builtin.set_fact:
     grafana_install_include_oidc: true
-    grafana_install_oidc_enabled: true
-    grafana_install_oidc: "{{ (grafana_install_oidc | default({})) | combine({'enabled': true}, recursive=True) }}"
+    grafana_install_oidc: >-
+      {{
+        (grafana_install_oidc | default({}))
+        | combine({'enabled': true}, recursive=True)
+      }}
+  when: grafana_install_oidc_enabled | bool
   changed_when: false
 
 - name: Build Grafana OIDC config fragment
   ansible.builtin.import_tasks: build-grafana-oidc-config.yml
+  when: grafana_install_oidc_enabled | bool
 
 - name: Stage OIDC config patch payload
   ansible.builtin.set_fact:
     grafana_install_config_patch: "{{ grafana_install_config_oidc }}"
-  when: grafana_install_config_oidc is defined
+  when:
+    - grafana_install_oidc_enabled | bool
+    - grafana_install_config_oidc is defined
 
 - name: Patch Grafana CR with OIDC settings
   ansible.builtin.import_tasks: patch-grafana-cr-config.yml
-  when: grafana_install_config_oidc is defined
+  when:
+    - grafana_install_oidc_enabled | bool
+    - grafana_install_config_oidc is defined

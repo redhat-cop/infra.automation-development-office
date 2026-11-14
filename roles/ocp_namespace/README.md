@@ -22,7 +22,7 @@ Automation Development Office
 | `ocp_namespace_terminating_retries` | Retries while waiting for a Terminating namespace to disappear (default ``24``). |
 | `ocp_namespace_terminating_delay` | Seconds between Terminating waits (default ``5``). |
 | `ocp_namespace_delete_wait_timeout` | Seconds for ``kubernetes.core.k8s`` wait on delete (default ``45``). |
-| `ocp_namespace_delete_settle_seconds` | Pause after delete before the presence check (default ``3``). |
+| `ocp_namespace_delete_settle_seconds` | Unused. After delete the role waits with ``ocp_namespace_terminating_retries`` / ``ocp_namespace_terminating_delay``. |
 | `ocp_namespace_absent_fail_if_present` | After ``absent``, fail if the namespace still exists (default ``true``). The failure reports finalizers and does not delete CSVs. |
 | `ocp_namespace_advanced_cleanup` | Opt-in gate for ``ocp_absent_cleanup`` (default ``false``). |
 | `ocp_namespace_absent_sweep_olm` | With advanced cleanup, list/delete OLM objects (default ``false``). |
@@ -40,7 +40,13 @@ Automation Development Office
 
 ``state=absent`` deletes only the requested Namespace resource. It refuses platform namespaces (``default``, ``kube-*``, ``openshift``, control-plane namespaces such as ``openshift-etcd`` and ``openshift-monitoring``, and ``openshift-operators``). It does not call ``ocp_absent_cleanup``, delete ClusterServiceVersions, strip CSV finalizers, or sweep workloads.
 
-If the namespace is still present, the role reports the phase and finalizers and fails when ``ocp_namespace_absent_fail_if_present`` is true. Stuck-namespace cleanup is a separate opt-in: set ``ocp_namespace_advanced_cleanup=true`` and only the authorize flags for the actions you intend.
+After ``state=absent`` the role waits until the Namespace is gone
+(``ocp_namespace_terminating_retries`` times ``ocp_namespace_terminating_delay``).
+If it is still present, the role reports the phase and finalizers and fails when
+``ocp_namespace_absent_fail_if_present`` is true. Stuck-namespace cleanup is a
+separate opt-in: set ``ocp_namespace_advanced_cleanup=true`` and only the
+authorize flags for the actions you intend. Application uninstall playbooks must
+delete CRs and the operator before this role deletes the namespace.
 
 On ``state=present``, a Terminating namespace is waited on and then the role fails if it is still Terminating. ``state=present`` never sweeps CSVs, deletes workloads, or strips finalizers, including when advanced-cleanup flags are set.
 

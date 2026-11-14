@@ -1,0 +1,74 @@
+---
+# yamllint disable rule:line-length
+# When a worker goes NotReady, GitLab StatefulSet pods (especially PostgreSQL)
+# stay Terminating until force-deleted. The kubelet is gone, so grace periods
+# never finish and webservice cannot reach the database.
+- name: Collect GitLab namespace pods
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ name_space }}"
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+  register: gitlab_install_ns_pods
+
+- name: Collect cluster nodes for GitLab stuck-pod recovery
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+  register: gitlab_install_cluster_nodes
+
+- name: Collect NotReady or unreachable node names
+  vars:
+    gitlab_install_node_conditions: "{{ item.status.conditions | default([]) }}"
+    gitlab_install_node_ready_status: "{{ gitlab_install_node_conditions | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | first | default('Unknown') }}"
+    gitlab_install_node_taint_keys: "{{ item.spec.taints | default([]) | map(attribute='key') | list }}"
+  ansible.builtin.set_fact:
+    gitlab_install_not_ready_node_names: "{{ gitlab_install_not_ready_node_names | default([]) + [item.metadata.name] }}"
+  loop: "{{ gitlab_install_cluster_nodes.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when: >-
+    gitlab_install_node_ready_status != 'True'
+    or ('node.kubernetes.io/unreachable' in gitlab_install_node_taint_keys)
+    or ('node.kubernetes.io/not-ready' in gitlab_install_node_taint_keys)
+
+- name: Collect GitLab pods stuck Terminating on NotReady nodes
+  vars:
+    gitlab_install_pod_node: "{{ item.spec.nodeName | default('') }}"
+    gitlab_install_pod_deleted_at: "{{ item.metadata.deletionTimestamp | default('') }}"
+  ansible.builtin.set_fact:
+    gitlab_install_stuck_pod_names: "{{ gitlab_install_stuck_pod_names | default([]) + [item.metadata.name] }}"
+  loop: "{{ gitlab_install_ns_pods.resources | default([]) }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+  when:
+    - gitlab_install_recover_stuck_pods | default(true) | bool
+    - gitlab_install_pod_deleted_at | string | length > 0
+    - gitlab_install_pod_node | length > 0
+    - gitlab_install_pod_node in (gitlab_install_not_ready_node_names | default([]))
+
+- name: Report GitLab pods recovered from NotReady nodes
+  ansible.builtin.debug:
+    msg: >-
+      Force-deleted GitLab pods stuck Terminating on NotReady nodes:
+      {{ gitlab_install_stuck_pod_names | default([]) | join(', ') }}
+  when:
+    - gitlab_install_recover_stuck_pods | default(true) | bool
+    - (gitlab_install_stuck_pod_names | default([]) | length) > 0
+
+- name: Force-delete GitLab pods stuck Terminating on NotReady nodes
+  kubernetes.core.k8s:
+    state: absent
+    api_version: v1
+    kind: Pod
+    namespace: "{{ name_space }}"
+    name: "{{ item }}"
+    delete_options:
+      grace_period_seconds: 0
+      propagation_policy: Background
+    validate_certs: "{{ gitlab_install_validate_certs }}"
+  loop: "{{ gitlab_install_stuck_pod_names | default([]) }}"
+  when:
+    - gitlab_install_recover_stuck_pods | default(true) | bool
+    - (gitlab_install_stuck_pod_names | default([]) | length) > 0

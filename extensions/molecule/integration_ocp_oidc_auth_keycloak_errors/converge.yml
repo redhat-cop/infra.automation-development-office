@@ -1,0 +1,455 @@
+---
+# yamllint disable rule:line-length
+# ocp_oidc_auth reads the client secret of an EXISTING Keycloak client with admin
+# credentials. When that cannot work (wrong login, no permission, client missing,
+# client without a secret, TLS) the play must stop with a specific message and
+# must never create or change anything in Keycloak. Runs against a local mock.
+- name: Check ocp_oidc_auth reports clear errors for an existing external Keycloak
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  # The OpenShift step must never reach a real cluster, whatever kubeconfig the
+  # developer has: cases that read the secret successfully stop right there.
+  environment:
+    K8S_AUTH_KUBECONFIG: /nonexistent
+    K8S_AUTH_HOST: https://127.0.0.1:9
+    K8S_AUTH_API_KEY: unused
+    K8S_AUTH_VERIFY_SSL: "false"
+
+  vars:
+    work_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') | default('/tmp', true) }}/ocp_oidc_auth_keycloak_errors"
+    mock_port: 18443
+    cases:
+      - name: client does not exist
+        user: kcadmin
+        password: GOOD
+        client: no-such-client
+        verify_ssl: false
+        expect: "Keycloak client 'no-such-client' not found in realm 'corp'"
+      - name: realm does not exist
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        realm: Dev
+        verify_ssl: false
+        expect: "Keycloak realm 'Dev' does not exist"
+      - name: wrong admin password
+        user: kcadmin
+        password: WRONG
+        client: existing-confidential
+        verify_ssl: false
+        expect: "admin login to https://127.0.0.1:{{ mock_port }} (realm 'master') failed for user 'kcadmin' (HTTP 401"
+      - name: admin account without permission to list clients
+        user: noperm
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: false
+        expect: "Keycloak did not allow user 'noperm' to list clients in realm 'corp' (HTTP 403)"
+      - name: client exists but has no secret (public client)
+        user: kcadmin
+        password: GOOD
+        client: existing-public
+        verify_ssl: false
+        expect: "Failed to retrieve Keycloak client secret for client_id=existing-public in realm=corp"
+      # --- TLS: verification is ON unless explicitly turned off ---------------
+      - name: TLS verification on by default against an untrusted certificate
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        expect: "Keycloak TLS certificate verification failed"
+      - name: TLS verification explicitly on against an untrusted certificate
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: true
+        expect: "Keycloak TLS certificate verification failed"
+      - name: TLS failure also reported on the REST fallback path
+        user: restonly
+        password: GOOD
+        client: existing-confidential
+        expect: "Keycloak TLS certificate verification failed"
+      - name: explicit verify_ssl false still works against an untrusted certificate
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: false
+        reaches: true
+      - name: internal CA given as ocp_oidc_auth_ca_pem is trusted (default verification)
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        ca_pem: "{{ mock_cert_pem }}"
+        reaches: true
+      - name: internal CA is trusted with verify_ssl explicitly true
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: true
+        ca_pem: "{{ mock_cert_pem }}"
+        reaches: true
+      - name: internal CA is trusted on the REST fallback path too
+        user: restonly
+        password: GOOD
+        client: existing-confidential
+        ca_pem: "{{ mock_cert_pem }}"
+        reaches: true
+      - name: a CA that did not issue the Keycloak certificate is still refused
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        ca_pem: "{{ mock_other_cert_pem }}"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: a CA value that is not a PEM certificate is rejected without disabling verification
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        ca_pem: "not a certificate"
+        expect: "is not a PEM certificate"
+
+      # --- verify_ssl is parsed strictly: an unrecognized value is never read as false ---
+      # These stop at the first TLS task, so nothing is sent to Keycloak.
+      - name: unrecognized verify_ssl (garbage) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "garbage"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (tru) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "tru"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (flase) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "flase"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (ture) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "ture"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (maybe) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "maybe"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (2) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 2
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (minus one) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: -1
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (the string 2) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "2"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (1.0 as text) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "1.0"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (1.5) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 1.5
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl (a list) is rejected before any request
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: [true]
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl is rejected even with a trusted CA
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: flase
+        ca_pem: "{{ mock_cert_pem }}"
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+      - name: unrecognized verify_ssl is rejected before the REST fallback is reached
+        user: restonly
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: tru
+        expect: "is not recognized"
+        expect_task: Assert the Keycloak TLS verification setting is a recognized value
+
+      # --- recognized spellings: off / no / 0 / false skip verification (explicitly) ---
+      - name: verify_ssl 'off' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "off"
+        reaches: true
+      - name: verify_ssl 'OFF' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "OFF"
+        reaches: true
+      - name: verify_ssl 'no' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "no"
+        reaches: true
+      - name: verify_ssl 'No' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "No"
+        reaches: true
+      - name: verify_ssl '0' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "0"
+        reaches: true
+      - name: verify_ssl 0 turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 0
+        reaches: true
+      - name: verify_ssl 0.0 turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 0.0
+        reaches: true
+      - name: verify_ssl 'false' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "false"
+        reaches: true
+      - name: verify_ssl 'FALSE' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "FALSE"
+        reaches: true
+      - name: verify_ssl ' off ' turns verification off explicitly
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: " off "
+        reaches: true
+
+      # --- recognized spellings: on / yes / 1 / true / blank keep verification on ---
+      - name: verify_ssl 'on' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "on"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 'ON' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "ON"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 'yes' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "yes"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 'Yes' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "Yes"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl '1' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "1"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 1 keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 1
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 1.0 keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: 1.0
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 'true' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "true"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl 'TRUE' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: "TRUE"
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl '' keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: ""
+        expect: "Keycloak TLS certificate verification failed"
+      - name: verify_ssl null keeps verification on
+        user: kcadmin
+        password: GOOD
+        client: existing-confidential
+        verify_ssl: null
+        expect: "Keycloak TLS certificate verification failed"
+
+  tasks:
+    - name: Mock Keycloak and role runs
+      block:
+        - name: Create work dir
+          ansible.builtin.file:
+            path: "{{ work_dir }}"
+            state: directory
+            mode: "0700"
+
+        - name: Create a self-signed certificate for 127.0.0.1
+          ansible.builtin.command:
+            argv:
+              - openssl
+              - req
+              - -x509
+              - -newkey
+              - rsa:2048
+              - -nodes
+              - -keyout
+              - "{{ work_dir }}/key.pem"
+              - -out
+              - "{{ work_dir }}/cert.pem"
+              - -days
+              - "1"
+              - -subj
+              - /CN=localhost
+              - -addext
+              - subjectAltName=DNS:localhost,IP:127.0.0.1
+            creates: "{{ work_dir }}/cert.pem"
+
+        - name: Create an unrelated self-signed certificate (a CA that did not sign Keycloak)
+          ansible.builtin.command:
+            argv:
+              - openssl
+              - req
+              - -x509
+              - -newkey
+              - rsa:2048
+              - -nodes
+              - -keyout
+              - "{{ work_dir }}/other-key.pem"
+              - -out
+              - "{{ work_dir }}/other-cert.pem"
+              - -days
+              - "1"
+              - -subj
+              - /CN=unrelated-ca
+            creates: "{{ work_dir }}/other-cert.pem"
+
+        - name: Read the certificates
+          ansible.builtin.slurp:
+            src: "{{ work_dir }}/{{ item }}"
+          register: mock_pems
+          loop:
+            - cert.pem
+            - other-cert.pem
+
+        - name: Keep the PEM texts for the cases
+          ansible.builtin.set_fact:
+            mock_cert_pem: "{{ mock_pems.results[0].content | b64decode }}"
+            mock_other_cert_pem: "{{ mock_pems.results[1].content | b64decode }}"
+
+        - name: Remove stale request log
+          ansible.builtin.file:
+            path: "{{ work_dir }}/requests.log"
+            state: absent
+
+        - name: The mock port must be free (a stale mock would present another certificate)
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ mock_port }}"
+            state: stopped
+            timeout: 5
+
+        - name: Start the mock Keycloak
+          ansible.builtin.command:
+            argv:
+              - "{{ ansible_playbook_python }}"
+              - "{{ playbook_dir }}/mock_keycloak.py"
+              - "{{ mock_port }}"
+              - "{{ work_dir }}"
+          async: 300
+          poll: 0
+          changed_when: true
+
+        - name: Wait for the mock Keycloak
+          ansible.builtin.wait_for:
+            host: 127.0.0.1
+            port: "{{ mock_port }}"
+            timeout: 30
+
+        - name: Run ocp_oidc_auth against each failure case
+          ansible.builtin.include_tasks: tasks/case.yml
+          loop: "{{ cases }}"
+          loop_control:
+            loop_var: case
+            label: "{{ case.name }}"
+
+        - name: Read the mock request log
+          ansible.builtin.slurp:
+            src: "{{ work_dir }}/requests.log"
+          register: oidc_mock_requests
+
+        - name: Only token requests and reads reached Keycloak (nothing created or changed)
+          ansible.builtin.assert:
+            that:
+              - >-
+                (oidc_mock_requests.content | b64decode).splitlines()
+                | reject('match', '^GET ')
+                | reject('match', '^POST /realms/master/protocol/openid-connect/token$')
+                | list | length == 0
+            fail_msg: "ocp_oidc_auth sent a request that could create or change a Keycloak client."
+
+      always:
+        - name: Stop the mock Keycloak
+          ansible.builtin.shell: |
+            set -o pipefail
+            [ -f "{{ work_dir }}/mock.pid" ] && kill "$(cat "{{ work_dir }}/mock.pid")" || true
+          args:
+            executable: /bin/bash
+          changed_when: false

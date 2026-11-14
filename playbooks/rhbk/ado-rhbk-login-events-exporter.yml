@@ -8,7 +8,6 @@
   gather_facts: false
   vars:
     component: rhbk
-    keycloak_login_events_exporter_enabled: true
   environment:
     K8S_AUTH_HOST: "{{ host | default(api_host | default('')) }}"
     K8S_AUTH_API_KEY: "{{ token | default('') }}"

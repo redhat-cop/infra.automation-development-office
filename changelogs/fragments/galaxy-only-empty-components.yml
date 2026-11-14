@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - An empty ``selected_components`` list
+    no longer dumps the full playbook catalog. Galaxy / AAP-tabs-only runs
+    generate no OpenShift or RHEL playbooks unless a platform is selected.

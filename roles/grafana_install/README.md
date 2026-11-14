@@ -10,7 +10,9 @@ to `false`, and a leftover `copy-bundled-plugins` init container is removed.
 That stops the read-only plugin rewrite and the duplicate-plugin warnings.
 Datasource editor registration is not proven by this change. When `state: absent`,
 the role removes the Grafana custom resource, route, and any ADO-managed
-PostgreSQL resources.
+PostgreSQL resources, then waits until the Grafana CR is gone. The Deploy Grafana
+playbook uninstalls that instance and the operator before it deletes the
+`grafana` namespace. It does not enable `ocp_namespace` advanced CSV cleanup.
 
 ## Role Author
 
@@ -24,6 +26,14 @@ PostgreSQL resources.
 - `kubernetes.core` collection installed
 - Namespace, OperatorGroup, and Subscription for the Grafana Operator prepared before
   this role runs when installing from scratch
+
+When `rhbk_hostname` and `rhbk_realm` are set (RHBK is in the run), Grafana
+OIDC uses that Keycloak and ignores leftover `ocp_rhbk_hostname` /
+`ocp_rhbk_realm` from an earlier generate. The play prints the effective
+hostname, realm, and client ID before it contacts Keycloak. Missing hostname,
+realm, or client ID stop the play at that point. Overlay does not invent
+`Dev` or `rhlab` when the RHBK realm is blank. Grafana OIDC without RHBK uses
+the pasted issuer and client secret.
 
 ## 📦 Role Variables
 
@@ -51,14 +61,17 @@ PostgreSQL resources.
 | `grafana_install_memory_request` | Memory request for the Grafana container. | ❌ | `512Mi` |
 | `grafana_install_memory_limit` | Memory limit for the Grafana container. | ❌ | `2Gi` |
 | `grafana_install_cpu_request` | CPU request for the Grafana container. | ❌ | `100m` |
+| `grafana_install_replicas` | Grafana CR `spec.deployment.spec.replicas`. Preflight Replicas maps to this (`grafana_replicas`). | ❌ | `1` |
 | `grafana_install_readiness_timeout_seconds` | Seconds `/api/health` may take before the readiness probe fails. | ❌ | `10` |
 | `grafana_install_readiness_failure_threshold` | Consecutive readiness failures before the pod is NotReady. | ❌ | `3` |
+| `grafana_install_cr_delete_retries` | Times to wait for the Grafana CR to disappear on `state: absent`. | ❌ | `36` |
+| `grafana_install_cr_delete_delay` | Seconds between Grafana CR delete waits. | ❌ | `5` |
 | `grafana_install_removed_init_containers` | Init container names removed from the Grafana CR and Deployment when present. | ❌ | `copy-bundled-plugins` |
 | `grafana_install_route_name` | OpenShift Route name for Grafana. | ❌ | `grafana` |
 | `grafana_install_route_backend_svc` | Backend service name for the Route. | ❌ | `grafana-service` |
 | `grafana_install_route_tls_termination` | Route TLS termination mode. | ❌ | `edge` |
 | `route_insecure_edge_policy` | Route `insecureEdgeTerminationPolicy` value. | ❌ | `Redirect` |
-| `oidc` | Optional Keycloak OIDC settings (`enabled`, `client_id`, `role_map`, etc.). | ❌ | — |
+| `oidc` | Optional Keycloak OIDC settings (`enabled`, `client_id`, `role_map`, etc.). Explicit `enabled: false` skips OIDC secret retrieval and the Grafana CR OAuth patch. When `rhbk_hostname` / `rhbk_realm` are set, leftover `ocp_rhbk_*` and a leftover issuer do not win. TLS verification of Keycloak is on unless `ocp_rhbk_verify_ssl` is explicitly false. Mapping method is OpenShift-only. | ❌ | — |
 | `grafana_install_scope` | `install` (operator+CR), `oidc`, or `email` configure-only patch. | ❌ | `install` |
 | `grafana_install_include_oidc` | Apply OIDC during install scope (usually false; use OIDC JT). | ❌ | `oidc.enabled` |
 | `grafana_install_include_email` | Apply SMTP during install scope (usually false; use Email JT). | ❌ | `grafana_email.enabled` |
@@ -143,6 +156,8 @@ grafana_install/
 ├── README.md
 ├── tasks/
 │   ├── main.yml
+│   ├── configure-grafana-oidc.yml
+│   ├── build-grafana-oidc-config.yml
 │   ├── install-grafana-operator.yml
 │   ├── provision-grafana-postgres.yml
 │   ├── resolve-external-postgres.yml

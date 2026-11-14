@@ -5,6 +5,19 @@
 {% if component_name == 'aap' %}
 {% set aap_cfg = bootstrap_generate_env_vars_preflight.component_config.aap | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
 {% set aap_minimal = aap_cfg.minimal_footprint | default(false) | bool %}
+{# Explicit install_* wins; legacy minimal alone (no install_hub/eda) disables Hub/EDA. #}
+{% set aap_install_hub = (aap_cfg.install_hub | bool) if (aap_cfg.install_hub is defined) else (false if aap_minimal else bootstrap_generate_env_vars_aap_install_hub) %}
+{% set aap_install_eda = (aap_cfg.install_eda | bool) if (aap_cfg.install_eda is defined) else (false if aap_minimal else bootstrap_generate_env_vars_aap_install_eda) %}
+{% set aap_install_lightspeed = (aap_cfg.install_lightspeed | bool) if (aap_cfg.install_lightspeed is defined) else (false if aap_minimal else bootstrap_generate_env_vars_aap_install_lightspeed) %}
+{% set aap_default_sc = aap_cfg.storage | default('nfs-csi') | string | trim %}
+{% if aap_default_sc | length == 0 %}{% set aap_default_sc = 'nfs-csi' %}{% endif %}
+{% if (aap_cfg.hub_storage_override | default(false) | bool) and ((aap_cfg.hub_storage_class | default('') | string | trim) | length > 0) %}
+{% set aap_hub_sc = aap_cfg.hub_storage_class | string | trim %}
+{% elif (bootstrap_generate_env_vars_aap_hub_storage_class | default('') | string | trim) | length > 0 %}
+{% set aap_hub_sc = bootstrap_generate_env_vars_aap_hub_storage_class | string | trim %}
+{% else %}
+{% set aap_hub_sc = aap_default_sc %}
+{% endif %}
 {% set aap_scope_raw = (aap_cfg.operator_scope | default('all_namespaces') | string | lower | replace('-', '_')) %}
 {% if aap_scope_raw in ['namespaced', 'namespace', 'single_namespace'] %}
 {% set aap_operator_channel = aap_cfg.operator_channel | default('stable-' ~ bootstrap_generate_env_vars_aap_deployment_version) %}
@@ -27,29 +40,46 @@ aap_ocp_install_platform:
   component_deployment: "{{ bootstrap_generate_env_vars_aap_component_deployment }}"
   admin_user: "{% raw %}{{ aap_admin_user | default('admin') }}{% endraw %}"
   admin_password_secret: "{{ bootstrap_generate_env_vars_aap_instance_name }}-admin-password"
+{% set aap_ctrl_replicas = aap_cfg.replicas | default(aap_cfg.controller_replicas | default(bootstrap_generate_env_vars_aap_controller_replicas)) | int %}
+{% if aap_minimal %}{% set aap_ctrl_replicas = 1 %}{% endif %}
+{% set aap_eda_replicas = aap_cfg.eda_replicas | default(1) | int %}
+{% if aap_minimal %}{% set aap_eda_replicas = 1 %}{% endif %}
 aap_ocp_install_controller:
   instance_name: "{{ bootstrap_generate_env_vars_aap_instance_name }}-controller"
   namespace: "{{ bootstrap_generate_env_vars_aap_namespace }}"
-  install: {{ bootstrap_generate_env_vars_aap_install_controller | bool | lower }}
+  install: {{ (aap_cfg.install_controller | default(bootstrap_generate_env_vars_aap_install_controller)) | bool | lower }}
   admin_user: "{% raw %}{{ aap_admin_user | default('admin') }}{% endraw %}"
-  replicas: {{ aap_cfg.replicas | default(aap_cfg.controller_replicas | default(bootstrap_generate_env_vars_aap_controller_replicas)) | int }}
+  replicas: {{ aap_ctrl_replicas }}
+  create_preload_data: {{ (false if aap_minimal else (aap_cfg.create_preload_data | default(true))) | bool | lower }}
+{% if aap_cfg.controller_projects_persistence | default(false) | bool %}
+  projects_persistence: true
+  projects_storage_size: "{{ aap_cfg.controller_projects_storage_size | default('8Gi') }}"
+{% elif aap_minimal %}
+  projects_persistence: false
+{% endif %}
 aap_ocp_install_hub:
   instance_name: "{{ bootstrap_generate_env_vars_aap_instance_name }}-hub"
   namespace: "{{ bootstrap_generate_env_vars_aap_namespace }}"
-  install: {{ (false if aap_minimal else bootstrap_generate_env_vars_aap_install_hub) | bool | lower }}
-  storage_type: "{{ bootstrap_generate_env_vars_aap_hub_storage_type }}"
-  file_storage_storage_class: "{{ bootstrap_generate_env_vars_aap_hub_storage_class }}"
-  file_storage_size: "{{ bootstrap_generate_env_vars_aap_hub_storage_size }}"
+  install: {{ aap_install_hub | bool | lower }}
+  storage_type: "{{ aap_cfg.hub_storage_type | default(bootstrap_generate_env_vars_aap_hub_storage_type) }}"
+  file_storage_storage_class: "{{ aap_hub_sc }}"
+  file_storage_size: "{{ aap_cfg.hub_storage_size | default(bootstrap_generate_env_vars_aap_hub_storage_size) }}"
   object_storage_s3_secret: "{{ bootstrap_generate_env_vars_aap_hub_s3_secret }}"
   object_storage_azure_secret: "{{ bootstrap_generate_env_vars_aap_hub_azure_secret }}"
 aap_ocp_install_eda:
   instance_name: "{{ bootstrap_generate_env_vars_aap_instance_name }}-eda"
   namespace: "{{ bootstrap_generate_env_vars_aap_namespace }}"
-  install: {{ (false if aap_minimal else bootstrap_generate_env_vars_aap_install_eda) | bool | lower }}
+  install: {{ aap_install_eda | bool | lower }}
+{% if aap_install_eda %}
+  replicas: {{ aap_eda_replicas }}
+{% endif %}
 aap_ocp_install_lightspeed:
-  install: {{ (false if aap_minimal else bootstrap_generate_env_vars_aap_install_lightspeed) | bool | lower }}
+  install: {{ aap_install_lightspeed | bool | lower }}
 aap_install_during_bootstrap: {{ aap_cfg.install_during_bootstrap | default(false) | bool | lower }}
 aap_minimal_footprint: {{ aap_minimal | bool | lower }}
+{% if aap_minimal %}
+aap_minimal_footprint_profile: thin-replicas-preload
+{% endif %}
 {% set pre_aap = (bootstrap_generate_env_vars_preflight.pre_installs.aap | default({})) if bootstrap_generate_env_vars_preflight is defined else {} %}
 aap_ocp_install_license_mode: "{{ aap_cfg.license_mode | default(pre_aap.license_mode | default('none')) }}"
 aap_ocp_install_license_only: {{ aap_cfg.license_only | default(pre_aap.license_only | default(false)) | bool | lower }}
@@ -467,7 +497,7 @@ components_env:
         rhbk_service_accounts_enabled: true
         rhbk_public_client: false
         rhbk_redirect_uris:
-          - "https://oauth-openshift.{{ '{{ app_domain }}' }}/oauth2callback/Keycloak/*"
+          - "https://oauth-openshift.{{ '{{ app_domain }}' }}/oauth2callback/Keycloak"
         rhbk_web_origins:
           - "https://oauth-openshift.{{ '{{ app_domain }}' }}"
       openshift_dev:
@@ -483,16 +513,7 @@ components_env:
           - "https://grafana.{{ '{{ app_domain }}' }}/*"
         rhbk_web_origins:
           - "https://grafana.{{ '{{ app_domain }}' }}"
-      minio_client:
-        rhbk_client_name: "MinIO Console"
-        rhbk_description: "MinIO console OIDC"
-        rhbk_public_client: false
-        rhbk_redirect_uris:
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}/oauth_callback"
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}/*"
-        rhbk_web_origins:
-          - "https://minio-console-minio.{{ '{{ app_domain }}' }}"
-          - "+"
+      # MinIO's Keycloak client is provisioned by ocp_minio, not Deploy RHBK Client.
       quay_client:
         client_id: quay
         rhbk_client_name: "Quay Registry"
@@ -525,10 +546,10 @@ components_env:
     ocp_rhbk_realm: rhlab
     rhbk_enabled: true
     rhbk_url: "https://keycloak.{{ '{{ app_domain }}' }}"
-    keycloak_login_events_exporter_enabled: true
+    keycloak_login_events_exporter_enabled: false
     keycloak_login_events_realms: rhlab
     keycloak_login_events_exporter_namespace: grafana
-keycloak_login_events_exporter_enabled: true
+keycloak_login_events_exporter_enabled: false
 keycloak_login_events_realms: rhlab
 rhbk_url: "https://keycloak.{{ '{{ app_domain }}' }}"
 

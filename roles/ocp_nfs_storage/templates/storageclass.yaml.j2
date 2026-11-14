@@ -7,8 +7,11 @@ provisioner: nfs.csi.k8s.io
 parameters:
   server: {{ ocp_nfs_storage_server }}
   share: {{ ocp_nfs_storage_share }}
+{% set _nfs_ver = (ocp_nfs_storage_nfs_version | default('') | string | trim) %}
+{% if _nfs_ver and (_nfs_ver | lower) not in ['auto', 'none', ''] %}
 mountOptions:
-  - nfsvers={{ ocp_nfs_storage_nfs_version }}
+  - nfsvers={{ _nfs_ver }}
+{% endif %}
 reclaimPolicy: {{ ocp_nfs_storage_reclaim_policy }}
 volumeBindingMode: {{ ocp_nfs_storage_binding_mode }}
 allowVolumeExpansion: {{ ocp_nfs_storage_allow_volume_expansion | bool | lower }}

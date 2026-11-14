@@ -1,3 +1,5 @@
+---
+# yamllint disable rule:line-length
 components_aliases:
   storage_class: storage
   storage: storage_class
@@ -586,6 +588,7 @@ components_defaults:
     operator_install_timeout: 900
 
     grafana_hostname: grafana.{{ bootstrap_resolve_component_app_domain }}
+    grafana_replicas: 1
     # Lab default — datasource/folder roles assert this is non-empty.
     grafana_admin_user: admin
     grafana_admin_password: redhat123
@@ -690,10 +693,11 @@ components_defaults:
     route_wildcard_policy: None
     route_labels: {}
 
-    # OIDC config (ON by default for lab Keycloak)
+    # OIDC config (ON by default for lab Keycloak).
+    # tls_skip_verify_insecure follows ocp_rhbk_verify_ssl at runtime (verify ON).
     oidc:
       enabled: true
-      tls_skip_verify_insecure: true
+      tls_skip_verify_insecure: false
       client_id: "grafana-client"
       scopes:
         - openid
@@ -992,7 +996,7 @@ components_defaults:
 
     # Admin event-store exporter (username labels). Separate from native
     # keycloak_user_events_total. Default on when RHBK is selected.
-    keycloak_login_events_exporter_enabled: true
+    keycloak_login_events_exporter_enabled: false
     keycloak_login_events_exporter_namespace: grafana
     keycloak_login_events_realms: rhlab
 
@@ -1001,7 +1005,7 @@ components_defaults:
       enabled: true
       keycloak_client_id: "openshift-prod"
       openshift_oidc_idp_name: "Keycloak"
-      openshift_oidc_mapping_method: claim
+      openshift_oidc_mapping_method: add
       openshift_oauth_resource_name: "cluster"
       extra_scopes: ["groups"]
       claims:
