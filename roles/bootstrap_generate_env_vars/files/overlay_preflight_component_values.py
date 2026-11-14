@@ -245,7 +245,8 @@ if _oidc_errors:
 
 def is_secret_key(key):
     k = str(key or "").lower()
-    if k in {"hub_s3_secret", "hub_azure_secret"}:
+    # Names of Kubernetes Secrets (not credential values).
+    if k in {"hub_s3_secret", "hub_azure_secret", "database_secret"}:
         return False
     return any(
         x in k
@@ -1077,6 +1078,15 @@ def merge_component(component, cfg):
             "hub_s3_secret",
             "hub_azure_secret",
             "storage",
+            "database_type",
+            "postgres_storage",
+            "postgres_storage_class",
+            "postgres_storage_size",
+            "database_secret",
+            "postgres_requests_cpu",
+            "postgres_requests_memory",
+            "postgres_limits_cpu",
+            "postgres_limits_memory",
             "platform_manifest_overrides",
             "controller_manifest_overrides",
             "hub_manifest_overrides",
@@ -3579,6 +3589,115 @@ def merge_component(component, cfg):
                         public_values.get("operator_approval") or "automatic"
                     ),
                 }
+                platform_overrides = copy.deepcopy(
+                    public_values.get("platform_manifest_overrides") or {}
+                )
+                if not isinstance(platform_overrides, dict):
+                    platform_overrides = {}
+                # Managed/external PostgreSQL → AnsibleAutomationPlatform
+                # spec.database.* via platform_manifest_overrides (aap_ocp_install
+                # has no first-class postgres StorageClass key).
+                # Independent of Hub file/S3 storage (file_storage_storage_class).
+                db_type = str(
+                    public_values.get("database_type") or "managed"
+                ).strip().lower()
+                existing_db = (
+                    platform_overrides.get("database")
+                    if isinstance(platform_overrides.get("database"), dict)
+                    else {}
+                )
+                db_override = copy.deepcopy(existing_db) if existing_db else {}
+                if db_type in ("external", "external_postgres"):
+                    db_secret = str(
+                        first_present(
+                            public_values.get("database_secret"),
+                            secret_values.get("database_secret"),
+                        )
+                        or ""
+                    ).strip()
+                    if db_secret:
+                        db_override["database_secret"] = db_secret
+                else:
+                    # Optional override → General storage → leave unset (no invented default).
+                    pg_sc = str(
+                        first_present(
+                            public_values.get("postgres_storage"),
+                            public_values.get("postgres_storage_class"),
+                        )
+                        or ""
+                    ).strip()
+                    if not pg_sc:
+                        pg_sc = str(public_values.get("storage") or "").strip()
+                    if pg_sc:
+                        db_override["postgres_storage_class"] = pg_sc
+                    pg_size = str(
+                        public_values.get("postgres_storage_size") or "20Gi"
+                    ).strip() or "20Gi"
+                    storage_req = (
+                        db_override.get("storage_requirements")
+                        if isinstance(
+                            db_override.get("storage_requirements"), dict
+                        )
+                        else {}
+                    )
+                    storage_req = copy.deepcopy(storage_req) if storage_req else {}
+                    reqs = (
+                        storage_req.get("requests")
+                        if isinstance(storage_req.get("requests"), dict)
+                        else {}
+                    )
+                    reqs = dict(reqs)
+                    reqs["storage"] = pg_size
+                    storage_req["requests"] = reqs
+                    db_override["storage_requirements"] = storage_req
+                    req_cpu = str(
+                        public_values.get("postgres_requests_cpu") or ""
+                    ).strip()
+                    req_mem = str(
+                        public_values.get("postgres_requests_memory") or ""
+                    ).strip()
+                    lim_cpu = str(
+                        public_values.get("postgres_limits_cpu") or ""
+                    ).strip()
+                    lim_mem = str(
+                        public_values.get("postgres_limits_memory") or ""
+                    ).strip()
+                    if req_cpu or req_mem or lim_cpu or lim_mem:
+                        rr = (
+                            db_override.get("resource_requirements")
+                            if isinstance(
+                                db_override.get("resource_requirements"), dict
+                            )
+                            else {}
+                        )
+                        rr = copy.deepcopy(rr) if rr else {}
+                        if req_cpu or req_mem:
+                            rreq = (
+                                rr.get("requests")
+                                if isinstance(rr.get("requests"), dict)
+                                else {}
+                            )
+                            rreq = dict(rreq)
+                            if req_cpu:
+                                rreq["cpu"] = req_cpu
+                            if req_mem:
+                                rreq["memory"] = req_mem
+                            rr["requests"] = rreq
+                        if lim_cpu or lim_mem:
+                            rlim = (
+                                rr.get("limits")
+                                if isinstance(rr.get("limits"), dict)
+                                else {}
+                            )
+                            rlim = dict(rlim)
+                            if lim_cpu:
+                                rlim["cpu"] = lim_cpu
+                            if lim_mem:
+                                rlim["memory"] = lim_mem
+                            rr["limits"] = rlim
+                        db_override["resource_requirements"] = rr
+                if db_override:
+                    platform_overrides["database"] = db_override
                 vars_data["aap_ocp_install_platform"] = {
                     "instance_name": instance_name,
                     "namespace": namespace,
@@ -3587,9 +3706,7 @@ def merge_component(component, cfg):
                     ),
                     "admin_user": admin_username,
                     "admin_password_secret": admin_password_secret,
-                    "platform_manifest_overrides": copy.deepcopy(
-                        public_values.get("platform_manifest_overrides") or {}
-                    ),
+                    "platform_manifest_overrides": platform_overrides,
                 }
                 try:
                     controller_replicas = int(
