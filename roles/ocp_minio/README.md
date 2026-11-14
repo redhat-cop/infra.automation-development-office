@@ -35,10 +35,17 @@ See `defaults/main.yml`. Common overrides:
 | `minio_oidc_enabled` | Enable console OpenID (also `oidc.enabled` from registry) |
 | `minio_oidc_client_id` | Keycloak client id |
 | `minio_oidc_client_secret` | Leave empty to fetch after client create |
-| `minio_keycloak_realm` | Realm name (lab dev often `Dev`) |
+| `minio_keycloak_realm` | Realm name (lab often `rhlab` / `Dev`) |
+| `minio_keycloak_hostname` | Existing Keycloak host when RHBK is not in the run (Preflight `component_config.minio.keycloak_hostname`) |
+| `minio_keycloak_admin_user` / `minio_keycloak_admin_password` | Admin API credentials for client create/secret fetch without selecting RHBK |
 | `minio_oidc_policy_value` | Token claim value for MinIO policy (default `consoleAdmin`) |
 | `minio_oidc_create_keycloak_client` | Create/update the Keycloak client. Default `true`. A matching `clients[].create_client: false` row wins and disables every Keycloak mutation. |
 | `minio_oidc_create_policy_mapper` | Add the MinIO policy claim mapper when ADO manages the client. Default `true`. Ignored when the client is unmanaged. |
+
+When RHBK is selected in Preflight, hostname/realm/admin credentials are
+inherited from the RHBK component. When RHBK is not selected, set the MinIO
+Existing Keycloak fields; selecting RHBK is not required. This role still
+does not deploy or reconfigure the Keycloak server itself.
 
 When OIDC is enabled and ADO manages the client, this role is the only
 provisioner: it creates/updates the Keycloak client, adds the policy claim

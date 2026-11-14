@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Resolve MinIO console and API hostnames for OIDC
   ansible.builtin.set_fact:
     ocp_minio_console_hostname_effective: >-
@@ -26,9 +27,19 @@
               minio_oidc_issuer | default('', true)
               | default(
                   'https://'
-                  ~ (keycloak_hostname | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com')))))
+                  ~ (
+                    minio_keycloak_hostname
+                    | default(rhbk_hostname)
+                    | default(keycloak_hostname)
+                    | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com'))))
+                  )
                   ~ '/realms/'
-                  ~ (rhbk_realm | default(ocp_rhbk_realm | default(minio_keycloak_realm | default('rhlab')))),
+                  ~ (
+                    minio_keycloak_realm
+                    | default(rhbk_realm)
+                    | default(ocp_rhbk_realm)
+                    | default('rhlab')
+                  ),
                   true
                 )
             )

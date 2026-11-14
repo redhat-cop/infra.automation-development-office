@@ -73,22 +73,45 @@
       on the ID, access, and userinfo tokens before enabling MinIO OIDC.
   when: not (ocp_minio_manage_keycloak | bool)
 
-- name: Resolve MinIO Keycloak admin credentials from RHBK component
+- name: Seed MinIO OIDC client secret from vault when provided
+  ansible.builtin.set_fact:
+    ocp_minio_oidc_client_secret: "{{ minio_oidc_client_secret }}"
+  when:
+    - (ocp_minio_oidc_client_secret | default('') | string | length) == 0
+    - (minio_oidc_client_secret | default('') | string | length) > 0
+  no_log: true
+
+- name: Resolve MinIO Keycloak admin credentials (MinIO form, RHBK, or cluster)
   ansible.builtin.set_fact:
     ocp_minio_rhbk_hostname: >-
       {{
-        rhbk_hostname
+        minio_keycloak_hostname
+        | default(rhbk_hostname)
         | default(keycloak_hostname)
         | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com'))))
       }}
     ocp_minio_rhbk_realm: >-
       {{
-        rhbk_realm
+        minio_keycloak_realm
+        | default(rhbk_realm)
         | default(ocp_rhbk_realm)
-        | default(minio_keycloak_realm | default('rhlab'))
+        | default('rhlab')
       }}
-    ocp_minio_rhbk_admin_user: "{{ rhbk_admin_user | default('admin') }}"
-    ocp_minio_rhbk_admin_password: "{{ rhbk_admin_password | default('') }}"
+    ocp_minio_rhbk_admin_user: >-
+      {{
+        minio_keycloak_admin_user
+        | default(rhbk_admin_user)
+        | default(ocp_rhbk_admin_user)
+        | default('admin')
+      }}
+    ocp_minio_rhbk_admin_password: >-
+      {{
+        minio_keycloak_admin_password
+        | default(rhbk_admin_password)
+        | default(ocp_rhbk_admin_password)
+        | default('')
+      }}
+  no_log: true
 
 - name: Fetch Keycloak admin credentials from cluster when vault unset
   kubernetes.core.k8s_info:
@@ -107,6 +130,26 @@
   when:
     - minio_keycloak_admin_secret.resources | default([]) | length > 0
     - minio_keycloak_admin_secret.resources[0].data.password is defined
+  no_log: true
+
+- name: Fail clearly when MinIO OIDC needs Keycloak admin credentials
+  ansible.builtin.assert:
+    that:
+      - (ocp_minio_rhbk_hostname | default('') | string | length) > 0
+      - (ocp_minio_rhbk_realm | default('') | string | length) > 0
+      - (ocp_minio_rhbk_admin_user | default('') | string | length) > 0
+      - (ocp_minio_rhbk_admin_password | default('') | string | length) > 0
+    fail_msg: >-
+      MinIO OIDC needs Keycloak hostname, realm, admin user, and admin password
+      to create or update the '{{ minio_oidc_client_id | default('minio') }}'
+      client (or to fetch its secret). When RHBK is selected in Preflight, set
+      those on the RHBK form. When RHBK is not selected, set Existing Keycloak
+      connection fields under MinIO → Keycloak / OIDC
+      (component_config.minio.keycloak_hostname / keycloak_realm /
+      keycloak_admin_user / keycloak_admin_password). Selecting the RHBK
+      component is not required for an existing Keycloak.
+  when: (ocp_minio_manage_keycloak | bool) or
+    ((ocp_minio_oidc_client_secret | default('') | string | length) == 0)
   no_log: true
 
 - name: Create MinIO Keycloak client with policy mapper

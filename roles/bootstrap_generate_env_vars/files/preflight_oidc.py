@@ -941,12 +941,249 @@ def validate_grafana_oidc_settings(preflight, selected):
     return errors
 
 
+def _truthy_flag(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    token = str(value).strip().lower()
+    if token == "":
+        return default
+    return token not in CREATE_CLIENT_FALSE
+
+
+def minio_oidc_is_enabled(preflight):
+    """Match Preflight MinIO form: oidc_enabled defaults to on."""
+    cfg = component_config(preflight, "minio")
+    nested = cfg.get("oidc") if isinstance(cfg.get("oidc"), dict) else {}
+    raw = cfg.get("oidc_enabled")
+    if raw is None:
+        raw = nested.get("enabled")
+    return _truthy_flag(raw, True)
+
+
+def minio_oidc_requested(preflight, selected):
+    """True when MinIO is in the run and console OIDC is enabled."""
+    if not is_selected(preflight, selected, "minio"):
+        return False
+    return minio_oidc_is_enabled(preflight)
+
+
+def minio_oidc_needs_keycloak_admin(preflight):
+    """Admin password required to create/update the client or fetch its secret."""
+    cfg = component_config(preflight, "minio")
+    managed = minio_keycloak_is_managed(preflight, cfg)
+    fetch_raw = cfg.get("fetch_oidc_secret_from_rhbk")
+    nested = cfg.get("oidc") if isinstance(cfg.get("oidc"), dict) else {}
+    if fetch_raw is None:
+        fetch_raw = nested.get("fetch_secret_from_rhbk")
+    fetch_secret = _truthy_flag(fetch_raw, True)
+    return managed or fetch_secret
+
+
+def resolve_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
+    """Effective Keycloak connection for MinIO OIDC (inherit RHBK or external).
+
+    External fields live on ``component_config.minio`` (keycloak_hostname,
+    keycloak_admin_user, keycloak_admin_password, keycloak_realm /
+    keycloak_verify_ssl). When RHBK is selected those connection fields are
+    ignored so operators are not asked twice.
+    """
+    cfg = component_config(preflight, "minio")
+    rhbk = component_config(preflight, "rhbk")
+    rhbk_vars = rhbk_vars or {}
+    rhbk_mode = is_selected(preflight, selected, "rhbk")
+    apps_domain = text((preflight.get("openshift") or {}).get("apps_domain"))
+
+    inherited_host = ""
+    inherited_realm = ""
+    inherited_user = ""
+    if rhbk_mode:
+        inherited_host = normalize_host(
+            first_text(
+                rhbk_vars.get("ocp_rhbk_hostname"),
+                rhbk_vars.get("rhbk_hostname"),
+                rhbk.get("hostname"),
+                f"keycloak.{apps_domain}" if apps_domain else "",
+            )
+        )
+        inherited_realm = first_text(
+            rhbk_vars.get("rhbk_realm"),
+            rhbk_vars.get("ocp_rhbk_realm"),
+            rhbk.get("realm"),
+            cfg.get("keycloak_realm"),
+        )
+        inherited_user = first_text(
+            rhbk_vars.get("rhbk_admin_user"),
+            rhbk.get("admin_user"),
+            "admin",
+        )
+
+    own_host = "" if rhbk_mode else normalize_host(
+        first_text(cfg.get("keycloak_hostname"), cfg.get("rhbk_hostname"))
+    )
+    own_realm = "" if rhbk_mode else first_text(
+        cfg.get("keycloak_realm"), cfg.get("rhbk_realm")
+    )
+    own_user = "" if rhbk_mode else first_text(
+        cfg.get("keycloak_admin_user"), cfg.get("rhbk_admin_user"), "admin"
+    )
+    own_password = "" if rhbk_mode else first_text(
+        cfg.get("keycloak_admin_password"),
+        cfg.get("rhbk_admin_password"),
+        cfg.get("admin_password"),
+    )
+    rhbk_password = text(rhbk.get("admin_password")) or (
+        "vault" if text(rhbk_vars.get("rhbk_admin_password")) else ""
+    )
+    if own_password:
+        password_source = "minio"
+    elif rhbk_mode and rhbk_password:
+        password_source = "rhbk"
+    else:
+        password_source = ""
+
+    verify_raw = cfg.get("keycloak_verify_ssl")
+    if verify_raw is None:
+        verify_raw = cfg.get("rhbk_verify_ssl")
+    verify, verify_valid, verify_explicit = parse_verify_ssl(verify_raw)
+
+    return {
+        "mode": "rhbk" if rhbk_mode else "external",
+        "hostname": own_host or inherited_host,
+        "inheritedHostname": inherited_host,
+        "hostnameExplicit": bool(own_host),
+        "realm": own_realm or inherited_realm or "rhlab",
+        "realmExplicit": bool(own_realm),
+        "clientId": minio_effective_client_id(preflight, cfg),
+        "adminUser": own_user or inherited_user or "admin",
+        "adminUserExplicit": bool(own_user),
+        "adminPassword": own_password,
+        "adminPasswordSource": password_source,
+        "needsAdmin": minio_oidc_needs_keycloak_admin(preflight),
+        "managedClient": minio_keycloak_is_managed(preflight, cfg),
+        "verifySsl": verify,
+        "verifySslValid": verify_valid,
+        "verifySslExplicit": verify_explicit,
+        "fetchOidcSecret": _truthy_flag(cfg.get("fetch_oidc_secret_from_rhbk"), True),
+        "oidcClientSecret": first_text(
+            cfg.get("oidc_client_secret"),
+            (cfg.get("oidc") or {}).get("client_secret")
+            if isinstance(cfg.get("oidc"), dict)
+            else "",
+        ),
+    }
+
+
+def validate_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
+    """Missing MinIO OIDC Keycloak connection inputs (inherit or external)."""
+    if not minio_oidc_requested(preflight, selected):
+        return []
+    s = resolve_minio_keycloak_settings(preflight, selected, rhbk_vars)
+    external = s["mode"] == "external"
+    where = (
+        "MinIO OIDC → Existing Keycloak (RHBK is not part of this run)"
+        if external
+        else "MinIO OIDC"
+    )
+    errors = []
+
+    def add(kind, message):
+        errors.append(_error("minio", "MinIO", kind, message))
+
+    if not s["verifySslValid"]:
+        cfg = component_config(preflight, "minio")
+        add(
+            "invalid-verify-ssl",
+            verify_ssl_error_message(
+                cfg.get("keycloak_verify_ssl", cfg.get("rhbk_verify_ssl"))
+            ).replace("OpenShift OIDC", "MinIO OIDC"),
+        )
+
+    cfg = component_config(preflight, "minio")
+    raw_host = (
+        first_text(cfg.get("keycloak_hostname"), cfg.get("rhbk_hostname"))
+        if external
+        else ""
+    )
+    if hostname_has_scheme(raw_host):
+        add(
+            "hostname-has-scheme",
+            KEYCLOAK_HOSTNAME_SCHEME_MESSAGE.replace("OpenShift OIDC", "MinIO OIDC"),
+        )
+    elif "/" in raw_host:
+        add(
+            "hostname-has-path",
+            KEYCLOAK_HOSTNAME_PATH_MESSAGE.replace("OpenShift OIDC", "MinIO OIDC"),
+        )
+    elif not s["hostname"]:
+        add(
+            "missing-hostname",
+            (
+                f"{where}: set Keycloak hostname on the MinIO form "
+                "(component_config.minio.keycloak_hostname)."
+                if external
+                else "MinIO OIDC: no Keycloak hostname. Set the RHBK hostname "
+                "or select RHBK in this run."
+            ),
+        )
+    elif not _HOST_RE.match(s["hostname"]):
+        add(
+            "invalid-hostname",
+            f'MinIO OIDC: Keycloak hostname "{s["hostname"]}" is not a valid host name.',
+        )
+
+    if not s["realm"]:
+        add(
+            "missing-realm",
+            (
+                f"{where}: set the Keycloak realm "
+                "(component_config.minio.keycloak_realm)."
+                if external
+                else "MinIO OIDC: no Keycloak realm. Set the RHBK realm."
+            ),
+        )
+
+    if s["needsAdmin"] and not s["adminUser"]:
+        add(
+            "missing-admin-user",
+            f"{where}: set the Keycloak admin user used to create the MinIO "
+            "client or fetch its secret.",
+        )
+    if s["needsAdmin"] and not s["adminPasswordSource"]:
+        add(
+            "missing-admin-password",
+            (
+                f"{where}: set Keycloak admin password on the MinIO form "
+                "(component_config.minio.keycloak_admin_password). "
+                "RHBK does not need to be selected when using an existing Keycloak."
+                if external
+                else "MinIO OIDC: no Keycloak admin password. Set the RHBK admin password."
+            ),
+        )
+    if (
+        external
+        and not s["fetchOidcSecret"]
+        and not s["oidcClientSecret"]
+        and not s["managedClient"]
+    ):
+        add(
+            "missing-client-secret",
+            f"{where}: provide the OIDC client secret, or enable "
+            "Fetch OIDC client secret from Keycloak.",
+        )
+    return errors
+
+
 def validate_preflight_oidc(preflight, selected, rhbk_vars=None):
     return (
         validate_rhbk_existing_connection(preflight, selected)
         + validate_client_references(preflight, selected)
         + validate_openshift_oauth_settings(preflight, selected, rhbk_vars)
         + validate_grafana_oidc_settings(preflight, selected)
+        + validate_minio_keycloak_settings(preflight, selected, rhbk_vars)
     )
 
 

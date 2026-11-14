@@ -5996,6 +5996,103 @@ for component, cfg in (preflight.get("component_config") or {}).items():
 
 apply_openshift_oauth_rhbk()
 
+
+def apply_minio_keycloak_connection():
+    """Ensure MinIO OIDC has Keycloak admin connection vars without requiring RHBK.
+
+    * RHBK in this run: hostname/realm/admin come from the RHBK component
+      (already written into vars_rhbk / vault_rhbk). MinIO keeps client-specific
+      fields only.
+    * Existing Keycloak (no RHBK): write connection details from
+      ``component_config.minio`` into ``vars_minio.yml`` / ``vault_minio.yml``
+      and into ``vars_rhbk.yml`` / ``vault_rhbk.yml`` so the MinIO OIDC
+      playbook (which loads both) can call ``rhbk_client`` without selecting
+      the RHBK component. Does not deploy or modify the Keycloak server.
+    """
+    if not preflight_oidc.minio_oidc_requested(preflight, selected_components):
+        return
+    rhbk_vars_path = env_dir / "vars_rhbk.yml"
+    rhbk_vault_path = env_dir / "vault_rhbk.yml"
+    minio_vars_path = env_dir / "vars_minio.yml"
+    minio_vault_path = env_dir / "vault_minio.yml"
+    rhbk_vars = load_yaml(rhbk_vars_path) if rhbk_vars_path.exists() else {}
+    settings = preflight_oidc.resolve_minio_keycloak_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    errors = preflight_oidc.validate_minio_keycloak_settings(
+        preflight, selected_components, rhbk_vars
+    )
+    if errors:
+        raise SystemExit(
+            "MinIO OIDC Keycloak connection is not complete:\n"
+            + preflight_oidc.format_errors(errors)
+        )
+
+    minio_vars = load_yaml(minio_vars_path) if minio_vars_path.exists() else {}
+    minio_vault = load_yaml(minio_vault_path) if minio_vault_path.exists() else {}
+    minio_vars_changed = False
+    minio_vault_changed = False
+
+    minio_vars["minio_keycloak_realm"] = settings["realm"]
+    minio_vars["minio_oidc_client_id"] = settings["clientId"]
+    minio_vars_changed = True
+    if settings["hostname"]:
+        minio_vars["minio_keycloak_hostname"] = settings["hostname"]
+        minio_vars["keycloak_hostname"] = settings["hostname"]
+        minio_vars["rhbk_hostname"] = settings["hostname"]
+        minio_issuer = f"https://{settings['hostname']}/realms/{settings['realm']}"
+        minio_vars["minio_oidc_issuer"] = minio_issuer
+        minio_vars_changed = True
+    if settings["adminUser"]:
+        minio_vars["minio_keycloak_admin_user"] = settings["adminUser"]
+        minio_vars_changed = True
+    if settings["verifySslExplicit"] and settings["verifySslValid"]:
+        minio_vars["minio_keycloak_verify_ssl"] = settings["verifySsl"]
+        minio_vars["rhbk_verify_ssl"] = settings["verifySsl"]
+        minio_vars_changed = True
+
+    if settings["mode"] == "external" and settings["adminPassword"]:
+        minio_vars["minio_keycloak_admin_password"] = vault_ref(
+            "vault_minio_keycloak_admin_password"
+        )
+        minio_vault["vault_minio_keycloak_admin_password"] = QuotedString(
+            settings["adminPassword"]
+        )
+        minio_vault_changed = True
+        # Playbook also loads vault_rhbk.yml; keep rhbk_admin_* in sync so
+        # rhbk_client / ocp_minio resolve the same password.
+        rhbk_vault = load_yaml(rhbk_vault_path) if rhbk_vault_path.exists() else {}
+        rhbk_vars["rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["ocp_rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["rhbk_realm"] = settings["realm"]
+        rhbk_vars["ocp_rhbk_realm"] = settings["realm"]
+        rhbk_vars["rhbk_admin_user"] = settings["adminUser"]
+        rhbk_vars["ocp_rhbk_admin_user"] = settings["adminUser"]
+        rhbk_vars["rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
+        rhbk_vars["ocp_rhbk_admin_password"] = vault_ref("vault_rhbk_admin_password")
+        if settings["verifySslExplicit"] and settings["verifySslValid"]:
+            rhbk_vars["rhbk_verify_ssl"] = settings["verifySsl"]
+            rhbk_vars["ocp_rhbk_verify_ssl"] = settings["verifySsl"]
+        rhbk_vault["vault_rhbk_admin_password"] = QuotedString(settings["adminPassword"])
+        rhbk_vault["rhbk_admin_password"] = QuotedString(settings["adminPassword"])
+        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+        write_yaml(rhbk_vault_path, rhbk_vault, "0600")
+    elif settings["mode"] == "external" and settings["hostname"]:
+        # Hostname/realm only (for example unmanaged client + pasted secret).
+        rhbk_vars["rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["ocp_rhbk_hostname"] = settings["hostname"]
+        rhbk_vars["rhbk_realm"] = settings["realm"]
+        rhbk_vars["ocp_rhbk_realm"] = settings["realm"]
+        write_yaml(rhbk_vars_path, rhbk_vars, "0644")
+
+    if minio_vars_changed:
+        write_yaml(minio_vars_path, minio_vars, "0644")
+    if minio_vault_changed:
+        write_yaml(minio_vault_path, minio_vault, "0600")
+
+
+apply_minio_keycloak_connection()
+
 quay_vars_path = env_dir / "vars_quay.yml"
 if quay_vars_path.exists():
     quay_vars_data = load_yaml(quay_vars_path)
