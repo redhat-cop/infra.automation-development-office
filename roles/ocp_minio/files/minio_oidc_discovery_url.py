@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Resolve and validate MinIO OpenID discovery URL (CONFIG_URL).
 
-Role defaults used to set ``minio_oidc_config_url: ""``. Ansible ``| default(x)``
-without the boolean ``true`` keeps that empty string, so the Secret was written
-with ``MINIO_IDENTITY_OPENID_CONFIG_URL=""`` even when issuer/hostname/realm
-were set. MinIO then logs ``Unable to initialize OpenID: unexpected scheme found``.
+Role defaults used to set ``minio_oidc_config_url: ""``. Ansible
+``| default(x)`` without the boolean ``true`` keeps that empty string, so
+the Secret was written with ``MINIO_IDENTITY_OPENID_CONFIG_URL=""`` even
+when issuer/hostname/realm were set. MinIO then logs
+``Unable to initialize OpenID: unexpected scheme found``.
 
 This helper treats empty strings as missing and builds:
 
@@ -21,7 +21,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 WELL_KNOWN = "/.well-known/openid-configuration"
-_HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(:\d{1,5})?$")
+_HOST_RE = re.compile(
+    r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(:\d{1,5})?$"
+)
 
 
 class MinioOidcDiscoveryUrlError(ValueError):
@@ -92,22 +94,23 @@ def resolve_discovery_url(
 
 
 def validate_discovery_url(url: Any) -> str | None:
-    """Return an error message when the discovery URL is unusable, else None."""
+    """Return an error when the discovery URL is unusable, else None."""
     value = _text(url)
     if not value:
         return (
-            "MINIO_IDENTITY_OPENID_CONFIG_URL is empty. When MinIO OIDC is enabled, "
-            "set minio_oidc_config_url (full discovery URL), or minio_oidc_issuer "
-            "(https://<keycloak>/realms/<realm>), or Keycloak hostname "
-            "(minio_keycloak_hostname / rhbk_hostname / keycloak_hostname) and realm "
+            "MINIO_IDENTITY_OPENID_CONFIG_URL is empty. When MinIO OIDC "
+            "is enabled, set minio_oidc_config_url (full discovery URL), "
+            "or minio_oidc_issuer (https://<keycloak>/realms/<realm>), "
+            "or Keycloak hostname (minio_keycloak_hostname / "
+            "rhbk_hostname / keycloak_hostname) and realm "
             "(minio_keycloak_realm / rhbk_realm / ocp_rhbk_realm)."
         )
     parsed = urlparse(value)
     if parsed.scheme not in ("http", "https"):
         return (
-            "MINIO_IDENTITY_OPENID_CONFIG_URL must use http:// or https:// "
-            f"(got scheme {parsed.scheme!r} or missing scheme). "
-            "Empty or malformed values cause MinIO "
+            "MINIO_IDENTITY_OPENID_CONFIG_URL must use http:// or "
+            f"https:// (got scheme {parsed.scheme!r} or missing "
+            "scheme). Empty or malformed values cause MinIO "
             "'Unable to initialize OpenID: unexpected scheme found'."
         )
     if not parsed.netloc:
@@ -116,13 +119,17 @@ def validate_discovery_url(url: Any) -> str | None:
             f"(value starts with {value[:48]!r})."
         )
     host = parsed.hostname or ""
-    if host and not _HOST_RE.match(host) and ":" not in (parsed.netloc or ""):
-        # Allow IDN/IPs already accepted by urlparse; only reject blank-ish hosts.
+    if (
+        host
+        and not _HOST_RE.match(host)
+        and ":" not in (parsed.netloc or "")
+    ):
+        # Allow IDN/IPs already accepted by urlparse.
         pass
     if WELL_KNOWN not in value:
         return (
-            "MINIO_IDENTITY_OPENID_CONFIG_URL must be an OpenID discovery URL "
-            f"ending with {WELL_KNOWN}."
+            "MINIO_IDENTITY_OPENID_CONFIG_URL must be an OpenID "
+            f"discovery URL ending with {WELL_KNOWN}."
         )
     return None
 
@@ -133,13 +140,18 @@ def resolve_and_validate(payload: dict[str, Any]) -> dict[str, str]:
         issuer=payload.get("issuer"),
         hostname=payload.get("hostname"),
         realm=payload.get("realm"),
-        fallback_hostnames=list(payload.get("fallback_hostnames") or []),
+        fallback_hostnames=list(
+            payload.get("fallback_hostnames") or []
+        ),
         fallback_realms=list(payload.get("fallback_realms") or []),
     )
     error = validate_discovery_url(url)
     if error:
         raise MinioOidcDiscoveryUrlError(error)
-    issuer_base = url[: -len(WELL_KNOWN)] if url.endswith(WELL_KNOWN) else url
+    if url.endswith(WELL_KNOWN):
+        issuer_base = url[: -len(WELL_KNOWN)]
+    else:
+        issuer_base = url
     return {"discovery_url": url, "issuer": issuer_base}
 
 
@@ -147,18 +159,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_path", nargs="?", default="-")
     args = parser.parse_args(argv)
-    raw = (
-        sys.stdin.read()
-        if args.input_path == "-"
-        else open(args.input_path, encoding="utf-8").read()
-    )
+    if args.input_path == "-":
+        raw = sys.stdin.read()
+    else:
+        raw = open(args.input_path, encoding="utf-8").read()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        print(json.dumps({"error": f"invalid JSON input: {exc}"}), file=sys.stderr)
+        print(
+            json.dumps({"error": f"invalid JSON input: {exc}"}),
+            file=sys.stderr,
+        )
         return 2
     try:
-        result = resolve_and_validate(payload if isinstance(payload, dict) else {})
+        if isinstance(payload, dict):
+            result = resolve_and_validate(payload)
+        else:
+            result = resolve_and_validate({})
     except MinioOidcDiscoveryUrlError as exc:
         print(json.dumps({"error": str(exc)}), file=sys.stderr)
         return 1

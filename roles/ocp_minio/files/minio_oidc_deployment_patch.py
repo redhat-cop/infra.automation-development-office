@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Build a full MinIO Deployment definition with OIDC envFrom (safe patch).
 
@@ -40,7 +39,11 @@ def ensure_secret_env_from(
     secret_name: str,
 ) -> list[dict[str, Any]]:
     """Return envFrom with secret_name present once (order preserved)."""
-    items = [copy.deepcopy(x) for x in (env_from or []) if isinstance(x, dict)]
+    items = [
+        copy.deepcopy(x)
+        for x in (env_from or [])
+        if isinstance(x, dict)
+    ]
     target = str(secret_name or "").strip()
     if not target:
         return items
@@ -50,9 +53,15 @@ def ensure_secret_env_from(
     return items
 
 
-def upsert_env_var(env: list | None, name: str, value: str) -> list[dict[str, Any]]:
+def upsert_env_var(
+    env: list | None,
+    name: str,
+    value: str,
+) -> list[dict[str, Any]]:
     """Set or replace a single env var without dropping others."""
-    items = [copy.deepcopy(x) for x in (env or []) if isinstance(x, dict)]
+    items = [
+        copy.deepcopy(x) for x in (env or []) if isinstance(x, dict)
+    ]
     key = str(name or "").strip()
     if not key:
         return items
@@ -76,18 +85,21 @@ def build_oidc_deployment_definition(
     deployment_name: str | None = None,
     namespace: str | None = None,
 ) -> dict[str, Any]:
-    """Return a full Deployment definition derived from the live object."""
+    """Return a full Deployment definition from the live object."""
     if not isinstance(live_deployment, dict) or not live_deployment:
         raise MinioOidcDeploymentPatchError(
-            "MinIO Deployment was not found. Deploy MinIO before Configure MinIO OIDC."
+            "MinIO Deployment was not found. Deploy MinIO before "
+            "Configure MinIO OIDC."
         )
 
     patched = copy.deepcopy(live_deployment)
-    # Drop runtime-only fields that must not be re-posted as desired state noise.
+    # Drop runtime-only fields that must not be re-posted.
     patched.pop("status", None)
     metadata = patched.setdefault("metadata", {})
     if not isinstance(metadata, dict):
-        raise MinioOidcDeploymentPatchError("MinIO Deployment metadata is invalid.")
+        raise MinioOidcDeploymentPatchError(
+            "MinIO Deployment metadata is invalid."
+        )
     for key in (
         "resourceVersion",
         "uid",
@@ -107,10 +119,14 @@ def build_oidc_deployment_definition(
 
     spec = patched.setdefault("spec", {})
     if not isinstance(spec, dict):
-        raise MinioOidcDeploymentPatchError("MinIO Deployment spec is invalid.")
+        raise MinioOidcDeploymentPatchError(
+            "MinIO Deployment spec is invalid."
+        )
     template = spec.setdefault("template", {})
     if not isinstance(template, dict):
-        raise MinioOidcDeploymentPatchError("MinIO Deployment pod template is invalid.")
+        raise MinioOidcDeploymentPatchError(
+            "MinIO Deployment pod template is invalid."
+        )
     tmpl_meta = template.setdefault("metadata", {})
     if not isinstance(tmpl_meta, dict):
         tmpl_meta = {}
@@ -124,7 +140,9 @@ def build_oidc_deployment_definition(
 
     pod_spec = template.setdefault("spec", {})
     if not isinstance(pod_spec, dict):
-        raise MinioOidcDeploymentPatchError("MinIO Deployment pod spec is invalid.")
+        raise MinioOidcDeploymentPatchError(
+            "MinIO Deployment pod spec is invalid."
+        )
     containers = pod_spec.get("containers")
     if not isinstance(containers, list) or not containers:
         raise MinioOidcDeploymentPatchError(
@@ -134,7 +152,12 @@ def build_oidc_deployment_definition(
     target = str(container_name or "minio").strip() or "minio"
     index = None
     for idx, container in enumerate(containers):
-        if isinstance(container, dict) and str(container.get("name") or "").strip() == target:
+        name = (
+            str(container.get("name") or "").strip()
+            if isinstance(container, dict)
+            else ""
+        )
+        if name == target:
             index = idx
             break
     if index is None:
@@ -143,9 +166,10 @@ def build_oidc_deployment_definition(
             for c in containers
             if isinstance(c, dict)
         ]
+        shown = ", ".join(n for n in names if n) or "none"
         raise MinioOidcDeploymentPatchError(
-            f"Target container '{target}' was not found on the MinIO Deployment "
-            f"(containers: {', '.join(n for n in names if n) or 'none'})."
+            f"Target container '{target}' was not found on the "
+            f"MinIO Deployment (containers: {shown})."
         )
 
     container = containers[index]
@@ -154,7 +178,7 @@ def build_oidc_deployment_definition(
             f"Target container '{target}' is not a mapping."
         )
 
-    # Preserve image / mounts / probes / resources / ports / args by mutating in place.
+    # Preserve image / mounts / probes / resources / ports / args.
     container["envFrom"] = ensure_secret_env_from(
         container.get("envFrom"),
         oidc_secret_name,
@@ -180,21 +204,35 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON payload path or '-' for stdin",
     )
     args = parser.parse_args(argv)
-    raw = sys.stdin.read() if args.input_path == "-" else open(args.input_path, encoding="utf-8").read()
+    if args.input_path == "-":
+        raw = sys.stdin.read()
+    else:
+        raw = open(args.input_path, encoding="utf-8").read()
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
-        print(json.dumps({"error": f"invalid JSON input: {exc}"}), file=sys.stderr)
+        print(
+            json.dumps({"error": f"invalid JSON input: {exc}"}),
+            file=sys.stderr,
+        )
         return 2
 
     try:
         definition = build_oidc_deployment_definition(
             payload.get("deployment") or {},
-            container_name=str(payload.get("container_name") or "minio"),
-            oidc_secret_name=str(payload.get("oidc_secret_name") or "minio-oidc"),
+            container_name=str(
+                payload.get("container_name") or "minio"
+            ),
+            oidc_secret_name=str(
+                payload.get("oidc_secret_name") or "minio-oidc"
+            ),
             redirect_url=str(payload.get("redirect_url") or ""),
-            annotation_key=str(payload.get("annotation_key") or "ado.infra/minio-oidc"),
-            annotation_value=str(payload.get("annotation_value") or "enabled"),
+            annotation_key=str(
+                payload.get("annotation_key") or "ado.infra/minio-oidc"
+            ),
+            annotation_value=str(
+                payload.get("annotation_value") or "enabled"
+            ),
             deployment_name=payload.get("deployment_name"),
             namespace=payload.get("namespace"),
         )
