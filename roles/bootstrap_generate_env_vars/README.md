@@ -62,7 +62,10 @@ Automation Development Office
 | `bootstrap_generate_env_vars_aap_install_eda` | Enable Event-Driven Ansible in the platform. Default `true`. |
 | `bootstrap_generate_env_vars_aap_install_lightspeed` | Enable Ansible Lightspeed in the platform. Default `false`. |
 | Preflight `component_config.aap.admin_password` | Platform admin password written to `vault_aap.yml` as `aap_admin_password`; bootstrap creates `{instance}-admin-password` and sets `spec.admin_password_secret`. |
-| Preflight `component_config.aap.minimal_footprint` | When true, disables Hub/EDA/Lightspeed (Controller + Gateway only). |
+| Preflight `component_config.aap.install_controller` / `install_hub` / `install_eda` | Enable platform components for ``aap_ocp_install_*``. Defaults true/true/true. |
+| Preflight `component_config.aap.minimal_footprint` | Thin supported profile: Controller/EDA ``replicas=1``, ``create_preload_data=false``, ``projects_persistence=false`` unless projects PVC is explicitly enabled. Does **not** disable Hub/EDA when ``install_*`` are set, and does **not** change Operator CPU/memory request defaults. Legacy JSON with only ``minimal_footprint: true`` (no ``install_hub`` / ``install_eda``) still turns Hub/EDA off. |
+| Preflight `component_config.aap.storage` | Default Storage Class (fallback for Hub file storage). Default ``nfs-csi``. |
+| Preflight `component_config.aap.hub_storage_override` + `hub_storage_class` | When override is true, Hub ``file_storage_storage_class`` uses ``hub_storage_class``; otherwise inherits ``storage``. Hub file mode typically needs RWX. |
 | Preflight `component_config.aap.operator_scope` | AAP operator OperatorGroup scope: `all_namespaces` (default, uses `stable-X.Y-cluster-scoped`) or `namespaced` (uses `stable-X.Y`). Explicit `operator_channel` still wins when set. |
 | `bootstrap_generate_env_vars_aap_hub_storage_class` | StorageClass for file-backed Hub storage. |
 | `bootstrap_generate_env_vars_aap_hub_storage_size` | File-backed Hub PVC size. Default `20Gi`. |

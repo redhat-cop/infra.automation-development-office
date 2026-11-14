@@ -1067,11 +1067,16 @@ def merge_component(component, cfg):
             "install_eda",
             "install_lightspeed",
             "controller_replicas",
+            "controller_projects_persistence",
+            "controller_projects_storage_size",
+            "eda_replicas",
             "hub_storage_type",
+            "hub_storage_override",
             "hub_storage_class",
             "hub_storage_size",
             "hub_s3_secret",
             "hub_azure_secret",
+            "storage",
             "platform_manifest_overrides",
             "controller_manifest_overrides",
             "hub_manifest_overrides",
@@ -3232,20 +3237,25 @@ def merge_component(component, cfg):
                 public_values.get("minimal_footprint"),
                 False,
             )
+            # Explicit install_* wins. Legacy: minimal_footprint alone (no install_hub /
+            # install_eda keys) still disables Hub/EDA. New UI always sends install_*.
             install_controller = as_bool(
                 public_values.get("install_controller"),
                 True,
             )
-            install_hub = as_bool(public_values.get("install_hub"), True)
-            install_eda = as_bool(public_values.get("install_eda"), True)
-            install_lightspeed = as_bool(
-                public_values.get("install_lightspeed"),
-                False,
+
+            def _install_flag(key, default_when_absent=True, legacy_minimal_off=False):
+                if key in public_values and public_values.get(key) not in (None, ""):
+                    return as_bool(public_values.get(key), default_when_absent)
+                if legacy_minimal_off and minimal_footprint:
+                    return False
+                return default_when_absent
+
+            install_hub = _install_flag("install_hub", True, legacy_minimal_off=True)
+            install_eda = _install_flag("install_eda", True, legacy_minimal_off=True)
+            install_lightspeed = _install_flag(
+                "install_lightspeed", False, legacy_minimal_off=True
             )
-            if minimal_footprint:
-                install_hub = False
-                install_eda = False
-                install_lightspeed = False
             openshift_values = preflight.get("openshift") or {}
             api_host = first_present(
                 openshift_values.get("api_host"),
@@ -3565,20 +3575,68 @@ def merge_component(component, cfg):
                         public_values.get("platform_manifest_overrides") or {}
                     ),
                 }
-                vars_data["aap_ocp_install_controller"] = {
+                try:
+                    controller_replicas = int(
+                        public_values.get("controller_replicas")
+                        or public_values.get("replicas")
+                        or 1
+                    )
+                except (TypeError, ValueError):
+                    controller_replicas = 1
+                if controller_replicas < 1:
+                    controller_replicas = 1
+                # Thin Minimal Footprint profile (supported aap_ocp_install keys only).
+                # Does not disable components and does not invent CPU/memory requests.
+                if minimal_footprint:
+                    controller_replicas = 1
+                controller_cfg = {
                     "instance_name": f"{instance_name}-controller",
                     "namespace": namespace,
                     "install": install_controller,
                     "admin_user": admin_username,
-                    "replicas": int(
-                        public_values.get("controller_replicas")
-                        or public_values.get("replicas")
-                        or 1
+                    "replicas": controller_replicas,
+                    "create_preload_data": (
+                        False
+                        if minimal_footprint
+                        else as_bool(
+                            public_values.get("create_preload_data"), True
+                        )
                     ),
                     "controller_manifest_overrides": copy.deepcopy(
                         public_values.get("controller_manifest_overrides") or {}
                     ),
                 }
+                projects_persistence = as_bool(
+                    public_values.get("controller_projects_persistence"), False
+                )
+                if minimal_footprint and not projects_persistence:
+                    controller_cfg["projects_persistence"] = False
+                elif projects_persistence:
+                    controller_cfg["projects_persistence"] = True
+                    controller_cfg["projects_storage_size"] = str(
+                        public_values.get("controller_projects_storage_size")
+                        or "8Gi"
+                    )
+                vars_data["aap_ocp_install_controller"] = controller_cfg
+                # Hub file StorageClass: explicit hub_storage_class when override
+                # is on; otherwise inherit General component_config.aap.storage.
+                default_storage = str(
+                    first_present(
+                        public_values.get("storage"),
+                        "nfs-csi",
+                    )
+                    or "nfs-csi"
+                ).strip()
+                hub_override = as_bool(
+                    public_values.get("hub_storage_override"), False
+                )
+                hub_storage_class = str(
+                    public_values.get("hub_storage_class") or ""
+                ).strip()
+                if hub_override and hub_storage_class:
+                    effective_hub_sc = hub_storage_class
+                else:
+                    effective_hub_sc = default_storage
                 vars_data["aap_ocp_install_hub"] = {
                     "instance_name": f"{instance_name}-hub",
                     "namespace": namespace,
@@ -3586,9 +3644,7 @@ def merge_component(component, cfg):
                     "storage_type": str(
                         public_values.get("hub_storage_type") or "file"
                     ),
-                    "file_storage_storage_class": str(
-                        public_values.get("hub_storage_class") or ""
-                    ),
+                    "file_storage_storage_class": effective_hub_sc,
                     "file_storage_size": str(
                         public_values.get("hub_storage_size") or "20Gi"
                     ),
@@ -3602,7 +3658,7 @@ def merge_component(component, cfg):
                         public_values.get("hub_manifest_overrides") or {}
                     ),
                 }
-                vars_data["aap_ocp_install_eda"] = {
+                eda_cfg = {
                     "instance_name": f"{instance_name}-eda",
                     "namespace": namespace,
                     "install": install_eda,
@@ -3610,6 +3666,27 @@ def merge_component(component, cfg):
                         public_values.get("eda_manifest_overrides") or {}
                     ),
                 }
+                eda_replicas = public_values.get("eda_replicas")
+                if eda_replicas not in (None, ""):
+                    try:
+                        eda_cfg["replicas"] = int(eda_replicas)
+                    except (TypeError, ValueError):
+                        eda_cfg["replicas"] = 1
+                elif install_eda:
+                    eda_cfg["replicas"] = 1
+                if minimal_footprint and install_eda:
+                    eda_cfg["replicas"] = 1
+                vars_data["aap_ocp_install_eda"] = eda_cfg
+                if minimal_footprint:
+                    vars_data["aap_minimal_footprint_profile"] = (
+                        "thin-replicas-preload"
+                    )
+                    vars_data["aap_minimal_footprint_notes"] = (
+                        "Applies controller/EDA replicas=1, "
+                        "create_preload_data=false, and projects_persistence=false "
+                        "unless projects PVC is explicitly enabled. Does not change "
+                        "Operator CPU/memory request defaults or disable Hub/EDA."
+                    )
                 vars_data["aap_ocp_install_lightspeed"] = {
                     "install": install_lightspeed
                 }
