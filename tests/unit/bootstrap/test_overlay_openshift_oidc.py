@@ -902,8 +902,21 @@ DEFAULT_ENABLED = {
     "dev_hub": {},
 }
 
+# MinIO OIDC without RHBK requires Existing Keycloak fields on the MinIO form.
+MINIO_EXTERNAL_KEYCLOAK = {
+    "oidc_enabled": True,
+    "keycloak_hostname": "sso.corp.example.test",
+    "keycloak_realm": "corp",
+    "keycloak_admin_user": "kcadmin",
+    "keycloak_admin_password": EXTERNAL_PASSWORD,
+    "fetch_oidc_secret_from_rhbk": True,
+}
+
 
 def _blank_default_run(tmp_path, component, rhbk):
+    config = {component: dict(DEFAULT_ENABLED[component])}
+    if component == "minio" and rhbk is None:
+        config["minio"] = dict(MINIO_EXTERNAL_KEYCLOAK)
     return run(
         tmp_path,
         make_preflight(
@@ -911,7 +924,7 @@ def _blank_default_run(tmp_path, component, rhbk):
             oauth=external_oauth() if rhbk is None else {"client_id": "OpenshiftDev"},
             apps=["rhbk", component] if rhbk is not None else [component],
             options={component: ["oidc"]},
-            config={component: DEFAULT_ENABLED[component]},
+            config=config,
         ),
         ["rhbk", "openshift", component] if rhbk is not None else ["openshift", component],
         script=VALIDATOR,

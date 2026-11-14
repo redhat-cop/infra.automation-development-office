@@ -1,0 +1,2 @@
+bugfixes:
+  - rhbk_client - On Keycloak client create/update failure, emit a non-secret failure category (tls/auth/not-found/unreachable/api) so Preflight and Contoller logs remain actionable while ``no_log`` still hides credentials and API response bodies.

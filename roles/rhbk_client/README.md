@@ -2,6 +2,8 @@
 
 Rhbk Client automation role. Primary tasks include: Create RHBK Client; Delete RHBK client; Assert required inputs are set; Show the effective Keycloak target.
 
+When Keycloak client create/update fails, the role keeps ``no_log`` on the API call and fails with a non-secret failure category (`tls`, `auth`, `not-found`, `unreachable`, or `api`) plus the target URL/realm/client id. Credentials and API bodies are not printed.
+
 ## Role Author
 
 Automation Development Office
