@@ -15,6 +15,7 @@ minio_storage_size: 20Gi
 minio_storage_access_mode: ReadWriteOnce
 
 minio_deployment_name: minio
+minio_container_name: minio
 minio_service_name: minio
 minio_api_port: 9000
 minio_console_port: 9090

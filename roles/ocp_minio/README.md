@@ -32,6 +32,7 @@ See `defaults/main.yml`. Common overrides:
 | `minio_storage_size` | PVC size (default `20Gi`) |
 | `minio_root_user` / `minio_root_password` | S3 root credentials (Secret `minio-creds`) |
 | `minio_console_hostname` / `minio_api_hostname` | Route hosts |
+| `minio_container_name` | Container name to patch for OIDC (default `minio`) |
 | `minio_oidc_enabled` | Enable console OpenID (also `oidc.enabled` from registry) |
 | `minio_oidc_client_id` | Keycloak client id |
 | `minio_oidc_client_secret` | Leave empty to fetch after client create |
@@ -63,6 +64,10 @@ client in Keycloak with an OIDC hardcoded-claim mapper:
 - include the claim on the ID token, access token, and userinfo
 
 Missing `create_client` still means managed.
+
+OIDC patches the **live** MinIO Deployment (full object) so `envFrom` gains
+Secret `minio-oidc` without replacing the `containers` array. Do not use JSON
+merge with a partial container definition for this step.
 
 ## 🚀 Role Usage
 
@@ -110,6 +115,8 @@ roles/ocp_minio/
   README.md
   defaults/main.yml
   meta/main.yml
+  files/
+    minio_oidc_deployment_patch.py
   tasks/
     main.yml
     install-minio.yml
