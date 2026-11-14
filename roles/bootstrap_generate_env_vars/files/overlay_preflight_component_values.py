@@ -2378,12 +2378,28 @@ def merge_component(component, cfg):
                 vars_data["components_env"]["minio"]["keycloak_realm"] = str(minio_realm)
                 vars_data_changed = True
             minio_issuer, _minio_realm_from_rhbk = rhbk_oidc_issuer_url(preflight, vars_data)
+            minio_discovery = preflight_oidc.resolve_minio_oidc_discovery_url(
+                preflight, selected_components, vars_data
+            )
+            if not minio_discovery and minio_issuer:
+                minio_discovery = preflight_oidc.ensure_minio_oidc_discovery_url(
+                    minio_issuer
+                )
             if minio_issuer:
                 vars_data["minio_oidc_issuer"] = minio_issuer
                 vars_data.setdefault("components_env", {}).setdefault("minio", {})
                 vars_data["components_env"]["minio"]["oidc_issuer"] = minio_issuer
                 vars_data.setdefault("component_config", {}).setdefault("minio", {})
                 vars_data["component_config"]["minio"]["oidc_issuer"] = minio_issuer
+                vars_data_changed = True
+            if minio_discovery:
+                vars_data["minio_oidc_config_url"] = minio_discovery
+                vars_data.setdefault("components_env", {}).setdefault("minio", {})
+                vars_data["components_env"]["minio"]["oidc_config_url"] = minio_discovery
+                vars_data.setdefault("component_config", {}).setdefault("minio", {})
+                vars_data["component_config"]["minio"]["oidc_config_url"] = (
+                    minio_discovery
+                )
                 vars_data_changed = True
             oidc = public_values.get("oidc") if isinstance(
                 public_values.get("oidc"), dict
@@ -6117,8 +6133,16 @@ def apply_minio_keycloak_connection():
         minio_vars["minio_keycloak_hostname"] = settings["hostname"]
         minio_vars["keycloak_hostname"] = settings["hostname"]
         minio_vars["rhbk_hostname"] = settings["hostname"]
-        minio_issuer = f"https://{settings['hostname']}/realms/{settings['realm']}"
+        minio_issuer = settings.get("issuer") or (
+            f"https://{settings['hostname']}/realms/{settings['realm']}"
+        )
+        minio_discovery = settings.get("discoveryUrl") or (
+            f"{minio_issuer}/.well-known/openid-configuration"
+        )
         minio_vars["minio_oidc_issuer"] = minio_issuer
+        # Always write a non-empty discovery URL. Role defaults used "" which
+        # Ansible | default() treated as set, wiping the Secret CONFIG_URL.
+        minio_vars["minio_oidc_config_url"] = minio_discovery
         minio_vars_changed = True
     if settings["adminUser"]:
         minio_vars["minio_keycloak_admin_user"] = settings["adminUser"]

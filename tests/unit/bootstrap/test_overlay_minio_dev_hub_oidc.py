@@ -263,6 +263,48 @@ def test_minio_default_client_id_reaches_group_vars(tmp_path):
     assert data["minio_oidc_create_keycloak_client"] is True
     assert data["minio_oidc_create_policy_mapper"] is True
     assert "minio" not in (rhbk_vars.get("rhbk_clients") or {})
+    assert data.get("minio_oidc_issuer") == (
+        "https://keycloak.apps.example.test/realms/demo"
+    )
+    assert data.get("minio_oidc_config_url") == (
+        "https://keycloak.apps.example.test/realms/demo"
+        "/.well-known/openid-configuration"
+    )
+
+
+def test_minio_external_keycloak_writes_discovery_url(tmp_path):
+    """Empty imported oidc_config_url must not leave Bootstrap CONFIG_URL blank."""
+    result, env_dir = run(
+        tmp_path,
+        make_preflight(
+            rhbk=None,
+            apps=["minio"],
+            options={"minio": ["oidc"]},
+            config={
+                "minio": {
+                    "oidc_enabled": True,
+                    "oidc_client_id": "minio",
+                    "oidc_config_url": "",
+                    "oidc_issuer": "",
+                    "keycloak_hostname": "keycloak.apps.ocp-dev.dev.rhlab",
+                    "keycloak_realm": "Dev",
+                    "keycloak_admin_user": "admin",
+                    "keycloak_admin_password": "kc-pass-for-test",
+                    "keycloak_verify_ssl": False,
+                }
+            },
+        ),
+        ["minio"],
+    )
+    assert result.returncode == 0, result.stderr
+    data = load(env_dir, "vars_minio.yml")
+    assert data["minio_oidc_config_url"] == (
+        "https://keycloak.apps.ocp-dev.dev.rhlab/realms/Dev"
+        "/.well-known/openid-configuration"
+    )
+    assert data["minio_oidc_issuer"] == (
+        "https://keycloak.apps.ocp-dev.dev.rhlab/realms/Dev"
+    )
 
 
 def test_minio_custom_oidc_client_id_reaches_group_vars(tmp_path):

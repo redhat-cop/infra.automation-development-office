@@ -983,6 +983,61 @@ def minio_oidc_needs_keycloak_admin(preflight):
     return managed or fetch_secret
 
 
+MINIO_OIDC_WELL_KNOWN = "/.well-known/openid-configuration"
+
+
+def ensure_minio_oidc_discovery_url(issuer_or_discovery):
+    """Append OpenID discovery path when given an issuer base URL."""
+    raw = text(issuer_or_discovery).rstrip("/")
+    if not raw:
+        return ""
+    if raw.endswith(MINIO_OIDC_WELL_KNOWN):
+        return raw
+    return f"{raw}{MINIO_OIDC_WELL_KNOWN}"
+
+
+def build_minio_oidc_issuer_url(hostname, realm):
+    host = normalize_host(hostname)
+    realm_name = text(realm) or "rhlab"
+    if not host:
+        return ""
+    return f"https://{host}/realms/{realm_name}"
+
+
+def _minio_cfg_discovery_inputs(cfg):
+    nested = cfg.get("oidc") if isinstance(cfg.get("oidc"), dict) else {}
+    explicit = first_text(
+        cfg.get("oidc_config_url"),
+        cfg.get("minio_oidc_config_url"),
+        nested.get("config_url"),
+    )
+    issuer = first_text(
+        cfg.get("oidc_issuer"),
+        cfg.get("minio_oidc_issuer"),
+        nested.get("issuer"),
+    )
+    return explicit, issuer
+
+
+def resolve_minio_oidc_discovery_url(preflight, selected, rhbk_vars=None):
+    """Effective MinIO OpenID discovery URL from form / imported JSON.
+
+    Preference: explicit ``oidc_config_url`` / ``minio_oidc_config_url``, then
+    ``oidc_issuer`` / ``minio_oidc_issuer``, then hostname + realm from
+    ``resolve_minio_keycloak_settings``. Empty strings are treated as unset so
+    imported blanks do not wipe a derived URL.
+    """
+    cfg = component_config(preflight, "minio")
+    explicit, issuer = _minio_cfg_discovery_inputs(cfg)
+    if explicit:
+        return ensure_minio_oidc_discovery_url(explicit)
+    if issuer:
+        return ensure_minio_oidc_discovery_url(issuer)
+    settings = resolve_minio_keycloak_settings(preflight, selected, rhbk_vars)
+    built = build_minio_oidc_issuer_url(settings["hostname"], settings["realm"])
+    return ensure_minio_oidc_discovery_url(built) if built else ""
+
+
 def resolve_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
     """Effective Keycloak connection for MinIO OIDC (inherit RHBK or external).
 
@@ -1055,12 +1110,31 @@ def resolve_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
     else:
         verify, verify_valid, verify_explicit = parse_verify_ssl(verify_raw)
 
+    hostname = own_host or inherited_host
+    realm = own_realm or inherited_realm or "rhlab"
+    explicit_discovery, explicit_issuer = _minio_cfg_discovery_inputs(cfg)
+    if explicit_discovery:
+        discovery_url = ensure_minio_oidc_discovery_url(explicit_discovery)
+        issuer = (
+            discovery_url[: -len(MINIO_OIDC_WELL_KNOWN)]
+            if discovery_url.endswith(MINIO_OIDC_WELL_KNOWN)
+            else build_minio_oidc_issuer_url(hostname, realm)
+        )
+    elif explicit_issuer:
+        issuer = text(explicit_issuer).rstrip("/")
+        if issuer.endswith(MINIO_OIDC_WELL_KNOWN):
+            issuer = issuer[: -len(MINIO_OIDC_WELL_KNOWN)]
+        discovery_url = ensure_minio_oidc_discovery_url(issuer)
+    else:
+        issuer = build_minio_oidc_issuer_url(hostname, realm)
+        discovery_url = ensure_minio_oidc_discovery_url(issuer) if issuer else ""
+
     return {
         "mode": "rhbk" if rhbk_mode else "external",
-        "hostname": own_host or inherited_host,
+        "hostname": hostname,
         "inheritedHostname": inherited_host,
         "hostnameExplicit": bool(own_host),
-        "realm": own_realm or inherited_realm or "rhlab",
+        "realm": realm,
         "realmExplicit": bool(own_realm),
         "clientId": minio_effective_client_id(preflight, cfg),
         "adminUser": own_user or inherited_user or "admin",
@@ -1079,6 +1153,8 @@ def resolve_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
             if isinstance(cfg.get("oidc"), dict)
             else "",
         ),
+        "issuer": issuer,
+        "discoveryUrl": discovery_url,
     }
 
 
@@ -1149,6 +1225,30 @@ def validate_minio_keycloak_settings(preflight, selected, rhbk_vars=None):
                 if external
                 else "MinIO OIDC: no Keycloak realm. Set the RHBK realm."
             ),
+        )
+
+    discovery = text(s.get("discoveryUrl")) or resolve_minio_oidc_discovery_url(
+        preflight, selected, rhbk_vars
+    )
+    if s["hostname"] and s["realm"] and not discovery:
+        add(
+            "missing-discovery-url",
+            f"{where}: OpenID discovery URL is empty. Set "
+            "component_config.minio.oidc_config_url, oidc_issuer, or Keycloak "
+            "hostname + realm so Bootstrap can write "
+            "minio_oidc_config_url / MINIO_IDENTITY_OPENID_CONFIG_URL.",
+        )
+    elif discovery and not discovery.startswith(("http://", "https://")):
+        add(
+            "invalid-discovery-url",
+            f"{where}: OpenID discovery URL must start with http:// or https:// "
+            "(empty values cause MinIO 'unexpected scheme found').",
+        )
+    elif discovery and MINIO_OIDC_WELL_KNOWN not in discovery:
+        add(
+            "invalid-discovery-url",
+            f"{where}: OpenID discovery URL must include "
+            f"{MINIO_OIDC_WELL_KNOWN}.",
         )
 
     if s["needsAdmin"] and not s["adminUser"]:

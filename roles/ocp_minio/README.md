@@ -33,6 +33,8 @@ See `defaults/main.yml`. Common overrides:
 | `minio_root_user` / `minio_root_password` | S3 root credentials (Secret `minio-creds`) |
 | `minio_console_hostname` / `minio_api_hostname` | Route hosts |
 | `minio_container_name` | Container name to patch for OIDC (default `minio`) |
+| `minio_oidc_config_url` | Full OpenID discovery URL. Empty means derive from issuer or Keycloak host/realm |
+| `minio_oidc_issuer` | Issuer base URL (`https://<host>/realms/<realm>`). Used when config URL is empty |
 | `minio_oidc_enabled` | Enable console OpenID (also `oidc.enabled` from registry) |
 | `minio_oidc_client_id` | Keycloak client id |
 | `minio_oidc_client_secret` | Leave empty to fetch after client create |
@@ -68,6 +70,11 @@ Missing `create_client` still means managed.
 OIDC patches the **live** MinIO Deployment (full object) so `envFrom` gains
 Secret `minio-oidc` without replacing the `containers` array. Do not use JSON
 merge with a partial container definition for this step.
+
+`MINIO_IDENTITY_OPENID_CONFIG_URL` is resolved before the Secret is written.
+An empty `minio_oidc_config_url` is treated as unset; the role derives
+`https://<keycloak>/realms/<realm>/.well-known/openid-configuration` and fails
+clearly if nothing usable is configured (avoids MinIO `unexpected scheme found`).
 
 ## 🚀 Role Usage
 
@@ -117,6 +124,7 @@ roles/ocp_minio/
   meta/main.yml
   files/
     minio_oidc_deployment_patch.py
+    minio_oidc_discovery_url.py
   tasks/
     main.yml
     install-minio.yml

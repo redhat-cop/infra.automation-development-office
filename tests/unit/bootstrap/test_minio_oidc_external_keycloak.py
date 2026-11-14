@@ -130,3 +130,59 @@ def test_minio_verify_ssl_not_taken_from_openshift_oauth_when_rhbk_selected():
     settings = preflight_oidc.resolve_minio_keycloak_settings(pf, {"minio", "rhbk"})
     assert settings["mode"] == "rhbk"
     assert settings["verifySsl"] is False
+
+
+def test_discovery_url_from_hostname_and_custom_realm():
+    pf = base_preflight(
+        minio={
+            "keycloak_hostname": "keycloak.apps.ocp-dev.dev.rhlab",
+            "keycloak_realm": "Dev",
+            "keycloak_admin_user": "admin",
+            "keycloak_admin_password": "kc-pass",
+            "oidc_config_url": "",
+            "oidc_issuer": "",
+        }
+    )
+    settings = preflight_oidc.resolve_minio_keycloak_settings(pf, {"minio"})
+    expected = (
+        "https://keycloak.apps.ocp-dev.dev.rhlab/realms/Dev"
+        "/.well-known/openid-configuration"
+    )
+    assert settings["discoveryUrl"] == expected
+    assert settings["issuer"] == "https://keycloak.apps.ocp-dev.dev.rhlab/realms/Dev"
+    assert preflight_oidc.resolve_minio_oidc_discovery_url(pf, {"minio"}) == expected
+    assert preflight_oidc.validate_minio_keycloak_settings(pf, {"minio"}) == []
+
+
+def test_empty_imported_config_url_does_not_block_derived_discovery():
+    """Imported blanks must not wipe hostname+realm derivation."""
+    pf = base_preflight(
+        minio={
+            "keycloak_hostname": "keycloak.lab.example",
+            "keycloak_realm": "lab",
+            "keycloak_admin_user": "admin",
+            "keycloak_admin_password": "kc-pass",
+            "oidc_config_url": "",
+            "minio_oidc_config_url": "",
+            "oidc_issuer": "",
+        }
+    )
+    url = preflight_oidc.resolve_minio_oidc_discovery_url(pf, {"minio"})
+    assert url.startswith("https://keycloak.lab.example/realms/lab/")
+    assert url.endswith("/.well-known/openid-configuration")
+
+
+def test_explicit_discovery_url_wins():
+    explicit = (
+        "https://sso.corp.example/realms/corp/.well-known/openid-configuration"
+    )
+    pf = base_preflight(
+        minio={
+            "keycloak_hostname": "ignored.example",
+            "keycloak_realm": "ignored",
+            "keycloak_admin_user": "admin",
+            "keycloak_admin_password": "kc-pass",
+            "oidc_config_url": explicit,
+        }
+    )
+    assert preflight_oidc.resolve_minio_oidc_discovery_url(pf, {"minio"}) == explicit
