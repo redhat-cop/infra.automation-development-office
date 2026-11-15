@@ -285,6 +285,50 @@ def first_present(*values):
     return None
 
 
+def _deep_merge_dict(base, overlay):
+    """Recursive dict merge; overlay wins on scalar conflicts."""
+    if not isinstance(base, dict):
+        base = {}
+    out = copy.deepcopy(base)
+    if not isinstance(overlay, dict):
+        return out
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge_dict(out[key], value)
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def normalize_platform_manifest_overrides_for_aap_utilities(overrides):
+    """Nest Platform CR fields under ``spec`` for infra.aap_utilities merge.
+
+    ``infra.aap_utilities.aap_ocp_install`` 3.5.0 combines
+    ``platform_manifest_overrides`` at the AnsibleAutomationPlatform *document*
+    root (sibling of apiVersion/kind/metadata/spec) — see
+    ``roles/aap_ocp_install/tasks/build-platform-cr.yml``.
+
+    AAP Operator 2.7 CRD only accepts ``database`` under ``spec.database``.
+    Passing ``{database: {...}}`` therefore lands as a pruned root field and
+    never reaches the Operator. Pass ``{spec: {database: {...}}}`` instead.
+    Legacy top-level ``database`` keys are lifted into ``spec.database``.
+    """
+    if not isinstance(overrides, dict):
+        return {}
+    out = copy.deepcopy(overrides)
+    spec = out.get("spec") if isinstance(out.get("spec"), dict) else {}
+    spec = copy.deepcopy(spec)
+    legacy_db = out.pop("database", None)
+    if isinstance(legacy_db, dict):
+        existing_db = (
+            spec.get("database") if isinstance(spec.get("database"), dict) else {}
+        )
+        spec["database"] = _deep_merge_dict(existing_db, legacy_db)
+    if spec:
+        out["spec"] = spec
+    return out
+
+
 def openshift_oidc_requested():
     """True when the form asked for OpenShift OAuth against Keycloak/RHBK."""
     return preflight_oidc.openshift_oidc_requested(preflight, selected_components)
@@ -3589,21 +3633,25 @@ def merge_component(component, cfg):
                         public_values.get("operator_approval") or "automatic"
                     ),
                 }
-                platform_overrides = copy.deepcopy(
+                platform_overrides = normalize_platform_manifest_overrides_for_aap_utilities(
                     public_values.get("platform_manifest_overrides") or {}
                 )
-                if not isinstance(platform_overrides, dict):
-                    platform_overrides = {}
                 # Managed/external PostgreSQL → AnsibleAutomationPlatform
-                # spec.database.* via platform_manifest_overrides (aap_ocp_install
-                # has no first-class postgres StorageClass key).
+                # spec.database.* via platform_manifest_overrides.spec.database.
+                # infra.aap_utilities 3.5.0 merges overrides at the CR document root,
+                # so database MUST be nested under overrides.spec (not overrides.database).
                 # Independent of Hub file/S3 storage (file_storage_storage_class).
                 db_type = str(
                     public_values.get("database_type") or "managed"
                 ).strip().lower()
+                spec_overrides = (
+                    platform_overrides.get("spec")
+                    if isinstance(platform_overrides.get("spec"), dict)
+                    else {}
+                )
                 existing_db = (
-                    platform_overrides.get("database")
-                    if isinstance(platform_overrides.get("database"), dict)
+                    spec_overrides.get("database")
+                    if isinstance(spec_overrides.get("database"), dict)
                     else {}
                 )
                 db_override = copy.deepcopy(existing_db) if existing_db else {}
@@ -3697,7 +3745,11 @@ def merge_component(component, cfg):
                             rr["limits"] = rlim
                         db_override["resource_requirements"] = rr
                 if db_override:
-                    platform_overrides["database"] = db_override
+                    if not isinstance(platform_overrides.get("spec"), dict):
+                        platform_overrides["spec"] = {}
+                    platform_overrides["spec"]["database"] = db_override
+                # Never leave a root-level database key for aap_utilities to mis-merge.
+                platform_overrides.pop("database", None)
                 vars_data["aap_ocp_install_platform"] = {
                     "instance_name": instance_name,
                     "namespace": namespace,
