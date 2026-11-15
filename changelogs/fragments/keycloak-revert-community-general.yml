@@ -1,7 +1,0 @@
----
-bugfixes:
-  - >-
-    rhbk / ocp_oidc_auth / satellite_oidc - keep Keycloak task FQCNs as
-    ``community.general.keycloak_*`` (Contoller-compatible) and depend on
-    ``middleware_automation.keycloak`` so community.general 14+ redirects and
-    ansible-lint ``syntax-check`` can resolve the modules.

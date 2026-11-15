@@ -1,7 +1,0 @@
----
-bugfixes:
-  - >-
-    cve_analyzer - Grafana dashboard existence probe uses
-    ``/api/search?dashboardUIDs=`` with a Basic auth header (not ``uri``
-    ``password=``) and streams full JSON backups via ``get_url``, avoiding
-    false HTTP 0 from censored uri results and multi‑MB dashboard bodies.

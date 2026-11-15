@@ -1,8 +1,0 @@
----
-bugfixes:
-  - >-
-    bootstrap_generate_playbook_repo - stop writing ``version:`` into generated
-    ``collections/requirements.yml`` (including auto-pin from the staged
-    ``infra-automation_development_office-*.tar.gz`` name). Contoller project
-    sync installs unpinned Hub collection names so LooseVersion is not fed a
-    tarball filename.
