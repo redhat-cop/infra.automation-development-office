@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Assess AAP OpenShift install from kubernetes.core.k8s_info JSON dumps (no oc/kubectl)."""
 from __future__ import annotations
 
@@ -67,31 +66,27 @@ def _is_crash(pod):
     return False
 
 
-def assess(args):
-    platform_blob = _load(args.platform)
-    platforms = _resources(platform_blob)
-    platform = platforms[0] if platforms else None
-    controllers = _resources(_load(args.controllers))
-    hubs = _resources(_load(args.hubs))
-    edas = _resources(_load(args.edas))
-    pods = _resources(_load(args.pods))
-    pvcs = _resources(_load(args.pvcs))
-    routes = _resources(_load(args.routes))
-    svcs = _resources(_load(args.services))
-    eps = _resources(_load(args.endpointslices))
-    events = _resources(_load(args.events))
+def _workload(plist, label, blockers):
+    if not plist:
+        return "Missing", False
+    if any(_is_crash(p) for p in plist):
+        blockers.append(f"{label} workload CrashLoopBackOff.")
+        return "CrashLoopBackOff", False
+    if all(_pod_ready(p) for p in plist):
+        return "Ready", True
+    return "Not ready", False
 
-    blockers = []
-    notes = []
-    expect_controller = args.expect_controller
-    expect_hub = args.expect_hub
-    expect_eda = args.expect_eda
-    expect_pg_sc = (args.expect_pg_sc or "").strip()
-    attempt = args.attempt
-    max_attempts = args.max_attempts
-    http_status_i = args.http_status
 
-    conditions = _cond_map(platform) if platform else {}
+def _component(selected, resources, name, blockers):
+    if not selected:
+        return "Disabled by configuration", True
+    if not resources:
+        blockers.append(f"{name} CR was not created (selected).")
+        return "Missing", False
+    return "Ready", True
+
+
+def _platform_state(platform, conditions, args, blockers, notes):
     failure = conditions.get("Failure") or {}
     successful = conditions.get("Successful") or {}
     running = conditions.get("Running") or {}
@@ -123,6 +118,17 @@ def assess(args):
     else:
         platform_status = "Present"
 
+    return {
+        "platform_name": platform_name,
+        "platform_status": platform_status,
+        "fail_msg": fail_msg,
+        "fail_reason": fail_reason,
+        "failed_task": failed_task,
+        "operator_failed": operator_failed,
+    }
+
+
+def _postgres_storage(platform, pvcs, expect_pg_sc, blockers, notes):
     spec = (platform or {}).get("spec") or {}
     db_spec = spec.get("database") if isinstance(spec.get("database"), dict) else {}
     pg_sc = str(db_spec.get("postgres_storage_class") or "").strip()
@@ -165,98 +171,91 @@ def assess(args):
         blockers.append(
             f"PostgreSQL StorageClass mismatch: expected {expect_pg_sc}, found {effective_sc}."
         )
+    return {
+        "postgres_pvcs": postgres_pvcs,
+        "pvc_phase": pvc_phase,
+        "effective_sc": effective_sc,
+        "effective_size": effective_size,
+        "mismatch": mismatch,
+    }
 
-    def workload(plist, label):
-        if not plist:
-            return "Missing", False
-        if any(_is_crash(p) for p in plist):
-            blockers.append(f"{label} workload CrashLoopBackOff.")
-            return "CrashLoopBackOff", False
-        if all(_pod_ready(p) for p in plist):
-            return "Ready", True
-        return "Not ready", False
 
-    pg_pods = [
+def _filter_pods(pods, pattern, exclude=r"operator"):
+    return [
         p
         for p in pods
-        if re.search(r"postgres", _name(p), re.I)
-        and not re.search(r"operator", _name(p), re.I)
-    ]
-    redis_pods = [
-        p
-        for p in pods
-        if re.search(r"redis", _name(p), re.I)
-        and not re.search(r"operator", _name(p), re.I)
-    ]
-    gw_pods = [
-        p
-        for p in pods
-        if re.search(r"gateway", _name(p), re.I)
-        and not re.search(r"operator|controller-manager", _name(p), re.I)
+        if re.search(pattern, _name(p), re.I)
+        and not re.search(exclude, _name(p), re.I)
     ]
 
-    pg_status, pg_ok = workload(pg_pods, "PostgreSQL")
+
+def _postgres_status(pg_pods, storage, blockers, notes):
+    pg_status, pg_ok = _workload(pg_pods, "PostgreSQL", blockers)
+    postgres_pvcs = storage["postgres_pvcs"]
+    pvc_phase = storage["pvc_phase"]
+    effective_sc = storage["effective_sc"]
+    effective_size = storage["effective_size"]
     if postgres_pvcs and pvc_phase == "Bound" and pg_ok:
         pg_status = " · ".join(
             x for x in ["Ready", effective_sc or "default", effective_size or "?"] if x
         )
     elif postgres_pvcs and not pg_pods:
         pg_status = (
-            f"PVC {pvc_phase or 'present'} · {effective_sc or '?'} · {effective_size or '?'}"
+            f"PVC {pvc_phase or 'present'} · {effective_sc or '?'} · "
+            f"{effective_size or '?'}"
         )
         notes.append("PostgreSQL PVC present; pod not ready yet.")
+    return pg_status, pg_ok
 
-    redis_status, redis_ok = workload(redis_pods, "Redis")
-    gw_status, gw_ok = workload(gw_pods, "Gateway")
 
-    def component(selected, resources, name):
-        if not selected:
-            return "Disabled by configuration", True
-        if not resources:
-            blockers.append(f"{name} CR was not created (selected).")
-            return "Missing", False
-        return "Ready", True
-
-    ctrl_status, ctrl_ok = component(
-        expect_controller, controllers, "AutomationController"
-    )
-    hub_status, hub_ok = component(expect_hub, hubs, "AutomationHub")
+def _eda_status(expect_eda, edas, blockers):
     if not expect_eda:
         eda_status, eda_ok = "Disabled by configuration", True
         if edas:
             blockers.append("EDA application CR exists but EDA was not selected.")
             eda_ok = False
             eda_status = "Present (unexpected)"
-    else:
-        eda_status, eda_ok = component(True, edas, "EDA")
+        return eda_status, eda_ok
+    return _component(True, edas, "EDA", blockers)
 
-    # Live Route only — never construct hostname patterns.
+
+def _find_gateway_route(routes, instance):
     route_obj = None
-    instance = args.instance
     for r in routes:
         name = _name(r)
         to_name = (((r.get("spec") or {}).get("to") or {}).get("name") or "")
         labels = ((r.get("metadata") or {}).get("labels") or {})
         if name == instance or to_name == instance:
-            route_obj = r
-            break
+            return r
         if labels.get("app.kubernetes.io/name") == instance:
-            route_obj = r
-            break
-    if not route_obj:
-        for r in routes:
-            if _name(r).startswith(instance):
-                route_obj = r
-                break
-    if not route_obj:
-        for r in routes:
-            to_name = (((r.get("spec") or {}).get("to") or {}).get("name") or "")
-            if to_name == instance or re.search(r"gateway", _name(r), re.I):
-                route_obj = r
-                break
+            return r
+    for r in routes:
+        if _name(r).startswith(instance):
+            return r
+    for r in routes:
+        to_name = (((r.get("spec") or {}).get("to") or {}).get("name") or "")
+        if to_name == instance or re.search(r"gateway", _name(r), re.I):
+            return r
+    return route_obj
 
+
+def _endpoint_ready(eps, svc_name):
+    for ep in eps:
+        labels = ((ep.get("metadata") or {}).get("labels") or {})
+        if labels.get("kubernetes.io/service-name") != svc_name:
+            continue
+        for endpoint in ep.get("endpoints") or []:
+            cond = endpoint.get("conditions") or {}
+            if cond.get("ready") is False:
+                continue
+            if endpoint.get("addresses"):
+                return True
+    return False
+
+
+def _assess_route(route_obj, svcs, eps, http_status_i, blockers, notes):
     route_name = route_host = route_url = ""
-    admitted = backend_ready = False
+    admitted = backend_ready = route_healthy = False
     if route_obj:
         route_name = _name(route_obj)
         route_host = str(((route_obj.get("spec") or {}).get("host") or "")).strip()
@@ -271,25 +270,14 @@ def assess(args):
             route_url = f"https://{route_host}"
         svc_name = (((route_obj.get("spec") or {}).get("to") or {}).get("name") or "")
         svc = next((s for s in svcs if _name(s) == svc_name), None)
-        ready_eps = False
-        for ep in eps:
-            labels = ((ep.get("metadata") or {}).get("labels") or {})
-            if labels.get("kubernetes.io/service-name") != svc_name:
-                continue
-            for endpoint in ep.get("endpoints") or []:
-                cond = endpoint.get("conditions") or {}
-                if cond.get("ready") is False:
-                    continue
-                if endpoint.get("addresses"):
-                    ready_eps = True
-                    break
+        ready_eps = _endpoint_ready(eps, svc_name)
         backend_ready = bool(svc) and ready_eps
         if route_host and not backend_ready:
             notes.append(
-                f"Route {route_name} has host {route_host} but backend endpoints are not ready."
+                f"Route {route_name} has host {route_host} but backend endpoints "
+                "are not ready."
             )
 
-    route_healthy = False
     if http_status_i is not None:
         if http_status_i == 503:
             blockers.append(
@@ -302,6 +290,30 @@ def assess(args):
         else:
             notes.append(f"Gateway HTTPS probe returned HTTP {http_status_i}.")
 
+    return {
+        "route_name": route_name,
+        "route_host": route_host,
+        "route_url": route_url,
+        "admitted": admitted,
+        "backend_ready": backend_ready,
+        "route_healthy": route_healthy,
+        "http_status_i": http_status_i,
+    }
+
+
+def _ready_blockers(
+    platform,
+    gw_ok,
+    pg_ok,
+    postgres_pvcs,
+    expect_controller,
+    controllers,
+    expect_hub,
+    hubs,
+    mismatch,
+    operator_failed,
+    route,
+):
     ready_blockers = []
     if not platform:
         ready_blockers.append("Platform CR missing")
@@ -317,42 +329,44 @@ def assess(args):
         ready_blockers.append("PostgreSQL StorageClass mismatch")
     if operator_failed:
         ready_blockers.append("Platform Failure=True")
-    if not route_url:
+    if not route["route_url"]:
         ready_blockers.append("Gateway Route not discovered")
-    if route_url and not backend_ready:
+    if route["route_url"] and not route["backend_ready"]:
         ready_blockers.append("Route backend not ready")
-    if http_status_i == 503:
+    if route["http_status_i"] == 503:
         ready_blockers.append("Route HTTP 503")
+    return ready_blockers
+
+
+def _decide_overall(args, ready_blockers, route, operator_failed, blockers):
+    http_status_i = route["http_status_i"]
+    route_url = route["route_url"]
+    backend_ready = route["backend_ready"]
+    route_healthy = route["route_healthy"]
+    attempt = args.attempt
+    max_attempts = args.max_attempts
 
     if not ready_blockers and (
         route_healthy or http_status_i is None or not args.require_http_healthy
     ):
-        # When probe not required/ skipped, backend_ready + children are enough.
         if http_status_i is None and route_url and backend_ready:
-            overall, terminal = "ready", True
-            blockers = []
-        elif route_healthy and route_url and backend_ready:
-            overall, terminal = "ready", True
-            blockers = []
-        elif not ready_blockers and route_url and backend_ready:
-            overall, terminal = "ready", True
-            blockers = []
-        else:
-            overall, terminal = "installing", False
-            blockers = list(dict.fromkeys(blockers + ready_blockers))
-    elif operator_failed:
-        overall, terminal = "failed", True
-        blockers = list(dict.fromkeys(blockers + ready_blockers))
-    elif attempt >= max_attempts:
-        overall = "failed"
-        terminal = True
-        blockers = list(dict.fromkeys(blockers + ready_blockers))
-        blockers.append(f"Verification timed out after {max_attempts} attempts.")
-    else:
-        overall, terminal = "installing", False
-        blockers = list(dict.fromkeys(blockers + ready_blockers))
+            return "ready", True, []
+        if route_healthy and route_url and backend_ready:
+            return "ready", True, []
+        if not ready_blockers and route_url and backend_ready:
+            return "ready", True, []
+        return "installing", False, list(dict.fromkeys(blockers + ready_blockers))
+    if operator_failed:
+        return "failed", True, list(dict.fromkeys(blockers + ready_blockers))
+    if attempt >= max_attempts:
+        merged = list(dict.fromkeys(blockers + ready_blockers))
+        merged.append(f"Verification timed out after {max_attempts} attempts.")
+        return "failed", True, merged
+    return "installing", False, list(dict.fromkeys(blockers + ready_blockers))
 
-    interesting_events = []
+
+def _interesting_events(events):
+    interesting = []
     for ev in sorted(
         events,
         key=lambda e: (
@@ -366,7 +380,7 @@ def assess(args):
         if etype not in ("Warning", "Error"):
             continue
         inv = ev.get("involvedObject") or {}
-        interesting_events.append(
+        interesting.append(
             {
                 "type": etype,
                 "reason": ev.get("reason") or "",
@@ -374,6 +388,63 @@ def assess(args):
                 "involved": f"{inv.get('kind') or ''}/{inv.get('name') or ''}",
             }
         )
+    return interesting
+
+
+def assess(args):
+    platforms = _resources(_load(args.platform))
+    platform = platforms[0] if platforms else None
+    controllers = _resources(_load(args.controllers))
+    hubs = _resources(_load(args.hubs))
+    edas = _resources(_load(args.edas))
+    pods = _resources(_load(args.pods))
+    pvcs = _resources(_load(args.pvcs))
+    routes = _resources(_load(args.routes))
+    svcs = _resources(_load(args.services))
+    eps = _resources(_load(args.endpointslices))
+    events = _resources(_load(args.events))
+
+    blockers = []
+    notes = []
+    conditions = _cond_map(platform) if platform else {}
+    plat = _platform_state(platform, conditions, args, blockers, notes)
+    storage = _postgres_storage(
+        platform, pvcs, (args.expect_pg_sc or "").strip(), blockers, notes
+    )
+
+    pg_pods = _filter_pods(pods, r"postgres")
+    redis_pods = _filter_pods(pods, r"redis")
+    gw_pods = _filter_pods(pods, r"gateway", exclude=r"operator|controller-manager")
+    pg_status, pg_ok = _postgres_status(pg_pods, storage, blockers, notes)
+    redis_status, redis_ok = _workload(redis_pods, "Redis", blockers)
+    gw_status, gw_ok = _workload(gw_pods, "Gateway", blockers)
+
+    ctrl_status, ctrl_ok = _component(
+        args.expect_controller, controllers, "AutomationController", blockers
+    )
+    hub_status, hub_ok = _component(
+        args.expect_hub, hubs, "AutomationHub", blockers
+    )
+    eda_status, eda_ok = _eda_status(args.expect_eda, edas, blockers)
+
+    route_obj = _find_gateway_route(routes, args.instance)
+    route = _assess_route(route_obj, svcs, eps, args.http_status, blockers, notes)
+    ready_blockers = _ready_blockers(
+        platform,
+        gw_ok,
+        pg_ok,
+        storage["postgres_pvcs"],
+        args.expect_controller,
+        controllers,
+        args.expect_hub,
+        hubs,
+        storage["mismatch"],
+        plat["operator_failed"],
+        route,
+    )
+    overall, terminal, blockers = _decide_overall(
+        args, ready_blockers, route, plat["operator_failed"], blockers
+    )
 
     return {
         "schema_version": 1,
@@ -383,58 +454,58 @@ def assess(args):
             "api_host": args.api_host,
             "namespace": args.namespace,
             "deployment_version": args.version,
-            "instance_name": instance,
+            "instance_name": args.instance,
         },
         "platform": {
-            "name": platform_name,
-            "status": platform_status,
+            "name": plat["platform_name"],
+            "status": plat["platform_status"],
             "conditions": [{"type": k, **v} for k, v in conditions.items()],
-            "failure_task": failed_task,
-            "failure_message": fail_msg,
-            "failure_reason": fail_reason,
+            "failure_task": plat["failed_task"],
+            "failure_message": plat["fail_msg"],
+            "failure_reason": plat["fail_reason"],
         },
         "postgresql": {
             "status": pg_status,
-            "storage_class": effective_sc,
-            "pvc_size": effective_size,
-            "expected_storage_class": expect_pg_sc,
-            "mismatch": mismatch,
+            "storage_class": storage["effective_sc"],
+            "pvc_size": storage["effective_size"],
+            "expected_storage_class": (args.expect_pg_sc or "").strip(),
+            "mismatch": storage["mismatch"],
             "ready": pg_ok,
         },
         "redis": {"status": redis_status, "ready": redis_ok},
         "gateway": {"status": gw_status, "ready": gw_ok},
         "controller": {
             "status": ctrl_status,
-            "selected": expect_controller,
+            "selected": args.expect_controller,
             "ready": ctrl_ok,
             "count": len(controllers),
         },
         "hub": {
             "status": hub_status,
-            "selected": expect_hub,
+            "selected": args.expect_hub,
             "ready": hub_ok,
             "count": len(hubs),
         },
         "eda": {
             "status": eda_status,
-            "selected": expect_eda,
+            "selected": args.expect_eda,
             "ready": eda_ok,
             "count": len(edas),
         },
         "route": {
-            "name": route_name,
-            "host": route_host,
-            "url": route_url,
-            "admitted": admitted,
-            "backend_ready": backend_ready,
-            "http_status": http_status_i,
-            "healthy": bool(route_healthy),
+            "name": route["route_name"],
+            "host": route["route_host"],
+            "url": route["route_url"],
+            "admitted": route["admitted"],
+            "backend_ready": route["backend_ready"],
+            "http_status": route["http_status_i"],
+            "healthy": bool(route["route_healthy"]),
         },
-        "events": interesting_events,
+        "events": _interesting_events(events),
         "blockers": blockers,
         "notes": notes,
-        "attempt": attempt,
-        "max_attempts": max_attempts,
+        "attempt": args.attempt,
+        "max_attempts": args.max_attempts,
         "terminal": terminal,
         "engine": "kubernetes.core",
     }
@@ -474,7 +545,15 @@ def main(argv=None):
         args.expect_hub = False
     result = assess(args)
     Path(args.output).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"overall_status": result["overall_status"], "terminal": result["terminal"], "url": result["route"].get("url")}))
+    print(
+        json.dumps(
+            {
+                "overall_status": result["overall_status"],
+                "terminal": result["terminal"],
+                "url": result["route"].get("url"),
+            }
+        )
+    )
     return 0 if result["overall_status"] != "verification_unavailable" else 2
 
 
