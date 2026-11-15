@@ -44,6 +44,7 @@ GRAFANA = {
 OPENSHIFT = {
     "id": "OpenshiftDev",
     "name": "OpenShift",
+    "source": "openshift",
     "redirect_uris": "https://oauth.apps.example.test/*",
     "web_origins": "https://oauth.apps.example.test",
 }

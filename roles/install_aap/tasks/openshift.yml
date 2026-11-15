@@ -87,3 +87,11 @@
     - >-
       (aap_ocp_install_license_mode | default('none') | lower)
       not in ['', 'none', 'skip']
+
+# Post-install verification uses kubernetes.core only (not AAP APIs / aap_utilities).
+- name: Verify AAP OpenShift installation with kubernetes.core
+  ansible.builtin.include_tasks: verify_openshift.yml
+  when:
+    - install_aap_state_effective == 'present'
+    - not (aap_ocp_install_license_only | default(false) | bool)
+    - install_aap_verify_enabled | default(true) | bool

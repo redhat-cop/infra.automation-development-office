@@ -2859,10 +2859,15 @@ def merge_component(component, cfg):
             clients = public_values.get("clients")
             if not isinstance(clients, list):
                 clients = []
-            # Always rebuild. A missing or empty preflight list must drop
-            # seed/prior rhbk_clients so a retained row cannot keep
-            # provisioning unmanaged or MinIO clients.
-            rhbk_clients = {}
+            # Rebuild ADO-managed clients from the current preflight list, then
+            # merge with prior rhbk_clients so user-managed rows survive regen.
+            # ADO-owned rows that leave the managed set are dropped from
+            # group_vars (Deploy RHBK Client stops updating them) but are never
+            # deleted from Keycloak by omission alone.
+            prior_rhbk_clients = vars_data.get("rhbk_clients")
+            if not isinstance(prior_rhbk_clients, dict):
+                prior_rhbk_clients = {}
+            newly_managed = {}
             for client in clients:
                 if not isinstance(client, dict):
                     continue
@@ -2937,20 +2942,32 @@ def merge_component(component, cfg):
                         client.get("client_authenticator_type")
                         or "client-secret"
                     ),
+                    preflight_oidc.RHBK_CLIENT_ADO_OWNER_KEY: (
+                        preflight_oidc.rhbk_client_ado_owner(
+                            preflight, selected_components, client_id, client
+                        )
+                    ),
                 }
                 if is_openshift_oidc and not client_entry["rhbk_public_client"]:
                     # OpenShift OAuth IdP expects a confidential client secret.
                     client_entry["rhbk_service_accounts_enabled"] = bool(
                         client.get("service_accounts_enabled", False)
                     )
-                rhbk_clients[client_id] = client_entry
+                newly_managed[client_id] = client_entry
+            drop_ids = preflight_oidc.rhbk_clients_force_drop_ids(
+                preflight, selected_components, clients
+            )
+            rhbk_clients = preflight_oidc.merge_rhbk_clients_for_regen(
+                prior_rhbk_clients, newly_managed, drop_ids
+            )
             if rhbk_clients:
                 vars_data["rhbk_clients"] = rhbk_clients
                 vars_data["components_env"]["rhbk"]["rhbk_clients"] = copy.deepcopy(
                     rhbk_clients)
+                vars_data_changed = True
             else:
-                # All rows unmanaged, omitted, or blank: drop a prior run's
-                # provision list so Deploy RHBK Client cannot recreate them.
+                # Nothing left to provision: clear a prior run's list so Deploy
+                # RHBK Client cannot recreate dropped ADO-owned clients.
                 if vars_data.pop("rhbk_clients", None) is not None:
                     vars_data_changed = True
                 env_rhbk = (vars_data.get("components_env") or {}).get("rhbk")
@@ -2994,12 +3011,16 @@ def merge_component(component, cfg):
             )
             _issuer_host = _rhbk_host or strip_host(vars_data.get("ocp_rhbk_hostname"))
             if _oidc_client:
+                _prior_oidc = vars_data.get("openshift_oidc_auth")
                 oidc_auth = {
                     "enabled": True,
                     "keycloak_client_id": str(_oidc_client),
                     "openshift_oidc_idp_name": _oidc_idp,
                     "openshift_oidc_mapping_method": (
-                        preflight_oidc.OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
+                        preflight_oidc.resolve_openshift_oidc_mapping_method(
+                            preflight,
+                            _prior_oidc if isinstance(_prior_oidc, dict) else None,
+                        )
                     ),
                     "openshift_oauth_resource_name": "cluster",
                     "extra_scopes": ["groups"],
@@ -6053,9 +6074,12 @@ def apply_openshift_oauth_rhbk():
     rhbk_vars["openshift_oidc_idp_name"] = settings["idpName"]
     rhbk_vars["openshift_oidc_client_id"] = settings["clientId"]
     rhbk_vars["openshift_oidc_auth"] = oidc_auth
+    # External Keycloak must not inherit the OpenShift ingress CA as openID.ca.
+    rhbk_vars["ocp_oidc_auth_keycloak_external"] = bool(external)
     components_env = rhbk_vars.get("components_env")
     if isinstance(components_env, dict) and isinstance(components_env.get("rhbk"), dict):
         components_env["rhbk"]["openshift_oidc_auth"] = copy.deepcopy(oidc_auth)
+        components_env["rhbk"]["ocp_oidc_auth_keycloak_external"] = bool(external)
 
     # Role-native inputs, written only when the OpenShift section owns the value.
     own_values = {}

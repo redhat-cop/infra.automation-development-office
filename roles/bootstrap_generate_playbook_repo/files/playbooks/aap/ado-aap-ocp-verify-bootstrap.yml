@@ -1,0 +1,33 @@
+---
+# Read-only AAP post-install verification via kubernetes.core.
+# Reuses OpenShift credentials from vault_openshift / vars_aap.
+# Does not install, cleanup, or call AAP Controller APIs.
+
+- name: ADO | Verify AAP OpenShift installation (kubernetes.core)
+  hosts: localhost
+  gather_facts: false
+  vars:
+    component: aap
+    install_aap_verify_enabled: true
+    install_aap_target: openshift
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_openshift.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_aap.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_aap.yml"
+  environment:
+    K8S_AUTH_HOST: '{{ host | default(api_host) }}'
+    K8S_AUTH_API_KEY: '{{ token }}'
+    K8S_AUTH_VERIFY_SSL: >-
+      {{ (verify_ssl | bool) | ternary('yes', 'no') }}
+  pre_tasks:
+    - name: ADO | Resolve component vars from defaults and env overrides
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.bootstrap_resolve_component
+  tasks:
+    - name: Run kubernetes.core AAP verification
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.install_aap
+        tasks_from: verify_openshift.yml
+      vars:
+        install_aap_target: openshift

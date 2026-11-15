@@ -1,0 +1,10 @@
+---
+minor_changes:
+  - >-
+    install_aap - After OpenShift install, run bounded post-install
+    verification with ``kubernetes.core.k8s_info`` (and optional
+    ``ansible.builtin.uri`` HTTPS probe). Discovers the live Gateway
+    Route URL, checks Platform/Controller/Hub readiness, PostgreSQL
+    StorageClass, and writes ``aap-install-verify-result.json`` for
+    Preflight Bootstrap Console display. Does not use AAP Controller
+    APIs, ``infra.aap_utilities``, or ``oc``/``kubectl``.

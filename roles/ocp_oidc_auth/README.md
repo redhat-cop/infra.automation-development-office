@@ -18,8 +18,10 @@ Automation Development Office
 |----------|-------------|
 | `ocp_oidc_auth_state` | Desired state used by role tasks when supported. |
 | `ocp_rhbk_verify_ssl` | Verify the Keycloak TLS certificate. Unset, null or blank means on. `true` / `yes` / `on` / `1` verify. `false` / `no` / `off` / `0` turn verification off. Any other value is an error; it is never read as false. |
-| `ocp_oidc_auth_ca_pem` | PEM of the CA that issued Keycloak's certificate. Optional. Used to verify Keycloak and, as before, given to OpenShift's oauth-server. |
-| `openshift_oidc_auth.openshift_oidc_mapping_method` | OpenShift OAuth mapping method. Default `add` so a Keycloak username that already exists (htpasswd `admin`) can sign in. `claim` fails with `Could not create user` when that User already exists. |
+| `ocp_oidc_auth_ca_pem` | PEM of the CA that issued Keycloak's certificate. Optional. Used to verify Keycloak and given to OpenShift's oauth-server as `openID.ca` when set. Leave empty for publicly trusted Keycloak so oauth-server uses its default trust store. |
+| `ocp_oidc_auth_keycloak_external` | When true (external / standalone Keycloak), never fall back to the cluster `default-ingress-cert` as the Keycloak CA. |
+| `ocp_oidc_auth_use_default_ingress_ca` / `ocp_rhbk_use_default_ingress_cert` | Opt-in: allow ingress CA discovery only for in-cluster Keycloak that actually uses the default ingress cert. |
+| `openshift_oidc_auth.openshift_oidc_mapping_method` | OpenShift OAuth mapping method. Default `add` for new configs so a Keycloak username that already exists (htpasswd `admin`) can sign in. `claim` fails with `Could not create user` when that User already exists. Regeneration preserves an existing method unless Preflight sets `mapping_method` explicitly. |
 
 ### Existing Keycloak client and failure behavior
 
@@ -84,8 +86,12 @@ separate:
   2. `idm.ca_bundle_pem` / `idm_ca_bundle_pem` (IdM ACME / lab IdM)
   3. Keycloak TLS Secret `ca.crt`, else intermediates from `tls.crt` (leaf dropped)
   4. cert-manager Issuer / ClusterIssuer ACME `caBundle`
-  5. `openshift-config-managed/default-ingress-cert` (last resort)
-  6. Empty → process trust store (public CAs / EE image)
+  5. `openshift-config-managed/default-ingress-cert` only when Keycloak is
+     in-cluster and `ocp_rhbk_use_default_ingress_cert` (or
+     `ocp_oidc_auth_use_default_ingress_ca`) is true — never for external
+     Keycloak
+  6. Empty → process trust store (public CAs / EE image); `openID.ca` is
+     omitted so publicly trusted certificates work without a CA ConfigMap
 
 The discovered PEM is written to a temporary `0600` file for the run and
 removed afterwards. It is passed as `ca_path` to REST calls and as

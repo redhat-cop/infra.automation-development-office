@@ -119,3 +119,24 @@ def test_false_survives_ansible_215_stringification() -> None:
     assert token in allow
     assert token in off
     assert (token not in off) is False
+
+
+def test_openid_ca_not_required_for_public_trust() -> None:
+    text = TASKS.read_text(encoding="utf-8")
+    assert "Assert OpenShift OIDC private CA PEM is usable when provided" in text
+    assert "Assert OpenShift OIDC CA was resolved" not in text
+    block = text[
+        text.index("Assert OpenShift OIDC private CA PEM is usable when provided") : text.index(
+            "Remind when private-CA Keycloak has no trust bundle"
+        )
+    ]
+    assert "when: (ocp_oidc_auth_ca_pem" in block
+
+
+def test_ingress_ca_fallback_gated_for_external_keycloak() -> None:
+    trust = (
+        ROOT / "roles/ocp_oidc_auth/tasks/resolve_keycloak_trust.yml"
+    ).read_text(encoding="utf-8")
+    assert "ocp_oidc_auth_keycloak_external" in trust
+    assert "ocp_rhbk_use_default_ingress_cert" in trust
+    assert "Fall back to cluster default ingress CA only for in-cluster" in trust

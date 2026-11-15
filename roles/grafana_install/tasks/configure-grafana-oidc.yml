@@ -49,3 +49,9 @@
   when:
     - grafana_install_oidc_enabled | bool
     - grafana_install_config_oidc is defined
+
+- name: Mount Grafana OIDC private CA ConfigMap into the Grafana pod
+  ansible.builtin.import_tasks: ensure-grafana-oidc-ca-mount.yml
+  when:
+    - grafana_install_oidc_enabled | bool
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0

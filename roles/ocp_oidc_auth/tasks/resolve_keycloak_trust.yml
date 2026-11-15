@@ -138,8 +138,17 @@
       | infra.automation_development_office.tls_pem_looks_like_certificate
   no_log: true
 
-- name: Fall back to cluster default ingress CA only when still unresolved
-  when: (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+# Ingress CA is only valid when this cluster's default ingress cert actually
+# signs Keycloak (RHBK using ocp_rhbk_use_default_ingress_cert). Never use it
+# for an external / standalone Keycloak endpoint — that substitutes an
+# unrelated CA and breaks oauth-server trust (or forces a bogus openID.ca).
+- name: Fall back to cluster default ingress CA only for in-cluster ingress-signed Keycloak
+  when:
+    - (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
+    - not (ocp_oidc_auth_keycloak_external | default(false) | bool)
+    - >-
+      (ocp_rhbk_use_default_ingress_cert | default(false) | bool)
+      or (ocp_oidc_auth_use_default_ingress_ca | default(false) | bool)
   block:
     - name: Read default-ingress-cert CA from openshift-config-managed
       kubernetes.core.k8s_info:
@@ -181,11 +190,13 @@
     msg: >-
       No Keycloak CA bundle was discovered (checked ocp_oidc_auth_ca_pem,
       idm_ca_bundle_pem, Keycloak TLS Secret ca.crt / tls.crt intermediates,
-      cert-manager issuer ACME caBundle, default-ingress-cert). Ansible will
-      use the process trust store. If Keycloak uses a private CA
-      (for example ClusterIssuer/idm-acme), set idm_ca_bundle_pem or
-      ocp_oidc_auth_ca_pem, or ensure the TLS Secret includes ca.crt.
-      Verification remains enabled.
+      cert-manager issuer ACME caBundle, and ingress CA only when
+      ocp_rhbk_use_default_ingress_cert / ocp_oidc_auth_use_default_ingress_ca
+      is set for in-cluster Keycloak). Ansible will use the process trust
+      store (appropriate for publicly trusted certificates). External
+      Keycloak never inherits the cluster ingress CA. If Keycloak uses a
+      private CA, set idm_ca_bundle_pem or ocp_oidc_auth_ca_pem, or ensure
+      the TLS Secret includes ca.crt. Verification remains enabled.
   when:
     - ocp_oidc_auth_verify_ssl | bool
     - (ocp_oidc_auth_trust_pem | length) == 0

@@ -576,20 +576,35 @@
   when: (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
   no_log: true
 
-- name: Assert OpenShift OIDC CA was resolved
+# Publicly trusted Keycloak (commercial CA / public Let's Encrypt) may omit
+# openID.ca and rely on the oauth-server / EE trust store. Require an explicit
+# CA PEM only when a private-CA path was expected (IdM / explicit PEM request)
+# or when verification is on and discovery claimed a private source that failed.
+- name: Assert OpenShift OIDC private CA PEM is usable when provided
   ansible.builtin.assert:
     that:
-      - (ocp_oidc_auth_ca_pem | default('') | string | length) > 0
       - >-
         ocp_oidc_auth_ca_pem
         | infra.automation_development_office.tls_pem_looks_like_certificate
     fail_msg: >-
-      OpenShift OIDC requires a CA ConfigMap for oauth-server to trust Keycloak.
-      Could not build a CA trust bundle (source={{ ocp_oidc_auth_trust_source | default('none') }}).
-      Checked ocp_oidc_auth_ca_pem, idm_ca_bundle_pem, Keycloak TLS Secret ca.crt /
-      tls.crt intermediates, cert-manager issuer ACME caBundle, and
-      default-ingress-cert. Without openID.ca the IdP is written to the OAuth CR
-      but the authentication operator stays Degraded (x509 unknown authority).
+      OpenShift OIDC CA PEM is set but is not a usable certificate
+      (source={{ ocp_oidc_auth_trust_source | default('none') }}).
+      Set ocp_oidc_auth_ca_pem / idm_ca_bundle_pem to the issuing CA bundle for
+      a private-CA Keycloak, or leave it empty for a publicly trusted endpoint
+      so oauth-server uses its default trust store (no openID.ca).
+  when: (ocp_oidc_auth_ca_pem | default('') | string | trim | length) > 0
+
+- name: Remind when private-CA Keycloak has no trust bundle
+  ansible.builtin.debug:
+    msg: >-
+      No Keycloak CA bundle was resolved for OpenShift OIDC
+      (source={{ ocp_oidc_auth_trust_source | default('none') }};
+      external={{ ocp_oidc_auth_keycloak_external | default(false) }}).
+      openID.ca will be omitted so oauth-server uses its default trust store.
+      For a private-CA Keycloak set ocp_oidc_auth_ca_pem or idm_ca_bundle_pem
+      to the issuing CA. Do not use the cluster ingress CA for an unrelated
+      external Keycloak hostname.
+  when: (ocp_oidc_auth_ca_pem | default('') | string | trim | length) == 0
 
 # -----------------------------
 # Define OIDC provider

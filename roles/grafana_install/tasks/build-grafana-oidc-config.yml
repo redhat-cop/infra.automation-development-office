@@ -72,12 +72,25 @@
     - grafana_install_oidc_enabled | default(false) | bool
   changed_when: false
 
+# Prefer Grafana-specific TLS settings. Do not couple forever to OpenShift
+# ocp_rhbk_verify_ssl — private-CA Keycloak should set oidc.ca_pem (or
+# grafana_install_oidc_ca_pem) and keep verification on.
 - name: Read the Keycloak TLS verification setting for Grafana OIDC
   ansible.builtin.set_fact:
     grafana_install_oidc_verify_ssl_token: "{{ '' if _tok is none else (_tok | string | trim | lower) }}"
+    grafana_install_oidc_ca_pem: >-
+      {{
+        (
+          (oidc.ca_pem | default(oidc.ca_bundle_pem | default('', true), true))
+          | default(grafana_install_oidc_ca_pem | default('', true), true)
+          | default(idm_ca_bundle_pem | default('', true), true)
+        )
+        | string
+        | trim
+      }}
   vars:
     _tok: >-
-      {%- set raw = ocp_rhbk_verify_ssl | default(none) -%}
+      {%- set raw = oidc.verify_ssl if (oidc.verify_ssl is defined) else (grafana_install_oidc_verify_ssl if (grafana_install_oidc_verify_ssl is defined) else (ocp_rhbk_verify_ssl | default(none))) -%}
       {%- if raw is none -%}
       {%- elif raw is boolean -%}{{ 'true' if raw else 'false' }}{%- elif raw is float and raw == (raw | int) -%}{{ raw | int }}{%- else -%}{{ raw | string | trim | lower }}{%- endif -%}
   when:
@@ -90,24 +103,60 @@
         (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower)
         in ['', '1', 'true', 'yes', 'on', '0', 'false', 'no', 'off']
     fail_msg: >-
-      ocp_rhbk_verify_ssl has the value '{{
+      Grafana OIDC TLS verify_ssl has the value '{{
         grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower
         | truncate(40, true, '...')
       }}',
-      which is not recognized. Use true, yes, on or 1 to verify the Keycloak TLS
-      certificate, false, no, off or 0 to turn verification off explicitly, or
-      leave it unset to verify. An unrecognized value is never read as false.
-      Nothing was sent to Keycloak.
+      which is not recognized. Prefer oidc.verify_ssl or
+      grafana_install_oidc_verify_ssl (true/yes/on/1, false/no/off/0, or unset
+      to verify). ocp_rhbk_verify_ssl remains a fallback only. For a private-CA
+      Keycloak set oidc.ca_pem / grafana_install_oidc_ca_pem and keep
+      verification on — do not disable TLS verification. Nothing was sent to
+      Keycloak.
   when:
     - grafana_install_oidc_enabled | default(false) | bool
 
 - name: Resolve Grafana OIDC Keycloak TLS verification
   ansible.builtin.set_fact:
     grafana_install_oidc_verify_ssl: "{{ (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower) not in ['0', 'false', 'no', 'off'] }}"
-    grafana_install_oidc_tls_skip_verify: "{{ (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower) in ['0', 'false', 'no', 'off'] }}"
+    # Private CA bundle means verify with that CA — never imply skip-verify.
+    grafana_install_oidc_tls_skip_verify: >-
+      {{
+        (
+          (grafana_install_oidc_ca_pem | default('') | string | trim | length) == 0
+        )
+        and (
+          (grafana_install_oidc_verify_ssl_token | default('') | string | trim | lower)
+          in ['0', 'false', 'no', 'off']
+        )
+      }}
   when:
     - grafana_install_oidc_enabled | default(false) | bool
   changed_when: false
+
+- name: Publish Grafana OIDC private CA ConfigMap when a PEM is provided
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ grafana_install_oidc_ca_configmap | default('grafana-oidc-ca') }}"
+        namespace: "{{ name_space | default('grafana') }}"
+      data:
+        ca.crt: "{{ grafana_install_oidc_ca_pem }}"
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - (grafana_install_oidc_ca_pem | default('') | string | trim | length) > 0
+  no_log: true
+
+- name: Set Grafana OIDC tls_client_ca path when a private CA ConfigMap is used
+  ansible.builtin.set_fact:
+    grafana_install_oidc_tls_client_ca: "{{ grafana_install_oidc_ca_mount_path | default('/etc/grafana/oidc-ca/ca.crt') }}"
+    grafana_install_oidc_ca_volume_name: grafana-oidc-ca
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - (grafana_install_oidc_ca_pem | default('') | string | trim | length) > 0
 
 - name: Use Grafana OIDC client secret from vars when already set
   ansible.builtin.set_fact:
@@ -253,6 +302,7 @@
         role_attribute_strict: "{{ (oidc.role_attribute_strict | default(true)) | ternary('true', 'false') }}"
         allow_assign_grafana_admin: "{{ (oidc.allow_assign_grafana_admin | default(true)) | ternary('true', 'false') }}"
         tls_skip_verify_insecure: "{{ grafana_install_oidc_tls_skip_verify | ternary('true', 'false') }}"
+        tls_client_ca: "{{ grafana_install_oidc_tls_client_ca | default(omit) }}"
   when:
     - grafana_install_oidc_enabled | default(false) | bool
   no_log: true

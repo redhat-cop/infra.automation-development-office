@@ -2,6 +2,15 @@
 # yamllint disable rule:line-length
 # Do not use meta: end_role (ansible-core 2.18+ only). requires_ansible is
 # >=2.17.0, and older EEs fail with invalid meta action requested: end_role.
+# Disabled by default. When false, skip all management tasks and leave any
+# existing Deployment/ServiceMonitor untouched (no uninstall on disable).
+- name: Skip Keycloak login-events exporter when disabled
+  ansible.builtin.debug:
+    msg: >-
+      keycloak_login_events_exporter_enabled is false; skipping exporter
+      management. An existing exporter is left in place.
+  when: not (keycloak_login_events_exporter_enabled | default(false) | bool)
+
 - name: Deploy Keycloak login-events exporter when enabled
   when: keycloak_login_events_exporter_enabled | default(false) | bool
   block:

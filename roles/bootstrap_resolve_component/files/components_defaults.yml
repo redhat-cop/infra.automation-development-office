@@ -694,10 +694,14 @@ components_defaults:
     route_labels: {}
 
     # OIDC config (ON by default for lab Keycloak).
-    # tls_skip_verify_insecure follows ocp_rhbk_verify_ssl at runtime (verify ON).
+    # Prefer oidc.verify_ssl / oidc.ca_pem for Keycloak TLS trust. Private CA:
+    # set ca_pem to the issuing CA and keep verification on (do not skip TLS).
+    # ocp_rhbk_verify_ssl remains a fallback only.
     oidc:
       enabled: true
       tls_skip_verify_insecure: false
+      verify_ssl: true
+      ca_pem: ""
       client_id: "grafana-client"
       scopes:
         - openid
@@ -995,7 +999,8 @@ components_defaults:
     install_rhbk_servicemonitor_enabled: true
 
     # Admin event-store exporter (username labels). Separate from native
-    # keycloak_user_events_total. Default on when RHBK is selected.
+    # keycloak_user_events_total. Disabled by default; set true to deploy.
+    # false skips management and does not uninstall an existing exporter.
     keycloak_login_events_exporter_enabled: false
     keycloak_login_events_exporter_namespace: grafana
     keycloak_login_events_realms: rhlab

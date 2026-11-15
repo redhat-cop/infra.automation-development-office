@@ -328,6 +328,12 @@
 - name: Set Grafana memory and readiness probe
   ansible.builtin.import_tasks: ensure-grafana-resources.yml
 
+- name: Mount Grafana OIDC private CA ConfigMap into the Grafana pod
+  ansible.builtin.import_tasks: ensure-grafana-oidc-ca-mount.yml
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
+
 - name: Wait for Grafana API to be ready (/api/health)
   ansible.builtin.uri:
     url: "https://{{ grafana_install_hostname }}/api/health"

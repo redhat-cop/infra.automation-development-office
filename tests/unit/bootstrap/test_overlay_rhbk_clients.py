@@ -173,7 +173,12 @@ def test_openshift_oidc_uses_rhbk_openshift_client_id(tmp_path: Path) -> None:
 def test_openshift_oidc_resolves_openshift_specific_client(
     tmp_path: Path,
 ) -> None:
-    ocp = {**GRAFANA, "id": "OpenshiftDev", "name": "OpenShift"}
+    ocp = {
+        **GRAFANA,
+        "id": "OpenshiftDev",
+        "name": "OpenShift",
+        "source": "openshift",
+    }
     code, err, data = _overlay(
         tmp_path,
         selected=["rhbk", "openshift"],
@@ -181,6 +186,32 @@ def test_openshift_oidc_resolves_openshift_specific_client(
     )
     assert code == 0, err
     assert data["openshift_oidc_auth"]["keycloak_client_id"] == "OpenshiftDev"
+
+
+def test_openshift_gitops_prefix_is_not_treated_as_oauth_client(
+    tmp_path: Path,
+) -> None:
+    gitops = {
+        "id": "openshift-gitops",
+        "name": "GitOps",
+        "redirect_uris": "https://console.apps.example.test/",
+        "web_origins": "https://console.apps.example.test",
+    }
+    code, err, data = _overlay(
+        tmp_path,
+        selected=["rhbk", "openshift"],
+        rhbk={"clients": [GRAFANA, gitops], "client": GRAFANA["id"]},
+        oauth={"client_id": "OpenshiftDev"},
+    )
+    assert code == 0, err
+    assert data["openshift_oidc_auth"]["keycloak_client_id"] == "OpenshiftDev"
+    # Unrelated openshift-* client keeps its own redirect URIs.
+    assert data["rhbk_clients"]["openshift-gitops"]["rhbk_redirect_uris"] == [
+        "https://console.apps.example.test/"
+    ]
+    assert "oauth2callback" not in str(
+        data["rhbk_clients"]["openshift-gitops"]["rhbk_redirect_uris"]
+    )
 
 
 def test_no_openshift_oidc_request_generates_no_openshift_client(
@@ -391,15 +422,22 @@ def test_switching_to_unmanaged_drops_prior_rhbk_clients(tmp_path: Path) -> None
     assert data.get("rhbk_client") != "OpenshiftDev"
 
 
-def test_missing_preflight_clients_drops_retained_rhbk_clients(tmp_path: Path) -> None:
-    """Seed or hand-edited rhbk_clients cannot survive a regenerate without rows."""
+def test_missing_preflight_clients_preserves_user_managed_rhbk_clients(
+    tmp_path: Path,
+) -> None:
+    """User-managed prior rows survive an empty preflight clients list.
+
+    ADO-owned prior rows (ado_owner set) are dropped so Deploy RHBK Client
+    stops updating them. Keycloak itself is never deleted by omission.
+    """
     env_dir = tmp_path / "env"
     env_dir.mkdir()
     (env_dir / "vars_rhbk.yml").write_text(
-        "---\nrhbk_clients:\n  minio:\n    rhbk_client_name: MinIO\n"
-        "  leftover:\n    rhbk_client_name: Leftover\n"
-        "components_env:\n  rhbk:\n    rhbk_clients:\n      minio:\n"
-        "        rhbk_client_name: MinIO\n",
+        "---\nrhbk_clients:\n  ado-grafana:\n    rhbk_client_name: Grafana\n"
+        "    ado_owner: grafana\n"
+        "  custom-app:\n    rhbk_client_name: Custom\n"
+        "components_env:\n  rhbk:\n    rhbk_clients:\n      ado-grafana:\n"
+        "        rhbk_client_name: Grafana\n        ado_owner: grafana\n",
         encoding="utf-8",
     )
     preflight = {
@@ -431,6 +469,137 @@ def test_missing_preflight_clients_drops_retained_rhbk_clients(tmp_path: Path) -
     )
     assert result.returncode == 0, result.stderr
     data = yaml.safe_load((env_dir / "vars_rhbk.yml").read_text(encoding="utf-8"))
-    assert "rhbk_clients" not in data
-    env_rhbk = (data.get("components_env") or {}).get("rhbk") or {}
-    assert "rhbk_clients" not in env_rhbk
+    assert list(data["rhbk_clients"]) == ["custom-app"]
+    assert "ado-grafana" not in data["rhbk_clients"]
+    assert data["rhbk_clients"]["custom-app"]["rhbk_client_name"] == "Custom"
+
+
+def test_custom_client_survives_when_grafana_component_deselected(
+    tmp_path: Path,
+) -> None:
+    """Deselecting Grafana must not wipe an unrelated custom rhbk_clients row."""
+    env_dir = tmp_path / "env"
+    env_dir.mkdir()
+    (env_dir / "vars_rhbk.yml").write_text(
+        "---\nrhbk_clients:\n  custom-app:\n    rhbk_client_name: Custom\n"
+        "    rhbk_redirect_uris:\n      - https://app.example.test/cb\n"
+        "  grafana-client:\n    rhbk_client_name: Grafana\n"
+        "    ado_owner: grafana\n    rhbk_redirect_uris:\n"
+        "      - https://grafana.apps.example.test/*\n",
+        encoding="utf-8",
+    )
+    preflight = {
+        "environment": "t",
+        "components": ["openshift"],
+        "component_apps": {"openshift": ["rhbk", "grafana"]},
+        "component_options": {"rhbk": ["client"], "grafana": ["oidc"]},
+        "openshift": {"apps_domain": "apps.example.test"},
+        "component_config": {
+            "rhbk": {
+                "hostname": "keycloak.apps.example.test",
+                "realm": "demo",
+                "clients": [{**GRAFANA, "create_client": True}],
+            },
+            "grafana": {"oidc": {"enabled": False, "client_id": "grafana-client"}},
+        },
+    }
+    preflight_path = tmp_path / "preflight-deselect.json"
+    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        env={
+            **os.environ,
+            "ADO_PREFLIGHT_JSON": str(preflight_path),
+            "ADO_ENV_DIR": str(env_dir),
+            "ADO_SELECTED_COMPONENTS": '["rhbk", "grafana"]',
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    data = yaml.safe_load((env_dir / "vars_rhbk.yml").read_text(encoding="utf-8"))
+    assert "custom-app" in data["rhbk_clients"]
+    assert data["rhbk_clients"]["custom-app"]["rhbk_redirect_uris"] == [
+        "https://app.example.test/cb"
+    ]
+    assert "grafana-client" not in data["rhbk_clients"]
+
+
+def test_openshift_oauth_client_uris_rewritten_only_for_owned_row(
+    tmp_path: Path,
+) -> None:
+    ocp = {
+        "id": "OpenshiftDev",
+        "name": "OpenShift",
+        "source": "openshift",
+        "redirect_uris": (
+            "https://oauth-openshift.apps.example.test/oauth2callback/Keycloak/*"
+        ),
+        "web_origins": "https://oauth.apps.example.test",
+    }
+    other = {
+        "id": "openshift-gitops",
+        "name": "GitOps",
+        "redirect_uris": "https://console.apps.example.test/",
+        "web_origins": "https://console.apps.example.test",
+    }
+    out = _generate(tmp_path, {"clients": [ocp, other, GRAFANA]})
+    assert "oauth2callback/Keycloak" in str(
+        out["data"]["rhbk_clients"]["OpenshiftDev"]["rhbk_redirect_uris"]
+    )
+    assert "/*" not in str(
+        out["data"]["rhbk_clients"]["OpenshiftDev"]["rhbk_redirect_uris"]
+    )
+    assert out["data"]["rhbk_clients"]["openshift-gitops"]["rhbk_redirect_uris"] == [
+        "https://console.apps.example.test/"
+    ]
+
+
+def test_standalone_rhel_rhbk_preserves_custom_clients_like_openshift(
+    tmp_path: Path,
+) -> None:
+    """Client merge must be platform-independent (OpenShift or standalone RHEL)."""
+    env_dir = tmp_path / "env"
+    env_dir.mkdir()
+    (env_dir / "vars_rhbk.yml").write_text(
+        "---\nrhbk_clients:\n  custom-app:\n    rhbk_client_name: Custom\n"
+        "    rhbk_redirect_uris:\n      - https://app.example.test/cb\n",
+        encoding="utf-8",
+    )
+    preflight = {
+        "environment": "t",
+        "components": ["openshift"],
+        "component_apps": {"openshift": ["rhbk"]},
+        "component_options": {"rhbk": ["client", "standalone"]},
+        "openshift": {"apps_domain": "apps.example.test"},
+        "component_config": {
+            "rhbk": {
+                "standalone_hostname": "keycloak.server.lab",
+                "realm": "demo",
+                "clients": [GRAFANA],
+            }
+        },
+    }
+    preflight_path = tmp_path / "preflight-standalone.json"
+    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        env={
+            **os.environ,
+            "ADO_PREFLIGHT_JSON": str(preflight_path),
+            "ADO_ENV_DIR": str(env_dir),
+            "ADO_SELECTED_COMPONENTS": '["rhbk"]',
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    data = yaml.safe_load((env_dir / "vars_rhbk.yml").read_text(encoding="utf-8"))
+    assert "custom-app" in data["rhbk_clients"]
+    assert GRAFANA["id"] in data["rhbk_clients"]
+    assert data["rhbk_clients"][GRAFANA["id"]].get("ado_owner")
+    assert data.get("install_rhbk_platform") == "rhel" or data.get(
+        "rhbk_platform"
+    ) == "rhel"

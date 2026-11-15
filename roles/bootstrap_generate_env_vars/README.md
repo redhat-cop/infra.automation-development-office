@@ -279,7 +279,7 @@ modes, chosen by whether RHBK is part of the run.
 | ``admin_user`` | ignored; always inherited from the RHBK admin user | required |
 | ``admin_password`` | ignored; always inherited from the RHBK admin password | required |
 | ``verify_ssl`` | optional, default on (``ocp_rhbk_verify_ssl``) | optional, default on |
-| ``idp_name``, ``mapping_method``, ``extra_scopes`` | optional. ``mapping_method`` defaults to ``add`` (``claim`` fails with ``Could not create user`` when that OpenShift username already exists) | optional. same default |
+| ``idp_name``, ``mapping_method``, ``extra_scopes`` | optional. ``mapping_method`` defaults to ``add`` for **new** configs (``claim`` fails with ``Could not create user`` when that OpenShift username already exists). Regeneration keeps an existing ``claim`` / ``lookup`` / ``add`` in ``vars_rhbk.yml`` unless the preflight sets ``mapping_method`` explicitly. | optional. same default |
 
 ``idp_name`` is the OpenShift OAuth identity-provider name (default
 ``Keycloak``). The cluster callback is the exact path
@@ -293,10 +293,15 @@ to ``ADO | Deploy RHBK Client``; register that exact callback URI on the
 existing Keycloak client yourself. Custom non-callback redirect URIs on a
 managed row are left unchanged.
 
-When RHBK is overlaid, ``rhbk_clients`` is always rebuilt from the current
-preflight ``clients`` list. Missing or empty lists drop seed and prior
-``rhbk_clients`` so a retained row cannot keep provisioning an unmanaged or
-MinIO client.
+When RHBK is overlaid, ADO-managed ``rhbk_clients`` rows are rebuilt from the
+current preflight ``clients`` list and tagged with ``ado_owner``. Prior
+user-managed rows (no ``ado_owner``) are preserved across regeneration.
+ADO-owned rows that leave the managed set (``create_client: false``, MinIO /
+GitLab ownership, Grafana OIDC disabled, or removed from the list) are dropped
+from ``group_vars`` so Deploy RHBK Client stops updating them; Keycloak clients
+are never deleted merely because they were omitted from the latest selection.
+Prefix matching is never used for OpenShift OAuth clients (exact configured
+id, ``source: openshift``, or legacy exact ``openshift-prod`` only).
 
 Grafana OIDC ``component_config.grafana.oidc.enabled: false`` is preserved.
 Overlay does not force ``enabled: true``, does not copy that Grafana client

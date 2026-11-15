@@ -31,6 +31,7 @@ Automation Development Office
 | `aap_ocp_install_license_mode` | `none` (default), `manifest`, or `rhn`. `none`/`skip` installs the operator and platform only. Attach a subscription later with `aap_ocp_install_license_only` or the AAP wizard. |
 | `aap_ocp_install_license_only` | When `true`, skip operator install and only run license attach. |
 | `aap_ocp_install_reset_database` | When `true`, wipe leftover AAP Fernet secrets and Postgres PVCs before install. Default `false` (greenfield). Missing CR / 403 is skipped, not a hard fail. |
+| `install_aap_verify_*` | Post-install OpenShift verification via `kubernetes.core` (see below). |
 | `aap_setup_*` | Pass-through to `aap_setup_download` / `prepare` / `install`. |
 | `aap_setup_down_dest_dir` / `aap_setup_prep_working_dir` | Directory on the RHEL host for the setup tarball. Default `/var/tmp`. |
 | `aap_setup_prep_installer_file` | Existing tarball on the RHEL host. When set, skip the portal download. |
@@ -112,6 +113,29 @@ When `aap_ocp_install_license_mode` is `none`/`skip`, a live platform/gateway
 route is enough for install success. `aap_ocp_install` may still wait for
 controller/hub/eda routes that only appear after a subscription; ADO accepts
 that wait failure so you can license later.
+
+### Post-install verification (`kubernetes.core`)
+
+After OpenShift install (not license-only), the role runs a bounded
+read-only verification loop using **`kubernetes.core.k8s_info`** only
+(plus optional `ansible.builtin.uri` against the discovered Gateway URL).
+It does **not** use AAP Controller APIs, `infra.aap_utilities`,
+`ansible.platform`, `oc`, or `kubectl`.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `install_aap_verify_enabled` | `true` | Run verification after install |
+| `install_aap_verify_retries` | `60` | Max poll attempts |
+| `install_aap_verify_delay` | `30` | Seconds between attempts |
+| `install_aap_verify_probe_gateway_http` | `true` | HTTPS ping of discovered Route |
+| `install_aap_verify_fail_on_not_ready` | `true` | Fail the play when not Ready |
+| `install_aap_verify_result_path` | env/`playbook_dir`… | JSON for Preflight Console |
+
+Verification discovers the **live** Gateway Route hostname (never invents
+URLs), checks Platform conditions, PostgreSQL StorageClass/PVC, Gateway /
+Controller / Hub / EDA selection, and writes
+`aap-install-verify-result.json`. Standalone playbook:
+`playbooks/aap/ado-aap-ocp-verify-bootstrap.yml`.
 
 ## 🧪 Role Molecule Testing
 

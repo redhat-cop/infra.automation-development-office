@@ -45,6 +45,7 @@ clients. Satellite ``oidc.create_client`` and AAP Gateway OIDC are separate.
 
 from __future__ import annotations
 
+import copy
 import functools
 import json
 import os
@@ -53,6 +54,12 @@ import sys
 from pathlib import Path
 
 MAPPING_METHODS = ("claim", "lookup", "add")
+# Legacy default OpenShift OAuth client id from components_defaults.yml.
+# Exact match only — never a prefix (would hit openshift-gitops and similar).
+OPENSHIFT_OIDC_LEGACY_CLIENT_IDS = ("openshift-prod",)
+# Written onto generated rhbk_clients rows so regeneration can drop ADO-owned
+# clients that were intentionally removed without wiping user-managed rows.
+RHBK_CLIENT_ADO_OWNER_KEY = "ado_owner"
 RHBK_EXISTING_CONNECTION_OPTIONS = (
     "client",
     "realm",
@@ -169,10 +176,12 @@ def resolve_openshift_oidc_client_id(preflight, rhbk_config=None):
     """Return the OpenShift OIDC client id, or "" when none is configured.
 
     Only an explicit OpenShift client counts: openshift.oauth_rhbk.client_id,
-    then component_config.rhbk.openshift_oidc_client_id, then an
-    OpenShift-specific row in rhbk.clients (source "openshift" or an id that
-    starts with "openshift"). The legacy single-client field ``client`` is the
-    first row of the list and must never be used here: it can be Grafana's.
+    then component_config.rhbk.openshift_oidc_client_id, then a clients row
+    with ``source: openshift``, then the exact legacy id ``openshift-prod``.
+    Prefix matching is intentionally not used (``openshift-gitops`` and other
+    unrelated clients must never be treated as the OpenShift OAuth client).
+    The legacy single-client field ``client`` is the first row of the list and
+    must never be used here: it can be Grafana's.
     """
     rhbk_config = rhbk_config if rhbk_config is not None else component_config(preflight, "rhbk")
     oauth = oauth_config(preflight)
@@ -183,6 +192,7 @@ def resolve_openshift_oidc_client_id(preflight, rhbk_config=None):
     )
     if explicit:
         return explicit
+    legacy_fallback = ""
     for client in rhbk_config.get("clients") or []:
         if not isinstance(client, dict):
             continue
@@ -190,18 +200,23 @@ def resolve_openshift_oidc_client_id(preflight, rhbk_config=None):
         if not client_id:
             continue
         source = text(client.get("source")).lower()
-        if source == "openshift" or client_id.lower().startswith("openshift"):
+        if source == "openshift":
             return client_id
-    return ""
+        if (
+            not legacy_fallback
+            and client_id.lower() in OPENSHIFT_OIDC_LEGACY_CLIENT_IDS
+        ):
+            legacy_fallback = client_id
+    return legacy_fallback
 
 
 def openshift_oidc_client_missing_message():
     return (
         "OpenShift OIDC (openshift.oauth_rhbk) is selected but no OpenShift "
         "client ID is configured. Set openshift.oauth_rhbk.client_id (or "
-        "component_config.rhbk.openshift_oidc_client_id), or add an "
-        "OpenShift-specific client (id starting with 'openshift') to "
-        "component_config.rhbk.clients. The first Keycloak client "
+        "component_config.rhbk.openshift_oidc_client_id), or add a clients "
+        "row with source 'openshift' (exact legacy id 'openshift-prod' is "
+        "also accepted). The first Keycloak client "
         "(component_config.rhbk.client) is intentionally not used."
     )
 
@@ -431,13 +446,117 @@ def is_openshift_oauth_callback_uri(value):
 
 
 def row_is_openshift_oidc_client(preflight, client_id, row=None):
+    """True only for the configured OpenShift OAuth client (never prefix match)."""
     wanted = text(client_id)
+    if not wanted:
+        return False
     if isinstance(row, dict) and text(row.get("source")).lower() == "openshift":
         return True
-    if wanted.lower().startswith("openshift"):
-        return True
     resolved = resolve_openshift_oidc_client_id(preflight)
-    return bool(wanted) and wanted == resolved
+    return bool(resolved) and wanted == resolved
+
+
+def rhbk_client_ado_owner(preflight, selected, client_id, row=None):
+    """Ownership tag written onto ADO-managed ``rhbk_clients`` entries."""
+    if isinstance(row, dict):
+        source = text(row.get("source")).lower()
+        if source:
+            return source
+    if row_is_openshift_oidc_client(preflight, client_id, row):
+        return "openshift"
+    wanted = text(client_id)
+    if not wanted:
+        return "rhbk"
+    grafana_id = text(_grafana_oidc(preflight).get("client_id")) or "grafana-client"
+    if wanted == grafana_id or wanted.lower() == "grafana-client":
+        return "grafana"
+    return "rhbk"
+
+
+def rhbk_clients_force_drop_ids(preflight, selected, clients):
+    """Client ids that must leave generated ``rhbk_clients`` this regenerate."""
+    drop = set()
+    selected = selected or []
+    for client in clients or []:
+        if not isinstance(client, dict):
+            continue
+        client_id = first_text(client.get("id"), client.get("client_id"))
+        if not client_id:
+            continue
+        if not rhbk_client_is_managed(client):
+            drop.add(client_id)
+            continue
+        if minio_role_owns_keycloak_client_id(preflight, selected, client_id):
+            drop.add(client_id)
+            continue
+        if gitlab_keycloak_client_should_not_be_provisioned(
+            preflight, selected, client_id, client
+        ):
+            drop.add(client_id)
+            continue
+        if grafana_keycloak_client_should_not_be_provisioned(
+            preflight, selected, client_id, client
+        ):
+            drop.add(client_id)
+    if "minio" in {text(item).lower() for item in selected}:
+        minio_id = minio_effective_client_id(preflight)
+        if minio_id:
+            drop.add(minio_id)
+    return drop
+
+
+def merge_rhbk_clients_for_regen(prior_clients, newly_managed, drop_ids=None):
+    """Merge prior ``rhbk_clients`` with this run's ADO-managed set.
+
+    * Update / add clients ADO still owns (``newly_managed``).
+    * Drop prior ADO-owned clients that are absent from ``newly_managed``
+      (intentional removal / create_client false / component ownership).
+    * Preserve unmarked / user-managed prior rows unless listed in ``drop_ids``.
+    * Never keep ids in ``drop_ids`` (MinIO/GitLab/unmanaged OpenShift, etc.).
+
+    Deploy RHBK Client only creates/updates clients present in the result; it
+    does not delete Keycloak clients that were omitted.
+    """
+    drop_ids = {text(item) for item in (drop_ids or []) if text(item)}
+    prior_clients = prior_clients if isinstance(prior_clients, dict) else {}
+    newly_managed = newly_managed if isinstance(newly_managed, dict) else {}
+    merged = {}
+    for client_id, entry in prior_clients.items():
+        key = text(client_id)
+        if not key or key in drop_ids or key in newly_managed:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        owner = text(
+            entry.get(RHBK_CLIENT_ADO_OWNER_KEY) or entry.get("rhbk_ado_owner")
+        )
+        if owner:
+            # ADO owned this row previously; absence from newly_managed means stop.
+            continue
+        merged[key] = copy.deepcopy(entry)
+    for client_id, entry in newly_managed.items():
+        key = text(client_id)
+        if not key or key in drop_ids:
+            continue
+        merged[key] = entry
+    return merged
+
+
+def resolve_openshift_oidc_mapping_method(preflight, existing_oidc_auth=None):
+    """Prefer explicit preflight mapping_method; else keep existing; else default.
+
+    New configurations default to ``add``. Regeneration must not silently
+    migrate an existing IdP from ``claim`` / ``lookup`` to ``add``.
+    """
+    oauth = oauth_config(preflight)
+    explicit = text(oauth.get("mapping_method")).lower()
+    if explicit:
+        return explicit
+    existing = existing_oidc_auth if isinstance(existing_oidc_auth, dict) else {}
+    prior = text(existing.get("openshift_oidc_mapping_method")).lower()
+    if prior in MAPPING_METHODS:
+        return prior
+    return OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
 
 
 def rewrite_openshift_oauth_redirect_uris(uris, preflight):
@@ -790,8 +909,9 @@ def resolve_openshift_oauth_settings(preflight, selected, rhbk_vars=None):
         "realmExplicit": bool(own_realm),
         "clientId": resolve_openshift_oidc_client_id(preflight),
         "idpName": first_text(oauth.get("idp_name"), OPENSHIFT_OIDC_DEFAULT_IDP_NAME),
-        "mappingMethod": first_text(
-            oauth.get("mapping_method"), OPENSHIFT_OIDC_DEFAULT_MAPPING_METHOD
+        "mappingMethod": resolve_openshift_oidc_mapping_method(
+            preflight,
+            (rhbk_vars.get("openshift_oidc_auth") if isinstance(rhbk_vars, dict) else None),
         ),
         "extraScopes": _scopes(oauth.get("extra_scopes")),
         "verifySsl": parse_verify_ssl(oauth.get("verify_ssl"))[0],
