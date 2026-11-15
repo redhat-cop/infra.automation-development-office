@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -65,7 +66,7 @@ def run_overlay(tmp_path, preflight, selected=None):
     result = subprocess.run(
         [sys.executable, str(OVERLAY)],
         env={
-            **dict(**{k: v for k, v in __import__("os").environ.items()}),
+            **os.environ,
             "ADO_PREFLIGHT_JSON": str(preflight_path),
             "ADO_ENV_DIR": str(env_dir),
             "ADO_SELECTED_COMPONENTS": json.dumps(selected or []),
