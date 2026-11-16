@@ -1,0 +1,23 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - do not write the preflight UI bookkeeping
+    key ``component_config.rhbk.clients_dismissed`` (Keycloak clients the
+    operator removed in the form) into generated ``vars_rhbk.yml``. Removed
+    clients no longer appear anywhere in generated group_vars.
+  - >-
+    bootstrap_generate_env_vars - OpenShift OIDC no longer falls back to the
+    first Keycloak client (``component_config.rhbk.client``) or an invented
+    ``Openshift<Env>`` name. The client comes from
+    ``openshift.oauth_rhbk.client_id``,
+    ``component_config.rhbk.openshift_oidc_client_id`` or an
+    OpenShift-specific row in ``component_config.rhbk.clients``. When
+    ``oauth_rhbk`` is selected and none resolves, generation fails with a
+    clear error (also for an external Keycloak). An explicit
+    ``openshift.oauth_rhbk.client_id`` is no longer overwritten by another
+    client, and stale ``openshift_oidc_client_id`` values from earlier runs
+    are removed when OpenShift OIDC is not requested.
+  - >-
+    bootstrap_generate_playbook_repo - the
+    ``ado-configure-oauth-with-rhbk-bootstrap`` playbook no longer defaults
+    ``keycloak_client_id`` to ``rhbk_client`` (the first Keycloak client).

@@ -21,10 +21,12 @@ ocp_nfs_storage_reclaim_policy: Delete
 ocp_nfs_storage_binding_mode: Immediate
 ocp_nfs_storage_allow_volume_expansion: true
 ocp_nfs_storage_create_test_namespace: true
-ocp_nfs_storage_test_namespace: synology-nfs-pv
+# Dedicated validation namespace — keep lab claims (e.g. synology-nfs-pv) untouched.
+ocp_nfs_storage_test_namespace: ado-nfs-csi-test
 ocp_nfs_storage_create_test_pvc: false
-ocp_nfs_storage_test_pvc_name: synology-nfs-pvc
-ocp_nfs_storage_test_pvc_size: 10Gi
+# Dedicated validation claim — never reuse lab PVCs such as synology-nfs-pvc.
+ocp_nfs_storage_test_pvc_name: ado-nfs-csi-test-pvc
+ocp_nfs_storage_test_pvc_size: 1Gi
 # Optional: host / api_key / validate_certs / kubeconfig (path). When unset,
 # kubernetes.core uses the process environment (KUBECONFIG / in-cluster).
 ocp_nfs_storage_connection: {}

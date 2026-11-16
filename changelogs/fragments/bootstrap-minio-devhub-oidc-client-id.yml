@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Write MinIO ``minio_oidc_client_id`` from
+    Preflight ``oidc_client_id`` (then nested ``oidc.client_id``) so a custom
+    client ID reaches the role instead of being ignored.
+  - >-
+    bootstrap_generate_env_vars - Resolve Developer Hub
+    ``dev_hub_keycloak_client_id`` from canonical ``keycloak_client_id``, with
+    leftover ``oidc_client_id`` as compatibility fallback.

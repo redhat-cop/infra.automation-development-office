@@ -31,6 +31,9 @@ gitlab_install_postgres_ready_retries: 36
 gitlab_install_postgres_ready_delay: 10
 # When true, delete the gitlab-postgresql Deployment+PVC before recreate (wipes DB).
 gitlab_install_postgres_reset_data: false
+# Force-delete GitLab pods that are Terminating on NotReady/unreachable nodes so
+# StatefulSets (PostgreSQL) can reschedule. Default on.
+gitlab_install_recover_stuck_pods: true
 gitlab_install_redis_image: "redis:7-alpine"
 gitlab_install_minio_image: "minio/minio:latest"
 gitlab_install_minio_service: gitlab-minio

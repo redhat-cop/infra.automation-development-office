@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    grafana_install / bootstrap_generate_env_vars - when RHBK is in the run,
+    Grafana OIDC inherits Keycloak hostname and realm from the RHBK component
+    (same connection as Client and OpenShift OAuth). Leftover
+    ``ocp_rhbk_hostname`` / Grafana issuer values are ignored unless the
+    issuer was typed as a manual override. Overlay no longer invents ``Dev``
+    or ``rhlab``. The play prints the effective hostname, realm, and client
+    ID before contacting Keycloak. Keycloak TLS verification follows
+    ``ocp_rhbk_verify_ssl`` (on by default). Mapping method is OpenShift-only.

@@ -8,6 +8,16 @@ This role builds the VirtualMachine spec (DataSource `dataVolumeTemplates`,
 Multus NAD, cloud-init, instance type / preference) and applies it with
 `kubernetes.core.k8s` when that VirtualMachine is not already in the namespace.
 
+For bridge/Multus mode the role looks up the NetworkAttachmentDefinition first
+and creates it only when missing. An existing NAD (for example
+`ado-built-vm/br-ex-network`) is reused without PATCH/delete so a working
+`spec.config` JSON string is never rewritten as an object.
+
+When `instance_type` is `custom` (or empty), the role sets explicit CPU topology
+(`sockets` / `cores` / `threads`) instead of cores-only. Preferences such as
+`rhel.9` require sockets; a cores-only spec is rejected by the KubeVirt
+admission webhook.
+
 ## Role Author
 
 Automation Development Office
@@ -26,8 +36,10 @@ Automation Development Office
 |----------|-------------|
 | `source_name` | Cluster DataSource name (default `rhel9`) |
 | `source_namespace` | DataSource namespace (default `openshift-virtualization-os-images`) |
-| `instance_type` | KubeVirt instance type (default `u1.large`, 2 CPU / 8Gi) |
+| `instance_type` | KubeVirt instance type (default `u1.large`, 2 CPU / 8Gi). Use `custom` for explicit `domain.cpu` topology |
 | `preference` | Guest preference (default `rhel.9`) |
+| `cpu_cores` | For `instance_type=custom`, total guest vCPUs mapped to `domain.cpu.sockets` (default `2`) |
+| `cpu_sockets` / `cpu_cores_per_socket` / `cpu_threads` | Optional custom topology overrides (default sockets=`cpu_cores`, cores=`1`, threads=`1`) |
 | `vm_namespace` | Target namespace (default `ado-built-vm`) |
 | `vm_name` | VirtualMachine metadata.name (required) |
 | `network_mode` | `pod` or `bridge` (use with `multus_network_name` for br-ex) |

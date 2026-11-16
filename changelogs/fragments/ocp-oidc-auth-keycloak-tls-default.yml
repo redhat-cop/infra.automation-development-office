@@ -1,0 +1,36 @@
+---
+breaking_changes:
+  - >-
+    ocp_oidc_auth - Keycloak TLS certificate verification is now on by
+    default (``ocp_rhbk_verify_ssl`` unset or blank means verify). It
+    was off by default before. An explicit ``ocp_rhbk_verify_ssl: false``
+    is still honored, so existing configurations that set it keep
+    working. A Keycloak certificate from a private CA must now be trusted
+    by the process running the role (for AAP, the execution environment)
+    or given as ``ocp_oidc_auth_ca_pem``.
+security_fixes:
+  - >-
+    ocp_oidc_auth - verify the Keycloak certificate for the admin login,
+    client lookup and client-secret read, for Keycloak installed by ADO
+    and for an existing external Keycloak. When the certificate is not
+    trusted the play stops with a clear message instead of continuing
+    unverified.
+  - >-
+    ocp_oidc_auth - parse ``ocp_rhbk_verify_ssl`` strictly. Unrecognized
+    values (``garbage``, ``tru``, ``flase``, unexpected numbers) stop the
+    play before any Keycloak request. They are never passed through
+    Ansible's ``bool`` filter, which would have treated them as false and
+    silently disabled verification. The same rule is applied by
+    ``bootstrap_generate_env_vars`` (preflight validator), the Preflight
+    UI and the Preflight server.
+minor_changes:
+  - >-
+    ocp_oidc_auth - ``ocp_oidc_auth_ca_pem`` (a PEM certificate) can be
+    used as the trust anchor for the Keycloak calls, so a private CA is
+    supported without turning verification off. A value that is not a PEM
+    certificate stops the play with its own message.
+  - >-
+    bootstrap_generate_env_vars - write ``ocp_rhbk_verify_ssl`` only when
+    ``openshift.oauth_rhbk.verify_ssl`` is set in the preflight, and never
+    remove an existing value. The default (verify) is applied by the role.
+    The Preflight form defaults the option to on.

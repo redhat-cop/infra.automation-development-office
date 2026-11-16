@@ -1,0 +1,34 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - Preserve user-managed ``rhbk_clients``
+    across regeneration. ADO-managed rows are tagged with ``ado_owner`` and
+    dropped from ``group_vars`` only when intentionally removed; Deploy RHBK
+    Client never deletes Keycloak clients merely because they were omitted.
+  - >-
+    bootstrap_generate_env_vars / preflight_oidc - Match the OpenShift OAuth
+    client by exact configured id, ``source: openshift``, or legacy exact
+    ``openshift-prod`` only. Remove ``startswith("openshift")`` so unrelated
+    clients such as ``openshift-gitops`` are never rewritten.
+  - >-
+    bootstrap_generate_env_vars - Preserve an existing OpenShift OIDC
+    ``mapping_method`` (``claim`` / ``lookup`` / ``add``) on regeneration
+    unless Preflight sets it explicitly. New configurations still default to
+    ``add``.
+  - >-
+    ocp_oidc_auth - Allow publicly trusted Keycloak without ``openID.ca``.
+    Do not require a CA ConfigMap when the trust store is empty. Never use
+    the cluster ingress CA for external Keycloak; ingress CA is opt-in for
+    in-cluster Keycloak that uses the default ingress cert.
+  - >-
+    grafana_install - Prefer ``oidc.verify_ssl`` / ``oidc.ca_pem`` (and
+    ``grafana_install_oidc_*``) over ``ocp_rhbk_verify_ssl`` for Grafana OIDC
+    TLS. Private CA keeps verification on via ConfigMap ``grafana-oidc-ca``
+    and ``tls_client_ca``. The role json-patches the Grafana CR to mount that
+    ConfigMap at ``/etc/grafana/oidc-ca`` on the ``grafana`` container without
+    replacing existing volumes or mounts (grafana-operator v5).
+minor_changes:
+  - >-
+    keycloak_login_events_exporter - Correct the defaults comment (disabled
+    by default). When false, skip management and leave an existing exporter
+    in place.

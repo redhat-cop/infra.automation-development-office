@@ -1,0 +1,9 @@
+minor_changes:
+  - bootstrap_generate_env_vars - Install AAP Minimal Footprint applies a thin
+    supported ``aap_ocp_install`` profile (Controller/EDA replicas=1,
+    ``create_preload_data=false``, ``projects_persistence=false`` unless a
+    projects PVC is explicitly enabled) without disabling Hub/EDA or inventing
+    CPU/memory request cuts.
+bugfixes:
+  - bootstrap_generate_env_vars - Document that Hub file StorageClass inheritance
+    and overrides still apply when Minimal Footprint is enabled.

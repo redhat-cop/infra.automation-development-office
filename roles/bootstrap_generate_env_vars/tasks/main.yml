@@ -410,39 +410,9 @@
               ['rhbk_client_scopes']
               if (
                 bootstrap_generate_env_vars_preflight_rhbk_selected
-                and (
-                  'client_scopes' in (
-                    bootstrap_generate_env_vars_preflight.component_options.rhbk
-                    | default([])
-                  )
-                  or 'oauth_rhbk' in (
-                    bootstrap_generate_env_vars_preflight.component_options.openshift
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.grafana
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.quay
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.minio
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.dev_hub
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.bookstack
-                    | default([])
-                  )
-                  or 'oidc' in (
-                    bootstrap_generate_env_vars_preflight.component_options.netbox
-                    | default([])
-                  )
+                and 'client_scopes' in (
+                  bootstrap_generate_env_vars_preflight.component_options.rhbk
+                  | default([])
                 )
               )
               else []
@@ -548,7 +518,7 @@
         | default([])
         | length > 0
       )
-# yamllint enable rule:line-length
+# Keep line-length disabled for the rest of this file (long Jinja component gates).
 
 - name: Preserve top-level preflight components with no child selections
   ansible.builtin.set_fact:
@@ -948,6 +918,56 @@
         bootstrap_generate_env_vars_preflight.component_config.cert_manager
         | default({})
       ).update_default_ingress | default(false) | bool
+      or (
+        'update_default_ingress' in (
+          bootstrap_generate_env_vars_preflight.component_options.openshift
+          | default([])
+        )
+      )
+
+# Publish Contoller/playbook gates from preflight so No-AAP runs (which skip
+# aap_config_vars.yml) still keep the default-ingress playbook and do not treat
+# ingress-only as an explicit Certificate Manager deploy selection.
+# Cross-role Contoller/playbook gate names (same keys as aap_config_vars.yml).
+- name: Publish cert-manager playbook gates from preflight (AAP and No-AAP)  # noqa: var-naming[no-role-prefix]
+  ansible.builtin.set_fact:
+    bootstrap_controller_update_default_ingress: >-
+      {{
+        (
+          (
+            bootstrap_generate_env_vars_preflight.component_config.cert_manager
+            | default({})
+          ).update_default_ingress | default(false) | bool
+        )
+        or (
+          'update_default_ingress' in (
+            bootstrap_generate_env_vars_preflight.component_options.openshift
+            | default([])
+          )
+        )
+      }}
+    bootstrap_controller_cert_manager_explicit: >-
+      {{
+        (
+          'cert_manager' in (
+            bootstrap_generate_env_vars_preflight.component_apps.openshift
+            | default([])
+          )
+        )
+        or (
+          'cert_manager' in (
+            bootstrap_generate_env_vars_preflight.selected_component_apps
+            | default([])
+          )
+        )
+        or (
+          'cert_manager' in (
+            bootstrap_generate_env_vars_preflight.components
+            | default([])
+          )
+        )
+      }}
+  when: bootstrap_generate_env_vars_preflight is defined
 
 - name: Skip Contoller API when installing the AAP operator during bootstrap
   ansible.builtin.set_fact:
@@ -974,6 +994,7 @@
             | reject('equalto', 'aws')
             | reject('equalto', 'rhel_system_roles')
             | reject('equalto', 'grafana')
+            | reject('equalto', 'rhbk')
             | list
           )
           +
@@ -1144,6 +1165,16 @@
                 | map('lower')
                 | list
               )
+              and (
+                (
+                  (
+                    (
+                      bootstrap_generate_env_vars_preflight.component_config
+                      | default({})
+                    ).grafana | default({})
+                  ).oidc | default({})
+                ).enabled | default(true) | bool
+              )
             )
             else []
           )
@@ -1239,6 +1270,66 @@
                 | default([])
                 | map('lower')
                 | list
+              )
+            )
+            else []
+          )
+          +
+          (
+            ['rhbk']
+            if (
+              'rhbk' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and 'standalone' not in (
+                bootstrap_generate_env_vars_preflight.component_options.rhbk
+                | default([])
+                | map('lower')
+                | list
+              )
+              and (
+                (
+                  bootstrap_generate_env_vars_preflight.component_options.rhbk
+                  | default([])
+                  | length
+                ) == 0
+                or 'install' in (
+                  bootstrap_generate_env_vars_preflight.component_options.rhbk
+                  | default([])
+                  | map('lower')
+                  | list
+                )
+              )
+            )
+            else []
+          )
+          +
+          (
+            ['rhbk_standalone']
+            if (
+              'rhbk' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and 'standalone' in (
+                bootstrap_generate_env_vars_preflight.component_options.rhbk
+                | default([])
+                | map('lower')
+                | list
+              )
+            )
+            else []
+          )
+          +
+          (
+            ['rhbk_login_events_exporter']
+            if (
+              'rhbk' in bootstrap_generate_env_vars_components
+              and bootstrap_generate_env_vars_preflight is defined
+              and (
+                (
+                  (
+                    bootstrap_generate_env_vars_preflight.component_config
+                    | default({})
+                  ).rhbk | default({})
+                ).login_events_exporter_enabled | default(false) | bool
               )
             )
             else []
@@ -1471,6 +1562,23 @@
         ).install_during_bootstrap | default(false) | bool
       )
 
+- name: Validate preflight OIDC inputs before generating vars
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/preflight_oidc.py"
+  environment:
+    ADO_PREFLIGHT_JSON: "{{ preflight_json }}"
+    ADO_SELECTED_COMPONENTS: >-
+      {{ bootstrap_generate_env_vars_components | to_json }}
+  args:
+    chdir: "{{ playbook_dir }}"
+  changed_when: false
+  when:
+    - bootstrap_generate_env_vars_preflight is defined
+    - preflight_json is defined
+    - preflight_json | length > 0
+
 - name: Find existing generated component vars files
   ansible.builtin.find:
     paths:
@@ -1518,12 +1626,33 @@
         | list
       )
 
+# Shared OpenShift connection file must track the current preflight API host.
+# Do not leave a stale empty host from an earlier generate (force=false) when
+# Step 1 / preflight.openshift.api_host is set — Virt and every OCP playbook
+# load host from this file via K8S_AUTH_*.
 - name: Write shared OpenShift infra_config_vars.yml
   ansible.builtin.template:
     src: infra_config_vars.yml.j2
     dest: "{{ bootstrap_generate_env_vars_env_dir }}/infra_config_vars.yml"
     mode: "0600"
-    force: "{{ bootstrap_generate_env_vars_force | bool }}"
+    force: >-
+      {{
+        (
+          (
+            (
+              bootstrap_generate_env_vars_preflight | default({})
+            ).openshift | default({})
+          ).api_host | default('') | string | length > 0
+        )
+        or (
+          (
+            (
+              bootstrap_generate_env_vars_preflight | default({})
+            ).openshift | default({})
+          ).host | default('') | string | length > 0
+        )
+        or (bootstrap_generate_env_vars_force | bool)
+      }}
 
 - name: Write component vars files
   ansible.builtin.template:
@@ -1552,12 +1681,25 @@
     loop_var: component_name
   when: component_name not in ['ec2_ami_copy', 'ec2_instance', 's3_bucket_policy']
 
+# Refresh shared OpenShift token whenever preflight carries one. force=false
+# previously left an empty vault_openshift.yml from a Virt-only generate that
+# had stripped openshift auth.
 - name: Write vault_openshift.yml when OpenShift is not a selected component
   ansible.builtin.template:
     src: vault_openshift.yml.j2
     dest: "{{ bootstrap_generate_env_vars_env_dir }}/vault_openshift.yml"
     mode: "0600"
-    force: false
+    force: >-
+      {{
+        (
+          (
+            (
+              bootstrap_generate_env_vars_preflight | default({})
+            ).openshift | default({})
+          ).token | default('') | string | length > 0
+        )
+        or (bootstrap_generate_env_vars_force | bool)
+      }}
 
 - name: Remove legacy per-component ec2_ami_copy vault file after template pass
   ansible.builtin.file:

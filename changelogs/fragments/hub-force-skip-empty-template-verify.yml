@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    bootstrap_controller - do not fail AAP 2.5+ org-prefix template
+    verification when no job or workflow templates were generated. A skipped
+    lookup still registered as defined, so Hub force-update of
+    ``infra.automation_development_office`` (Overwrite all, OpenShift with
+    no apps, or AAP-tabs-only) failed after a successful promote to
+    ``validated``.

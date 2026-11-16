@@ -1,0 +1,4 @@
+---
+bugfixes:
+  - ocp_oidc_auth - Accept YAML boolean ``true``/``false`` for
+    ``ocp_rhbk_verify_ssl`` on Ansible 2.15.

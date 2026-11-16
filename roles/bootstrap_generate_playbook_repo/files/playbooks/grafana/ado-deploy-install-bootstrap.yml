@@ -1,4 +1,9 @@
 ---
+# yamllint disable rule:line-length
+# Present: namespace → OperatorGroup → Subscription → wait operator → instance → wait pods.
+# Absent: instance (Grafana CR/route/postgres) → Subscription → OperatorGroup → namespace.
+# Deleting the namespace first leaves Grafana CRs and the operator, so the
+# namespace stays Terminating and ocp_namespace fails (advanced cleanup stays off).
 - name: ADO | Deploy Grafana on OpenShift (operator + instance)
   hosts: localhost
   gather_facts: false
@@ -17,7 +22,7 @@
     - name: ADO | Resolve vars for component from framework defaults + env overrides
       ansible.builtin.include_role:
         name: infra.automation_development_office.bootstrap_resolve_component
-    - name: ADO | Normalize Grafana OpenShift hostname
+    - name: ADO | Normalize Grafana OpenShift hostname  # noqa: var-naming[no-role-prefix]
       ansible.builtin.set_fact:
         # Prefer OpenShift route hostname over any poisoned standalone VM hostname.
         grafana_hostname: >-
@@ -55,7 +60,7 @@
             | regex_replace('^https?://', '')
             | regex_replace('/.*$', '')
           }}
-    - name: ADO | Force Grafana OLM channel v5 (catalog has v5, not version pins)
+    - name: ADO | Force Grafana OLM channel v5 (catalog has v5, not version pins)  # noqa: var-naming[no-role-prefix]
       ansible.builtin.set_fact:
         operator_channel: v5
         operator_name: grafana-operator
@@ -67,16 +72,59 @@
         operator_namespace: grafana
         operator_subscription_namespace: grafana
         all_namespaces_install: false
-    - name: ADO | Install operator/instance only (OIDC/email are separate optional JTs)
+    - name: ADO | Install operator/instance only (OIDC/email are separate optional JTs)  # noqa: var-naming[no-role-prefix]
       ansible.builtin.set_fact:
         grafana_install_scope: install
         grafana_install_include_oidc: false
         grafana_install_include_email: false
         oidc: "{{ (oidc | default({})) | combine({'enabled': false}, recursive=True) }}"
-  roles:
-    - role: infra.automation_development_office.ocp_namespace
-    - role: infra.automation_development_office.ocp_operatorgroups
-    - role: infra.automation_development_office.ocp_operator_subscription
-    - role: infra.automation_development_office.ocp_wait_operator
-    - role: infra.automation_development_office.grafana_install
-    - role: infra.automation_development_office.ocp_wait_pods
+  tasks:
+    - name: ADO | Ensure Grafana namespace exists
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_namespace
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Create Grafana OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_operatorgroups
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Subscribe Grafana operator
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_operator_subscription
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for Grafana operator
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_wait_operator
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Install Grafana instance
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.grafana_install
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Wait for Grafana pods
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_wait_pods
+      when: (state | default('present')) == 'present'
+
+    - name: ADO | Remove Grafana instance
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.grafana_install
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Unsubscribe Grafana operator
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_operator_subscription
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete Grafana OperatorGroup
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_operatorgroups
+      when: (state | default('present')) == 'absent'
+
+    - name: ADO | Delete Grafana namespace
+      ansible.builtin.include_role:
+        name: infra.automation_development_office.ocp_namespace
+      when: (state | default('present')) == 'absent'

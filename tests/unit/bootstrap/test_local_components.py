@@ -30,7 +30,7 @@ CATALOGUE = [
     },
     {
         "dest": (
-            "playbooks/openshift/"
+            "playbooks/cert-manager/"
             "ado-update-default-ingress-cert-bootstrap.yml"
         )
     },

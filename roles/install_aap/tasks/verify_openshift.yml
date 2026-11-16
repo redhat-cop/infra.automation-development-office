@@ -1,0 +1,64 @@
+---
+# yamllint disable rule:line-length
+# Post-install AAP verification using kubernetes.core only (bounded poll).
+# Writes structured JSON for the Bootstrap Console. Does not call AAP APIs,
+# infra.aap_utilities, ansible.platform, oc, or kubectl.
+
+- name: Resolve verification result path
+  ansible.builtin.set_fact:
+    install_aap_verify_result_path: >-
+      {{
+        install_aap_verify_result_path
+        | default(
+            lookup('env', 'ADO_AAP_VERIFY_RESULT')
+            | default(
+                (
+                  (playbook_dir | default('/tmp'))
+                  ~ '/../../aap-install-verify-result.json'
+                ),
+                true
+              ),
+            true
+          )
+      }}
+    install_aap_verify_retries: "{{ install_aap_verify_retries | default(60) | int }}"
+    install_aap_verify_delay: "{{ install_aap_verify_delay | default(30) | int }}"
+    install_aap_verify_terminal: false
+
+- name: Ensure verification result parent directory exists
+  ansible.builtin.file:
+    path: "{{ install_aap_verify_result_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: (install_aap_verify_result_path | default('') | length) > 0
+
+- name: Announce kubernetes.core AAP post-install verification
+  ansible.builtin.debug:
+    msg: >-
+      Starting bounded AAP verification with kubernetes.core
+      (retries={{ install_aap_verify_retries }}, delay={{ install_aap_verify_delay }}s).
+      Result file: {{ install_aap_verify_result_path }}
+
+- name: Poll AAP installation until ready, failed, or timeout
+  ansible.builtin.include_tasks: verify_openshift_once.yml
+  loop: "{{ range(1, (install_aap_verify_retries | int) + 1) | list }}"
+  loop_control:
+    loop_var: install_aap_verify_attempt
+    pause: "{{ install_aap_verify_delay | int }}"
+    label: "verify attempt {{ install_aap_verify_attempt }}"
+  when: not (install_aap_verify_terminal | default(false) | bool)
+
+- name: Fail Bootstrap when AAP verification did not reach Ready
+  ansible.builtin.fail:
+    msg: >-
+      AAP post-install verification status={{
+        install_aap_verify_result.overall_status | default('unknown')
+      }}.
+      {{
+        install_aap_verify_result.blockers | default(['Verification did not report Ready.'])
+        | join(' ')
+      }}
+      Route={{ install_aap_verify_result.route.url | default('(none)') }}.
+  when:
+    - install_aap_verify_fail_on_not_ready | default(true) | bool
+    - (install_aap_verify_result.overall_status | default('')) != 'ready'

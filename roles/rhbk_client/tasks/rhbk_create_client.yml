@@ -1,3 +1,5 @@
+---
+# yamllint disable rule:line-length
 - name: Assert required inputs are set
   ansible.builtin.assert:
     that:
@@ -6,7 +8,11 @@
       - rhbk_admin_password | length > 0
       - rhbk_realm | length > 0
       - rhbk_client | length > 0
-    fail_msg: "Set rhbk_hostname, rhbk_admin_user, rhbk_admin_password, rhbk_realm, rhbk_client."
+    fail_msg: >-
+      RHBK Client needs rhbk_hostname, rhbk_admin_user, rhbk_admin_password,
+      rhbk_realm, and rhbk_client before contacting Keycloak. For a Client-only
+      run set the existing Keycloak hostname and realm on Preflight → RHBK
+      (Realm creation being unselected does not remove the existing realm name).
 
 - name: Build Keycloak base URL
   ansible.builtin.set_fact:
@@ -21,60 +27,124 @@
         )
       }}
 
-# Create / update the client with requireds + optionals (sent only if defined)
+- name: Show the effective Keycloak target
+  ansible.builtin.debug:
+    msg: >-
+      RHBK Client will create or update '{{ rhbk_client }}' on
+      {{ rhbk_client_kc_url }} in realm '{{ rhbk_realm }}'.
+
+# Create / update the client with requireds + optionals (sent only if defined).
+# no_log stays on for the API call. On failure, rescue emits a non-secret
+# category so Preflight / Contoller logs show TLS vs auth vs reachability
+# without printing credentials or API response bodies.
 - name: Create or update Keycloak client
-  community.general.keycloak_client:
-    # Auth to Keycloak
-    auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
-    auth_keycloak_url: "{{ rhbk_client_kc_url }}"
-    auth_realm: "{{ auth_realm | default('master') }}"
-    auth_username: "{{ auth_username | default(rhbk_admin_user) }}"
-    auth_password: "{{ auth_password | default(rhbk_admin_password) }}"
-    validate_certs: "{{ rhbk_verify_ssl | bool }}"
+  block:
+    - name: Create or update Keycloak client
+      community.general.keycloak_client:
+        # Auth to Keycloak
+        auth_client_id: "{{ auth_client_id | default('admin-cli') }}"
+        auth_keycloak_url: "{{ rhbk_client_kc_url }}"
+        auth_realm: "{{ auth_realm | default('master') }}"
+        auth_username: "{{ auth_username | default(rhbk_admin_user) }}"
+        auth_password: "{{ auth_password | default(rhbk_admin_password) }}"
+        validate_certs: "{{ rhbk_verify_ssl | bool }}"
 
-    # Target realm / client
-    realm: "{{ rhbk_realm }}"
-    client_id: "{{ rhbk_client }}"
-    state: "{{ state | default('present') }}"
+        # Target realm / client
+        realm: "{{ rhbk_realm }}"
+        client_id: "{{ rhbk_client }}"
+        state: "{{ state | default('present') }}"
 
-    # ---- OPTIONALS: only sent if you define rhbk_* vars below ----
-    id: "{{ rhbk_client_uuid | default(omit) }}"
-    name: "{{ rhbk_client_name | default(omit) }}"
-    description: "{{ rhbk_description | default(omit) }}"
-    root_url: "{{ rhbk_root_url | default(omit) }}"
-    admin_url: "{{ rhbk_admin_url | default(omit) }}"
-    base_url: "{{ rhbk_base_url | default(omit) }}"
-    enabled: "{{ rhbk_enabled | default(omit) }}"
-    client_authenticator_type: "{{ rhbk_client_authenticator_type | default(omit) }}"
-    secret: "{{ rhbk_client_secret | default(omit) }}"
-    redirect_uris: "{{ rhbk_redirect_uris | default(omit) }}"
-    web_origins: "{{ rhbk_web_origins | default(omit) }}"
-    not_before: "{{ rhbk_not_before | default(omit) }}"
-    bearer_only: "{{ rhbk_bearer_only | default(omit) }}"
-    consent_required: "{{ rhbk_consent_required | default(omit) }}"
-    standard_flow_enabled: "{{ rhbk_standard_flow_enabled | default(omit) }}"
-    implicit_flow_enabled: "{{ rhbk_implicit_flow_enabled | default(omit) }}"
-    direct_access_grants_enabled: "{{ rhbk_direct_access_grants_enabled | default(omit) }}"
-    service_accounts_enabled: "{{ rhbk_service_accounts_enabled | default(omit) }}"
-    authorization_services_enabled: "{{ rhbk_authorization_services_enabled | default(omit) }}"
-    public_client: "{{ rhbk_public_client | default(omit) }}"
-    frontchannel_logout: "{{ rhbk_frontchannel_logout | default(omit) }}"
-    protocol: "{{ rhbk_protocol | default(omit) }}"
-    full_scope_allowed: "{{ rhbk_full_scope_allowed | default(omit) }}"
-    node_re_registration_timeout: "{{ rhbk_node_re_registration_timeout | default(omit) }}"
-    client_template: "{{ rhbk_client_template | default(omit) }}"
-    use_template_config: "{{ rhbk_use_template_config | default(omit) }}"
-    use_template_scope: "{{ rhbk_use_template_scope | default(omit) }}"
-    use_template_mappers: "{{ rhbk_use_template_mappers | default(omit) }}"
-    always_display_in_console: "{{ rhbk_always_display_in_console | default(omit) }}"
-    registered_nodes: "{{ rhbk_registered_nodes | default(omit) }}"
-    registration_access_token: "{{ rhbk_registration_access_token | default(omit) }}"
-    surrogate_auth_required: "{{ rhbk_surrogate_auth_required | default(omit) }}"
-    default_roles: "{{ rhbk_default_roles | default(omit) }}"
-    authentication_flow_binding_overrides: "{{ rhbk_auth_flow_binding_overrides | default(omit) }}"
-    protocol_mappers: "{{ rhbk_protocol_mappers | default(omit) }}"
-    attributes: "{{ rhbk_attributes | default(omit) }}"
-  delegate_to: localhost
-  connection: local
-  become: false
-  no_log: "{{ rhbk_no_log | default(true) }}"
+        # ---- OPTIONALS: only sent if you define rhbk_* vars below ----
+        id: "{{ rhbk_client_uuid | default(omit) }}"
+        name: "{{ rhbk_client_name | default(omit) }}"
+        description: "{{ rhbk_description | default(omit) }}"
+        root_url: "{{ rhbk_root_url | default(omit) }}"
+        admin_url: "{{ rhbk_admin_url | default(omit) }}"
+        base_url: "{{ rhbk_base_url | default(omit) }}"
+        enabled: "{{ rhbk_enabled | default(omit) }}"
+        client_authenticator_type: "{{ rhbk_client_authenticator_type | default(omit) }}"
+        secret: "{{ rhbk_client_secret | default(omit) }}"
+        redirect_uris: "{{ rhbk_redirect_uris | default(omit) }}"
+        web_origins: "{{ rhbk_web_origins | default(omit) }}"
+        not_before: "{{ rhbk_not_before | default(omit) }}"
+        bearer_only: "{{ rhbk_bearer_only | default(omit) }}"
+        consent_required: "{{ rhbk_consent_required | default(omit) }}"
+        standard_flow_enabled: "{{ rhbk_standard_flow_enabled | default(omit) }}"
+        implicit_flow_enabled: "{{ rhbk_implicit_flow_enabled | default(omit) }}"
+        direct_access_grants_enabled: "{{ rhbk_direct_access_grants_enabled | default(omit) }}"
+        service_accounts_enabled: "{{ rhbk_service_accounts_enabled | default(omit) }}"
+        authorization_services_enabled: "{{ rhbk_authorization_services_enabled | default(omit) }}"
+        public_client: "{{ rhbk_public_client | default(omit) }}"
+        frontchannel_logout: "{{ rhbk_frontchannel_logout | default(omit) }}"
+        protocol: "{{ rhbk_protocol | default(omit) }}"
+        full_scope_allowed: "{{ rhbk_full_scope_allowed | default(omit) }}"
+        node_re_registration_timeout: "{{ rhbk_node_re_registration_timeout | default(omit) }}"
+        client_template: "{{ rhbk_client_template | default(omit) }}"
+        use_template_config: "{{ rhbk_use_template_config | default(omit) }}"
+        use_template_scope: "{{ rhbk_use_template_scope | default(omit) }}"
+        use_template_mappers: "{{ rhbk_use_template_mappers | default(omit) }}"
+        always_display_in_console: "{{ rhbk_always_display_in_console | default(omit) }}"
+        registered_nodes: "{{ rhbk_registered_nodes | default(omit) }}"
+        registration_access_token: "{{ rhbk_registration_access_token | default(omit) }}"
+        surrogate_auth_required: "{{ rhbk_surrogate_auth_required | default(omit) }}"
+        default_roles: "{{ rhbk_default_roles | default(omit) }}"
+        authentication_flow_binding_overrides: "{{ rhbk_auth_flow_binding_overrides | default(omit) }}"
+        protocol_mappers: "{{ rhbk_protocol_mappers | default(omit) }}"
+        attributes: "{{ rhbk_attributes | default(omit) }}"
+      delegate_to: localhost
+      connection: local
+      become: false
+      no_log: "{{ rhbk_no_log | default(true) }}"
+  rescue:
+    - name: Classify Keycloak client failure without secrets
+      ansible.builtin.set_fact:
+        rhbk_client_fail_category: >-
+          {{
+            'tls'
+            if (
+              ('CERTIFICATE' in (ansible_failed_result.msg | default('') | string | upper))
+              or ('SSL' in (ansible_failed_result.msg | default('') | string | upper))
+              or ('TLS' in (ansible_failed_result.msg | default('') | string | upper))
+            )
+            else (
+              'auth'
+              if (
+                ('401' in (ansible_failed_result.msg | default('') | string))
+                or ('403' in (ansible_failed_result.msg | default('') | string))
+                or ('UNAUTHORIZED' in (ansible_failed_result.msg | default('') | string | upper))
+                or ('INVALID_GRANT' in (ansible_failed_result.msg | default('') | string | upper))
+                or ('INVALID USER CREDENTIALS' in (ansible_failed_result.msg | default('') | string | upper))
+              )
+              else (
+                'not-found'
+                if (
+                  ('404' in (ansible_failed_result.msg | default('') | string))
+                  or ('NOT FOUND' in (ansible_failed_result.msg | default('') | string | upper))
+                  or ('REALM NOT FOUND' in (ansible_failed_result.msg | default('') | string | upper))
+                )
+                else (
+                  'unreachable'
+                  if (
+                    ('CONNECTION' in (ansible_failed_result.msg | default('') | string | upper))
+                    or ('TIMED OUT' in (ansible_failed_result.msg | default('') | string | upper))
+                    or ('NAME OR SERVICE NOT KNOWN' in (ansible_failed_result.msg | default('') | string | upper))
+                    or ('FAILED TO ESTABLISH' in (ansible_failed_result.msg | default('') | string | upper))
+                  )
+                  else 'api'
+                )
+              )
+            )
+          }}
+      no_log: true
+
+    - name: Fail with actionable Keycloak client summary
+      ansible.builtin.fail:
+        msg: >-
+          Failed to create or update Keycloak client '{{ rhbk_client }}' in realm
+          '{{ rhbk_realm }}' at {{ rhbk_client_kc_url }}
+          (validate_certs={{ rhbk_verify_ssl | default(true) | bool }}).
+          Failure category: {{ rhbk_client_fail_category | default('unknown') }}.
+          Confirm Keycloak is reachable, admin login works for the auth realm,
+          TLS trust matches validate_certs, and the target realm exists.
+          Credentials and API response bodies are intentionally not printed
+          (no_log remains enabled on the Keycloak API task).

@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    grafana_install / bootstrap_generate_playbook_repo - Grafana
+    ``state=absent`` now deletes the Grafana CR, route, and postgres, waits
+    until the CR is gone, then removes the operator and namespace. The
+    previous order deleted the namespace first, so Grafana stayed
+    ``Terminating`` and ``ocp_namespace`` failed with advanced cleanup off.
+  - >-
+    ocp_namespace - after ``state=absent``, wait until the Namespace is gone
+    using the existing Terminating retries instead of a three-second pause.

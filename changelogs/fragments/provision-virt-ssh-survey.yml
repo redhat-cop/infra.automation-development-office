@@ -1,0 +1,8 @@
+---
+# yamllint disable rule:line-length
+bugfixes:
+  - bootstrap_controller - Add ``provision_openshift_virt_ssh_public_key``,
+    ``provision_openshift_virt_network_mode``, and
+    ``provision_openshift_virt_multus_nad_name`` to the Provision OpenShift Virt
+    VM job-template survey so Contoller keeps those values on launch
+    (undeclared extra vars were dropped, leaving cloud-init without an SSH key).

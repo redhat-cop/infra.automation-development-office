@@ -1,0 +1,8 @@
+---
+minor_changes:
+  - >-
+    bootstrap_generate_env_vars - Honor
+    ``component_config.rhbk.clients[].create_client`` (default yes) so ADO
+    provisions only the Keycloak clients it should manage. Existing clients
+    keep their application OIDC configuration and are omitted from generated
+    ``rhbk_clients``.

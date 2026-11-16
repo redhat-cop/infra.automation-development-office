@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_oidc_auth - pass ``true``/``false`` (not Jinja ``True``/``False``) to
+    Keycloak ``validate_certs``. A non-empty string is a CA path for the
+    HTTPS library; the Preflight checkbox still defaults to verify.

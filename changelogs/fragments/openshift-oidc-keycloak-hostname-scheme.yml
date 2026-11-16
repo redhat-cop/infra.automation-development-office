@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - reject ``http://``, ``https://``, or a
+    trailing ``/`` in ``openshift.oauth_rhbk.keycloak_hostname``. The field
+    is the Keycloak route host only. The Preflight OAuth/RHBK tab shows the
+    same error.

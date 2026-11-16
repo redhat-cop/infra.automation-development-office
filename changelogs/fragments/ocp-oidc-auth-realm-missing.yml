@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_oidc_auth - when Keycloak returns ``Realm not found``, fail with
+    ``Keycloak realm '<realm>' does not exist`` instead of a permissions
+    error. The role still does not create realms.

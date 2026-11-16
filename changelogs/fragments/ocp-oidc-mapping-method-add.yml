@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_oidc_auth - OpenShift OIDC mapping method now defaults to ``add``.
+    ``claim`` fails with ``Could not create user`` when that username already
+    exists from htpasswd. An explicit ``claim`` or ``lookup`` is still honored.

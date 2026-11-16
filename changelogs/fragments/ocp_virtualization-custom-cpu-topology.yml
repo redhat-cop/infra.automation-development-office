@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - ocp_virtualization - For ``instance_type=custom``, set KubeVirt CPU
+    topology as ``sockets``/``cores``/``threads`` (default sockets from
+    ``cpu_cores``, cores=1, threads=1) so preferences such as ``rhel.9``
+    pass admission instead of rejecting 0-socket VMs.

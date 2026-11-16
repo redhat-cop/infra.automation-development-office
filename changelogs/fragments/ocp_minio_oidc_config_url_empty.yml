@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - ocp_minio - Treat empty ``minio_oidc_config_url`` as unset and derive the
+    OpenID discovery URL from issuer or Keycloak hostname/realm so
+    ``MINIO_IDENTITY_OPENID_CONFIG_URL`` is never written blank (MinIO
+    ``unexpected scheme found``).
+  - bootstrap_generate_env_vars - Emit ``minio_oidc_config_url`` into
+    ``vars_minio.yml`` from Preflight Keycloak host and realm.
+doc_changes:
+  - ocp_minio - Document empty OpenID discovery URL / unexpected scheme failure.

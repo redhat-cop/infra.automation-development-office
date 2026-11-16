@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 ---
+# yamllint disable rule:line-length
 # defaults file for grafana_install (OpenShift operator path)
 
 grafana_install_admin_user: "{{ grafana_admin_user | default('admin') }}"
@@ -24,6 +25,8 @@ grafana_install_postgres_ssl_mode: disable
 # in the image; do not copy them onto the PVC.
 grafana_install_plugins_preinstall_auto_update: "false"
 grafana_install_deployment_name: grafana-deployment
+# Grafana CR spec.deployment.spec.replicas. Preflight Replicas maps here.
+grafana_install_replicas: "{{ grafana_replicas | default(1) | int }}"
 # Operator default is a 1Gi limit and a 3 second readiness timeout.
 # A busy Grafana sits on that limit and fails /api/health.
 grafana_install_cpu_request: 100m
@@ -35,5 +38,7 @@ grafana_install_removed_init_containers:
   - copy-bundled-plugins
 grafana_install_postgres_ready_retries: 60
 grafana_install_postgres_ready_delay: 5
+grafana_install_cr_delete_retries: 36
+grafana_install_cr_delete_delay: 5
 # When true, delete grafana-postgres Deployment+PVC before recreate (wipes DB).
 grafana_install_postgres_reset_data: false

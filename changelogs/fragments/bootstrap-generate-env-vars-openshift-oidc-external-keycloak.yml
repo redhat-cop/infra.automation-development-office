@@ -1,0 +1,43 @@
+---
+minor_changes:
+  - >-
+    bootstrap_generate_env_vars - OpenShift OIDC (``openshift`` option
+    ``oauth_rhbk``) now works against an existing Keycloak when RHBK is
+    not part of the run. ``openshift.oauth_rhbk`` supplies the hostname,
+    realm, client ID, admin user, admin password and optional
+    ``verify_ssl``. Generation writes ``vars_rhbk.yml`` and
+    ``vault_rhbk.yml`` with the variables the ``ocp_oidc_auth`` role
+    already reads. No Keycloak client is created or changed, and the
+    admin password is written only to the vault file.
+  - >-
+    bootstrap_generate_env_vars - with RHBK in the run, OpenShift OIDC
+    inherits the RHBK hostname, realm and admin credentials. Values set
+    under ``openshift.oauth_rhbk`` are written as the role's own
+    ``ocp_oidc_auth_rhbk_*`` inputs, so RHBK's own variables are not
+    rewritten.
+  - >-
+    bootstrap_generate_env_vars - add ``files/preflight_oidc.py``, run
+    before any component vars are generated, so a preflight JSON that
+    bypasses the form gets the same OIDC checks as the UI (a Keycloak
+    client that was removed from the client list, a missing OpenShift or
+    GitLab client ID, missing or conflicting OpenShift OIDC connection
+    inputs). A blank client ID for Grafana, BookStack, NetBox, Quay, MinIO
+    and Developer Hub means the default client from
+    ``components_defaults.yml``; the Preflight UI resolves it the same way.
+bugfixes:
+  - >-
+    bootstrap_generate_env_vars - write the RHBK admin user from the
+    preflight into ``vault_rhbk.yml`` as well as ``vars_rhbk.yml``. The
+    vault template pins ``admin`` and loads after the vars file, so a
+    non-default RHBK admin user was paired with its own password under
+    the user name ``admin``.
+  - >-
+    bootstrap_generate_env_vars - the OpenShift OIDC settings are applied
+    after the RHBK component pass. Before, an explicit realm, hostname,
+    mapping method or scopes under ``openshift.oauth_rhbk`` were
+    overwritten by the later RHBK pass, and ``rhbk_client`` was set to
+    the OpenShift client.
+  - >-
+    bootstrap_generate_env_vars - drop the lab default realm ``rhlab``
+    for ``openshift.oauth_rhbk.realm``. An empty realm inherits the RHBK
+    realm, or must be set for an existing Keycloak.

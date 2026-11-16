@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - bootstrap_generate_env_vars - Refresh ``infra_config_vars.yml``
+    host/api_host from preflight ``openshift`` whenever the API host is set,
+    including Virt-only selections. Previously ``force=false`` left a stale
+    empty host after an earlier generate, and the overlay skipped OpenShift
+    connection updates unless the OpenShift platform group was selected.

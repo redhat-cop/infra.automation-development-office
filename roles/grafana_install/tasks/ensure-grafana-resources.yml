@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Keep the Grafana container's memory and readiness probe on the CR.
 # Patch only those fields so SMTP env and volumes already on the
 # container stay in place.
@@ -11,44 +12,31 @@
     namespace: "{{ name_space }}"
   register: grafana_install_resource_cr
 
+# ansible-core 2.16 (AAP ee-supported-rhel9) keeps folded YAML newlines
+# inside {{ }} and drops one grouping '('. Nested
+# (((((x).spec | default({})).deployment | default({})))) then raises
+# unexpected ')'. One-line hops are valid on 2.15 (preflight pod) and 2.16.
 - name: Collect Grafana containers from the custom resource
+  vars:
+    grafana_install_resource_first: "{{ grafana_install_resource_cr.resources | first | default({}) }}"
+    grafana_install_resource_spec: "{{ grafana_install_resource_first.spec | default({}) }}"
+    grafana_install_resource_deployment: "{{ grafana_install_resource_spec.deployment | default({}) }}"
+    grafana_install_resource_deploy_spec: "{{ grafana_install_resource_deployment.spec | default({}) }}"
+    grafana_install_resource_template: "{{ grafana_install_resource_deploy_spec.template | default({}) }}"
+    grafana_install_resource_pod_spec: "{{ grafana_install_resource_template.spec | default({}) }}"
   ansible.builtin.set_fact:
-    # Nested default({}) chain — keep paren count balanced (one wrap per attr).
-    grafana_install_resource_containers: >-
-      {{
-        (
-          (
-            (
-              (
-                (
-                  (grafana_install_resource_cr.resources | first).spec
-                  | default({})
-                ).deployment | default({})
-              ).spec | default({})
-            ).template | default({})
-          ).spec | default({})
-        ).containers | default([])
-      }}
+    grafana_install_resource_containers: "{{ grafana_install_resource_pod_spec.containers | default([]) }}"
   when: (grafana_install_resource_cr.resources | default([]) | length) > 0
 
 - name: Find the Grafana container index
-  ansible.builtin.set_fact:
+  vars:
     # List method .index(), not the missing Jinja | index filter (Contoller EE).
-    grafana_install_resource_container_index: >-
-      {{
-        (
-          grafana_install_resource_containers
-          | map(attribute='name')
-          | list
-        ).index('grafana')
-      }}
+    grafana_install_resource_container_names: "{{ grafana_install_resource_containers | map(attribute='name') | list }}"
+  ansible.builtin.set_fact:
+    grafana_install_resource_container_index: "{{ grafana_install_resource_container_names.index('grafana') }}"
   when:
     - grafana_install_resource_containers is defined
-    - >-
-      grafana_install_resource_containers
-      | selectattr('name', 'equalto', 'grafana')
-      | list
-      | length > 0
+    - (grafana_install_resource_containers | selectattr('name', 'equalto', 'grafana') | list | length) > 0
 
 - name: Set Grafana container memory and readiness probe
   vars:
@@ -118,3 +106,18 @@
           grafana_install_resource_container_index }}/readinessProbe
         value: "{{ grafana_install_container_readiness }}"
   when: grafana_install_resource_container_index is defined
+
+- name: Set Grafana replica count on the custom resource
+  kubernetes.core.k8s:
+    merge_type: merge
+    definition:
+      apiVersion: grafana.integreatly.org/v1beta1
+      kind: Grafana
+      metadata:
+        name: grafana
+        namespace: "{{ name_space }}"
+      spec:
+        deployment:
+          spec:
+            replicas: "{{ grafana_install_replicas | int | to_json | from_json }}"
+  when: (grafana_install_resource_cr.resources | default([]) | length) > 0

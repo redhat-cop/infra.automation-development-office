@@ -6,6 +6,7 @@ Install and configure GitLab on OpenShift using the GitLab Operator and Custom R
 - Provisions dedicated in-cluster PostgreSQL (RHEL `postgresql-15`, Grafana-style Deployment + PVC). `anyuid` is bound only to that Postgres ServiceAccount.
 - Deploys the GitLab Operator CR with required references and settings
 - Supports idempotent updates and safe deletion
+- On `state=present`, force-deletes GitLab pods that are Terminating on NotReady/unreachable nodes so PostgreSQL and webservice can reschedule
 - Uses **Ansible Vault** for storing sensitive secrets (root and DB passwords)
 
 ---
@@ -51,6 +52,7 @@ Install and configure GitLab on OpenShift using the GitLab Operator and Custom R
 | `gitlab_install_postgres_host` | External PostgreSQL host when `gitlab_install_database_provision` is `false`. |
 | `gitlab_install_postgres_password` | Optional PostgreSQL password. Reused from Secret `gitlab-db-secret` on reruns; generated when empty. |
 | `gitlab_install_postgres_reset_data` | When `true`, delete the `gitlab-postgresql` Deployment and PVC before recreate (wipes DB). Use after CrashLoopBackOff from a bad volume. Default: `false`. |
+| `gitlab_install_recover_stuck_pods` | When `true` (default), force-delete GitLab pods that are Terminating on NotReady or unreachable nodes so StatefulSets can reschedule. Set `false` to skip. |
 
 ### Auth via environment (optional)
 
@@ -123,6 +125,7 @@ gitlab_install_root_password: !vault |
 - The operator CR is updated if settings change.
 - Passwords are **never logged** (`no_log: true`).
 - For deletion, the role removes the GitLab CR, PostgreSQL resources, and secrets.
+- A worker that goes NotReady leaves GitLab PostgreSQL (and other pods) Terminating until the kubelet confirms delete. `gitlab_install_recover_stuck_pods` force-deletes those pods so the StatefulSet can start on a healthy node. This does not reboot the dead worker.
 
 ---
 
@@ -173,6 +176,7 @@ gitlab_install/
 │   ├── install-gitlab-external-deps.yml
 │   ├── install-gitlab-operator.yml
 │   ├── provision-gitlab-postgres.yml
+│   ├── recover-stuck-pods.yml
 │   └── main.yml
 ├── tests/
 │   ├── inventory

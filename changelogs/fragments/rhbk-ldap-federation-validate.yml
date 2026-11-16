@@ -1,0 +1,25 @@
+---
+bugfixes:
+  - >-
+    rhbk_manage_federation - Stop reporting LDAP federation success when
+    Connection URL or Bind DN are blank; assemble ``ldap_config`` from
+    Preflight ``federation_*`` aliases, apply FreeIPA attribute defaults
+    (``ipaUniqueID``, subtree search), and validate with Keycloak
+    ``testLDAPConnection`` before success.
+  - >-
+    bootstrap_generate_env_vars - Build and merge ``ldap_config`` without
+    empty-string wipe of ``connectionUrl`` / ``bindDn``; seed FreeIPA
+    ``ldap_group_config`` when missing.
+  - >-
+    rhbk_setup_mapper - Update existing LDAP group mapper configuration
+    instead of skipping when the mapper already exists; verify mapper
+    presence after apply.
+  - >-
+    rhbk_realm - Probe master-realm admin token endpoint with retries
+    before realm create so token read timeouts are diagnosed separately
+    from LDAP failures.
+minor_changes:
+  - >-
+    rhbk_client / overlay - Emit confidential OpenShift OIDC client
+    defaults (standard flow, client-secret authenticator, no
+    direct-grant/implicit unless requested).

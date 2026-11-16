@@ -1,7 +1,7 @@
 ---
 namespace: "infra"
 name: "automation_development_office"
-version: 2.1.2
+version: 2.1.4
 readme: README.md
 authors:
   - Automation Development Office

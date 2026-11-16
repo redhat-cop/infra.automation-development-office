@@ -1,0 +1,20 @@
+---
+bugfixes:
+  - >-
+    ocp_oidc_auth - Discover Keycloak CA trust (IdM bundle, TLS Secret
+    ``ca.crt`` / ``tls.crt`` intermediates, cert-manager issuer ACME
+    ``caBundle``, then ingress CA) before client-secret API calls so
+    cert-manager / IdM ACME installs verify with ``validate_certs`` still
+    enabled.
+  - >-
+    ocp_oidc_auth - Build OpenShift oauth-server CA ConfigMap from the same
+    discovered CA material; never treat a leaf-only ``tls.crt`` as a trust
+    anchor.
+minor_changes:
+  - >-
+    tls_trust_bundle - New filter plugin to extract CA trust PEMs from
+    Kubernetes TLS Secret fields and PEM chains.
+doc_changes:
+  - >-
+    ocp_oidc_auth - Document automatic Keycloak TLS trust discovery for
+    cert-manager and externally managed Keycloak.

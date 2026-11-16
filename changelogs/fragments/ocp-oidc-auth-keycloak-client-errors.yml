@@ -1,0 +1,13 @@
+---
+bugfixes:
+  - >-
+    ocp_oidc_auth - build the Keycloak REST client-secret URL on one line.
+    The folded YAML put a space in the path, so the REST fallback (used when
+    the ``keycloak_clientsecret_info`` module returns no secret) could never
+    succeed.
+  - >-
+    ocp_oidc_auth - when the existing Keycloak client's secret cannot be
+    read, fail with a specific message (admin login failed, account may not
+    list clients or read the secret, client not found, client has no secret)
+    instead of a message hidden by ``no_log``. Nothing is created or changed
+    in Keycloak or OpenShift.

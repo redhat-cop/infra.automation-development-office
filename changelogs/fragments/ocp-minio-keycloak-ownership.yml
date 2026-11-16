@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    ocp_minio - Honor ``create_client: false`` so the MinIO OIDC playbook does
+    not create, update, or add mappers to an externally managed Keycloak
+    client. Overlay omits that client from ``rhbk_clients`` so Deploy RHBK
+    Client cannot double-provision it when ADO does manage the client.

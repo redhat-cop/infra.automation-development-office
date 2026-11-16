@@ -45,6 +45,8 @@
           {{ storage_size | default(minio_storage_size | default('20Gi')) }}
         minio_oidc_enabled: >-
           {{ (minio_oidc_enabled | default(oidc.enabled | default(true))) | bool }}
+        # Keycloak create/mapper is gated in ocp_minio from
+        # clients[].create_client.
         minio_oidc_client_id: >-
           {{ minio_oidc_client_id | default(oidc.client_id | default('minio')) }}
         minio_oidc_claim_name: >-

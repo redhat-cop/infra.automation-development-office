@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # Grafana image plugins stay in /usr/share/grafana/data/plugins-bundled.
 # A leftover copy-bundled-plugins init container duplicates them on the PVC
 # and is not part of this role. Remove it when a previous change left it
@@ -13,40 +14,32 @@
     namespace: "{{ name_space }}"
   register: grafana_install_plugin_cr
 
+# Same 2.16 folded-Jinja constraint as ensure-grafana-resources.yml.
 - name: Collect Grafana CR init containers
+  vars:
+    grafana_install_plugin_first: "{{ grafana_install_plugin_cr.resources | first | default({}) }}"
+    grafana_install_plugin_spec: "{{ grafana_install_plugin_first.spec | default({}) }}"
+    grafana_install_plugin_deployment: "{{ grafana_install_plugin_spec.deployment | default({}) }}"
+    grafana_install_plugin_deploy_spec: "{{ grafana_install_plugin_deployment.spec | default({}) }}"
+    grafana_install_plugin_template: "{{ grafana_install_plugin_deploy_spec.template | default({}) }}"
+    grafana_install_plugin_pod_spec: "{{ grafana_install_plugin_template.spec | default({}) }}"
   ansible.builtin.set_fact:
-    grafana_install_cr_init_containers: >-
-      {{
-        (
-          (
-            (
-              (
-                grafana_install_plugin_cr.resources[0].spec.deployment
-                | default({})
-              ).spec | default({})
-            ).template | default({})
-          ).spec | default({})
-        ).initContainers | default([])
-      }}
+    grafana_install_cr_init_containers: "{{ grafana_install_plugin_pod_spec.initContainers | default([]) }}"
   when: (grafana_install_plugin_cr.resources | default([])) | length > 0
 
 - name: Decide whether the Grafana CR still copies bundled plugins
+  vars:
+    grafana_install_cr_copy_inits: >-
+      {{ grafana_install_cr_init_containers | default([])
+         | selectattr('name', 'in', grafana_install_removed_init_containers)
+         | list }}
+    grafana_install_cr_kept_inits: >-
+      {{ grafana_install_cr_init_containers | default([])
+         | rejectattr('name', 'in', grafana_install_removed_init_containers)
+         | list }}
   ansible.builtin.set_fact:
-    grafana_install_cr_drops_bundled_copy: >-
-      {{
-        (
-          grafana_install_cr_init_containers | default([])
-          | selectattr('name', 'in', grafana_install_removed_init_containers)
-          | list
-          | length
-        ) > 0
-      }}
-    grafana_install_cr_kept_init_containers: >-
-      {{
-        grafana_install_cr_init_containers | default([])
-        | rejectattr('name', 'in', grafana_install_removed_init_containers)
-        | list
-      }}
+    grafana_install_cr_drops_bundled_copy: "{{ grafana_install_cr_copy_inits | length > 0 }}"
+    grafana_install_cr_kept_init_containers: "{{ grafana_install_cr_kept_inits }}"
   when: grafana_install_cr_init_containers is defined
 
 - name: Remove bundled-plugin copy init container from the Grafana CR
@@ -79,22 +72,18 @@
   when: (grafana_install_plugin_deploy.resources | default([])) | length > 0
 
 - name: Decide whether the deployment still copies bundled plugins
+  vars:
+    grafana_install_deploy_copy_inits: >-
+      {{ grafana_install_deploy_init_containers | default([])
+         | selectattr('name', 'in', grafana_install_removed_init_containers)
+         | list }}
+    grafana_install_deploy_kept_inits: >-
+      {{ grafana_install_deploy_init_containers | default([])
+         | rejectattr('name', 'in', grafana_install_removed_init_containers)
+         | list }}
   ansible.builtin.set_fact:
-    grafana_install_deploy_drops_bundled_copy: >-
-      {{
-        (
-          grafana_install_deploy_init_containers | default([])
-          | selectattr('name', 'in', grafana_install_removed_init_containers)
-          | list
-          | length
-        ) > 0
-      }}
-    grafana_install_deploy_kept_init_containers: >-
-      {{
-        grafana_install_deploy_init_containers | default([])
-        | rejectattr('name', 'in', grafana_install_removed_init_containers)
-        | list
-      }}
+    grafana_install_deploy_drops_bundled_copy: "{{ grafana_install_deploy_copy_inits | length > 0 }}"
+    grafana_install_deploy_kept_init_containers: "{{ grafana_install_deploy_kept_inits }}"
   when: grafana_install_deploy_init_containers is defined
 
 - name: Remove bundled-plugin copy init container from the deployment

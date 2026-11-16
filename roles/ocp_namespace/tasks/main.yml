@@ -134,19 +134,15 @@
       (ocp_namespace_after_create.resources[0].status.phase | default(''))
       == 'Terminating'
 
-- name: Brief settle after delete before presence check
-  ansible.builtin.pause:
-    seconds: "{{ ocp_namespace_delete_settle_seconds | default(3) | int }}"
-  when:
-    - (state | default('present')) == 'absent'
-    - ocp_namespace_result is changed or ocp_namespace_result is failed
-
-- name: Lookup namespace after delete attempt
+- name: Wait for namespace to finish deleting
   kubernetes.core.k8s_info:
     api_version: v1
     kind: Namespace
     name: "{{ ocp_namespace_effective }}"
   register: ocp_namespace_after_delete
+  until: (ocp_namespace_after_delete.resources | default([]) | length) == 0
+  retries: "{{ ocp_namespace_terminating_retries | default(24) | int }}"
+  delay: "{{ ocp_namespace_terminating_delay | default(5) | int }}"
   failed_when: false
   when: (state | default('present')) == 'absent'
 

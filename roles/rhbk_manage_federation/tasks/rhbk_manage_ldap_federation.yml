@@ -1,4 +1,120 @@
-- name: Ensure LDAP federation provider exists
+---
+# yamllint disable rule:line-length
+# Apply LDAP user federation idempotently, then validate connection/bind.
+# Never report success when Connection URL or Bind DN are blank.
+
+- name: Assemble effective LDAP federation config from ldap_config + federation_* aliases
+  ansible.builtin.set_fact:
+    rhbk_manage_federation_ldap_config: >-
+      {{
+        (ldap_config | default({}, true) | combine({
+          'connectionUrl': (
+            (ldap_config.connectionUrl | default('') | string | trim)
+            if ((ldap_config.connectionUrl | default('') | string | trim | length) > 0)
+            else (federation_ldap_url | default('') | string | trim)
+          ),
+          'bindDn': (
+            (ldap_config.bindDn | default('') | string | trim)
+            if ((ldap_config.bindDn | default('') | string | trim | length) > 0)
+            else (federation_bind_dn | default('') | string | trim)
+          ),
+          'usersDn': (
+            (ldap_config.usersDn | default('') | string | trim)
+            if ((ldap_config.usersDn | default('') | string | trim | length) > 0)
+            else (federation_users_dn | default('') | string | trim)
+          ),
+          'bindCredential': (
+            (ldap_config.bindCredential | default('') | string)
+            if ((ldap_config.bindCredential | default('') | string | length) > 0)
+            else (federation_bind_password | default('') | string)
+          )
+        }, recursive=True))
+      }}
+  no_log: "{{ rhbk_no_log | default(true) | bool }}"
+
+- name: Apply FreeIPA-oriented LDAP attribute defaults when still unset
+  ansible.builtin.set_fact:
+    rhbk_manage_federation_ldap_config: >-
+      {{
+        {
+          'enabled': 'true',
+          'vendor': 'rhds',
+          'authType': 'simple',
+          'editMode': 'READ_ONLY',
+          'importEnabled': 'true',
+          'syncRegistrations': 'false',
+          'usernameLDAPAttribute': 'uid',
+          'rdnLDAPAttribute': 'uid',
+          'uuidLDAPAttribute': 'ipaUniqueID',
+          'userObjectClasses': 'inetOrgPerson, posixAccount',
+          'searchScope': '2',
+          'connectionPooling': 'true',
+          'pagination': 'true',
+          'startTls': 'false',
+          'useTruststoreSpi': 'ldapsOnly',
+          'batchSizeForSync': '1000',
+          'fullSyncPeriod': '-1',
+          'changedSyncPeriod': '-1'
+        }
+        | combine(rhbk_manage_federation_ldap_config | default({}), recursive=True)
+        | combine(
+            {
+              'uuidLDAPAttribute': 'ipaUniqueID'
+            }
+            if (
+              (rhbk_manage_federation_ldap_config.uuidLDAPAttribute | default('') | string | lower)
+              in ['', 'nsuniqueid']
+            )
+            else {},
+            recursive=True
+          )
+        | combine(
+            {
+              'searchScope': '2'
+            }
+            if (
+              (rhbk_manage_federation_ldap_config.searchScope | default('') | string)
+              in ['', '1']
+            )
+            else {},
+            recursive=True
+          )
+      }}
+  when: >-
+    (
+      ('cn=accounts' in (rhbk_manage_federation_ldap_config.usersDn | default('') | string | lower))
+      or (federation_provider | default('') | string | lower) in ['freeipa', 'idm', 'ipa']
+    )
+
+- name: Assert required LDAP federation fields are present
+  ansible.builtin.assert:
+    that:
+      - (rhbk_manage_federation_ldap_config.connectionUrl | default('') | string | trim | length) > 0
+      - (rhbk_manage_federation_ldap_config.bindDn | default('') | string | trim | length) > 0
+      - (rhbk_manage_federation_ldap_config.usersDn | default('') | string | trim | length) > 0
+      - (rhbk_manage_federation_ldap_config.bindCredential | default('') | string | length) > 0
+    fail_msg: >-
+      RHBK LDAP federation is missing required Keycloak fields
+      (connectionUrl set={{ (rhbk_manage_federation_ldap_config.connectionUrl | default('') | string | trim | length) > 0 }};
+      bindDn set={{ (rhbk_manage_federation_ldap_config.bindDn | default('') | string | trim | length) > 0 }};
+      usersDn set={{ (rhbk_manage_federation_ldap_config.usersDn | default('') | string | trim | length) > 0 }};
+      bindCredential set={{ (rhbk_manage_federation_ldap_config.bindCredential | default('') | string | length) > 0 }}).
+      Set Preflight RHBK federation LDAP URL, Bind DN, Users DN, and bind password,
+      regenerate env vars, and rerun. ADO will not create a blank LDAP provider.
+      Nothing was changed in Keycloak.
+
+- name: Show LDAP federation target (credentials redacted)
+  ansible.builtin.debug:
+    msg: >-
+      Applying LDAP federation name={{ rhbk_federation_name }}
+      vendor={{ rhbk_manage_federation_ldap_config.vendor | default('') }}
+      connectionUrl={{ rhbk_manage_federation_ldap_config.connectionUrl }}
+      bindDn={{ rhbk_manage_federation_ldap_config.bindDn }}
+      usersDn={{ rhbk_manage_federation_ldap_config.usersDn }}
+      uuidLDAPAttribute={{ rhbk_manage_federation_ldap_config.uuidLDAPAttribute | default('') }}
+      searchScope={{ rhbk_manage_federation_ldap_config.searchScope | default('') }}.
+
+- name: Ensure LDAP federation provider exists (create or update)
   community.general.keycloak_user_federation:
     auth_keycloak_url: >-
       {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}
@@ -8,7 +124,174 @@
     realm: "{{ rhbk_realm }}"
     provider_id: ldap
     name: "{{ rhbk_federation_name }}"
-    config: "{{ ldap_config }}"
+    config: "{{ rhbk_manage_federation_ldap_config }}"
     state: present
-    validate_certs: "{{ rhbk_verify_ssl }}"
+    validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
   register: rhbk_manage_federation_ldap_provider
+  no_log: "{{ rhbk_no_log | default(true) | bool }}"
+
+- name: Login to Keycloak for LDAP validation
+  when: rhbk_federation_test_connection | default(true) | bool
+  block:
+    - name: Get Keycloak admin token for LDAP tests
+      ansible.builtin.uri:
+        url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/realms/master/protocol/openid-connect/token"
+        method: POST
+        validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
+        body_format: form-urlencoded
+        body:
+          grant_type: password
+          client_id: admin-cli
+          username: "{{ rhbk_admin_user }}"
+          password: "{{ rhbk_admin_password }}"
+        status_code: [200]
+      register: rhbk_manage_federation_token
+      no_log: true
+
+    - name: Test LDAP connection URL from Keycloak
+      ansible.builtin.uri:
+        url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/testLDAPConnection"
+        method: POST
+        validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
+        headers:
+          Authorization: "Bearer {{ rhbk_manage_federation_token.json.access_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          action: testConnection
+          connectionUrl: "{{ rhbk_manage_federation_ldap_config.connectionUrl }}"
+          bindDn: "{{ rhbk_manage_federation_ldap_config.bindDn }}"
+          bindCredential: "{{ rhbk_manage_federation_ldap_config.bindCredential }}"
+          useTruststoreSpi: "{{ rhbk_manage_federation_ldap_config.useTruststoreSpi | default('ldapsOnly') }}"
+          startTls: "{{ rhbk_manage_federation_ldap_config.startTls | default('false') }}"
+          connectionTimeout: ""
+        status_code: [204, 200, 400, 500]
+      register: rhbk_manage_federation_ldap_conn_test
+      no_log: true
+
+    - name: Assert LDAP connection URL is reachable from Keycloak
+      ansible.builtin.assert:
+        that:
+          - (rhbk_manage_federation_ldap_conn_test.status | default(0)) in [200, 204]
+        fail_msg: >-
+          Keycloak could not reach LDAP at
+          {{ rhbk_manage_federation_ldap_config.connectionUrl }}
+          (HTTP {{ rhbk_manage_federation_ldap_conn_test.status | default('n/a') }}:
+          {{ rhbk_manage_federation_ldap_conn_test.json | default(rhbk_manage_federation_ldap_conn_test.msg) | truncate(200, true, '...') }}).
+          Fix the Connection URL / network / TLS trust, then rerun.
+          The LDAP provider may already exist; connection was not validated as successful.
+
+    - name: Test LDAP bind authentication from Keycloak
+      ansible.builtin.uri:
+        url: "{{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/testLDAPConnection"
+        method: POST
+        validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
+        headers:
+          Authorization: "Bearer {{ rhbk_manage_federation_token.json.access_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          action: testAuthentication
+          connectionUrl: "{{ rhbk_manage_federation_ldap_config.connectionUrl }}"
+          bindDn: "{{ rhbk_manage_federation_ldap_config.bindDn }}"
+          bindCredential: "{{ rhbk_manage_federation_ldap_config.bindCredential }}"
+          useTruststoreSpi: "{{ rhbk_manage_federation_ldap_config.useTruststoreSpi | default('ldapsOnly') }}"
+          startTls: "{{ rhbk_manage_federation_ldap_config.startTls | default('false') }}"
+          connectionTimeout: ""
+        status_code: [204, 200, 400, 500]
+      register: rhbk_manage_federation_ldap_bind_test
+      no_log: true
+
+    - name: Assert LDAP bind authentication succeeded
+      ansible.builtin.assert:
+        that:
+          - (rhbk_manage_federation_ldap_bind_test.status | default(0)) in [200, 204]
+        fail_msg: >-
+          Keycloak LDAP bind failed for bindDn={{ rhbk_manage_federation_ldap_config.bindDn }}
+          against {{ rhbk_manage_federation_ldap_config.connectionUrl }}
+          (HTTP {{ rhbk_manage_federation_ldap_bind_test.status | default('n/a') }}:
+          {{ rhbk_manage_federation_ldap_bind_test.json | default(rhbk_manage_federation_ldap_bind_test.msg) | truncate(200, true, '...') }}).
+          Check Bind DN and bind password. Sync was not run.
+
+    - name: Read back LDAP federation component and confirm required fields
+      ansible.builtin.uri:
+        url: >-
+          {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/components?type=org.keycloak.storage.UserStorageProvider
+        method: GET
+        validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
+        headers:
+          Authorization: "Bearer {{ rhbk_manage_federation_token.json.access_token }}"
+        status_code: [200]
+      register: rhbk_manage_federation_components
+      no_log: true
+
+    - name: Select applied LDAP federation component
+      ansible.builtin.set_fact:
+        rhbk_manage_federation_component: >-
+          {{
+            (rhbk_manage_federation_components.json | default([]))
+            | selectattr('name', 'equalto', rhbk_federation_name)
+            | list
+            | first
+            | default({}, true)
+          }}
+
+    - name: Assert deployed LDAP federation has Connection URL and Bind DN
+      vars:
+        _cfg: "{{ rhbk_manage_federation_component.config | default({}) }}"
+        _url: >-
+          {{
+            (_cfg.connectionUrl | default([]) | first | default(''))
+            | string
+          }}
+        _bind: >-
+          {{
+            (_cfg.bindDn | default([]) | first | default(''))
+            | string
+          }}
+        _users: >-
+          {{
+            (_cfg.usersDn | default([]) | first | default(''))
+            | string
+          }}
+      ansible.builtin.assert:
+        that:
+          - (_url | trim | length) > 0
+          - (_bind | trim | length) > 0
+          - (_users | trim | length) > 0
+        fail_msg: >-
+          LDAP federation '{{ rhbk_federation_name }}' is present in Keycloak but
+          Connection URL / Bind DN / Users DN are still blank after apply
+          (url_set={{ (_url | trim | length) > 0 }},
+          bind_set={{ (_bind | trim | length) > 0 }},
+          users_set={{ (_users | trim | length) > 0 }}).
+          Check ldap_config generation and rerun federation configuration.
+
+    - name: Optional LDAP user sync verification (disabled by default)
+      when:
+        - rhbk_federation_verify_sync | default(false) | bool
+        - (rhbk_manage_federation_component.id | default('') | string | length) > 0
+      block:
+        - name: Trigger Keycloak LDAP changed users sync
+          ansible.builtin.uri:
+            url: >-
+              {{ rhbk_keycloak_base_url | default('https://' ~ rhbk_host) }}/admin/realms/{{ rhbk_realm }}/user-storage/{{ rhbk_manage_federation_component.id }}/sync?action=triggerChangedUsersSync
+            method: POST
+            validate_certs: "{{ rhbk_verify_ssl | bool | string | lower }}"
+            headers:
+              Authorization: "Bearer {{ rhbk_manage_federation_token.json.access_token }}"
+            status_code: [200, 204, 400, 500]
+          register: rhbk_manage_federation_sync
+          no_log: true
+
+        - name: Assert optional LDAP sync did not return an error payload
+          ansible.builtin.assert:
+            that:
+              - (rhbk_manage_federation_sync.status | default(0)) in [200, 204]
+            fail_msg: >-
+              Keycloak LDAP sync failed for '{{ rhbk_federation_name }}'
+              (HTTP {{ rhbk_manage_federation_sync.status | default('n/a') }}:
+              {{ rhbk_manage_federation_sync.json | default(rhbk_manage_federation_sync.msg) | truncate(300, true, '...') }}).
+              Connection/bind may be OK while sync still fails (mapper/UUID/scope).
+              Check Keycloak pod logs for UnknownError and fix uuidLDAPAttribute /
+              searchScope / usersDn for FreeIPA (ipaUniqueID, searchScope=2).

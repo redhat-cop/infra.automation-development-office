@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 # =========================================================
 # Grafana: normalize inputs + build config (base + optional Keycloak OIDC)
 # =========================================================
@@ -190,6 +191,9 @@
         ingress:
           enabled: true
         config: "{{ grafana_install_config }}"
+        deployment:
+          spec:
+            replicas: "{{ grafana_install_replicas | int | to_json | from_json }}"
         persistentVolumeClaim:
           spec:
             accessModes: ["ReadWriteOnce"]
@@ -323,6 +327,12 @@
 
 - name: Set Grafana memory and readiness probe
   ansible.builtin.import_tasks: ensure-grafana-resources.yml
+
+- name: Mount Grafana OIDC private CA ConfigMap into the Grafana pod
+  ansible.builtin.import_tasks: ensure-grafana-oidc-ca-mount.yml
+  when:
+    - grafana_install_oidc_enabled | default(false) | bool
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
 
 - name: Wait for Grafana API to be ready (/api/health)
   ansible.builtin.uri:

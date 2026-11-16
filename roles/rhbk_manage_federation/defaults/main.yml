@@ -1,15 +1,13 @@
+---
 # SPDX-License-Identifier: GPL-3.0-or-later-0
-# ---
 # defaults file for rhbk_manage_federation
 #
-# Prefer rhbk_hostname / ocp_rhbk_hostname from preflight Hostname/URL; federation
-# tasks historically used rhbk_host.
+# Prefer rhbk_hostname / ocp_rhbk_hostname from preflight Hostname/URL;
+# federation tasks historically used rhbk_host.
 rhbk_host: >-
   {{
     (
-      rhbk_host | default('', true)
-      | default(rhbk_hostname, true)
-      | default(rhbk_standalone_hostname, true)
+      rhbk_hostname | default(rhbk_standalone_hostname, true)
       | default(install_rhbk_standalone_hostname, true)
       | default(ocp_rhbk_hostname, true)
       | default(hostname, true)
@@ -18,5 +16,12 @@ rhbk_host: >-
     | regex_replace('^https?://', '')
     | regex_replace('/.*$', '')
   }}
-# Preflight ``component_config.rhbk.federation_name`` → ``federation_name`` in vars.
+# Preflight federation_name → federation_name in vars.
 rhbk_federation_name: "{{ federation_name | default('LDAP') }}"
+
+# After apply, call Keycloak testLDAPConnection (does not sync users).
+rhbk_federation_test_connection: true
+# Optional full/changed sync verification (off by default).
+rhbk_federation_verify_sync: false
+
+rhbk_verify_ssl: true

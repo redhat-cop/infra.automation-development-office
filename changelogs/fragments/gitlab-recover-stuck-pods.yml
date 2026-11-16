@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    gitlab_install - on ``state=present``, force-delete GitLab pods that are
+    Terminating on NotReady or unreachable nodes so PostgreSQL and
+    webservice can reschedule. A dead worker previously left GitLab down
+    until those pods were deleted by hand. Disable with
+    ``gitlab_install_recover_stuck_pods=false``.

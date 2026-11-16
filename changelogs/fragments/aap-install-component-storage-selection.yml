@@ -1,0 +1,9 @@
+minor_changes:
+  - bootstrap_generate_env_vars - Install AAP OpenShift component selection
+    (``install_controller`` / ``install_hub`` / ``install_eda``) is independent of
+    ``minimal_footprint``. Hub file StorageClass inherits General ``storage``
+    unless ``hub_storage_override`` is set. Controller projects persistence and
+    EDA replicas are passed through when configured.
+bugfixes:
+  - bootstrap_generate_env_vars - ``minimal_footprint`` no longer forces Hub/EDA
+    off when Preflight explicitly sets ``install_hub`` / ``install_eda``.

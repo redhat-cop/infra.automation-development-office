@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - bootstrap_generate_playbook_repo - Keep the default-ingress
+    playbook when ``update_default_ingress`` is set in preflight even
+    if ``aap_config_vars.yml`` is skipped (No-AAP). Ingress-only
+    selection no longer keeps Deploy cert-manager as a runnable
+    playbook; explicit Certificate Manager selection is required.
+  - bootstrap_generate_env_vars - Publish
+    ``bootstrap_controller_update_default_ingress`` and
+    ``bootstrap_controller_cert_manager_explicit`` from preflight so
+    Contoller and playbook gates work in AAP and No-AAP modes.

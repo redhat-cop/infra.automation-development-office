@@ -36,6 +36,7 @@ See `defaults/main.yml`. Common overrides:
 | `bookstack_db_password` / `bookstack_app_key` | Generated once into Secrets when empty |
 | `bookstack_oidc_enabled` | Enable RHBK OIDC (also `oidc.enabled` from registry) |
 | `bookstack_oidc_client_id` | Keycloak client id |
+| `bookstack_oidc_client_secret` | Confidential client secret; fetched from Keycloak when empty |
 | `bookstack_oidc_issuer` | OIDC issuer URL (realm) |
 
 Default images: `solidnerd/bookstack:24.12.1` (port 8080), `mariadb:11`.
@@ -68,6 +69,17 @@ Contoller / bootstrap:
 - OIDC JT: `ado-bookstack-deploy-oidc-bootstrap.jt.yml`
 - Component registry key: `bookstack` in `bootstrap_resolve_component`
 
+OIDC secret handling: `bookstack_oidc_client_secret` is used when set. When it is
+empty, `ocp_rhbk_client_secrets` reads the Keycloak client secret before the
+`bookstack-app` Secret or OIDC environment is applied. That read is allowed when
+`create_client` is false (ownership controls Keycloak mutations, not secret
+retrieval). The role does not create or update the Keycloak client. An existing
+`bookstack-app` `oidc-client-secret` is reused only when `oidc-client-id` in that
+Secret matches `bookstack_oidc_client_id`. Changing the client ID does not keep
+the previous client's secret. Missing client, denied admin access, a client-ID
+mismatch with no Keycloak secret, or an empty confidential-client secret fails
+the job; an empty value is not written.
+
 Tags: `bookstack`, `bookstack_namespace`, `bookstack_database`, `bookstack_app`,
 `bookstack_route`, `bookstack_oidc`, `bookstack_configure_oidc`.
 
@@ -91,6 +103,7 @@ roles/bookstack_openshift/
     route.yml
     admin.yml
     oidc.yml
+    resolve-oidc-secret.yml
     configure-oidc.yml
     validate.yml
     remove.yml

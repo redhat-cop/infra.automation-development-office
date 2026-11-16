@@ -93,31 +93,65 @@
         | default('all', true)
       }}
 
+- name: Generate playbook repo | Resolve catalog dump vs empty selection
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_dump_catalog: >-
+      {{
+        (
+          bootstrap_generate_playbook_repo_selected_components is not defined
+          and bootstrap_generate_playbook_repo_component_effective == 'all'
+        )
+        or (
+          bootstrap_generate_playbook_repo_selected_components is defined
+          and (
+            'all' in bootstrap_generate_playbook_repo_selected_components
+          )
+        )
+      }}
+    bootstrap_generate_playbook_repo_empty_selection: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_components is defined
+        and (
+          bootstrap_generate_playbook_repo_selected_components | length == 0
+        )
+      }}
+
 - name: Generate playbook repo | Resolve selected apps from component
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_selected_apps: >-
       {{
         (
-          bootstrap_generate_playbook_repo_selected_components
-          + (
-              ['rhel']
-              if (
-                'patching'
-                in bootstrap_generate_playbook_repo_selected_components
-              )
-              else []
-            )
-          if (
-            bootstrap_generate_playbook_repo_selected_components is defined
-            and (
-              bootstrap_generate_playbook_repo_selected_components
-              | length > 0
-            )
-          )
+          []
+          if (bootstrap_generate_playbook_repo_empty_selection | bool)
           else
-          bootstrap_generate_playbook_repo_component_map[
-            bootstrap_generate_playbook_repo_component_effective
-          ] | default([])
+          (
+            bootstrap_generate_playbook_repo_selected_components
+            + (
+                ['rhel']
+                if (
+                  bootstrap_generate_playbook_repo_selected_components is defined
+                  and (
+                    'patching'
+                    in bootstrap_generate_playbook_repo_selected_components
+                  )
+                )
+                else []
+              )
+            if (
+              bootstrap_generate_playbook_repo_selected_components is defined
+              and (
+                bootstrap_generate_playbook_repo_selected_components
+                | length > 0
+              )
+              and (
+                'all' not in bootstrap_generate_playbook_repo_selected_components
+              )
+            )
+            else
+            bootstrap_generate_playbook_repo_component_map[
+              bootstrap_generate_playbook_repo_component_effective
+            ] | default([])
+          )
         )
         | unique
         | list
@@ -140,30 +174,26 @@
     bootstrap_generate_playbook_repo_selected_playbooks: >-
       {{
         bootstrap_generate_playbook_repo_generated_playbooks
-        if (
-          bootstrap_generate_playbook_repo_component_effective == 'all'
-          and (
-            bootstrap_generate_playbook_repo_selected_components
-            is not defined
-            or (
-              bootstrap_generate_playbook_repo_selected_components
-              | length == 0
+        if (bootstrap_generate_playbook_repo_dump_catalog | bool)
+        else (
+          []
+          if (bootstrap_generate_playbook_repo_empty_selection | bool)
+          else
+          bootstrap_generate_playbook_repo_generated_playbooks
+          | selectattr(
+              'app',
+              'in',
+              bootstrap_generate_playbook_repo_selected_apps
             )
-          )
+          | list
         )
-        else
-        bootstrap_generate_playbook_repo_generated_playbooks
-        | selectattr(
-            'app',
-            'in',
-            bootstrap_generate_playbook_repo_selected_apps
-          )
-        | list
       }}
 
 # Match Contoller workflow/JT gates: cert_manager app covers four playbooks, but
 # Default Ingress alone must not pull IdM ACME / AWSPCA; those follow mode.
-# Skip when dumping the full catalog (component=all, no selected_components).
+# Skip when dumping the full catalog (component=all, selected_components unset
+# or explicitly containing all). An empty selected_components list is Galaxy /
+# AAP-tabs-only: generate no component playbooks.
 - name: Generate playbook repo | Resolve cert_manager mode and ingress flag
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_cert_manager_mode: >-
@@ -171,25 +201,74 @@
         bootstrap_controller_cert_manager_mode
         | default(ocp_cert_manager_mode | default('cert', true), true)
       }}
+    # Prefer Contoller/aap_config_vars, then top-level extra-var, then preflight
+    # (No-AAP skips aap_config_vars.yml and previously dropped the ingress playbook).
     bootstrap_generate_playbook_repo_update_default_ingress: >-
       {{
-        bootstrap_controller_update_default_ingress
-        | default(update_default_ingress | default(false), true)
-        | bool
-      }}
-    bootstrap_generate_playbook_repo_cert_manager_gate: >-
-      {{
-        not (
-          bootstrap_generate_playbook_repo_component_effective == 'all'
-          and (
-            bootstrap_generate_playbook_repo_selected_components is not defined
-            or (
-              bootstrap_generate_playbook_repo_selected_components
-              | length == 0
+        (
+          bootstrap_controller_update_default_ingress
+          if (bootstrap_controller_update_default_ingress is defined)
+          else (
+            update_default_ingress
+            if (update_default_ingress is defined)
+            else (
+              (
+                (
+                  bootstrap_generate_env_vars_preflight.component_config.cert_manager
+                  | default({})
+                ).update_default_ingress | default(false) | bool
+              )
+              or (
+                bootstrap_generate_env_vars_preflight is defined
+                and (
+                  'update_default_ingress' in (
+                    bootstrap_generate_env_vars_preflight.component_options.openshift
+                    | default([])
+                  )
+                )
+              )
             )
           )
-        )
+        ) | bool
       }}
+    # Ingress-only must not keep Deploy cert-manager as a runnable playbook.
+    # Explicit Certificate Manager selection (component_apps / selected apps) does.
+    bootstrap_generate_playbook_repo_cert_manager_deploy: >-
+      {{
+        (
+          true
+          if (
+            bootstrap_controller_cert_manager_explicit is not defined
+            and bootstrap_generate_env_vars_preflight is not defined
+          )
+          else (
+            bootstrap_controller_cert_manager_explicit
+            if (bootstrap_controller_cert_manager_explicit is defined)
+            else (
+              (
+                'cert_manager' in (
+                  bootstrap_generate_env_vars_preflight.component_apps.openshift
+                  | default([])
+                )
+              )
+              or (
+                'cert_manager' in (
+                  bootstrap_generate_env_vars_preflight.selected_component_apps
+                  | default([])
+                )
+              )
+              or (
+                'cert_manager' in (
+                  bootstrap_generate_env_vars_preflight.components
+                  | default([])
+                )
+              )
+            )
+          )
+        ) | bool
+      }}
+    bootstrap_generate_playbook_repo_cert_manager_gate: >-
+      {{ not (bootstrap_generate_playbook_repo_dump_catalog | bool) }}
 
 - name: Generate playbook repo | Drop IdM ACME unless mode is idm_acme
   ansible.builtin.set_fact:
@@ -248,6 +327,27 @@
         | bool
       )
 
+- name: Generate playbook repo | Drop cert-manager deploy unless explicitly selected
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | rejectattr(
+            'dest',
+            'equalto',
+            'playbooks/cert-manager/ado-deploy-and-configure-bootstrap.yml'
+          )
+        | list
+      }}
+  when:
+    - bootstrap_generate_playbook_repo_cert_manager_gate | bool
+    - >-
+      not (
+        bootstrap_generate_playbook_repo_cert_manager_deploy
+        | default(true)
+        | bool
+      )
+
 - name: Generate playbook repo | Drop unused AAP install target playbook
   ansible.builtin.set_fact:
     bootstrap_generate_playbook_repo_selected_playbooks: >-
@@ -274,6 +374,38 @@
           )
         | list
       }}
+
+- name: Generate playbook repo | Seed RHBK API pre_tasks with any RHBK playbook
+  ansible.builtin.set_fact:
+    bootstrap_generate_playbook_repo_selected_playbooks: >-
+      {{
+        (
+          bootstrap_generate_playbook_repo_selected_playbooks
+          + (
+              bootstrap_generate_playbook_repo_generated_playbooks
+              | selectattr(
+                  'dest',
+                  'equalto',
+                  'playbooks/rhbk/ado-rhbk-api-pre_tasks.yml'
+                )
+              | list
+            )
+        )
+      }}
+  when:
+    - >-
+      bootstrap_generate_playbook_repo_selected_playbooks
+      | map(attribute='dest')
+      | select('match', '^playbooks/rhbk/')
+      | list
+      | length > 0
+    - >-
+      'playbooks/rhbk/ado-rhbk-api-pre_tasks.yml'
+      not in (
+        bootstrap_generate_playbook_repo_selected_playbooks
+        | map(attribute='dest')
+        | list
+      )
 
 - name: Generate playbook repo | Build selected playbook directories
   ansible.builtin.set_fact:

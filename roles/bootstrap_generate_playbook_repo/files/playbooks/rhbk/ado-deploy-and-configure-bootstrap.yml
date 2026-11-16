@@ -156,7 +156,7 @@
         name: infra.automation_development_office.keycloak_login_events_exporter
       when:
         - (state | default('present')) == 'present'
-        - keycloak_login_events_exporter_enabled | default(true) | bool
+        - keycloak_login_events_exporter_enabled | default(false) | bool
 
     - name: ADO | Configure RHBK LDAP federation
       ansible.builtin.include_role:

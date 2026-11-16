@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 controller_templates:
   - name: ADO | Provision OpenShift Virt VM
     description: Bootstrap - Provision an OpenShift Virtualization VM
@@ -136,6 +137,15 @@ controller_templates:
           type: password
           variable: provision_openshift_virt_cloud_user_password
           default: ""
+        - question_name: ADO | SSH public key
+          question_description: >-
+            Authorized SSH public key for the cloud-init user (required for key-only
+            login). Contoller only keeps survey fields — pass the key here, not only
+            as an undeclared extra var.
+          required: false
+          type: textarea
+          variable: provision_openshift_virt_ssh_public_key
+          default: ""
         - question_name: ADO | Enable root SSH
           question_description: Enable SSH login for root
           required: false
@@ -151,6 +161,23 @@ controller_templates:
           type: password
           variable: provision_openshift_virt_root_password
           default: ""
+        - question_name: ADO | Network mode
+          question_description: >-
+            masquerade (pod network) or bridge/multus for lab LAN static IPs
+          required: false
+          type: multiplechoice
+          variable: provision_openshift_virt_network_mode
+          choices:
+            - bridge
+            - multus
+            - masquerade
+          default: bridge
+        - question_name: ADO | Multus NAD name
+          question_description: NAD name in the VM namespace (used when network mode is bridge/multus)
+          required: false
+          type: text
+          variable: provision_openshift_virt_multus_nad_name
+          default: br-ex-network
         - question_name: ADO | Interface name
           question_description: Guest interface for static network config
           required: false

@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - ocp_minio / bootstrap_generate_env_vars - MinIO OIDC can use an existing
+    Keycloak without selecting the RHBK component. Preflight collects
+    Keycloak hostname, realm, and admin credentials on the MinIO form when
+    RHBK is not in the run; overlay writes them for ``rhbk_client``. When
+    RHBK is selected, those connection settings are inherited and not
+    duplicated. Clearer assert when admin credentials are still missing.

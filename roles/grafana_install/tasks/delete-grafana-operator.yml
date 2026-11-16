@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Delete Route to expose Grafana
   kubernetes.core.k8s:
     state: absent
@@ -18,6 +19,31 @@
       metadata:
         name: grafana
         namespace: "{{ name_space }}"
+  failed_when: false
+
+- name: Wait until Grafana custom resource is gone
+  kubernetes.core.k8s_info:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+  register: grafana_install_cr_after_delete
+  until: >-
+    grafana_install_cr_after_delete is failed
+    or ((grafana_install_cr_after_delete.resources | default([]) | length) == 0)
+  retries: "{{ grafana_install_cr_delete_retries | default(36) | int }}"
+  delay: "{{ grafana_install_cr_delete_delay | default(5) | int }}"
+  failed_when: false
+
+- name: Fail if Grafana custom resource is still present
+  ansible.builtin.fail:
+    msg: >-
+      Grafana CR grafana in namespace {{ name_space }} is still present after
+      state=absent. The Grafana operator must remove that CR before the
+      namespace can be deleted. Nothing else was uninstalled.
+  when:
+    - grafana_install_cr_after_delete is succeeded
+    - (grafana_install_cr_after_delete.resources | default([]) | length) > 0
 
 - name: Delete Grafana PostgreSQL Deployment
   kubernetes.core.k8s:

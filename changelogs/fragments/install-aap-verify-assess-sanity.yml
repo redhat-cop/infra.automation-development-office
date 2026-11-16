@@ -1,0 +1,7 @@
+---
+bugfixes:
+  - >-
+    install_aap - Fix ansible-test sanity failures in
+    ``aap_ocp_verify_assess.py``: drop non-module shebang (script is
+    invoked via ``python3``) and split ``assess`` helpers so McCabe
+    complexity stays within pylint limits.

@@ -1,0 +1,370 @@
+---
+# yamllint disable rule:line-length
+# One kubernetes.core verification pass. Writes install_aap_verify_result JSON.
+# Compatible with kubernetes.core >=3.2 (host / api_key / validate_certs only).
+
+- name: Resolve OpenShift connection for kubernetes.core verification
+  ansible.builtin.set_fact:
+    install_aap_verify_k8s:
+      host: "{{ aap_ocp_install_connection.host | default(host | default(api_host | default('')), true) }}"
+      api_key: "{{ aap_ocp_install_connection.api_key | default(token | default(''), true) }}"
+      validate_certs: >-
+        {{
+          aap_ocp_install_connection.validate_certs
+          | default(verify_ssl | default(true), true)
+          | bool
+        }}
+    install_aap_verify_ns: >-
+      {{
+        aap_ocp_install_platform.namespace
+        | default(aap_ocp_install_namespace)
+        | default(name_space)
+        | default('aap')
+      }}
+    install_aap_verify_instance: >-
+      {{
+        aap_ocp_install_platform.instance_name
+        | default('aap')
+      }}
+    install_aap_verify_expect_controller: >-
+      {{ aap_ocp_install_controller.install | default(true) | bool }}
+    install_aap_verify_expect_hub: >-
+      {{ aap_ocp_install_hub.install | default(true) | bool }}
+    install_aap_verify_expect_eda: >-
+      {{ aap_ocp_install_eda.install | default(false) | bool }}
+    install_aap_verify_expect_pg_sc: >-
+      {{
+        (
+          aap_ocp_install_platform.platform_manifest_overrides.spec.database.postgres_storage_class
+          | default(
+              aap_ocp_install_platform.platform_manifest_overrides.database.postgres_storage_class
+              | default('', true),
+              true
+            )
+        )
+        | string
+        | trim
+      }}
+    install_aap_verify_workdir: >-
+      {{
+        lookup('env', 'ADO_AAP_VERIFY_WORKDIR')
+        | default('/tmp/ado-aap-verify', true)
+      }}
+  no_log: true
+
+- name: Ensure verification work directory exists
+  ansible.builtin.file:
+    path: "{{ install_aap_verify_workdir }}"
+    state: directory
+    mode: "0750"
+
+- name: Record verification-unavailable when OpenShift credentials are missing
+  when: >-
+    (install_aap_verify_k8s.host | default('') | length) == 0
+    or (install_aap_verify_k8s.api_key | default('') | length) == 0
+  block:
+    - name: Build unavailable result object
+      ansible.builtin.set_fact:
+        install_aap_verify_result:
+          schema_version: 1
+          verified_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+          overall_status: verification_unavailable
+          cluster:
+            api_host: "{{ install_aap_verify_k8s.host | default('') }}"
+            namespace: "{{ install_aap_verify_ns }}"
+            deployment_version: "{{ aap_ocp_install_operator.channel | default('') }}"
+            instance_name: "{{ install_aap_verify_instance }}"
+          platform:
+            name: ""
+            status: Verification unavailable
+          postgresql:
+            status: Verification unavailable
+            ready: false
+          redis:
+            status: Verification unavailable
+            ready: false
+          gateway:
+            status: Verification unavailable
+            ready: false
+          controller:
+            status: Verification unavailable
+            selected: "{{ install_aap_verify_expect_controller }}"
+            ready: false
+          hub:
+            status: Verification unavailable
+            selected: "{{ install_aap_verify_expect_hub }}"
+            ready: false
+          eda:
+            status: "{{ 'Disabled by configuration' if not install_aap_verify_expect_eda else 'Verification unavailable' }}"
+            selected: "{{ install_aap_verify_expect_eda }}"
+            ready: "{{ not install_aap_verify_expect_eda }}"
+          route:
+            url: ""
+            host: ""
+            healthy: false
+            backend_ready: false
+          blockers:
+            - OpenShift API host/token missing for kubernetes.core verification.
+          notes: []
+          attempt: "{{ install_aap_verify_attempt | default(1) }}"
+          max_attempts: "{{ install_aap_verify_retries | default(60) }}"
+          terminal: true
+          engine: kubernetes.core
+        install_aap_verify_terminal: true
+    - name: Persist unavailable verification result
+      ansible.builtin.copy:
+        dest: "{{ install_aap_verify_result_path }}"
+        mode: "0644"
+        content: "{{ install_aap_verify_result | to_nice_json }}\n"
+
+- name: Collect OpenShift resources with kubernetes.core.k8s_info
+  when: not (install_aap_verify_terminal | default(false) | bool)
+  block:
+    - name: Query AnsibleAutomationPlatform CR
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: aap.ansible.com/v1alpha1
+        kind: AnsibleAutomationPlatform
+        namespace: "{{ install_aap_verify_ns }}"
+        name: "{{ install_aap_verify_instance }}"
+      register: install_aap_verify_platform
+      failed_when: false
+      no_log: true
+
+    - name: Query AutomationController CRs
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: automationcontroller.ansible.com/v1beta1
+        kind: AutomationController
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_controllers
+      failed_when: false
+      no_log: true
+
+    - name: Query AutomationHub CRs
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: automationhub.ansible.com/v1beta1
+        kind: AutomationHub
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_hubs
+      failed_when: false
+      no_log: true
+
+    - name: Query EDA application CRs
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: eda.ansible.com/v1alpha1
+        kind: EDA
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_edas
+      failed_when: false
+      no_log: true
+
+    - name: Query Pods
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: v1
+        kind: Pod
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_pods
+      failed_when: false
+      no_log: true
+
+    - name: Query PVCs
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: v1
+        kind: PersistentVolumeClaim
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_pvcs
+      failed_when: false
+      no_log: true
+
+    - name: Query Routes
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: route.openshift.io/v1
+        kind: Route
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_routes
+      failed_when: false
+      no_log: true
+
+    - name: Query Services
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: v1
+        kind: Service
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_svcs
+      failed_when: false
+      no_log: true
+
+    - name: Query EndpointSlices
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: discovery.k8s.io/v1
+        kind: EndpointSlice
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_eps
+      failed_when: false
+      no_log: true
+
+    - name: Query Events
+      kubernetes.core.k8s_info:
+        host: "{{ install_aap_verify_k8s.host }}"
+        api_key: "{{ install_aap_verify_k8s.api_key }}"
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        api_version: v1
+        kind: Event
+        namespace: "{{ install_aap_verify_ns }}"
+      register: install_aap_verify_events
+      failed_when: false
+      no_log: true
+
+    - name: Persist k8s_info dumps for assess script
+      ansible.builtin.copy:
+        dest: "{{ install_aap_verify_workdir }}/{{ item.name }}.json"
+        mode: "0600"
+        content: "{{ item.data | to_nice_json }}"
+      loop:
+        - name: platform
+          data: "{{ install_aap_verify_platform | default({}) }}"
+        - name: controllers
+          data: "{{ install_aap_verify_controllers | default({}) }}"
+        - name: hubs
+          data: "{{ install_aap_verify_hubs | default({}) }}"
+        - name: edas
+          data: "{{ install_aap_verify_edas | default({}) }}"
+        - name: pods
+          data: "{{ install_aap_verify_pods | default({}) }}"
+        - name: pvcs
+          data: "{{ install_aap_verify_pvcs | default({}) }}"
+        - name: routes
+          data: "{{ install_aap_verify_routes | default({}) }}"
+        - name: services
+          data: "{{ install_aap_verify_svcs | default({}) }}"
+        - name: endpointslices
+          data: "{{ install_aap_verify_eps | default({}) }}"
+        - name: events
+          data: "{{ install_aap_verify_events | default({}) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+
+    - name: Stage assess script
+      ansible.builtin.copy:
+        src: aap_ocp_verify_assess.py
+        dest: "{{ install_aap_verify_workdir }}/aap_ocp_verify_assess.py"
+        mode: "0755"
+
+    - name: Build kubernetes.core assess argv
+      ansible.builtin.set_fact:
+        install_aap_verify_assess_argv: >-
+          {{
+            [
+              'python3',
+              install_aap_verify_workdir ~ '/aap_ocp_verify_assess.py',
+              '--platform', install_aap_verify_workdir ~ '/platform.json',
+              '--controllers', install_aap_verify_workdir ~ '/controllers.json',
+              '--hubs', install_aap_verify_workdir ~ '/hubs.json',
+              '--edas', install_aap_verify_workdir ~ '/edas.json',
+              '--pods', install_aap_verify_workdir ~ '/pods.json',
+              '--pvcs', install_aap_verify_workdir ~ '/pvcs.json',
+              '--routes', install_aap_verify_workdir ~ '/routes.json',
+              '--services', install_aap_verify_workdir ~ '/services.json',
+              '--endpointslices', install_aap_verify_workdir ~ '/endpointslices.json',
+              '--events', install_aap_verify_workdir ~ '/events.json',
+              '--namespace', install_aap_verify_ns,
+              '--instance', install_aap_verify_instance,
+              '--api-host', install_aap_verify_k8s.host,
+              '--version', (aap_ocp_install_operator.channel | default('')),
+              '--expect-pg-sc', install_aap_verify_expect_pg_sc,
+              '--attempt', (install_aap_verify_attempt | default(1) | string),
+              '--max-attempts', (install_aap_verify_retries | default(60) | string),
+              '--output', install_aap_verify_result_path
+            ]
+            + (['--expect-controller'] if install_aap_verify_expect_controller else ['--no-expect-controller'])
+            + (['--expect-hub'] if install_aap_verify_expect_hub else ['--no-expect-hub'])
+            + (['--expect-eda'] if install_aap_verify_expect_eda else [])
+          }}
+
+    - name: Preliminary assess to discover live Gateway Route
+      ansible.builtin.command:
+        argv: "{{ install_aap_verify_assess_argv }}"
+      register: install_aap_verify_prelim
+      changed_when: false
+
+    - name: Load preliminary verification result
+      ansible.builtin.set_fact:
+        install_aap_verify_result: "{{ lookup('file', install_aap_verify_result_path) | from_json }}"
+
+    - name: Probe discovered Gateway HTTPS URL without credentials
+      ansible.builtin.uri:
+        url: "{{ install_aap_verify_result.route.url }}/api/gateway/v1/ping/"
+        method: GET
+        validate_certs: "{{ install_aap_verify_k8s.validate_certs }}"
+        status_code: [200, 201, 301, 302, 303, 307, 308, 401, 403, 404, 500, 502, 503, 504]
+        timeout: 15
+      register: install_aap_verify_uri
+      failed_when: false
+      when:
+        - install_aap_verify_probe_gateway_http | default(true) | bool
+        - (install_aap_verify_result.route.url | default('') | length) > 0
+
+    - name: Final assess including HTTPS probe status
+      ansible.builtin.command:
+        argv: >-
+          {{
+            install_aap_verify_assess_argv
+            + (
+              [
+                '--http-status',
+                (install_aap_verify_uri.status | string),
+                '--require-http-healthy'
+              ]
+              if (install_aap_verify_uri is not skipped)
+                 and (install_aap_verify_uri.status is defined)
+              else []
+            )
+          }}
+      register: install_aap_verify_final
+      changed_when: false
+
+    - name: Load final verification result
+      ansible.builtin.set_fact:
+        install_aap_verify_result: "{{ lookup('file', install_aap_verify_result_path) | from_json }}"
+        install_aap_verify_terminal: >-
+          {{
+            (lookup('file', install_aap_verify_result_path) | from_json).terminal
+            | default(false)
+            | bool
+          }}
+
+    - name: Show AAP verification summary
+      ansible.builtin.debug:
+        msg: >-
+          AAP verify {{ install_aap_verify_result.overall_status | default('unknown') }}
+          attempt={{ install_aap_verify_result.attempt | default('?') }}/{{
+            install_aap_verify_result.max_attempts | default('?') }}
+          route={{ install_aap_verify_result.route.url | default('(none)') }}
+          blockers={{ install_aap_verify_result.blockers | default([]) | length }}

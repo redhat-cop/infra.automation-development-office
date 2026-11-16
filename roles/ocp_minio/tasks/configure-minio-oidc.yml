@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 - name: Resolve MinIO console and API hostnames for OIDC
   ansible.builtin.set_fact:
     ocp_minio_console_hostname_effective: >-
@@ -15,26 +16,65 @@
           ~ (apps_domain | default(app_domain | default('apps.example.com'))))
       }}
 
-- name: Resolve MinIO OIDC discovery URL
+- name: Resolve MinIO console URL
   ansible.builtin.set_fact:
     ocp_minio_console_url: "https://{{ ocp_minio_console_hostname_effective }}"
-    ocp_minio_oidc_config_url_effective: >-
+
+# Empty-string role defaults for minio_oidc_config_url must not win over issuer/hostname.
+# Build/validate discovery URL before writing Secret minio-oidc.
+- name: Resolve MinIO OIDC discovery URL
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/minio_oidc_discovery_url.py"
+      - "-"
+    stdin: >-
       {{
-            minio_oidc_config_url
-        | default(
+        {
+          'config_url': minio_oidc_config_url | default('', true),
+          'issuer': minio_oidc_issuer | default('', true),
+          'hostname': minio_keycloak_hostname | default('', true),
+          'realm': minio_keycloak_realm | default('', true),
+          'fallback_hostnames': [
+            rhbk_hostname | default('', true),
+            keycloak_hostname | default('', true),
+            ocp_rhbk_hostname | default('', true),
             (
-              minio_oidc_issuer | default('', true)
-              | default(
-                  'https://'
-                  ~ (keycloak_hostname | default('keycloak.' ~ (apps_domain | default(app_domain | default('apps.example.com')))))
-                  ~ '/realms/'
-                  ~ (rhbk_realm | default(ocp_rhbk_realm | default(minio_keycloak_realm | default('rhlab')))),
-                  true
-                )
-            )
-            ~ '/.well-known/openid-configuration'
-          )
+              'keycloak.' ~ (apps_domain | default(app_domain | default('')))
+            ) if (apps_domain | default(app_domain | default('')) | length) > 0 else ''
+          ],
+          'fallback_realms': [
+            rhbk_realm | default('', true),
+            ocp_rhbk_realm | default('', true),
+            'rhlab'
+          ]
+        } | to_json
       }}
+  register: ocp_minio_oidc_discovery_cmd
+  changed_when: false
+  failed_when: false
+  when: minio_oidc_enabled | default(false) | bool
+
+- name: Fail when MinIO OIDC discovery URL is missing or malformed
+  ansible.builtin.fail:
+    msg: >-
+      {{
+        ocp_minio_oidc_discovery_cmd.stderr
+        | default('MINIO_IDENTITY_OPENID_CONFIG_URL could not be resolved')
+      }}
+  when:
+    - minio_oidc_enabled | default(false) | bool
+    - (ocp_minio_oidc_discovery_cmd.rc | default(1) | int) != 0
+
+- name: Store MinIO OIDC discovery URL
+  ansible.builtin.set_fact:
+    ocp_minio_oidc_config_url_effective: >-
+      {{ (ocp_minio_oidc_discovery_cmd.stdout | from_json).discovery_url }}
+    ocp_minio_oidc_issuer_effective: >-
+      {{ (ocp_minio_oidc_discovery_cmd.stdout | from_json).issuer }}
+  when:
+    - minio_oidc_enabled | default(false) | bool
+    - (ocp_minio_oidc_discovery_cmd.rc | default(1) | int) == 0
 
 - name: Configure MinIO Keycloak OIDC client and secret
   ansible.builtin.import_tasks: configure-keycloak-oidc.yml
@@ -62,10 +102,15 @@
         MINIO_IDENTITY_OPENID_SCOPES: "{{ minio_oidc_scopes | default('openid,profile,email') }}"
   when:
     - minio_oidc_enabled | default(false) | bool
+    - ocp_minio_oidc_config_url_effective is defined
+    - (ocp_minio_oidc_config_url_effective | string | length) > 0
     - ocp_minio_oidc_client_secret is defined
     - (ocp_minio_oidc_client_secret | string | length) > 0
   no_log: true
 
+# JSON merge patch replaces the containers array when a partial container is
+# supplied. Build a full definition from the live Deployment so image, mounts,
+# probes, resources, sibling containers, and existing env/envFrom stay intact.
 - name: Read MinIO Deployment for OIDC patch
   kubernetes.core.k8s_info:
     api_version: apps/v1
@@ -75,32 +120,63 @@
   register: ocp_minio_deploy_for_oidc
   when: minio_oidc_enabled | default(false) | bool
 
-- name: Patch MinIO Deployment with OIDC envFrom
-  kubernetes.core.k8s:
-    state: present
-    merge_type: merge
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: "{{ minio_deployment_name | default('minio') }}"
-        namespace: "{{ name_space }}"
-      spec:
-        template:
-          metadata:
-            annotations:
-              ado.infra/minio-oidc: enabled
-          spec:
-            containers:
-              - name: minio
-                envFrom:
-                  - secretRef:
-                      name: minio-creds
-                  - secretRef:
-                      name: minio-oidc
-                env:
-                  - name: MINIO_BROWSER_REDIRECT_URL
-                    value: "{{ ocp_minio_console_url }}"
+- name: Fail when MinIO Deployment is missing for OIDC
+  ansible.builtin.fail:
+    msg: >-
+      MinIO Deployment '{{ minio_deployment_name | default('minio') }}' was not
+      found in namespace '{{ name_space }}'. Deploy MinIO before Configure MinIO
+      OIDC. Do not recreate the PVC or delete MinIO storage to fix OIDC.
   when:
     - minio_oidc_enabled | default(false) | bool
-    - ocp_minio_deploy_for_oidc.resources | default([]) | length > 0
+    - (ocp_minio_deploy_for_oidc.resources | default([]) | length) == 0
+
+- name: Build safe MinIO OIDC Deployment definition
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/minio_oidc_deployment_patch.py"
+      - "-"
+    stdin: >-
+      {{
+        {
+          'deployment': ocp_minio_deploy_for_oidc.resources[0],
+          'container_name': minio_container_name | default('minio'),
+          'oidc_secret_name': 'minio-oidc',
+          'redirect_url': ocp_minio_console_url,
+          'annotation_key': 'ado.infra/minio-oidc',
+          'annotation_value': 'enabled',
+          'deployment_name': minio_deployment_name | default('minio'),
+          'namespace': name_space
+        } | to_json
+      }}
+  register: ocp_minio_oidc_deploy_patch_cmd
+  changed_when: false
+  failed_when: false
+  when: minio_oidc_enabled | default(false) | bool
+
+- name: Fail clearly when MinIO OIDC Deployment patch build fails
+  ansible.builtin.fail:
+    msg: >-
+      Failed to build MinIO OIDC Deployment patch (missing Deployment or
+      target container '{{ minio_container_name | default('minio') }}', or
+      patch helper error). Details:
+      {{ ocp_minio_oidc_deploy_patch_cmd.stderr | default('no stderr') }}
+  when:
+    - minio_oidc_enabled | default(false) | bool
+    - (ocp_minio_oidc_deploy_patch_cmd.rc | default(0) | int) != 0
+
+- name: Store patched MinIO Deployment definition for OIDC
+  ansible.builtin.set_fact:
+    ocp_minio_oidc_deployment_definition: >-
+      {{ (ocp_minio_oidc_deploy_patch_cmd.stdout | from_json).definition }}
+  when:
+    - minio_oidc_enabled | default(false) | bool
+    - (ocp_minio_oidc_deploy_patch_cmd.rc | default(1) | int) == 0
+
+- name: Apply MinIO Deployment OIDC patch (full live object)
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ ocp_minio_oidc_deployment_definition }}"
+  when:
+    - minio_oidc_enabled | default(false) | bool
+    - ocp_minio_oidc_deployment_definition is defined

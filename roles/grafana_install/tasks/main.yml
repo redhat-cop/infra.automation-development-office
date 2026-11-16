@@ -10,6 +10,7 @@
   when:
     - state == "present"
     - (grafana_install_scope | default('install')) == 'oidc'
+    - (oidc | default({})).enabled | default(false) | bool
 
 - name: Configure Grafana email/SMTP
   ansible.builtin.import_tasks: configure-grafana-email.yml

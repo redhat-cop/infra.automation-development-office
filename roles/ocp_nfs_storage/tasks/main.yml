@@ -117,6 +117,7 @@
         enabled: true
         customResourceDefinitions:
           enabled: false
+  register: ocp_nfs_storage_helm_local
 
 - name: NFS CSI | Install csi-driver-nfs with Helm (remote repo)
   when: not (ocp_nfs_storage__use_local_chart | bool)
@@ -139,6 +140,7 @@
         enabled: true
         customResourceDefinitions:
           enabled: false
+  register: ocp_nfs_storage_helm_remote
 
 - name: NFS CSI | Assign privileged SCC to csi-nfs-node-sa
   kubernetes.core.k8s:
@@ -184,6 +186,76 @@
     kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
     validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
 
+- name: NFS CSI | Resolve desired StorageClass mountOptions
+  ansible.builtin.set_fact:
+    ocp_nfs_storage_desired_mount_options: >-
+      {{
+        []
+        if (
+          (ocp_nfs_storage_nfs_version | default('') | string | trim | lower)
+          in ['', 'auto', 'none']
+        )
+        else (
+          ['nfsvers=' ~ (ocp_nfs_storage_nfs_version | string | trim)]
+        )
+      }}
+
+- name: NFS CSI | Look up existing StorageClass before apply
+  kubernetes.core.k8s_info:
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: "{{ ocp_nfs_storage_class_name }}"
+    host: "{{ ocp_nfs_storage_k8s_auth.host | default(omit) }}"
+    api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
+    kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
+    validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_sc_lookup
+  failed_when: false
+
+- name: NFS CSI | Compare existing vs desired nfsvers
+  when: (ocp_nfs_storage_sc_lookup.resources | default([]) | length) > 0
+  ansible.builtin.set_fact:
+    ocp_nfs_storage_existing_nfsvers: >-
+      {{
+        ocp_nfs_storage_sc_lookup.resources[0].mountOptions
+        | default([])
+        | select('match', '(?i)^nfsvers=')
+        | map('regex_replace', '(?i)^nfsvers=', '')
+        | map('lower')
+        | list
+        | sort
+      }}
+    ocp_nfs_storage_desired_nfsvers: >-
+      {{
+        ocp_nfs_storage_desired_mount_options
+        | select('match', '(?i)^nfsvers=')
+        | map('regex_replace', '(?i)^nfsvers=', '')
+        | map('lower')
+        | list
+        | sort
+      }}
+
+- name: NFS CSI | Fail when existing StorageClass nfsvers conflicts
+  when:
+    - (ocp_nfs_storage_sc_lookup.resources | default([]) | length) > 0
+    - ocp_nfs_storage_existing_nfsvers is defined
+    - ocp_nfs_storage_desired_nfsvers is defined
+    - ocp_nfs_storage_existing_nfsvers != ocp_nfs_storage_desired_nfsvers
+  ansible.builtin.fail:
+    msg: >-
+      StorageClass {{ ocp_nfs_storage_class_name }} already exists with
+      mountOptions
+      {{ ocp_nfs_storage_sc_lookup.resources[0].mountOptions | default([]) }},
+      but this run requests
+      {{
+        ocp_nfs_storage_desired_mount_options
+        if (ocp_nfs_storage_desired_mount_options | length > 0)
+        else '(no nfsvers — Auto)'
+      }}.
+      ADO will not change mountOptions on an existing StorageClass.
+      Use a new StorageClass name (for example nfs-csi-v3), or remove only
+      this unused class after confirming no PVCs depend on it.
+
 - name: NFS CSI | Apply NFS StorageClass
   kubernetes.core.k8s:
     state: present
@@ -198,6 +270,7 @@
     api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
     kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
     validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_storageclass_apply
 
 - name: NFS CSI | Ensure test namespace exists
   when: ocp_nfs_storage_create_test_namespace | bool
@@ -212,6 +285,52 @@
     api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
     kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
     validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_test_namespace_apply
+
+- name: NFS CSI | Look up existing test PVC before apply
+  when:
+    - ocp_nfs_storage_create_test_pvc | bool
+    - ocp_nfs_storage_create_test_namespace | bool
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: "{{ ocp_nfs_storage_test_pvc_name }}"
+    namespace: "{{ ocp_nfs_storage_test_namespace }}"
+    host: "{{ ocp_nfs_storage_k8s_auth.host | default(omit) }}"
+    api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
+    kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
+    validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_test_pvc_lookup
+  failed_when: false
+
+- name: NFS CSI | Fail clearly when test PVC StorageClass cannot change
+  when:
+    - ocp_nfs_storage_create_test_pvc | bool
+    - ocp_nfs_storage_create_test_namespace | bool
+    - (ocp_nfs_storage_test_pvc_lookup.resources | default([]) | length) > 0
+    - >-
+      (
+        ocp_nfs_storage_test_pvc_lookup.resources[0].spec.storageClassName
+        | default('')
+      )
+      | length > 0
+    - >-
+      (
+        ocp_nfs_storage_test_pvc_lookup.resources[0].spec.storageClassName
+        | default('')
+      )
+      != (ocp_nfs_storage_class_name | string)
+  ansible.builtin.fail:
+    msg: >-
+      Test PVC {{ ocp_nfs_storage_test_namespace }}/{{ ocp_nfs_storage_test_pvc_name }}
+      already exists with StorageClass
+      '{{ ocp_nfs_storage_test_pvc_lookup.resources[0].spec.storageClassName }}',
+      but this run requests '{{ ocp_nfs_storage_class_name }}'.
+      Bound PVC specs are immutable — ADO will not patch or delete the claim.
+      Helm/SCC/StorageClass steps above may have succeeded; treat PVC validation
+      as failed separately. Fix: set openshift.nfs_create_test_pvc=false, or use
+      a dedicated ocp_nfs_storage_test_pvc_name, or remove only this unused test
+      PVC after confirming no workloads depend on it.
 
 - name: NFS CSI | Apply test PVC
   when:
@@ -230,3 +349,167 @@
     api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
     kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
     validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_test_pvc_apply
+
+- name: NFS CSI | Wait for test PVC Bound
+  when:
+    - ocp_nfs_storage_create_test_pvc | bool
+    - ocp_nfs_storage_create_test_namespace | bool
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: PersistentVolumeClaim
+    name: "{{ ocp_nfs_storage_test_pvc_name }}"
+    namespace: "{{ ocp_nfs_storage_test_namespace }}"
+    host: "{{ ocp_nfs_storage_k8s_auth.host | default(omit) }}"
+    api_key: "{{ ocp_nfs_storage_k8s_auth.api_key | default(omit) }}"
+    kubeconfig: "{{ ocp_nfs_storage_k8s_auth.kubeconfig | default(omit) }}"
+    validate_certs: "{{ ocp_nfs_storage_k8s_auth.validate_certs | default(omit) }}"
+  register: ocp_nfs_storage_test_pvc_bound
+  until: >-
+    (
+      ocp_nfs_storage_test_pvc_bound.resources
+      | default([])
+      | length
+    ) > 0
+    and (
+      ocp_nfs_storage_test_pvc_bound.resources[0].status.phase
+      | default('')
+    ) == 'Bound'
+  retries: 30
+  delay: 10
+  # Keep going so the independent result summary can report PVC vs driver/SC.
+  failed_when: false
+
+- name: NFS CSI | Report independent validation results
+  ansible.builtin.set_fact:
+    ocp_nfs_storage_result:
+      driver_install: >-
+        {{
+          'ok'
+          if (
+            (
+              ocp_nfs_storage_helm_local is defined
+              and not (ocp_nfs_storage_helm_local.failed | default(false))
+              and not (ocp_nfs_storage_helm_local.skipped | default(false))
+            )
+            or (
+              ocp_nfs_storage_helm_remote is defined
+              and not (ocp_nfs_storage_helm_remote.failed | default(false))
+              and not (ocp_nfs_storage_helm_remote.skipped | default(false))
+            )
+            or (
+              (ocp_nfs_storage_helm_local.skipped | default(false))
+              and (ocp_nfs_storage_helm_remote.skipped | default(false))
+            )
+          )
+          else 'failed'
+        }}
+      storage_class: >-
+        {{
+          'ok'
+          if (
+            ocp_nfs_storage_storageclass_apply is defined
+            and not (ocp_nfs_storage_storageclass_apply.failed | default(false))
+          )
+          else 'failed'
+        }}
+      storage_class_name: "{{ ocp_nfs_storage_class_name }}"
+      test_namespace: >-
+        {{
+          'skipped'
+          if not (ocp_nfs_storage_create_test_namespace | bool)
+          else (
+            'ok'
+            if (
+              ocp_nfs_storage_test_namespace_apply is defined
+              and not (ocp_nfs_storage_test_namespace_apply.failed | default(false))
+            )
+            else 'failed'
+          )
+        }}
+      test_namespace_name: "{{ ocp_nfs_storage_test_namespace }}"
+      test_pvc: >-
+        {{
+          'skipped'
+          if not (
+            ocp_nfs_storage_create_test_pvc | bool
+            and ocp_nfs_storage_create_test_namespace | bool
+          )
+          else (
+            'ok'
+            if (
+              ocp_nfs_storage_test_pvc_bound is defined
+              and (
+                ocp_nfs_storage_test_pvc_bound.resources
+                | default([])
+                | length
+              ) > 0
+              and (
+                ocp_nfs_storage_test_pvc_bound.resources[0].status.phase
+                | default('')
+              ) == 'Bound'
+            )
+            else 'failed'
+          )
+        }}
+      test_pvc_name: "{{ ocp_nfs_storage_test_pvc_name }}"
+      overall: >-
+        {{
+          'ok'
+          if (
+            (
+              ocp_nfs_storage_storageclass_apply is defined
+              and not (ocp_nfs_storage_storageclass_apply.failed | default(false))
+            )
+            and (
+              not (ocp_nfs_storage_create_test_namespace | bool)
+              or (
+                ocp_nfs_storage_test_namespace_apply is defined
+                and not (ocp_nfs_storage_test_namespace_apply.failed | default(false))
+              )
+            )
+            and (
+              not (
+                ocp_nfs_storage_create_test_pvc | bool
+                and ocp_nfs_storage_create_test_namespace | bool
+              )
+              or (
+                ocp_nfs_storage_test_pvc_bound is defined
+                and (
+                  ocp_nfs_storage_test_pvc_bound.resources
+                  | default([])
+                  | length
+                ) > 0
+                and (
+                  ocp_nfs_storage_test_pvc_bound.resources[0].status.phase
+                  | default('')
+                ) == 'Bound'
+              )
+            )
+          )
+          else 'failed'
+        }}
+
+- name: NFS CSI | Print validation summary
+  ansible.builtin.debug:
+    msg: >-
+      NFS CSI results —
+      driver={{ ocp_nfs_storage_result.driver_install }},
+      StorageClass={{ ocp_nfs_storage_result.storage_class }}
+      ({{ ocp_nfs_storage_result.storage_class_name }}),
+      test_namespace={{ ocp_nfs_storage_result.test_namespace }}
+      ({{ ocp_nfs_storage_result.test_namespace_name }}),
+      test_pvc={{ ocp_nfs_storage_result.test_pvc }}
+      ({{ ocp_nfs_storage_result.test_pvc_name }}),
+      overall={{ ocp_nfs_storage_result.overall }}
+
+- name: NFS CSI | Fail Bootstrap when required NFS validation failed
+  when: (ocp_nfs_storage_result.overall | default('failed')) != 'ok'
+  ansible.builtin.fail:
+    msg: >-
+      NFS CSI validation failed
+      (driver={{ ocp_nfs_storage_result.driver_install }},
+      StorageClass={{ ocp_nfs_storage_result.storage_class }},
+      test_namespace={{ ocp_nfs_storage_result.test_namespace }},
+      test_pvc={{ ocp_nfs_storage_result.test_pvc }}).
+      Overall Bootstrap must not report success when required NFS checks fail.

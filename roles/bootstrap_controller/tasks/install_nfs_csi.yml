@@ -4,75 +4,145 @@
 # rejects it (``'environment' is not a valid attribute for a IncludeRole``).
 # Put env on a block instead so Helm/k8s see KUBECONFIG.
 #
-# Do not pass ``ocp_nfs_storage_*: "{{ ocp_nfs_storage_* | default(...) }}"``
-# on include_role vars — that self-references and recurses under ansible-core.
+# Never pass ``ocp_nfs_storage_*: "{{ … | default(ocp_nfs_storage_*) }}"`` as
+# include_role vars — ansible-core detects a recursive loop when the role var
+# name appears inside its own template (seen as nfs_test_namespace loops).
+# Resolve into distinct ``bootstrap_controller_nfs_csi_*`` facts first, then
+# pass those plain facts into include_role.
 
 - name: Bootstrap NFS CSI | Resolve settings from preflight / group_vars
   ansible.builtin.set_fact:
     bootstrap_controller_nfs_csi_server: >-
       {{
         (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_server
+        | default(
           (
             (bootstrap_generate_env_vars_preflight | default({})).openshift
             | default({})
-          ).nfs_server
-          | default(
-            (
-              (bootstrap_generate_env_vars_preflight | default({})).openshift
-              | default({})
-            ).ocp_nfs_storage_server
-            | default(none),
-            true
-          )
+          ).ocp_nfs_storage_server
+          | default(none),
+          true
         )
-        | default(nfs_server | default(none), true)
         | default(ocp_nfs_storage_server | default(''), true)
       }}
     bootstrap_controller_nfs_csi_share: >-
       {{
         (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_share
+        | default(
           (
             (bootstrap_generate_env_vars_preflight | default({})).openshift
             | default({})
-          ).nfs_share
-          | default(
-            (
-              (bootstrap_generate_env_vars_preflight | default({})).openshift
-              | default({})
-            ).ocp_nfs_storage_share
-            | default(none),
-            true
-          )
+          ).ocp_nfs_storage_share
+          | default(none),
+          true
         )
-        | default(nfs_share | default(none), true)
         | default(ocp_nfs_storage_share | default(''), true)
       }}
     bootstrap_controller_nfs_csi_class_name: >-
       {{
-        nfs_storage_class_name
-        | default(ocp_nfs_storage_class_name | default('synology-nfs-csi'), true)
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_storage_class_name
+        | default(
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).ocp_nfs_storage_class_name
+          | default(none),
+          true
+        )
+        | default(ocp_nfs_storage_class_name | default('nfs-csi'), true)
       }}
     bootstrap_controller_nfs_csi_driver_version: >-
       {{
-        nfs_driver_version
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_driver_version
         | default(ocp_nfs_storage_driver_version | default('4.11.0'), true)
       }}
     bootstrap_controller_nfs_csi_nfs_version: >-
       {{
-        nfs_version
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_version
         | default(ocp_nfs_storage_nfs_version | default('4.1'), true)
       }}
     bootstrap_controller_nfs_csi_create_test_namespace: >-
       {{
-        nfs_create_test_namespace
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_create_test_namespace
         | default(ocp_nfs_storage_create_test_namespace | default(true), true)
         | bool
       }}
     bootstrap_controller_nfs_csi_create_test_pvc: >-
       {{
-        nfs_create_test_pvc
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_create_test_pvc
         | default(ocp_nfs_storage_create_test_pvc | default(false), true)
         | bool
+      }}
+    # Distinct fact names only — never template nfs_test_namespace /
+    # ocp_nfs_storage_test_* into themselves.
+    bootstrap_controller_nfs_csi_test_namespace: >-
+      {{
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_test_namespace
+        | default(
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).ocp_nfs_storage_test_namespace
+          | default(none),
+          true
+        )
+        | default(ocp_nfs_storage_test_namespace | default('ado-nfs-csi-test'), true)
+      }}
+    bootstrap_controller_nfs_csi_test_pvc_name: >-
+      {{
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_test_pvc_name
+        | default(
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).ocp_nfs_storage_test_pvc_name
+          | default(none),
+          true
+        )
+        | default(ocp_nfs_storage_test_pvc_name | default('ado-nfs-csi-test-pvc'), true)
+      }}
+    bootstrap_controller_nfs_csi_test_pvc_size: >-
+      {{
+        (
+          (bootstrap_generate_env_vars_preflight | default({})).openshift
+          | default({})
+        ).nfs_test_pvc_size
+        | default(
+          (
+            (bootstrap_generate_env_vars_preflight | default({})).openshift
+            | default({})
+          ).ocp_nfs_storage_test_pvc_size
+          | default(none),
+          true
+        )
+        | default(ocp_nfs_storage_test_pvc_size | default('1Gi'), true)
       }}
 
 - name: Bootstrap NFS CSI | Assert NFS settings are present
@@ -101,3 +171,6 @@
         ocp_nfs_storage_nfs_version: "{{ bootstrap_controller_nfs_csi_nfs_version }}"
         ocp_nfs_storage_create_test_namespace: "{{ bootstrap_controller_nfs_csi_create_test_namespace }}"
         ocp_nfs_storage_create_test_pvc: "{{ bootstrap_controller_nfs_csi_create_test_pvc }}"
+        ocp_nfs_storage_test_namespace: "{{ bootstrap_controller_nfs_csi_test_namespace }}"
+        ocp_nfs_storage_test_pvc_name: "{{ bootstrap_controller_nfs_csi_test_pvc_name }}"
+        ocp_nfs_storage_test_pvc_size: "{{ bootstrap_controller_nfs_csi_test_pvc_size }}"

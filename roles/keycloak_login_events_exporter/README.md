@@ -20,7 +20,7 @@ Automation Development Office
 
 | Variable | Description |
 |----------|-------------|
-| `keycloak_login_events_exporter_enabled` | When false, the role skips its tasks and does not change the cluster. Default `true`. Compatible with Ansible 2.17 (`meta: end_role` is not used). |
+| `keycloak_login_events_exporter_enabled` | When false, the role skips its tasks and does not change the cluster. Default `false` — optional Keycloak login/logout monitoring. Compatible with Ansible 2.17 (`meta: end_role` is not used). |
 | `keycloak_login_events_keycloak_url` | Keycloak base URL. Inherits `rhbk_url` when unset. |
 | `keycloak_login_events_admin_user` | Admin user for `admin-cli`. Inherits `rhbk_admin_user`. |
 | `keycloak_login_events_admin_password` | Admin password. Inherits `rhbk_admin_password`. |

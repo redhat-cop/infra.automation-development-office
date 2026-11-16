@@ -1,0 +1,187 @@
+---
+# yamllint disable rule:line-length
+# Mount the Grafana OIDC private-CA ConfigMap using json-patch on the
+# Grafana CR (grafana-operator v5 / integreatly v1beta1). Patch only the
+# volume and the grafana container volumeMount so existing containers,
+# env, and mounts stay intact — never replace the containers list.
+
+- name: Skip Grafana OIDC CA mount when no private CA PEM is configured
+  ansible.builtin.debug:
+    msg: >-
+      No grafana_install_oidc_ca_pem / oidc.ca_pem; skipping OIDC CA volume
+      mount on the Grafana CR.
+  when: (grafana_install_oidc_tls_client_ca | default('') | string | length) == 0
+
+- name: Read Grafana CR for OIDC CA volume mount
+  kubernetes.core.k8s_info:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+  register: grafana_install_oidc_ca_mount_cr
+  when: (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
+
+- name: Fail when private CA is set but the Grafana CR is missing
+  ansible.builtin.fail:
+    msg: >-
+      Grafana OIDC private CA (oidc.ca_pem / grafana_install_oidc_ca_pem) is
+      set, but Grafana CR 'grafana' was not found in namespace
+      '{{ name_space }}'. Deploy Grafana before configuring OIDC with a
+      private CA so the CA ConfigMap can be mounted at
+      {{ grafana_install_oidc_tls_client_ca | default('/etc/grafana/oidc-ca/ca.crt') }}.
+  when:
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
+    - (grafana_install_oidc_ca_mount_cr.resources | default([]) | length) == 0
+
+- name: Collect Grafana pod volumes and containers for OIDC CA mount
+  vars:
+    grafana_install_oidc_ca_first: "{{ grafana_install_oidc_ca_mount_cr.resources | first | default({}) }}"
+    grafana_install_oidc_ca_spec: "{{ grafana_install_oidc_ca_first.spec | default({}) }}"
+    grafana_install_oidc_ca_deployment: "{{ grafana_install_oidc_ca_spec.deployment | default({}) }}"
+    grafana_install_oidc_ca_deploy_spec: "{{ grafana_install_oidc_ca_deployment.spec | default({}) }}"
+    grafana_install_oidc_ca_template: "{{ grafana_install_oidc_ca_deploy_spec.template | default({}) }}"
+    grafana_install_oidc_ca_pod_spec: "{{ grafana_install_oidc_ca_template.spec | default({}) }}"
+  ansible.builtin.set_fact:
+    grafana_install_oidc_ca_volumes: "{{ grafana_install_oidc_ca_pod_spec.volumes | default([]) }}"
+    grafana_install_oidc_ca_containers: "{{ grafana_install_oidc_ca_pod_spec.containers | default([]) }}"
+  when:
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
+    - (grafana_install_oidc_ca_mount_cr.resources | default([]) | length) > 0
+
+- name: Find the Grafana container index for OIDC CA mount
+  vars:
+    grafana_install_oidc_ca_container_names: "{{ grafana_install_oidc_ca_containers | map(attribute='name') | list }}"
+  ansible.builtin.set_fact:
+    grafana_install_oidc_ca_container_index: "{{ grafana_install_oidc_ca_container_names.index('grafana') }}"
+  when:
+    - grafana_install_oidc_ca_containers is defined
+    - (grafana_install_oidc_ca_containers | selectattr('name', 'equalto', 'grafana') | list | length) > 0
+
+- name: Fail when private CA is set but the Grafana container is missing on the CR
+  ansible.builtin.fail:
+    msg: >-
+      Grafana OIDC private CA is set, but the Grafana CR has no container
+      named 'grafana' to mount ConfigMap
+      '{{ grafana_install_oidc_ca_configmap | default('grafana-oidc-ca') }}'.
+      Run Deploy Grafana (resources) first so the CA file exists at
+      {{ grafana_install_oidc_tls_client_ca }}.
+  when:
+    - (grafana_install_oidc_tls_client_ca | default('') | string | length) > 0
+    - grafana_install_oidc_ca_containers is defined
+    - grafana_install_oidc_ca_container_index is not defined
+
+- name: Ensure Grafana CR has a volumes list before OIDC CA volume
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: /spec/deployment/spec/template/spec/volumes
+        value: []
+  when:
+    - grafana_install_oidc_ca_container_index is defined
+    - grafana_install_oidc_ca_volumes is defined
+    - grafana_install_oidc_ca_volumes | length == 0
+
+- name: Add Grafana OIDC CA ConfigMap volume when missing
+  vars:
+    grafana_install_oidc_ca_vol_name: "{{ grafana_install_oidc_ca_volume_name | default('grafana-oidc-ca') }}"
+    grafana_install_oidc_ca_cm_name: "{{ grafana_install_oidc_ca_configmap | default('grafana-oidc-ca') }}"
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: /spec/deployment/spec/template/spec/volumes/-
+        value:
+          name: "{{ grafana_install_oidc_ca_vol_name }}"
+          configMap:
+            name: "{{ grafana_install_oidc_ca_cm_name }}"
+  when:
+    - grafana_install_oidc_ca_container_index is defined
+    - grafana_install_oidc_ca_volumes is defined
+    - >-
+      (
+        grafana_install_oidc_ca_volumes
+        | selectattr('name', 'equalto', (grafana_install_oidc_ca_volume_name | default('grafana-oidc-ca')))
+        | list
+        | length
+      ) == 0
+
+- name: Read Grafana container volumeMounts for OIDC CA
+  vars:
+    grafana_install_oidc_ca_grafana_container: >-
+      {{
+        grafana_install_oidc_ca_containers
+        | selectattr('name', 'equalto', 'grafana')
+        | list
+        | first
+      }}
+  ansible.builtin.set_fact:
+    grafana_install_oidc_ca_volume_mounts: >-
+      {{ grafana_install_oidc_ca_grafana_container.volumeMounts | default([]) }}
+  when: grafana_install_oidc_ca_container_index is defined
+
+- name: Ensure Grafana container has a volumeMounts list before OIDC CA mount
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: >-
+          /spec/deployment/spec/template/spec/containers/{{
+          grafana_install_oidc_ca_container_index }}/volumeMounts
+        value: []
+  when:
+    - grafana_install_oidc_ca_container_index is defined
+    - grafana_install_oidc_ca_volume_mounts is defined
+    - grafana_install_oidc_ca_volume_mounts | length == 0
+
+- name: Add Grafana OIDC CA volumeMount when missing
+  vars:
+    grafana_install_oidc_ca_vol_name: "{{ grafana_install_oidc_ca_volume_name | default('grafana-oidc-ca') }}"
+  kubernetes.core.k8s_json_patch:
+    api_version: grafana.integreatly.org/v1beta1
+    kind: Grafana
+    name: grafana
+    namespace: "{{ name_space }}"
+    patch:
+      - op: add
+        path: >-
+          /spec/deployment/spec/template/spec/containers/{{
+          grafana_install_oidc_ca_container_index }}/volumeMounts/-
+        value:
+          name: "{{ grafana_install_oidc_ca_vol_name }}"
+          mountPath: /etc/grafana/oidc-ca
+          readOnly: true
+  when:
+    - grafana_install_oidc_ca_container_index is defined
+    - grafana_install_oidc_ca_volume_mounts is defined
+    - >-
+      (
+        grafana_install_oidc_ca_volume_mounts
+        | selectattr('name', 'equalto', (grafana_install_oidc_ca_volume_name | default('grafana-oidc-ca')))
+        | list
+        | length
+      ) == 0
+
+- name: Confirm Grafana OIDC tls_client_ca path matches the mounted CA file
+  ansible.builtin.assert:
+    that:
+      - >-
+        (grafana_install_oidc_tls_client_ca | default('') | string)
+        == '/etc/grafana/oidc-ca/ca.crt'
+        or (grafana_install_oidc_tls_client_ca | default('') | string)
+        is match('^/etc/grafana/oidc-ca/')
+    fail_msg: >-
+      grafana_install_oidc_tls_client_ca must point at the mounted CA file
+      under /etc/grafana/oidc-ca/ (got
+      '{{ grafana_install_oidc_tls_client_ca | default('') }}').
+      ConfigMap key is ca.crt.
+  when: grafana_install_oidc_ca_container_index is defined

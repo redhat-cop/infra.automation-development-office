@@ -1,0 +1,37 @@
+---
+dependency:
+  name: shell
+  # Install into ~/.ansible/collections (on Ansible's default search path).
+  # Ephemeral -p paths are ignored unless COLLECTIONS_PATH is rewritten, and
+  # Molecule CI already uses ~/.ansible/collections.
+  # kubernetes.core is required because ocp_oidc_auth references kubernetes.core.k8s
+  # (Ansible resolves the FQCN when the role is loaded, even for cases that
+  # fail before the OpenShift step).
+  command: >-
+    ansible-galaxy collection install
+    middleware_automation.keycloak kubernetes.core
+    -p "${HOME}/.ansible/collections"
+    --force
+
+driver:
+  name: default
+
+platforms:
+  - name: localhost
+
+provisioner:
+  name: ansible
+  inventory:
+    hosts:
+      all:
+        hosts:
+          localhost:
+            ansible_connection: local
+  playbooks:
+    converge: converge.yml
+
+scenario:
+  test_sequence:
+    - dependency
+    - syntax
+    - converge

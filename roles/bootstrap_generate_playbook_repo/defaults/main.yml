@@ -1,4 +1,5 @@
 ---
+# yamllint disable rule:line-length
 bootstrap_generate_playbook_repo_dest: "{{ playbook_dir }}"
 bootstrap_generate_playbook_repo_seed_src: >-
   {{ role_path }}/files/playbook_repo_seed
@@ -815,7 +816,7 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     dest: playbooks/rhbk/ado-manage-client-scope-bootstrap.yml
     target_platform: openshift
     category: platform
-    app: rhbk_client
+    app: rhbk_client_scopes
 
   - src: rhbk/ado-realm-bootstrap.yml
     dest: playbooks/rhbk/ado-realm-bootstrap.yml
@@ -833,7 +834,7 @@ bootstrap_generate_playbook_repo_generated_playbooks:
     dest: playbooks/rhbk/ado-rhbk-login-events-exporter-bootstrap.yml
     target_platform: openshift
     category: platform
-    app: rhbk
+    app: rhbk_login_events_exporter
 
   - src: rhel/ado-patch-host-bootstrap.yml
     dest: playbooks/rhel/ado-patch-host-bootstrap.yml

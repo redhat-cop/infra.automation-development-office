@@ -1,0 +1,7 @@
+---
+minor_changes:
+  - >-
+    ocp_oidc_auth - when Keycloak TLS verification fails, say so and point
+    to Preflight Step 2 → OAuth / RHBK to uncheck verification for a lab,
+    or to keep verification on and configure a trusted CA for production.
+    Unrelated login or network errors still use their own messages.
