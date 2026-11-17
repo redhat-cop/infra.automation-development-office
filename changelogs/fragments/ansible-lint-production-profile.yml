@@ -1,0 +1,6 @@
+---
+minor_changes:
+  - >-
+    ansible-lint CI stays offline and now requires the production profile.
+    ``args[module]`` and ``jinja[invalid]`` are no longer skipped.
+    ``no-log-password`` is reported as a warning.
