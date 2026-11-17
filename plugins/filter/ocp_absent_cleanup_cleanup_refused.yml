@@ -1,0 +1,31 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_cleanup_refused
+  author: Automation Development Office
+  short_description: Return whether ocp_absent_cleanup must not touch a namespace
+  description:
+    - Return C(true) when the built-in control-plane denylist, O(guard.extra_blocked), or O(guard.extra_prefixes) matches O(name).
+    - Names other than C(openshift-operators) are allowed through this check once they pass the denylist.
+    - C(openshift-operators) is refused when O(guard.mode) is not C(check) and a sweep or unfiltered delete is authorized without a CSV name match.
+    - O(guard) keys are C(mode), C(sweep_olm), C(csv_name_match), C(authorize_unfiltered_csv_delete), C(delete_copied_csvs), and C(sweep_workloads).
+    - O(guard) also accepts C(authorize_unfiltered_workloads), C(extra_blocked), and C(extra_prefixes).
+  options:
+    name:
+      description: Namespace name the cleanup run would touch.
+      type: str
+      required: true
+    guard:
+      description:
+        - Cleanup authorization for this run.
+        - Omitted or empty means only the built-in denylist applies.
+      type: dict
+      default: {}
+EXAMPLES: |
+  {{ 'kube-system' | infra.automation_development_office.ocp_absent_cleanup_cleanup_refused }}
+  # true
+
+  {{ 'openshift-operators' | infra.automation_development_office.ocp_absent_cleanup_cleanup_refused({'mode': 'check'}) }}
+  # false
+RETURN:
+  _value:
+    description: Whether ocp_absent_cleanup must not touch O(name).
+    type: bool

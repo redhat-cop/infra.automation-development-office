@@ -1,0 +1,24 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_is_olm_copy
+  author: Automation Development Office
+  short_description: Return whether a CSV is an OLM copy rather than the operator CSV
+  description:
+    - OpenShift copies an all-namespaces ClusterServiceVersion into every namespace.
+    - Return C(true) when the CSV label or annotation C(olm.copiedFrom) is set.
+    - Also return C(true) when the annotation C(olm.operatorNamespace) is set and is not O(namespace).
+    - The operator's own CSV in its operator namespace returns C(false).
+  options:
+    resource:
+      description: ClusterServiceVersion object to inspect.
+      type: dict
+      required: true
+    namespace:
+      description: Namespace whose own CSV should be kept.
+      type: str
+      required: true
+EXAMPLES: |
+  {{ csv | infra.automation_development_office.ocp_absent_cleanup_is_olm_copy('openshift-operators') }}
+RETURN:
+  _value:
+    description: Whether O(resource) is an OLM-copied CSV for O(namespace).
+    type: bool

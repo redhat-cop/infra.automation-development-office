@@ -1,0 +1,28 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_csv_name_matches
+  author: Automation Development Office
+  short_description: Return whether a CSV name is an exact or package.version match
+  description:
+    - Return C(true) when O(csv_name) equals O(match).
+    - Also return C(true) when O(csv_name) is O(match) plus a dot and a version, such as C(cert-manager-operator.v1.20.1) for C(cert-manager-operator).
+    - A longer package name such as C(cert-manager-operator-extra.v1) does not match C(cert-manager-operator).
+    - A name that only contains the token, such as C(openshift-gitops-operator.v1.21.1) for C(operator), does not match.
+  options:
+    csv_name:
+      description: ClusterServiceVersion metadata.name.
+      type: str
+      required: true
+    match:
+      description: Exact CSV name or package name to compare.
+      type: str
+      required: true
+EXAMPLES: |
+  {{ 'cert-manager-operator.v1.20.1' | infra.automation_development_office.ocp_absent_cleanup_csv_name_matches('cert-manager-operator') }}
+  # true
+
+  {{ 'openshift-gitops-operator.v1.21.1' | infra.automation_development_office.ocp_absent_cleanup_csv_name_matches('operator') }}
+  # false
+RETURN:
+  _value:
+    description: Whether O(csv_name) matches O(match).
+    type: bool
