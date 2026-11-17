@@ -6,7 +6,11 @@
 # vars written by bootstrap_generate_env_vars (vars_satellite.yml / vault).
 
 rhel_sat_reg_org_admin_account: "{{ satellite_config_username | default(vault_satellite_service_account_username | default('admin')) }}"
-rhel_sat_reg_org_admin_account_password: "{{ satellite_config_password | default(vault_satellite_service_account_password | default(satellite_config_admin_password | default(vault_satellite_admin_password | default('')))) }}"
+rhel_sat_reg_org_admin_account_password: >-
+  {{ satellite_config_password
+     | default(vault_satellite_service_account_password
+       | default(satellite_config_admin_password
+         | default(vault_satellite_admin_password | default('')))) }}
 rhel_sat_reg_activation_key_name: "{{ satellite_activation_key | default(rhel_sat_reg_activation_key | default('')) }}"
 rhel_sat_reg_satellite_org_name: "{{ satellite_config_organization | default('') }}"
 rhel_sat_reg_satellite_host: "{{ satellite_config_server_url | default('') }}"
