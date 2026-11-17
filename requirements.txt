@@ -1,1 +1,9 @@
-# TO-DO: add python packages that are required for this collection
+# Runtime Python packages. ansible-builder installs this file from the
+# built collection. Use a bare name or a >= floor. Do not pin with ==
+# or an upper bound, and do not list ansible or ansible-core.
+#
+# boto3, botocore, pytest, and semantic_version are test or release
+# dependencies. They stay out of this file.
+PyYAML
+kubernetes
+tzdata

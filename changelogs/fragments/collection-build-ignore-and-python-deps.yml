@@ -1,0 +1,8 @@
+---
+bugfixes:
+  - >-
+    galaxy.yml / requirements.txt - Keep CI, tests, Molecule, and backup
+    files out of the built collection, and remove the tracked
+    ``CHANGELOG.rst.bak``. Declare PyYAML, kubernetes, and tzdata for
+    ansible-builder. ``requirements.txt``, ``bindep.txt``,
+    ``changelogs/fragments/``, and ``extensions/eda`` stay in the artifact.
