@@ -47,3 +47,6 @@ importer_result.json
 .ansible/
 .config/
 .cursor
+
+# Editor and changelog backups. Also listed in galaxy.yml build_ignore.
+*.bak

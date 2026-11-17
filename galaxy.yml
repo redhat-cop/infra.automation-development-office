@@ -82,3 +82,37 @@ build_ignore:
   - collections
   - dist
   - dist/**
+  # Backups, CI, tests, and Molecule. requirements.txt and bindep.txt stay
+  # in the artifact so ansible-builder can install this collection's
+  # dependencies. changelogs/fragments/ stays so a release can still consume
+  # notes that were not compiled into CHANGELOG.rst. extensions/eda stays;
+  # only Molecule trees are ignored, including extensions/molecule.
+  - '*.bak'
+  - '**/*.bak'
+  - .github
+  - .github/**
+  - tests
+  - tests/**
+  - scripts
+  - scripts/**
+  - .ansible-lint
+  - .devcontainer
+  - .devcontainer/**
+  - .flake8
+  - .isort.cfg
+  - .pre-commit-config.yaml
+  - .pre-commit-hooks.yaml
+  - .prettierignore
+  - AGENTS.md
+  - CONTRIBUTING
+  - MAINTAINERS
+  - devfile.yaml
+  - package-lock.json
+  - pyproject.toml
+  - test-requirements.txt
+  - tox-ansible.ini
+  - tox.ini
+  - .pytest_cache
+  - .pytest_cache/**
+  - '**/molecule'
+  - '**/molecule/**'
