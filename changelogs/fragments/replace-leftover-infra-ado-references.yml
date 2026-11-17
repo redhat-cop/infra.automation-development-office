@@ -1,0 +1,8 @@
+---
+doc_changes:
+  - >-
+    bootstrap_controller / bootstrap_generate_playbook_repo - Replace the
+    remaining live ``infra.ado`` names with
+    ``infra.automation_development_office`` in the Hub publish task title
+    and the generated playbook-repo README. Historical changelog text is
+    unchanged.

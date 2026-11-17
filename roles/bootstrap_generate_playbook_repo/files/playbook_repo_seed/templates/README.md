@@ -62,7 +62,7 @@ Pinned folders append `-prod` / `-dev` to the UID so Grafana can keep all three 
 
 `rhacs-vulnerability-overview.json` (UID `ado-rhacs-vuln-posture`, title
 `RHACS Vulnerability Posture (ADO)`) uploads into the **RHACS** folder.
-Keep that UID/title aligned with ``infra.ado.cve_analyzer`` posture publishes.
+Keep that UID/title aligned with ``infra.automation_development_office.cve_analyzer`` posture publishes.
 
 Run **ADO | Deploy Grafana** (full) or **ADO | Deploy Grafana Dashboards**
 (datasources + folders + import).

@@ -118,7 +118,7 @@
         | list
       }}
 
-- name: Publish preflight collections | Build publish list (skip infra.ado)
+- name: Publish preflight collections | Build publish list (skip infra.automation_development_office)
   ansible.builtin.set_fact:
     # redhat.* stay in the list when hub_publish + hub_publish_repository=rh-certified.
     # publish_one never creates the reserved namespace; it uploads only if it exists.
