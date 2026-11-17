@@ -7,7 +7,7 @@ galaxy_info:
     RHACS CVE Analyzer — export, enrichment, Grafana posture/triage dashboards,
     Prometheus metrics, and optional CVE Intelligence (Phase 0 gated).
   license: GPL-3.0-or-later
-  min_ansible_version: "2.15"
+  min_ansible_version: "2.17.0"
   platforms:
     - name: EL
       versions:

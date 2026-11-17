@@ -13,7 +13,7 @@ It validates OS, CPU, memory, location, and Satellite version before install, su
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.9
+- Ansible >= 2.17.0
 - Target hosts: Supported Red Hat Enterprise Linux (RHEL 9 or later)
 - Privileged access on the target host (`become: true`)
 - Required collections:

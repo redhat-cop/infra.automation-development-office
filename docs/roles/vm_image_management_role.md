@@ -10,7 +10,7 @@ and creates the output image with qemu-img convert.
 | ----------------------- | ----------------------------- |
 | Author                  | Automation Development Office |
 | License                 | GPL-3.0-or-later              |
-| Minimum Ansible Version | 2.14                          |
+| Minimum Ansible Version | 2.17.0                        |
 
 ## Options
 

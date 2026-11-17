@@ -49,7 +49,7 @@
             author: Molecule mock
             description: Mock dispatch role for aap_configuration Molecule tests
             license: GPL-3.0-or-later
-            min_ansible_version: "2.16"
+            min_ansible_version: "2.17.0"
           dependencies: []
 
     - name: Create mock dispatch role tasks

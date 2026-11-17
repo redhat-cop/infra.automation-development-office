@@ -5,7 +5,7 @@ galaxy_info:
   description: Build custom Ansible execution environment images with ansible-builder.
   company: Red Hat
   license: GPL-3.0-or-later
-  min_ansible_version: "2.16.0"
+  min_ansible_version: "2.17.0"
   galaxy_tags:
     - ansible
     - executionenvironment

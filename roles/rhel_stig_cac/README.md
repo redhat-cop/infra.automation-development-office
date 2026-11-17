@@ -9,7 +9,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible Core 2.16 or later
+- Ansible Core 2.17.0 or later
 - Target host: RHEL 8, 9, or 10 with `become: true`
 - Network access to install RPMs (`scap-security-guide`, `openscap-scanner`,
   `openscap-utils`) from enabled repositories

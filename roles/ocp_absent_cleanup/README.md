@@ -11,7 +11,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible Core 2.16+
+- Ansible Core 2.17.0+
 - Collections: `kubernetes.core` (see `collections/requirements.yml`)
 - Cluster API access via `K8S_AUTH_HOST` / `K8S_AUTH_API_KEY` (or `host` /
   `token` as used by other `ocp_*` roles)

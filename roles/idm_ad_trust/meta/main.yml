@@ -4,7 +4,7 @@ galaxy_info:
   author: Automation Development Office
   description: Establish two-way IdM/AD trust and map AD users for SSH/sudo
   license: GPL-3.0-or-later
-  min_ansible_version: "2.15"
+  min_ansible_version: "2.17.0"
   platforms:
     - name: EL
       versions: ["9"]

@@ -12,7 +12,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible 2.16+
+- Ansible 2.17.0+
 - Target: RHEL 8/9 (or compatible) with `become`
 - Online: outbound HTTPS to `packages.gitlab.com`, **or**
 - Airgap: `install_gitlab_rpm_path` (Contoller path) / `install_gitlab_rpm_url`

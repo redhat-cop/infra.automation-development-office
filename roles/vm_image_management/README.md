@@ -13,7 +13,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.9
+- Ansible >= 2.17.0
 - Target hosts reachable by Ansible.
 - `qemu-img` must be installed on the managed host.
 - The destination storage location must have enough free space for the converted image.
