@@ -1,0 +1,40 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_namespace_delete_blocked
+  author: Automation Development Office
+  short_description: Return whether ocp_namespace must refuse to delete a namespace
+  description:
+    - Return C(true) when O(name) is not a DNS-1123 label.
+    - Return C(true) for built-in control-plane namespaces, O(extra_blocked), and names that start with a blocked prefix.
+    - The default prefixes are C(kube-). O(extra_prefixes) are added to that list and cannot remove it.
+    - C(openshift-operators) is always blocked.
+    - Other component namespaces, such as C(openshift-gitops), are not blocked unless named in O(extra_blocked) or covered by a prefix.
+  options:
+    name:
+      description: Namespace name ocp_namespace would delete.
+      type: str
+      required: true
+    extra_blocked:
+      description:
+        - Extra namespace names to refuse, in addition to the built-in control-plane set.
+      type: list
+      elements: str
+      default: []
+    extra_prefixes:
+      description:
+        - Extra name prefixes to refuse. Matched with C(startswith) after the name is lowercased.
+      type: list
+      elements: str
+      default: []
+EXAMPLES: |
+  {{ 'app' | infra.automation_development_office.ocp_absent_cleanup_namespace_delete_blocked }}
+  # false
+
+  {{ 'kube-public' | infra.automation_development_office.ocp_absent_cleanup_namespace_delete_blocked }}
+  # true
+
+  {{ 'team-app' | infra.automation_development_office.ocp_absent_cleanup_namespace_delete_blocked([], ['team-']) }}
+  # true
+RETURN:
+  _value:
+    description: Whether ocp_namespace must refuse to delete O(name).
+    type: bool

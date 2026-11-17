@@ -1,0 +1,45 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_select_installplans
+  author: Automation Development Office
+  short_description: Return InstallPlans in a namespace that this run may delete
+  description:
+    - The default result is an empty list.
+    - O(authorize_csv_delete) must be C(true) before any InstallPlan is returned.
+    - Without O(csv_name_match), O(authorize_unfiltered_csv_delete) must also be C(true).
+    - When O(csv_name_match) is set, every name in spec.clusterServiceVersionNames must match it.
+    - Objects whose metadata.namespace is some other namespace are never returned.
+    - An invalid O(namespace) returns an empty list.
+  options:
+    plans:
+      description: InstallPlan objects to consider.
+      type: list
+      elements: dict
+      required: true
+    namespace:
+      description: Namespace this run may delete InstallPlans from.
+      type: str
+      required: true
+    csv_name_match:
+      description:
+        - Exact CSV name or package name. Each spec.clusterServiceVersionNames entry must match.
+      type: str
+      default: ''
+    authorize_csv_delete:
+      description: Allow this run to select InstallPlans for deletion.
+      type: bool
+      default: false
+    authorize_unfiltered_csv_delete:
+      description: Allow selection when O(csv_name_match) is empty.
+      type: bool
+      default: false
+EXAMPLES: |
+  {{ plans | infra.automation_development_office.ocp_absent_cleanup_select_installplans(
+       'app',
+       'cert-manager-operator',
+       true
+     ) }}
+RETURN:
+  _value:
+    description: InstallPlan objects in O(namespace) that this run may delete.
+    type: list
+    elements: dict

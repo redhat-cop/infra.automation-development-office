@@ -1,0 +1,40 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_select_workloads
+  author: Automation Development Office
+  short_description: Return workloads in a namespace that this run may delete
+  description:
+    - An empty O(names) list deletes nothing unless O(authorize_unfiltered) is C(true).
+    - When O(names) is set, only objects whose metadata.name is in that list are returned.
+    - Objects whose metadata.namespace is some other namespace are never returned.
+    - Objects with an empty metadata.namespace are treated as already in O(namespace).
+    - An invalid O(namespace) returns an empty list.
+  options:
+    resources:
+      description: Workload objects to consider.
+      type: list
+      elements: dict
+      required: true
+    namespace:
+      description: Namespace this run may delete workloads from.
+      type: str
+      required: true
+    names:
+      description:
+        - metadata.name values this run may delete.
+        - An empty list selects nothing unless O(authorize_unfiltered) is C(true).
+      type: list
+      elements: str
+      default: []
+    authorize_unfiltered:
+      description: Allow selection of every workload in O(namespace) when O(names) is empty.
+      type: bool
+      default: false
+EXAMPLES: |
+  {{ workloads | infra.automation_development_office.ocp_absent_cleanup_select_workloads('app', ['api']) }}
+
+  {{ workloads | infra.automation_development_office.ocp_absent_cleanup_select_workloads('app', [], true) }}
+RETURN:
+  _value:
+    description: Workload objects in O(namespace) that this run may delete.
+    type: list
+    elements: dict

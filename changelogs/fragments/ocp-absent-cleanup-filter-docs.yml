@@ -1,0 +1,6 @@
+---
+bugfixes:
+  - >-
+    ocp_absent_cleanup - Document the eight cleanup filters so
+    ``ansible-doc --type filter`` can build Automation Hub import docs.
+    Each filter documents its real arguments.

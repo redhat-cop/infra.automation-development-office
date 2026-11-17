@@ -1,0 +1,22 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_namespace_name_valid
+  author: Automation Development Office
+  short_description: Return whether a namespace name is one DNS-1123 label
+  description:
+    - Return C(true) when O(name) is a single DNS-1123 label of at most 63 characters.
+    - Leading or trailing space, an empty value, a list, or a wildcard makes the result C(false).
+  options:
+    name:
+      description: Namespace name to check.
+      type: str
+      required: true
+EXAMPLES: |
+  {{ 'app' | infra.automation_development_office.ocp_absent_cleanup_namespace_name_valid }}
+  # true
+
+  {{ 'kube-*' | infra.automation_development_office.ocp_absent_cleanup_namespace_name_valid }}
+  # false
+RETURN:
+  _value:
+    description: Whether O(name) is one DNS-1123 label.
+    type: bool

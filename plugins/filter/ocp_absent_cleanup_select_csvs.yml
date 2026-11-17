@@ -1,0 +1,49 @@
+DOCUMENTATION:
+  name: ocp_absent_cleanup_select_csvs
+  author: Automation Development Office
+  short_description: Return CSVs in a namespace that this run may delete
+  description:
+    - The default result is an empty list.
+    - O(authorize_csv_delete) must be C(true) before any CSV is returned.
+    - Without O(csv_name_match), O(authorize_unfiltered_csv_delete) must also be C(true).
+    - OLM-copied CSVs are skipped unless O(delete_copied_csvs) is C(true).
+    - Objects whose metadata.namespace is some other namespace are never returned.
+    - An invalid O(namespace) returns an empty list.
+  options:
+    csvs:
+      description: ClusterServiceVersion objects to consider.
+      type: list
+      elements: dict
+      required: true
+    namespace:
+      description: Namespace this run may delete CSVs from.
+      type: str
+      required: true
+    csv_name_match:
+      description:
+        - Exact CSV name or package name. Passed to ocp_absent_cleanup_csv_name_matches.
+      type: str
+      default: ''
+    authorize_csv_delete:
+      description: Allow this run to select CSVs for deletion.
+      type: bool
+      default: false
+    authorize_unfiltered_csv_delete:
+      description: Allow selection when O(csv_name_match) is empty.
+      type: bool
+      default: false
+    delete_copied_csvs:
+      description: Include OLM-copied CSVs in the result.
+      type: bool
+      default: false
+EXAMPLES: |
+  {{ csvs | infra.automation_development_office.ocp_absent_cleanup_select_csvs(
+       'app',
+       'cert-manager-operator',
+       true
+     ) }}
+RETURN:
+  _value:
+    description: ClusterServiceVersion objects in O(namespace) that this run may delete.
+    type: list
+    elements: dict
