@@ -16,7 +16,7 @@ Build a custom Ansible **Execution Environment (EE)** image with `ansible-builde
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.14
+- Ansible >= 2.17.0
 - `ansible-builder` available on the managed host where the role runs
 - Container runtime dependencies required by `ansible-builder`
 

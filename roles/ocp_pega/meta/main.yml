@@ -4,7 +4,7 @@ galaxy_info:
   description: >-
     Deploy Pega from local Helm charts and disconnected registry images.
   license: GPL-3.0-or-later
-  min_ansible_version: '2.17'
+  min_ansible_version: "2.17.0"
   galaxy_tags:
     - openshift
     - pega

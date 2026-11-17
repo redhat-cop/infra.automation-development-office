@@ -18,7 +18,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.16
+- Ansible >= 2.17.0
 - Target host: Red Hat Satellite server
 - Privileged access on the Satellite host (`become: true`) for
   `satellite-installer`, Apache, and Hammer

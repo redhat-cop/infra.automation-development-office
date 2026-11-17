@@ -5,6 +5,6 @@ galaxy_info:
   company: Automation Development Office
 
   license: GPL-3.0-or-later
-  min_ansible_version: "2.16.0"
+  min_ansible_version: "2.17.0"
 
 dependencies: []

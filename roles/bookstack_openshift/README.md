@@ -10,7 +10,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible 2.16+
+- Ansible 2.17.0+
 - Collection: `kubernetes.core`
 - OpenShift cluster credentials via `K8S_AUTH_*` / kubeconfig
 - Ability to pull container images (or mirrored images for disconnected)

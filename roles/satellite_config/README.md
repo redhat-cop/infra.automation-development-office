@@ -13,7 +13,7 @@ It applies Satellite settings, manages subscription manifests, enables Red Hat r
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.14
+- Ansible >= 2.17.0
 - Target hosts: Red Hat Satellite server with a completed installation
 - Privileged access on the target host (`become: true`) where noted in tasks
 - Required collections:

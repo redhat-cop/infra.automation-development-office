@@ -8,7 +8,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible Core 2.16 or newer
+- Ansible Core 2.17.0 or newer
 - An installation bundle exported by ado-preflight-ui (or an equivalent directory)
 - A jump host that is not a node of the cluster being installed
 - No OpenShift API, AAP, or Node process

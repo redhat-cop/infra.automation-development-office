@@ -9,7 +9,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible 2.16+
+- Ansible 2.17.0+
 - Target: RHEL 8/9 (or compatible) with `become`
 - Online: outbound HTTPS to `rpm.grafana.com`, **or**
 - Airgap: `install_grafana_rpm_path` (Contoller path) / `install_grafana_rpm_url`

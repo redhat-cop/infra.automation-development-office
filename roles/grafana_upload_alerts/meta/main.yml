@@ -5,5 +5,5 @@ galaxy_info:
   author: Automation Development Office
   description: Upload Grafana alert JSON/JSON.j2 files from folder sources
   license: GPL-3.0-or-later
-  min_ansible_version: "2.15"
+  min_ansible_version: "2.17.0"
 dependencies: []

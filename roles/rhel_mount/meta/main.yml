@@ -5,7 +5,7 @@ galaxy_info:
   description: An Ansible Role that mounts filesystems based on variables. Supports NFS, CIFS, and local disk mounts. Includes auto detection of mount type.
   company: Red Hat
   license: GPL-3.0 or later
-  min_ansible_version: "2.16.0"
+  min_ansible_version: "2.17.0"
 
   # If the issue tracker for your role is not on github, uncomment the
   # next line and provide a value

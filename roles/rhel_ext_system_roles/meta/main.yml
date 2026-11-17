@@ -4,7 +4,7 @@ galaxy_info:
   author: Corey Kyle
   description: Thin adapter/wrapper to call RHEL System Roles by short keys.
   license: GPL - 3.0
-  min_ansible_version: "2.16.0"
+  min_ansible_version: "2.17.0"
   platforms:
     - name: EL
       versions: ["7", "8", "9", "10"]

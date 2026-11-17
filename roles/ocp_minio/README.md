@@ -9,7 +9,7 @@ Automation Development Office
 
 ## ✅ Role Requirements
 
-- Ansible 2.16+
+- Ansible 2.17.0+
 - Collection: `kubernetes.core`
 - OpenShift cluster credentials via `K8S_AUTH_*` / kubeconfig
 - For OIDC: RHBK/Keycloak reachable from the cluster (lab: realm `Dev` or `rhlab`)

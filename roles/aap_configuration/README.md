@@ -11,7 +11,7 @@ This role provides a lightweight wrapper that centralizes configuration files un
 
 ## ✅ Role Requirements
 
-- Ansible >= 2.16.0 (declared in `meta/main.yml`)
+- Ansible >= 2.17.0 (declared in `meta/main.yml`)
 - No role dependencies are declared in `meta/main.yml`
 - The upstream `infra.aap_configuration.dispatch` role must be available on the controller or in `ANSIBLE_ROLES_PATH` / `ANSIBLE_COLLECTIONS_PATHS` at runtime
 - Configuration input is supplied as one or more `*.yml` files in a `configs` directory alongside your playbook

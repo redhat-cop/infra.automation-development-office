@@ -14,7 +14,7 @@ and `promote`.
 
 ## ✅ Role Requirements
 
-- Ansible 2.9 or newer
+- Ansible 2.17.0 or newer
 - **`redhat.satellite` collection** — provides `content_view` and
   `content_view_version` modules (install from
   [Red Hat Automation Hub](https://console.redhat.com/ansible/automation-hub))
