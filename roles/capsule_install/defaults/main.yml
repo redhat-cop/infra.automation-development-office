@@ -36,9 +36,9 @@ capsule_install_packages:
   - satellite-capsule
   - chrony
   - sos
-  - fapolicyd 
-  - vim 
-  - bash-completion 
+  - fapolicyd
+  - vim
+  - bash-completion
   - bind-utils
 
 capsule_install_scenario: "capsule"

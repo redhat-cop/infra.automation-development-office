@@ -11,27 +11,18 @@ exclude_paths:
     - "**/.ansible/**"
     - "**/.local/**"
     - "**/.cache/**"
-    - "roles/**/defaults/**"  # explicit role defaults exclusion
-    - "**/defaults/**"      # exclude any defaults dir anywhere
-    - "**/vars/**"          # exclude any vars dir anywhere
-    - "**/molecule/**"     # exclude any molecule dir anywhere
-    - "**/meta/**"         # exclude any meta dir anywhere
-    - "**/files/**"        # vendor/k8s manifests shipped with roles
-    - "roles/**/meta/**"  # explicit role meta exclusion
+    # Molecule scenarios, changelog data, and generated Controller objects are
+    # not role content. Role defaults, vars, meta, files, and tasks are linted.
+    - "**/molecule/**"
     - galaxy.yml
     - "**/changelogs/**"
     - devfile.yaml
     - collections/requirements.yml
-
     - roles/bootstrap_controller/files/job_templates/**
     - roles/bootstrap_controller/files/job_templates.disabled/**
     - roles/bootstrap_controller/files/workflows/**
     - roles/bootstrap_generate_playbook_repo/files/playbooks/**
     - roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/**
-    # ansible-core 2.18 production lint recurses on include_role vars that
-    # pass through ``{{ varname }}`` or ``{{ varname | default(alias) }}``.
-    - roles/bootstrap_controller/tasks/install_htpasswd.yml
-    - roles/bootstrap_controller/tasks/install_iscsi_csi.yml
 
 # mock_modules have no argument spec; args[module] would warn on every k8s/AH call
 # and GitHub treats those as job annotations. Offline CI cannot load certified
@@ -41,6 +32,10 @@ skip_list:
     # Cert checker uses --profile=production (ansible-core 2.18). Self-referential
     # include_role vars then raise unhandled Jinja exceptions instead of warnings.
     - jinja[invalid]
+    # Role defaults are the public variable names playbooks and generated repos
+    # already set. Requiring <role_name>_ on every name would be a breaking rename.
+    # Pattern, reserved-name, and other var-naming checks still run.
+    - var-naming[no-role-prefix]
 
 mock_roles:
     - infra.automation_development_office.ocp_gitops_application

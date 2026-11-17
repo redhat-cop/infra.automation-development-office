@@ -1,0 +1,10 @@
+---
+bugfixes:
+  - >-
+    ansible-lint now checks role defaults, vars, meta, files, and the
+    bootstrap_controller htpasswd and iSCSI task files. Molecule, changelog
+    data, and generated Controller job templates, workflows, and playbook
+    seeds stay excluded. Published role variable names are not required to
+    repeat the full role name. Placeholder role metadata, the
+    ``satellite_content_view`` Galaxy tag, and the Synology CSI manifest
+    indentation were corrected so that lint run passes.
