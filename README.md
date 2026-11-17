@@ -201,39 +201,86 @@ Use this index as the starting point for operators and automation users.
 | [`infra.automation_development_office.satellite_oidc`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/satellite_oidc/README.md) | Wire Satellite login to Keycloak / RHBK OIDC (client `ado-satellite`). |
 | [`infra.automation_development_office.vm_image_management`](https://github.com/redhat-cop/infra.automation-development-office/blob/main/roles/vm_image_management/README.md) | Create a qcow2 virtual machine image from an existing base image. |
 
-## Using this collection
+## Requirements
+
+- Ansible `>=2.17.0`, the same floor as `meta/runtime.yml`.
+- The collection dependencies declared in `galaxy.yml`. `ansible-galaxy collection install` installs them with this collection. They include `amazon.aws`, `ansible.posix`, `community.crypto`, `community.general`, `community.grafana`, `middleware_automation.keycloak`, `freeipa.ansible_freeipa`, `infra.aap_configuration`, `infra.aap_utilities`, `infra.controller_configuration`, `infra.rhacs_configuration`, and `kubernetes.core`.
+- An execution environment that installs `requirements.txt`. `ansible-builder` uses that file for `PyYAML`, `kubernetes`, and `tzdata`.
+- These Hub-only collections are not listed in `galaxy.yml`, so a public Galaxy install does not pull them. Provide them on the execution environment or Controller project when a role needs them: `ansible.controller`, `hashicorp.vault`, `redhat.openshift`, `redhat.rhel_idm`, `redhat.rhel_system_roles`, and `redhat.satellite`.
+
+## Installation
+
+### Red Hat Ansible Automation Hub
+
+Point `ansible-galaxy` at Automation Hub, then install this collection. Create an offline token at [Red Hat Hybrid Cloud Console](https://console.redhat.com/ansible/automation-hub/token) and put it in `ansible.cfg`:
+
+```ini
+[galaxy]
+server_list = automation_hub
+
+[galaxy_server.automation_hub]
+url=https://console.redhat.com/api/automation-hub/content/published/
+auth_url=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token
+token=TOKEN
+```
 
 ```bash
 ansible-galaxy collection install infra.automation_development_office
 ```
 
-You can also include it in a `requirements.yml` file and install it via
-`ansible-galaxy collection install -r requirements.yml` using the format:
+The same name works from a `requirements.yml` when that server list is configured:
 
 ```yaml
 collections:
   - name: infra.automation_development_office
 ```
 
-To upgrade the collection to the latest available version, run the following
-command:
+### Ansible Galaxy
+
+```bash
+ansible-galaxy collection install infra.automation_development_office
+```
+
+Or install from a `requirements.yml`:
+
+```yaml
+collections:
+  - name: infra.automation_development_office
+```
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
+Upgrade to the latest published version:
 
 ```bash
 ansible-galaxy collection install infra.automation_development_office --upgrade
 ```
 
-You can also install a specific version of the collection, for example, if you
-need to downgrade when something is broken in the latest version (please report
-an issue in this repository). Use the following syntax where `X.Y.Z` can be any
-[available version](https://galaxy.ansible.com/infra/automation_development_office):
+Install a specific version, where `X.Y.Z` is any [published Galaxy version](https://galaxy.ansible.com/infra/automation_development_office):
 
 ```bash
 ansible-galaxy collection install infra.automation_development_office:==X.Y.Z
 ```
 
+### Git
+
+```bash
+ansible-galaxy collection install git+https://github.com/redhat-cop/infra.automation-development-office.git
+```
+
+A local checkout install is described under [Testing](#testing).
+
 See
 [Ansible Using Collections](https://docs.ansible.com/ansible/latest/user_guide/collections_using.html)
 for more details.
+
+## Support
+
+Automation Development Office maintains this collection. Report defects and questions in the [issue tracker](https://github.com/redhat-cop/infra.automation-development-office/issues).
+
+Supported Ansible versions are `>=2.17.0`. Role metadata uses that same minimum.
 
 ## Release notes
 
