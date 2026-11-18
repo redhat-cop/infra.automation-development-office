@@ -68,6 +68,33 @@
       failed_when: false
       when: (ocp_quay_oidc_ca_pem | default('') | string | length) > 0
 
+    # lookup('kubernetes.core.k8s') is executed while ansible-lint templates
+    # task vars. Certification does not install that lookup, so read the live
+    # Deployment with k8s_info. resources[0] is the same object the lookup
+    # returned. Fail when it is missing so an empty list cannot replace volumes.
+    - name: Read Quay Deployment before replacing OIDC CA volume
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: "{{ name_space }}"
+        name: quay
+      register: ocp_quay_deploy_info
+      when:
+        - (ocp_quay_oidc_ca_pem | default('') | string | length) > 0
+        - ocp_quay_oidc_ca_patch is defined
+        - ocp_quay_oidc_ca_patch.failed | default(false) | bool
+
+    - name: Fail when Quay Deployment is missing during OIDC CA volume replace
+      ansible.builtin.fail:
+        msg: >-
+          Quay Deployment was not found in namespace '{{ name_space }}'.
+          Cannot replace the OIDC CA volume.
+      when:
+        - (ocp_quay_oidc_ca_pem | default('') | string | length) > 0
+        - ocp_quay_oidc_ca_patch is defined
+        - ocp_quay_oidc_ca_patch.failed | default(false) | bool
+        - (ocp_quay_deploy_info.resources | default([]) | length) == 0
+
     - name: Replace OIDC CA volume on Quay Deployment when patch reported duplicate
       kubernetes.core.k8s_json_patch:
         api_version: apps/v1
@@ -82,29 +109,43 @@
             path: /spec/template/spec/containers/0/volumeMounts
             value: "{{ ocp_quay_deploy_volume_mounts }}"
       vars:
-        ocp_quay_deploy_info: >-
+        ocp_quay_deploy_obj: >-
+          {{ ocp_quay_deploy_info.resources | default([]) | first | default({}) }}
+        ocp_quay_deploy_pod_spec: >-
           {{
-            lookup('kubernetes.core.k8s', kind='Deployment', namespace=name_space, resource_name='quay')
+            (
+              (ocp_quay_deploy_obj.spec | default({})).template | default({})
+            ).spec | default({})
           }}
         ocp_quay_deploy_volumes: >-
           {{
             (
-              ocp_quay_deploy_info.spec.template.spec.volumes | default([])
+              ocp_quay_deploy_pod_spec.volumes | default([])
               | rejectattr('name', 'equalto', 'oidc-ca-volume')
               | list
             )
-            + [{'name': 'oidc-ca-volume', 'secret': {'secretName': ocp_quay_oidc_ca_secret}}]
+            + [{
+              'name': 'oidc-ca-volume',
+              'secret': {'secretName': ocp_quay_oidc_ca_secret | default('')},
+            }]
           }}
         ocp_quay_deploy_volume_mounts: >-
           {{
             (
-              ocp_quay_deploy_info.spec.template.spec.containers[0].volumeMounts | default([])
+              (
+                ocp_quay_deploy_pod_spec.containers | default([{}]) | first | default({})
+              ).volumeMounts | default([])
               | rejectattr('name', 'equalto', 'oidc-ca-volume')
               | list
             )
-            + [{'name': 'oidc-ca-volume', 'mountPath': '/conf/stack/extra_ca_certs', 'readOnly': true}]
+            + [{
+              'name': 'oidc-ca-volume',
+              'mountPath': '/conf/stack/extra_ca_certs',
+              'readOnly': true,
+            }]
           }}
       when:
         - (ocp_quay_oidc_ca_pem | default('') | string | length) > 0
         - ocp_quay_oidc_ca_patch is defined
         - ocp_quay_oidc_ca_patch.failed | default(false) | bool
+        - (ocp_quay_deploy_info.resources | default([]) | length) > 0
