@@ -57,7 +57,7 @@ controller_templates:
           required: true
           type: password
           variable: rhbk_admin_password
-          default: redhat123
+          default: ""
         - question_name: ADO | Path to RHBK zip on Contoller/runner
           question_description: >-
             Absolute path to rhbk-*.zip reachable by the Contoller EE, or leave blank

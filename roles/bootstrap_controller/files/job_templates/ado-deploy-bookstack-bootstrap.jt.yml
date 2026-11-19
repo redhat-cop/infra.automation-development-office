@@ -71,8 +71,8 @@ controller_templates:
             - "true"
           default: "false"
         - question_name: ADO | Local admin password
-          question_description: Reset seeded admin@admin.com password after install (e.g. redhat123)
-          required: false
+          question_description: Required. New password for the seeded admin@admin.com account (no default)
+          required: true
           type: password
           variable: bookstack_admin_password
-          default: redhat123
+          default: ""

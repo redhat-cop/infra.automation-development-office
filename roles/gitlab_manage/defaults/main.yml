@@ -1,0 +1,44 @@
+---
+# yamllint disable rule:line-length
+# GitLab API target (no lab-specific hostnames in reusable defaults).
+gitlab_manage_api_url: ""
+gitlab_manage_api_token: ""
+gitlab_manage_validate_certs: true
+gitlab_manage_ca_path: ""
+
+# Project path (group/project) or numeric ID.
+gitlab_manage_project: ""
+
+# Action selector used by the shared playbooks:
+# issue_create | issue_update | issue_close |
+# branch_create | branch_delete |
+# user_create | user_absent | user_blocked |
+# member_present | member_absent
+gitlab_manage_action: ""
+
+# Issue fields
+gitlab_manage_issue_title: ""
+gitlab_manage_issue_description: ""
+gitlab_manage_issue_labels: []
+gitlab_manage_issue_assignees: []
+gitlab_manage_issue_type: issue
+gitlab_manage_issue_iid: ""
+gitlab_manage_issue_state_filter: opened
+
+# Branch fields
+gitlab_manage_branch_name: ""
+gitlab_manage_ref_branch: main
+
+# User fields
+gitlab_manage_user_name: ""
+gitlab_manage_user_username: ""
+gitlab_manage_user_email: ""
+gitlab_manage_user_password: ""
+gitlab_manage_user_isadmin: false
+gitlab_manage_user_external: false
+gitlab_manage_user_confirm: false
+
+# Project membership / role fields
+gitlab_manage_member_username: ""
+gitlab_manage_member_access_level: developer
+# guest | reporter | developer | maintainer | owner

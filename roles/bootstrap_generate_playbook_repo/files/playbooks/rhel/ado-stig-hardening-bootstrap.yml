@@ -30,16 +30,40 @@
         rhel_stig_profile_map[rhel_stig_profile_label]
         | default(rhel_stig_profile_label)
       }}
+    # cac only reads the host in audit mode. system_role always applies changes,
+    # so it is gated below.
     rhel_stig_engine: >-
       {{
         stig_engine
-        | default(components_env.rhel.stig_engine | default('system_role'))
+        | default(components_env.rhel.stig_engine | default('cac'))
       }}
-    rhel_stig_cac_remediate_effective: >-
+    # audit (default) | prepare | remediate | verify
+    rhel_stig_mode: "{{ stig_mode | default('audit') }}"
+    rhel_stig_remediation_approved: >-
+      {{ stig_remediation_approved | default(false) | bool }}
+    rhel_stig_recovery_confirmed: >-
+      {{ stig_recovery_confirmed | default(false) | bool }}
+    # The JT survey sends a string (commas, semicolons, or whitespace);
+    # preflight sends a list.
+    rhel_stig_controls_raw: "{{ stig_controls | default([]) }}"
+    rhel_stig_controls: >-
       {{
-        rhel_stig_cac_remediate
-        | default(components_env.rhel.rhel_stig_cac_remediate | default(true))
-        | bool
+        (
+          (rhel_stig_controls_raw | replace(',', ' ')
+           | replace(';', ' ')).split()
+          if rhel_stig_controls_raw is string
+          else rhel_stig_controls_raw
+        ) | map('trim') | select | list
+      }}
+    rhel_stig_allow_protected_raw: "{{ stig_allow_protected | default([]) }}"
+    rhel_stig_allow_protected: >-
+      {{
+        (
+          (rhel_stig_allow_protected_raw | replace(',', ' ')
+           | replace(';', ' ')).split()
+          if rhel_stig_allow_protected_raw is string
+          else rhel_stig_allow_protected_raw
+        ) | map('trim') | select | list
       }}
 
   pre_tasks:
@@ -57,13 +81,29 @@
       loop: "{{ rhel_stig_vars_file_stats.results }}"
       when: item.stat.exists
 
+    - name: Require approval before the system_role engine changes hosts
+      ansible.builtin.assert:
+        that:
+          - rhel_stig_remediation_approved | bool
+          - rhel_stig_recovery_confirmed | bool
+        fail_msg: >-
+          stig_engine=system_role applies STIG changes to the host and cannot
+          audit first. It was not started. Use stig_engine=cac with
+          stig_mode=audit to inspect hosts, or set
+          stig_remediation_approved=true and stig_recovery_confirmed=true
+          (a snapshot or backup exists) to apply the RHEL system role.
+        quiet: true
+      when: rhel_stig_engine != 'cac'
+
     - name: Confirm STIG hardening profile
       ansible.builtin.debug:
         msg:
           - "Compliance profile: {{ rhel_stig_compliance_profile }}"
           - "STIG profile: {{ rhel_stig_profile_label }}"
           - "STIG engine: {{ rhel_stig_engine }}"
-          - "CaC remediate: {{ rhel_stig_cac_remediate_effective }}"
+          - "STIG mode: {{ rhel_stig_mode }}"
+          - "Remediation approved: {{ rhel_stig_remediation_approved }}"
+          - "Controls: {{ rhel_stig_controls | length }} selected"
           - "RHEL system role profile: {{ rhel_stig_profile_value }}"
 
   roles:
@@ -71,7 +111,13 @@
       when: rhel_stig_engine == 'cac'
       vars:
         rhel_stig_cac_profile_label: "{{ rhel_stig_profile_label }}"
-        rhel_stig_cac_remediate: "{{ rhel_stig_cac_remediate_effective }}"
+        rhel_stig_cac_mode: "{{ rhel_stig_mode }}"
+        rhel_stig_cac_remediation_approved: >-
+          {{ rhel_stig_remediation_approved }}
+        rhel_stig_cac_recovery_confirmed: >-
+          {{ rhel_stig_recovery_confirmed }}
+        rhel_stig_cac_controls: "{{ rhel_stig_controls }}"
+        rhel_stig_cac_allow_protected: "{{ rhel_stig_allow_protected }}"
 
     - role: infra.automation_development_office.rhel_ext_system_roles
       when: rhel_stig_engine != 'cac'

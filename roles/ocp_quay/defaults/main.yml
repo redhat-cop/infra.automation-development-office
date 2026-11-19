@@ -6,7 +6,7 @@ state: present
 name_space: quay-enterprise
 ocp_quay_hostname: "{{ quay_hostname | default(hostname | default('')) }}"
 ocp_quay_admin_user: "{{ quay_admin_user | default('quayadmin') }}"
-ocp_quay_admin_password: "{{ quay_admin_password | default('redhat123') }}"
+ocp_quay_admin_password: "{{ quay_admin_password | default('') }}"
 ocp_quay_config_secret: "{{ quay_config_secret | default('quay-config-secret') }}"
 storage_size: 10Gi
 storage: ""

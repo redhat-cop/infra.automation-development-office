@@ -1,0 +1,81 @@
+---
+# yamllint disable rule:line-length
+controller_templates:
+  - name: ADO | GitLab Manage Project Member
+    description: >-
+      Add, change role, or remove a user on a GitLab project
+      (guest/reporter/developer/maintainer/owner)
+    organization: '{{ bootstrap_controller_organization }}'
+    playbook: playbooks/gitlab/ado-gitlab-manage-member-bootstrap.yml
+    inventory: '{{ bootstrap_controller_inventory_name }}'
+    project: '{{ bootstrap_controller_project_name }}'
+    execution_environment: '{{ bootstrap_controller_execution_environment_name }}'
+    credentials:
+      - '{{ bootstrap_controller_creds }}'
+    ask_variables_on_launch: false
+    related: null
+    labels:
+      - name: ADO | gitlab
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | day2
+        organization: '{{ bootstrap_controller_organization }}'
+    extra_vars: {}
+    survey_enabled: true
+    survey_spec:
+      name: ADO | GitLab Manage Project Member Survey
+      description: GitLab project membership / role
+      spec:
+        - question_name: ADO | Action
+          question_description: Add/update membership or remove from the project
+          required: true
+          type: multiplechoice
+          variable: gitlab_manage_action
+          choices:
+            - member_present
+            - member_absent
+          default: member_present
+        - question_name: ADO | GitLab API URL
+          question_description: Base GitLab URL (no /api/v4 suffix)
+          required: true
+          type: text
+          variable: gitlab_manage_api_url
+          default: ""
+        - question_name: ADO | GitLab API token
+          question_description: Token with permission to manage project members
+          required: true
+          type: password
+          variable: gitlab_manage_api_token
+          default: ""
+        - question_name: ADO | Project path
+          question_description: group/project path (example redhat-lab/gitlab)
+          required: true
+          type: text
+          variable: gitlab_manage_project
+          default: ""
+        - question_name: ADO | Username
+          question_description: Existing GitLab username to add or remove
+          required: true
+          type: text
+          variable: gitlab_manage_member_username
+          default: ""
+        - question_name: ADO | Access level
+          question_description: Role when adding/updating (ignored on remove)
+          required: true
+          type: multiplechoice
+          variable: gitlab_manage_member_access_level
+          choices:
+            - guest
+            - reporter
+            - developer
+            - maintainer
+            - owner
+          default: developer
+        - question_name: ADO | Validate TLS
+          question_description: Verify GitLab TLS certificates
+          required: true
+          type: multiplechoice
+          variable: gitlab_manage_validate_certs
+          choices:
+            - "true"
+            - "false"
+          default: "true"

@@ -9,7 +9,7 @@ minio_image: quay.io/minio/minio:latest
 minio_image_pull_policy: IfNotPresent
 
 minio_root_user: minioadmin
-minio_root_password: redhat123
+minio_root_password: ""
 
 minio_storage_size: 20Gi
 minio_storage_access_mode: ReadWriteOnce

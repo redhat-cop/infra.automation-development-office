@@ -1,0 +1,28 @@
+---
+# Re-audit exactly the controls a remediation touched. Fails when any is not
+# compliant.
+- name: Require controls for verification
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_controls | length > 0
+    fail_msg: >-
+      mode verify checks specific controls. Set rhel_stig_cac_controls, or
+      use mode audit to scan the whole STIG profile.
+    quiet: true
+
+- name: Check STIG CaC prerequisites
+  ansible.builtin.include_tasks: prerequisites.yml
+
+- name: Resolve STIG CaC controls
+  ansible.builtin.include_tasks: resolve.yml
+
+- name: Verify STIG controls
+  ansible.builtin.include_tasks: scan.yml
+  vars:
+    rhel_stig_cac_phase: verify
+    rhel_stig_cac_phase_remediate: false
+
+- name: Finish STIG CaC run
+  ansible.builtin.include_tasks: finish.yml
+  vars:
+    rhel_stig_cac_final_phase: verify

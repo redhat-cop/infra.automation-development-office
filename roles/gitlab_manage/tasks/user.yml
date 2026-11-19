@@ -1,0 +1,118 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert user fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_user_username | default('') | length > 0
+      - >-
+          gitlab_manage_action != 'user_create'
+          or (
+            (gitlab_manage_user_name | default('') | length > 0)
+            and (gitlab_manage_user_email | default('') | length > 0)
+            and (gitlab_manage_user_password | default('') | length > 0)
+          )
+    fail_msg: >-
+      user actions require gitlab_manage_user_username; user_create also
+      needs name, email, and password.
+
+- name: GitLab manage | Lookup user by username
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/users?username={{
+        gitlab_manage_user_username | urlencode
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_user_lookup
+
+- name: GitLab manage | Select user match
+  ansible.builtin.set_fact:
+    gitlab_manage_user_match: >-
+      {{
+        gitlab_manage_user_lookup.json
+        | default([])
+        | selectattr('username', 'equalto', gitlab_manage_user_username)
+        | list
+      }}
+
+- name: GitLab manage | Create user
+  when:
+    - gitlab_manage_action == 'user_create'
+    - gitlab_manage_user_match | length == 0
+  ansible.builtin.uri:
+    url: "{{ gitlab_manage_api_url_clean }}/api/v4/users"
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      username: "{{ gitlab_manage_user_username }}"
+      name: "{{ gitlab_manage_user_name }}"
+      email: "{{ gitlab_manage_user_email }}"
+      password: "{{ gitlab_manage_user_password }}"
+      admin: "{{ gitlab_manage_user_isadmin | default(false) | bool }}"
+      skip_confirmation: "{{ not (gitlab_manage_user_confirm | default(false) | bool) }}"
+      external: "{{ gitlab_manage_user_external | default(false) | bool }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  register: gitlab_manage_user_create
+  no_log: true
+
+- name: GitLab manage | Block user
+  when:
+    - gitlab_manage_action == 'user_blocked'
+    - gitlab_manage_user_match | length == 1
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/users/{{
+        gitlab_manage_user_match[0].id
+      }}/block
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  register: gitlab_manage_user_block
+
+- name: GitLab manage | Delete user
+  when:
+    - gitlab_manage_action == 'user_absent'
+    - gitlab_manage_user_match | length == 1
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/users/{{
+        gitlab_manage_user_match[0].id
+      }}
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [204]
+  register: gitlab_manage_user_delete
+
+- name: GitLab manage | Show user result
+  ansible.builtin.debug:
+    msg: >-
+      GitLab user '{{ gitlab_manage_user_username }}'
+      action={{ gitlab_manage_action }}
+      existed={{ gitlab_manage_user_match | length == 1 }}
+      created={{
+        gitlab_manage_user_create is defined
+        and gitlab_manage_user_create is not skipped
+      }}
+      blocked={{
+        gitlab_manage_user_block is defined
+        and gitlab_manage_user_block is not skipped
+      }}
+      deleted={{
+        gitlab_manage_user_delete is defined
+        and gitlab_manage_user_delete is not skipped
+      }}.

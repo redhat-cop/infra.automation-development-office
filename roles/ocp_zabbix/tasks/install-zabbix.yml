@@ -1,5 +1,13 @@
 ---
 # yamllint disable rule:line-length
+- name: Guard — Zabbix Admin password must be set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (zabbix_admin_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No Zabbix Admin password was provided. Set zabbix_admin_password in the
+      generated group_vars (vault_zabbix.yml). The role has no built-in default.
+
 - name: Resolve Zabbix hostname
   ansible.builtin.set_fact:
     ocp_zabbix_hostname: >-

@@ -6,6 +6,15 @@
       - ocp_rhbk_hostname is defined and (ocp_rhbk_hostname | string | length) > 0
     fail_msg: "name_space and ocp_rhbk_hostname are required."
 
+- name: Guard — Keycloak admin password must be set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (ocp_rhbk_admin_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No Keycloak admin password was provided. Set the RHBK admin password in the
+      bootstrap (preflight component_config.rhbk.admin_password) so it reaches
+      rhbk_admin_password / vault_rhbk_admin_password. There is no default.
+
 # -----------------------
 # Secrets: DB + Admin
 # -----------------------

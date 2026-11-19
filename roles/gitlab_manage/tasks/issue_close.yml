@@ -1,0 +1,103 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert issue close fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - >-
+        (gitlab_manage_issue_iid | default('') | string | length > 0)
+        or (gitlab_manage_issue_title | default('') | length > 0)
+    fail_msg: >-
+      issue_close requires gitlab_manage_project and either
+      gitlab_manage_issue_iid or gitlab_manage_issue_title.
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Find opened issue by title
+  when: gitlab_manage_issue_iid | default('') | string | length == 0
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues?state=opened&search={{ gitlab_manage_issue_title | urlencode }}&in=title&per_page=50
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_issue_search
+
+- name: GitLab manage | Select matching issue IID
+  ansible.builtin.set_fact:
+    gitlab_manage_close_iid: >-
+      {{
+        gitlab_manage_issue_iid
+        if (gitlab_manage_issue_iid | default('') | string | length > 0)
+        else (
+          (
+            gitlab_manage_issue_search.json
+            | default([])
+            | selectattr('title', 'equalto', gitlab_manage_issue_title)
+            | map(attribute='iid')
+            | list
+            | first
+          )
+          if (
+            (
+              gitlab_manage_issue_search.json
+              | default([])
+              | selectattr('title', 'equalto', gitlab_manage_issue_title)
+              | list
+              | length
+            ) == 1
+          )
+          else ''
+        )
+      }}
+
+- name: GitLab manage | Assert a single issue was found to close
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_close_iid | string | length > 0
+    fail_msg: >-
+      Could not resolve a single opened issue to close in
+      {{ gitlab_manage_project }} (title='{{ gitlab_manage_issue_title }}',
+      iid='{{ gitlab_manage_issue_iid }}').
+
+- name: GitLab manage | Close issue
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues/{{ gitlab_manage_close_iid }}
+    method: PUT
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      state_event: close
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_issue_close_result
+
+- name: GitLab manage | Show close result
+  ansible.builtin.debug:
+    msg: >-
+      Closed issue IID {{ gitlab_manage_close_iid }} in
+      {{ gitlab_manage_project }}
+      (state={{ gitlab_manage_issue_close_result.json.state | default('unknown') }}).

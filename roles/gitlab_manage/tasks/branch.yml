@@ -1,0 +1,96 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert branch fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_branch_name | default('') | length > 0
+      - >-
+          gitlab_manage_action != 'branch_create'
+          or (gitlab_manage_ref_branch | default('') | length > 0)
+    fail_msg: >-
+      branch actions require gitlab_manage_project and
+      gitlab_manage_branch_name; branch_create also needs
+      gitlab_manage_ref_branch.
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Check if branch exists
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/repository/branches/{{ gitlab_manage_branch_name | regex_replace('/', '%2F') }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200, 404]
+  register: gitlab_manage_branch_lookup
+
+- name: GitLab manage | Create branch
+  when:
+    - gitlab_manage_action == 'branch_create'
+    - gitlab_manage_branch_lookup.status == 404
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/repository/branches
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      branch: "{{ gitlab_manage_branch_name }}"
+      ref: "{{ gitlab_manage_ref_branch }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  register: gitlab_manage_branch_create
+
+- name: GitLab manage | Delete branch
+  when:
+    - gitlab_manage_action == 'branch_delete'
+    - gitlab_manage_branch_lookup.status == 200
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/repository/branches/{{ gitlab_manage_branch_name | regex_replace('/', '%2F') }}
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [204]
+  register: gitlab_manage_branch_delete
+
+- name: GitLab manage | Show branch result
+  ansible.builtin.debug:
+    msg: >-
+      Branch '{{ gitlab_manage_branch_name }}' in {{ gitlab_manage_project }}
+      action={{ gitlab_manage_action }}
+      existed={{ gitlab_manage_branch_lookup.status == 200 }}
+      created={{
+        gitlab_manage_branch_create is defined
+        and gitlab_manage_branch_create is not skipped
+      }}
+      deleted={{
+        gitlab_manage_branch_delete is defined
+        and gitlab_manage_branch_delete is not skipped
+      }}.

@@ -9,7 +9,7 @@ state: present
 name_space: keycloak
 ocp_rhbk_hostname: "{{ rhbk_hostname | default('keycloak.apps.example.com') }}"
 ocp_rhbk_admin_user: "{{ rhbk_admin_user | default('admin') }}"
-ocp_rhbk_admin_password: "{{ rhbk_admin_password | default('changeme') }}"
+ocp_rhbk_admin_password: "{{ rhbk_admin_password | default('') }}"
 ocp_rhbk_db_user: "{{ rhbk_db_user | default('keycloak') }}"
 ocp_rhbk_db_password: "{{ rhbk_db_password | default('changeme-db') }}"
 postgres_secret_name: keycloak-db-secret
@@ -80,7 +80,7 @@ install_rhbk_standalone_tls_dir: /etc/rhbk/tls
 install_rhbk_standalone_tls_crt: "{{ rhbk_standalone_tls_crt | default(tls_crt | default('')) }}"
 install_rhbk_standalone_tls_key: "{{ rhbk_standalone_tls_key | default(tls_key | default('')) }}"
 install_rhbk_standalone_admin_user: "{{ rhbk_admin_user | default('admin') }}"
-install_rhbk_standalone_admin_password: "{{ rhbk_admin_password | default('redhat123') }}"
+install_rhbk_standalone_admin_password: "{{ rhbk_admin_password | default('') }}"
 install_rhbk_standalone_home: /opt/rhbk
 install_rhbk_standalone_data_dir: /var/lib/rhbk
 # Zip source: url (HTTP/Satellite), git (clone on host), or upload (controller copy).

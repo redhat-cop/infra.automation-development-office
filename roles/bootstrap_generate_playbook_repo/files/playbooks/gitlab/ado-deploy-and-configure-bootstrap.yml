@@ -57,19 +57,19 @@
         gitlab_install_root_password: >-
           {{
             gitlab_install_root_password
-            | default(gitlab_root_password)
-            | default(root_password)
-            | default('redhat123')
+            | default(gitlab_root_password, true)
+            | default(root_password, true)
+            | default('')
           }}
         gitlab_install_admin_user: >-
           {{ gitlab_install_admin_user | default(admin_user) | default('gitlab') }}
         gitlab_install_admin_password: >-
           {{
             gitlab_install_admin_password
-            | default(admin_password)
-            | default(gitlab_install_root_password)
-            | default(gitlab_root_password)
-            | default('redhat123')
+            | default(admin_password, true)
+            | default(gitlab_install_root_password, true)
+            | default(gitlab_root_password, true)
+            | default('')
           }}
   roles:
     - role: infra.automation_development_office.ocp_namespace

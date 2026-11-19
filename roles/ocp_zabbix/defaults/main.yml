@@ -29,7 +29,7 @@ zabbix_db_name: zabbix
 zabbix_db_root_password: rootpass123!
 zabbix_db_password: zabbixpass123!
 zabbix_admin_user: Admin
-zabbix_admin_password: redhat123
+zabbix_admin_password: ""
 zabbix_default_admin_password: zabbix
 storage: ""
 zabbix_saml_enabled: false

@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  role_name: gitlab_manage
+  namespace: automation_development_office
+  author: Automation Development Office
+  description: >-
+    Manage GitLab issues, branches, users, and project membership via the
+    GitLab REST API.
+  license: GPL-3.0-only
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+  galaxy_tags:
+    - gitlab
+    - issues
+    - scm
+dependencies: []

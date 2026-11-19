@@ -52,7 +52,7 @@ controller_templates:
           required: true
           type: password
           variable: gitlab_root_password
-          default: redhat123
+          default: ""
         - question_name: ADO | Edition (ce or ee)
           question_description: Prefer ce without a license; ee requires GitLab Enterprise license
           required: true

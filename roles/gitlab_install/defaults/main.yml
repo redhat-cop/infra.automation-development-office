@@ -12,8 +12,8 @@ gitlab_install_storage_class: ""
 gitlab_install_tls_crt: ""
 gitlab_install_tls_key: ""
 gitlab_install_admin_user: gitlab
-gitlab_install_admin_password: redhat123
-gitlab_install_root_password: redhat123
+gitlab_install_admin_password: ""
+gitlab_install_root_password: ""
 gitlab_install_chart_version: "10.3.2"
 # Chart 9.x only: operator-bundled Postgres. Chart 10+ always uses dedicated PG.
 gitlab_install_enable_postgresql: false
@@ -39,7 +39,7 @@ gitlab_install_minio_image: "minio/minio:latest"
 gitlab_install_minio_service: gitlab-minio
 gitlab_install_minio_port: 9000
 gitlab_install_minio_access_key: gitlab
-gitlab_install_minio_secret_key: "{{ gitlab_install_root_password | default('redhat123') }}"
+gitlab_install_minio_secret_key: "{{ gitlab_install_root_password | default('') }}"
 gitlab_install_registry_bucket: gitlab-registry
 gitlab_install_registry_storage_secret: gitlab-registry-storage
 gitlab_install_create_route: true

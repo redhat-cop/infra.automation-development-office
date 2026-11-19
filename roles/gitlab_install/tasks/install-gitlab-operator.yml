@@ -33,6 +33,8 @@
     fail_msg: >-
       gitlab_install needs gitlab_install_hostname (or hostname) and
       gitlab_install_root_password for the OpenShift GitLab CR.
+      There is no default root password. Set it in the bootstrap (preflight
+      component_config.gitlab.root_password) so it reaches gitlab_root_password.
 
 - name: Create GitLab TLS Secret
   kubernetes.core.k8s:

@@ -10,6 +10,9 @@
       - install_grafana_admin_password | length > 0
     fail_msg: >-
       install_grafana needs hostname, admin user, and admin password.
+      There is no default admin password. Set it in the bootstrap (preflight
+      component_config.grafana.standalone_admin_password) so it reaches
+      grafana_admin_password / install_grafana_admin_password.
 
 - name: Ensure Grafana dependencies
   ansible.builtin.dnf:

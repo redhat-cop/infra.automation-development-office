@@ -1,0 +1,69 @@
+---
+# One oscap run plus findings and evidence.
+# Inputs: rhel_stig_cac_phase (name), rhel_stig_cac_phase_remediate (bool).
+- name: Set STIG CaC phase file paths
+  ansible.builtin.set_fact:
+    rhel_stig_cac_phase_results: >-
+      {{ rhel_stig_cac_results_dir }}/stig-{{
+      rhel_stig_cac_effective_os_major }}-{{ rhel_stig_cac_phase }}-results.xml
+    rhel_stig_cac_phase_html: >-
+      {{ rhel_stig_cac_results_dir }}/stig-{{
+      rhel_stig_cac_effective_os_major }}-{{ rhel_stig_cac_phase }}-report.html
+    rhel_stig_cac_phase_findings: >-
+      {{ rhel_stig_cac_results_dir }}/stig-{{
+      rhel_stig_cac_effective_os_major }}-{{
+      rhel_stig_cac_phase }}-findings.json
+
+- name: Run OpenSCAP ({{ rhel_stig_cac_phase }})
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [rhel_stig_cac_oscap_path, 'xccdf', 'eval',
+         '--profile', rhel_stig_cac_scan_profile]
+        + (
+          ['--tailoring-file', rhel_stig_cac_tailoring_path]
+          if rhel_stig_cac_controls | length > 0 else []
+        )
+        + (['--remediate'] if rhel_stig_cac_phase_remediate | bool else [])
+        + ['--results', rhel_stig_cac_phase_results,
+           '--report', rhel_stig_cac_phase_html,
+           rhel_stig_cac_datastream]
+      }}
+  register: rhel_stig_cac_scan
+  async: "{{ rhel_stig_cac_scan_timeout | int }}"
+  poll: 15
+  changed_when: rhel_stig_cac_phase_remediate | bool
+  # oscap exit codes: 0 = all pass, 2 = some rules failed or errored, anything
+  # else = oscap itself failed. Exit 2 is not trusted as success; the findings
+  # below decide.
+  failed_when: rhel_stig_cac_scan.rc not in [0, 2]
+
+- name: Build structured STIG findings ({{ rhel_stig_cac_phase }})
+  infra.automation_development_office.rhel_stig_cac_report:
+    results_path: "{{ rhel_stig_cac_phase_results }}"
+    datastream: "{{ rhel_stig_cac_datastream }}"
+    profile: "{{ rhel_stig_cac_xccdf_profile }}"
+    selected_rules: "{{ rhel_stig_cac_selected_rules }}"
+    protected_patterns: "{{ rhel_stig_cac_protected_patterns }}"
+    context:
+      mode: "{{ rhel_stig_cac_mode }}"
+      phase: "{{ rhel_stig_cac_phase }}"
+      host: "{{ inventory_hostname }}"
+      os_major: "{{ rhel_stig_cac_effective_os_major }}"
+      profile_label: "{{ rhel_stig_cac_profile_label }}"
+      remediated: "{{ rhel_stig_cac_phase_remediate | bool }}"
+      oscap_exit_code: "{{ rhel_stig_cac_scan.rc }}"
+    findings_dest: "{{ rhel_stig_cac_phase_findings }}"
+  register: rhel_stig_cac_report
+
+- name: Record STIG CaC phase summary
+  ansible.builtin.set_fact:
+    rhel_stig_cac_phases: >-
+      {{
+        rhel_stig_cac_phases | default({})
+        | combine({rhel_stig_cac_phase: rhel_stig_cac_report.summary})
+      }}
+    rhel_stig_cac_last_report: "{{ rhel_stig_cac_report }}"
+
+- name: Keep STIG CaC evidence ({{ rhel_stig_cac_phase }})
+  ansible.builtin.include_tasks: evidence.yml

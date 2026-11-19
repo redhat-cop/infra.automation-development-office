@@ -1,0 +1,19 @@
+---
+# Read-only against the OS. Writes OpenSCAP evidence under
+# rhel_stig_cac_results_dir only.
+- name: Check STIG CaC prerequisites
+  ansible.builtin.include_tasks: prerequisites.yml
+
+- name: Resolve STIG CaC controls
+  ansible.builtin.include_tasks: resolve.yml
+
+- name: Audit STIG controls
+  ansible.builtin.include_tasks: scan.yml
+  vars:
+    rhel_stig_cac_phase: audit
+    rhel_stig_cac_phase_remediate: false
+
+- name: Finish STIG CaC run
+  ansible.builtin.include_tasks: finish.yml
+  vars:
+    rhel_stig_cac_final_phase: audit

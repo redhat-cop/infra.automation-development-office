@@ -218,6 +218,10 @@
       gitlab:
         - ado-gitlab-deploy-and-configure-bootstrap.jt.yml
         - ado-install-gitlab-standalone-bootstrap.jt.yml
+        - ado-gitlab-manage-issue-bootstrap.jt.yml
+        - ado-gitlab-manage-branch-bootstrap.jt.yml
+        - ado-gitlab-manage-user-bootstrap.jt.yml
+        - ado-gitlab-manage-member-bootstrap.jt.yml
 
       gitlab_standalone:
         - ado-install-gitlab-standalone-bootstrap.jt.yml

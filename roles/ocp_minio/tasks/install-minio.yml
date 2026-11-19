@@ -1,4 +1,13 @@
 ---
+- name: Guard — MinIO root password must be set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (minio_root_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No MinIO root password was provided. Set it in the bootstrap (preflight
+      component_config.minio.root_password) so it reaches
+      minio_root_password / vault_minio_root_password. There is no default.
+
 - name: Resolve MinIO console and API hostnames
   ansible.builtin.set_fact:
     ocp_minio_console_hostname_effective: >-

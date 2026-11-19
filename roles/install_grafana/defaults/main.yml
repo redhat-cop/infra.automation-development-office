@@ -9,7 +9,7 @@ state: present
 install_grafana_hostname: "{{ grafana_hostname | default('') }}"
 install_grafana_http_port: 3000
 install_grafana_admin_user: "{{ grafana_admin_user | default('admin') }}"
-install_grafana_admin_password: "{{ grafana_admin_password | default('redhat123') }}"
+install_grafana_admin_password: "{{ grafana_admin_password | default('') }}"
 
 # Airgap (required unless allow_online_repo or package already installed).
 install_grafana_rpm_path: "{{ grafana_rpm_path | default('') }}"

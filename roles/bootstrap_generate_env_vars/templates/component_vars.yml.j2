@@ -674,8 +674,12 @@ idm_ad_trust_configure_groups: {{ idm_cfg.ad_configure_groups | bool | lower }}
 compliance_profile: STIG
 stig_profile: RHEL 9 STIG
 rhel_stig_profile: RHEL 9 STIG
-stig_engine: system_role
-rhel_stig_cac_remediate: true
+stig_engine: cac
+stig_mode: audit
+stig_remediation_approved: false
+stig_recovery_confirmed: false
+stig_controls: []
+stig_allow_protected: []
 
 {% elif component_name == 'compliance' %}
 components_env:

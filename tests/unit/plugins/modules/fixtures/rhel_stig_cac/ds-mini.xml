@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal SCAP Security Guide benchmark in the same shape as ssg-rhel9-ds.xml.
+  Hand built for unit tests: no real rule content, only the structure the
+  rhel_stig_cac helpers read (rules, references, requires, profile selects).
+-->
+<xccdf-1.2:Benchmark xmlns:xccdf-1.2="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_benchmark_RHEL-9">
+  <xccdf-1.2:version>0.1.82</xccdf-1.2:version>
+  <xccdf-1.2:Profile id="xccdf_org.ssgproject.content_profile_stig">
+    <xccdf-1.2:title>DISA STIG for Red Hat Enterprise Linux 9</xccdf-1.2:title>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_sshd_set_idle_timeout" selected="true"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_sshd_set_keepalive" selected="true"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_package_sudo_installed" selected="true"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_accounts_password_pam_minlen" selected="true"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_service_auditd_enabled" selected="true"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_kernel_module_bluetooth_disabled" selected="false"/>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_value_var_example" selected="true"/>
+  </xccdf-1.2:Profile>
+  <xccdf-1.2:Profile id="xccdf_org.ssgproject.content_profile_other">
+    <xccdf-1.2:title>Another profile</xccdf-1.2:title>
+    <xccdf-1.2:select idref="xccdf_org.ssgproject.content_rule_audit_rules_login_events" selected="true"/>
+  </xccdf-1.2:Profile>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_sshd_set_idle_timeout" severity="medium">
+    <xccdf-1.2:title>Set SSH Client Alive Interval</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cisecurity.org/controls/">12</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cgeneral-purpose-os">SRG-OS-000126-GPOS-00066</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-255100</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools/">SV-257996r1134915_rule</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools#vulnerability_id">V-257996</xccdf-1.2:reference>
+    <xccdf-1.2:requires idref="xccdf_org.ssgproject.content_rule_sshd_set_keepalive"/>
+  </xccdf-1.2:Rule>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_sshd_set_keepalive" severity="medium">
+    <xccdf-1.2:title>Set SSH Client Alive Count Max</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-255095</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools/">SV-257995r1045053_rule</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools#vulnerability_id">V-257995</xccdf-1.2:reference>
+    <xccdf-1.2:requires idref="xccdf_org.ssgproject.content_rule_sshd_set_idle_timeout"/>
+  </xccdf-1.2:Rule>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_package_sudo_installed" severity="high">
+    <xccdf-1.2:title>Install sudo Package</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-432010</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools/">SV-258083r1045334_rule</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools#vulnerability_id">V-258083</xccdf-1.2:reference>
+  </xccdf-1.2:Rule>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_accounts_password_pam_minlen" severity="medium">
+    <xccdf-1.2:title>Ensure PAM Enforces Password Requirements - Minimum Length</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-611045</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools#vulnerability_id">V-258106</xccdf-1.2:reference>
+  </xccdf-1.2:Rule>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_service_auditd_enabled" severity="low">
+    <xccdf-1.2:title>Enable auditd Service</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-653065</xccdf-1.2:reference>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/srg-stig-tools#vulnerability_id">V-258151</xccdf-1.2:reference>
+  </xccdf-1.2:Rule>
+  <xccdf-1.2:Rule id="xccdf_org.ssgproject.content_rule_audit_rules_login_events" severity="medium">
+    <xccdf-1.2:title>Record Attempts to Alter Logon and Logout Events</xccdf-1.2:title>
+    <xccdf-1.2:reference href="https://www.cyber.mil/stigs/downloads/?_dl_facet_stigs=operating-systems%2Cunix-linux">RHEL-09-654215</xccdf-1.2:reference>
+  </xccdf-1.2:Rule>
+</xccdf-1.2:Benchmark>

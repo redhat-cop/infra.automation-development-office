@@ -34,9 +34,9 @@
         ocp_quay_admin_password: >-
           {{
             ocp_quay_admin_password
-            | default(quay_admin_password)
-            | default(admin_password)
-            | default('redhat123')
+            | default(quay_admin_password, true)
+            | default(admin_password, true)
+            | default('')
           }}
         ocp_quay_config_secret: >-
           {{ ocp_quay_config_secret | default(quay_config_secret) | default('quay-config-secret') }}

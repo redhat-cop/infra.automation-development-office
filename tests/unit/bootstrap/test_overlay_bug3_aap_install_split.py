@@ -8,6 +8,7 @@ vars_aap.yml even when leftover component_config.aap remains.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -33,6 +34,31 @@ OCP_INSTALL_JT = "ado-aap-ocp-install-bootstrap.jt.yml"
 RHEL_INSTALL_JT = "ado-aap-rhel-install-bootstrap.jt.yml"
 OCP_INSTALL_PB = "playbooks/aap/ado-aap-ocp-install-bootstrap.yml"
 RHEL_INSTALL_PB = "playbooks/aap/ado-aap-rhel-install-bootstrap.yml"
+
+
+TEST_PASSWORD_FIELDS = {
+    "grafana": ("admin_password", "standalone_admin_password"),
+    "gitlab": ("root_password", "standalone_root_password"),
+    "quay": ("admin_password",),
+    "minio": ("root_password",),
+    "acs": ("admin_password",),
+}
+
+
+def with_test_passwords(preflight, selected=None):
+    """Overlay refuses missing passwords (no default); give selected components a fake one."""
+    out = copy.deepcopy(preflight)
+    names = set(selected or []) | set(out.get("components") or [])
+    for apps in (out.get("component_apps") or {}).values():
+        names.update(apps or [])
+    for name, fields in TEST_PASSWORD_FIELDS.items():
+        if name not in names:
+            continue
+        section = out.setdefault("component_config", {}).setdefault(name, {})
+        for field in fields:
+            if not section.get(field):
+                section[field] = "unit-test-password"
+    return out
 
 
 def base_preflight(**extra):
@@ -67,7 +93,7 @@ def run_overlay(tmp_path, preflight, selected):
     env_dir = tmp_path / "env"
     env_dir.mkdir()
     preflight_path = tmp_path / "preflight.json"
-    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    preflight_path.write_text(json.dumps(with_test_passwords(preflight, selected)), encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(OVERLAY)],
         env={

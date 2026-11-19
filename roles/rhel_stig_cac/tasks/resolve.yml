@@ -1,0 +1,57 @@
+---
+# Turn the requested controls into SSG rules and a tailoring file.
+# With no controls the whole STIG profile is audited and nothing is resolved.
+- name: Set STIG CaC tailoring path
+  ansible.builtin.set_fact:
+    rhel_stig_cac_tailoring_path: >-
+      {{ rhel_stig_cac_results_dir }}/stig-{{
+      rhel_stig_cac_effective_os_major }}-tailoring.xml
+
+- name: Resolve STIG controls and write tailoring file
+  infra.automation_development_office.rhel_stig_cac_resolve:
+    datastream: "{{ rhel_stig_cac_datastream }}"
+    profile: "{{ rhel_stig_cac_xccdf_profile }}"
+    controls: "{{ rhel_stig_cac_controls }}"
+    protected_patterns: "{{ rhel_stig_cac_protected_patterns }}"
+    allow_protected: "{{ rhel_stig_cac_allow_protected }}"
+    tailoring_dest: "{{ rhel_stig_cac_tailoring_path }}"
+  register: rhel_stig_cac_resolved
+  when: rhel_stig_cac_controls | length > 0
+
+- name: Record STIG CaC selection
+  ansible.builtin.set_fact:
+    rhel_stig_cac_selected_rules: >-
+      {{ rhel_stig_cac_resolved.rules | default([]) }}
+    rhel_stig_cac_scan_profile: >-
+      {{
+        rhel_stig_cac_tailored_profile
+        if rhel_stig_cac_controls | length > 0
+        else rhel_stig_cac_xccdf_profile
+      }}
+
+- name: Refuse controls that do not resolve
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_resolved.unmatched | length == 0
+      - rhel_stig_cac_resolved.not_in_profile | length == 0
+    fail_msg: >-
+      Controls were requested that this host's STIG content cannot run.
+      Not in the SCAP data stream:
+      {{ rhel_stig_cac_resolved.unmatched | join(', ')
+      | default('none', true) }}.
+      Not selected by profile {{ rhel_stig_cac_xccdf_profile }}:
+      {{ rhel_stig_cac_resolved.not_in_profile | join(', ')
+      | default('none', true) }}.
+      No scan or remediation was run. Fix rhel_stig_cac_controls.
+    quiet: true
+  when: rhel_stig_cac_controls | length > 0
+
+- name: Show STIG controls pulled in as dependencies
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.key }} requires {{ item.value | join(', ') }}. The required
+      rule is included so OpenSCAP does not silently skip {{ item.key }}.
+  loop: "{{ rhel_stig_cac_resolved.dependencies | default({}) | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when: rhel_stig_cac_controls | length > 0

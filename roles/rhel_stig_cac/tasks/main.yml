@@ -7,6 +7,29 @@
       - distribution_major_version
       - os_family
 
+- name: Validate STIG CaC mode
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_mode in rhel_stig_cac_valid_modes
+    fail_msg: >-
+      rhel_stig_cac_mode must be one of
+      {{ rhel_stig_cac_valid_modes | join(', ') }}.
+      Got '{{ rhel_stig_cac_mode }}'.
+    quiet: true
+
+- name: Refuse the retired rhel_stig_cac_remediate switch
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (rhel_stig_cac_remediate | default(false) | bool)
+        or rhel_stig_cac_mode == 'remediate'
+    fail_msg: >-
+      rhel_stig_cac_remediate=true no longer starts a remediation. Set
+      rhel_stig_cac_mode=remediate, rhel_stig_cac_remediation_approved=true,
+      rhel_stig_cac_recovery_confirmed=true and list the controls in
+      rhel_stig_cac_controls. Nothing was scanned or changed.
+    quiet: true
+
 - name: Resolve STIG CaC target OS major version
   ansible.builtin.set_fact:
     rhel_stig_cac_effective_os_major: >-
@@ -15,7 +38,9 @@
           rhel_stig_cac_os_major | string | trim
           if (rhel_stig_cac_os_major | string | trim | length) > 0
           else (
-            rhel_stig_cac_profile_label_map[rhel_stig_cac_profile_label | default('', true)]
+            rhel_stig_cac_profile_label_map[
+              rhel_stig_cac_profile_label | default('', true)
+            ]
             | default(ansible_facts.distribution_major_version | string)
           )
         )
@@ -26,95 +51,39 @@
     that:
       - ansible_facts.os_family == 'RedHat'
       - rhel_stig_cac_effective_os_major in ['8', '9', '10']
+      - >-
+        ansible_facts.distribution_major_version | string
+        == rhel_stig_cac_effective_os_major
     fail_msg: >-
-      DISA STIG CaC supports RHEL 8, 9, and 10 only. Detected
+      DISA STIG CaC supports RHEL 8, 9, and 10 only, and the content must
+      match the host. Detected
       {{ ansible_facts.distribution | default('unknown') }}
-      {{ ansible_facts.distribution_major_version | default('unknown') }}.
+      {{ ansible_facts.distribution_major_version | default('unknown') }};
+      requested content for RHEL {{ rhel_stig_cac_effective_os_major }}.
     success_msg: >-
-      Applying DISA STIG CaC for RHEL {{ rhel_stig_cac_effective_os_major }}.
+      DISA STIG CaC mode '{{ rhel_stig_cac_mode }}' for
+      RHEL {{ rhel_stig_cac_effective_os_major }}.
+
+- name: Refuse check mode for scans and remediation
+  ansible.builtin.assert:
+    that:
+      - not ansible_check_mode or rhel_stig_cac_mode == 'prepare'
+    fail_msg: >-
+      Audit, remediate, and verify write OpenSCAP evidence and cannot run
+      in check mode. Use mode audit to inspect a host without changing it.
+    quiet: true
 
 - name: Resolve STIG CaC content paths
   ansible.builtin.set_fact:
-    rhel_stig_cac_datastream: "{{ rhel_stig_cac_datastream_map[rhel_stig_cac_effective_os_major] }}"
-    rhel_stig_cac_playbook_path: "{{ rhel_stig_cac_playbook_map[rhel_stig_cac_effective_os_major] }}"
+    rhel_stig_cac_datastream: >-
+      {{ rhel_stig_cac_datastream_map[rhel_stig_cac_effective_os_major] }}
+    rhel_stig_cac_playbook_path: >-
+      {{ rhel_stig_cac_playbook_map[rhel_stig_cac_effective_os_major] }}
 
-- name: Install STIG CaC packages
-  ansible.builtin.package:
-    name: "{{ rhel_stig_cac_packages }}"
-    state: present
+- name: Prepare host (install OpenSCAP and scap-security-guide)
+  ansible.builtin.include_tasks: prepare.yml
+  when: rhel_stig_cac_mode == 'prepare'
 
-- name: Confirm scap-security-guide datastream exists
-  ansible.builtin.stat:
-    path: "{{ rhel_stig_cac_datastream }}"
-  register: rhel_stig_cac_datastream_stat
-
-- name: Fail when STIG CaC datastream is missing
-  ansible.builtin.fail:
-    msg: >-
-      Expected datastream {{ rhel_stig_cac_datastream }} was not found after
-      installing scap-security-guide. Verify the package version on this host.
-  when: not rhel_stig_cac_datastream_stat.stat.exists
-
-- name: Ensure STIG CaC results directory exists
-  ansible.builtin.file:
-    path: "{{ rhel_stig_cac_results_dir }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0750"
-
-- name: Build OpenSCAP result paths
-  ansible.builtin.set_fact:
-    rhel_stig_cac_results_xml: >-
-      {{ rhel_stig_cac_results_dir }}/stig-{{ rhel_stig_cac_effective_os_major }}-results.xml
-    rhel_stig_cac_report_html: >-
-      {{ rhel_stig_cac_results_dir }}/stig-{{ rhel_stig_cac_effective_os_major }}-report.html
-
-- name: Run DISA STIG CaC evaluation (scan only)
-  ansible.builtin.command:
-    argv:
-      - oscap
-      - xccdf
-      - eval
-      - --profile
-      - "{{ rhel_stig_cac_xccdf_profile }}"
-      - --results
-      - "{{ rhel_stig_cac_results_xml }}"
-      - --report
-      - "{{ rhel_stig_cac_report_html }}"
-      - "{{ rhel_stig_cac_datastream }}"
-  register: rhel_stig_cac_scan
-  changed_when: false
-  failed_when: rhel_stig_cac_scan.rc not in [0, 2]
-  when: not (rhel_stig_cac_remediate | bool)
-
-- name: Run DISA STIG CaC remediation
-  ansible.builtin.command:
-    argv:
-      - oscap
-      - xccdf
-      - eval
-      - --profile
-      - "{{ rhel_stig_cac_xccdf_profile }}"
-      - --remediate
-      - --results
-      - "{{ rhel_stig_cac_results_xml }}"
-      - --report
-      - "{{ rhel_stig_cac_report_html }}"
-      - "{{ rhel_stig_cac_datastream }}"
-  register: rhel_stig_cac_remediate_run
-  changed_when: rhel_stig_cac_remediate_run.rc in [0, 2]
-  failed_when: rhel_stig_cac_remediate_run.rc not in [0, 2]
-  when: rhel_stig_cac_remediate | bool
-
-- name: Summarize STIG CaC run
-  ansible.builtin.debug:
-    msg:
-      - "STIG engine: DISA Compliance-as-Code (OpenSCAP)"
-      - "Target OS major: {{ rhel_stig_cac_effective_os_major }}"
-      - "Profile label: {{ rhel_stig_cac_profile_label | default('(from host facts)', true) }}"
-      - "XCCDF profile: {{ rhel_stig_cac_xccdf_profile }}"
-      - "Remediate: {{ rhel_stig_cac_remediate | bool }}"
-      - "Results: {{ rhel_stig_cac_results_xml }}"
-      - "Report: {{ rhel_stig_cac_report_html }}"
-      - "Alternate ansible playbook: {{ rhel_stig_cac_playbook_path }}"
+- name: Run STIG CaC workflow
+  ansible.builtin.include_tasks: "{{ rhel_stig_cac_mode }}.yml"
+  when: rhel_stig_cac_mode != 'prepare'

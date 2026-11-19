@@ -1,0 +1,30 @@
+---
+# yamllint disable rule:line-length
+- name: ADO | GitLab manage (user)
+  hosts: localhost
+  gather_facts: false
+  vars:
+    gitlab_manage_action: "{{ gitlab_manage_action | default('user_create') }}"
+    gitlab_manage_api_url: >-
+      {{
+        gitlab_manage_api_url
+        | default(gitlab_api_url, true)
+        | default(gitlab_url, true)
+        | default('')
+      }}
+    gitlab_manage_api_token: >-
+      {{
+        gitlab_manage_api_token
+        | default(gitlab_api_token, true)
+        | default(gitlab_token, true)
+        | default('')
+      }}
+    gitlab_manage_validate_certs: >-
+      {{
+        gitlab_manage_validate_certs
+        | default(gitlab_validate_certs, true)
+        | default(true)
+        | bool
+      }}
+  roles:
+    - role: gitlab_manage

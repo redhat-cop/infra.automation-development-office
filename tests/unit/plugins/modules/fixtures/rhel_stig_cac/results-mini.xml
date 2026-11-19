@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built OpenSCAP results in the shape written by oscap xccdf eval. -->
+<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.ssgproject.content_benchmark_RHEL-9">
+  <version>0.1.82</version>
+  <TestResult id="xccdf_org.open-scap_testresult_xccdf_org.ssgproject.content_profile_stig" start-time="2026-01-01T10:00:00+00:00" end-time="2026-01-01T10:05:00+00:00" version="0.1.82">
+    <profile idref="xccdf_org.ssgproject.content_profile_stig"/>
+    <target>host1.example.test</target>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_sshd_set_idle_timeout" severity="medium"><result>pass</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_sshd_set_keepalive" severity="medium"><result>fail</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_package_sudo_installed" severity="high"><result>fixed</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_accounts_password_pam_minlen" severity="medium"><result>error</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_service_auditd_enabled" severity="low"><result>notselected</result></rule-result>
+    <rule-result idref="xccdf_org.ssgproject.content_rule_audit_rules_login_events" severity="medium"><result>notapplicable</result></rule-result>
+    <score system="urn:xccdf:scoring:default" maximum="100.000000">66.5</score>
+  </TestResult>
+</Benchmark>

@@ -50,9 +50,9 @@ controller_templates:
           type: multiplechoice
           variable: stig_engine
           choices:
-            - system_role
             - cac
-          default: system_role
+            - system_role
+          default: cac
         - question_name: ADO | STIG profile
           question_description: STIG baseline to apply
           required: true
@@ -64,13 +64,57 @@ controller_templates:
             - RHEL 10 STIG
             - stig
           default: RHEL 9 STIG
-        - question_name: ADO | CaC remediate
+        - question_name: ADO | STIG mode
           question_description: >-
-            When STIG engine is cac, apply remediations (yes) or scan only (no)
+            audit scans only (default). prepare installs OpenSCAP. remediate
+            changes the host and needs approval below. verify re-audits the
+            listed controls.
           required: true
           type: multiplechoice
-          variable: rhel_stig_cac_remediate
+          variable: stig_mode
           choices:
-            - 'true'
+            - audit
+            - prepare
+            - remediate
+            - verify
+          default: audit
+        - question_name: ADO | STIG controls
+          question_description: >-
+            Optional for audit, required for remediate and verify. STIG IDs
+            (RHEL-09-255100), V-IDs (V-257996) or SSG rule names, separated by
+            commas or new lines.
+          required: false
+          type: textarea
+          variable: stig_controls
+          default: ''
+        - question_name: ADO | Approve remediation
+          question_description: >-
+            Must be true to change the host. Ignored by audit, prepare and
+            verify.
+          required: true
+          type: multiplechoice
+          variable: stig_remediation_approved
+          choices:
             - 'false'
-          default: 'true'
+            - 'true'
+          default: 'false'
+        - question_name: ADO | Snapshot or backup exists
+          question_description: >-
+            Confirm a snapshot or backup exists. SCAP remediation cannot be
+            undone by this job.
+          required: true
+          type: multiplechoice
+          variable: stig_recovery_confirmed
+          choices:
+            - 'false'
+            - 'true'
+          default: 'false'
+        - question_name: ADO | Allow protected controls
+          question_description: >-
+            Optional. Controls that may be remediated even though they touch
+            FIPS, SSH, SSSD/IdM, authentication, sudo or the firewall. Leave
+            empty unless you accept the lock-out risk.
+          required: false
+          type: textarea
+          variable: stig_allow_protected
+          default: ''

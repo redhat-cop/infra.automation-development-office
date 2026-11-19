@@ -37,6 +37,7 @@ Existing MariaDB installs are left on MariaDB unless you set
 | `zabbix_web_image` | Zabbix web UI container image. | ❌ | `zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0-latest` |
 | `zabbix_db_user` | Zabbix database user. | ❌ | `zabbix` |
 | `zabbix_db_name` | Zabbix database name. | ❌ | `zabbix` |
+| `zabbix_admin_password` | Zabbix `Admin` password. The install fails when empty; no built-in default. | ✅ | `""` |
 | `zabbix_db_root_password` | MariaDB root password (mysql path). | ❌ | set in defaults |
 | `zabbix_db_password` | Zabbix database user password. | ❌ | set in defaults |
 

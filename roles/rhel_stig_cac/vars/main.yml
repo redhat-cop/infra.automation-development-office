@@ -1,4 +1,10 @@
 ---
+rhel_stig_cac_valid_modes:
+  - audit
+  - prepare
+  - remediate
+  - verify
+
 rhel_stig_cac_profile_label_map:
   RHEL 8 STIG: "8"
   RHEL 9 STIG: "9"
@@ -13,3 +19,11 @@ rhel_stig_cac_playbook_map:
   "8": /usr/share/scap-security-guide/ansible/rhel8-playbook-stig.yml
   "9": /usr/share/scap-security-guide/ansible/rhel9-playbook-stig.yml
   "10": /usr/share/scap-security-guide/ansible/rhel10-playbook-stig.yml
+
+# Must match TAILORED_PROFILE in plugins/module_utils/rhel_stig_cac.py.
+rhel_stig_cac_tailored_profile: xccdf_org.ado_profile_stig_selected
+
+# Modes that must leave the host compliant for the selected controls.
+rhel_stig_cac_strict_modes:
+  - remediate
+  - verify

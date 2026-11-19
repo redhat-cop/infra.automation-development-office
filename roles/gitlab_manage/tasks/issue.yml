@@ -1,0 +1,121 @@
+---
+# yamllint disable rule:line-length
+# Use GitLab REST API via uri so Contoller EEs do not need python-gitlab.
+- name: GitLab manage | Assert issue fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_issue_title | default('') | length > 0
+    fail_msg: >-
+      issue_create/issue_update require gitlab_manage_project and
+      gitlab_manage_issue_title.
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Search opened issues by title
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues?state=opened&search={{ gitlab_manage_issue_title | urlencode }}&in=title&per_page=50
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_issue_search
+
+- name: GitLab manage | Select matching opened issue
+  ansible.builtin.set_fact:
+    gitlab_manage_issue_match: >-
+      {{
+        gitlab_manage_issue_search.json
+        | default([])
+        | selectattr('title', 'equalto', gitlab_manage_issue_title)
+        | list
+      }}
+
+- name: GitLab manage | Fail when multiple issues share the title
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_issue_match | length <= 1
+    fail_msg: >-
+      Multiple opened issues titled '{{ gitlab_manage_issue_title }}' in
+      {{ gitlab_manage_project }}; refine the title or close duplicates.
+
+- name: GitLab manage | Create issue
+  when: gitlab_manage_issue_match | length == 0
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      title: "{{ gitlab_manage_issue_title }}"
+      description: "{{ gitlab_manage_issue_description | default('') }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  register: gitlab_manage_issue_create
+
+- name: GitLab manage | Update existing issue
+  when: gitlab_manage_issue_match | length == 1
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues/{{ gitlab_manage_issue_match[0].iid }}
+    method: PUT
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body: >-
+      {{
+        {'title': gitlab_manage_issue_title}
+        | combine(
+          {'description': gitlab_manage_issue_description}
+          if (gitlab_manage_issue_description | default('') | length > 0)
+          else {}
+        )
+      }}
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_issue_update
+
+- name: GitLab manage | Show issue result
+  ansible.builtin.debug:
+    msg: >-
+      GitLab issue '{{ gitlab_manage_issue_title }}' in
+      {{ gitlab_manage_project }}
+      iid={{
+        (
+          gitlab_manage_issue_create.json.iid
+          if (gitlab_manage_issue_create is defined and gitlab_manage_issue_create is not skipped)
+          else (
+            gitlab_manage_issue_update.json.iid
+            if (gitlab_manage_issue_update is defined and gitlab_manage_issue_update is not skipped)
+            else (gitlab_manage_issue_match[0].iid | default('n/a'))
+          )
+        )
+      }}
+      action={{ gitlab_manage_action }}.
