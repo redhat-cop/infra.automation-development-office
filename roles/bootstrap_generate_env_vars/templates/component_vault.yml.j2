@@ -276,9 +276,10 @@ minio_root_password: {{ minio_root_cfg.root_password | default('', true) | to_js
 minio_oidc_client_secret: ""
 
 {% elif component_name == 'zabbix' %}
-zabbix_db_root_password: rootpass123!
-zabbix_db_password: zabbixpass123!
-zabbix_admin_password: zabbix
+{# Passwords come from preflight via overlay; never ship well-known defaults. #}
+zabbix_db_root_password: ""
+zabbix_db_password: ""
+zabbix_admin_password: ""
 
 {% elif component_name == 'quay' %}
 {% set quay_vault_cfg = bootstrap_generate_env_vars_preflight.component_config.quay | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}

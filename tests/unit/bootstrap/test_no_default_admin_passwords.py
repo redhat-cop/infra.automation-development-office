@@ -204,3 +204,122 @@ def test_survey_password_is_required_without_default(jt_name, variable, required
 def test_vault_template_emits_no_default_admin_password() -> None:
     text = VAULT_TEMPLATE.read_text(encoding="utf-8")
     assert LITERAL not in text
+    assert "zabbix_admin_password: zabbix" not in text
+    assert "rootpass123" not in text
+    assert "zabbixpass" not in text
+    assert "changeme-db" not in text
+    assert "change-me-db" not in text
+
+
+def test_zabbix_overlay_requires_non_default_passwords(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "zabbix",
+        {"hostname": "zabbix.example"},
+    )[0]
+    assert result.returncode != 0
+    assert "zabbix" in result.stderr.lower()
+    assert "no password was provided" in result.stderr
+
+
+def test_zabbix_overlay_rejects_upstream_default_admin_password(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "zabbix",
+        {
+            "hostname": "zabbix.example",
+            "admin_password": "zabbix",
+            "db_password": "Chosen-db-1",
+            "db_root_password": "Chosen-root-1",
+        },
+    )[0]
+    assert result.returncode != 0
+    assert "zabbix" in result.stderr.lower()
+
+
+def test_rhbk_overlay_requires_admin_and_db_password(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "rhbk",
+        {"hostname": "keycloak.example"},
+    )[0]
+    assert result.returncode != 0
+    assert "no password was provided" in result.stderr
+
+
+def test_rhbk_overlay_rejects_changeme_db(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "rhbk",
+        {
+            "hostname": "keycloak.example",
+            "admin_password": "Chosen-admin-1",
+            "db_password": "changeme-db",
+        },
+    )[0]
+    assert result.returncode != 0
+    assert "changeme-db" in result.stderr
+
+
+def test_aap_overlay_fails_without_admin_password(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "aap",
+        {"hostname": "aap.example", "namespace": "aap"},
+    )[0]
+    assert result.returncode != 0
+    assert "no password was provided" in result.stderr
+    assert "aap" in result.stderr.lower()
+
+
+def test_aap_overlay_preserves_existing_vault_password(tmp_path) -> None:
+    env_dir = tmp_path / "env"
+    env_dir.mkdir()
+    (env_dir / "vault_aap.yml").write_text(
+        "---\naap_admin_password: Existing-keep-me\n",
+        encoding="utf-8",
+    )
+    (env_dir / "vars_aap.yml").write_text("---\n", encoding="utf-8")
+    result, out_dir = run_overlay(
+        tmp_path,
+        "aap",
+        {"hostname": "aap.example", "namespace": "aap", "admin_password": ""},
+    )
+    assert result.returncode == 0, result.stderr
+    vault = yaml.safe_load((out_dir / "vault_aap.yml").read_text(encoding="utf-8"))
+    assert vault.get("aap_admin_password") == "Existing-keep-me"
+
+
+def test_dirsrv_overlay_fails_without_manager_password(tmp_path) -> None:
+    result = run_overlay(
+        tmp_path,
+        "389ds",
+        {"hostname": "dirsrv.example"},
+    )[0]
+    assert result.returncode != 0
+    assert "no password was provided" in result.stderr
+    assert "389ds" in result.stderr
+
+
+def test_dirsrv_overlay_preserves_existing_manager_password(tmp_path) -> None:
+    env_dir = tmp_path / "env"
+    env_dir.mkdir()
+    (env_dir / "vault_dirsrv.yml").write_text(
+        "---\ndirsrv:\n  ocp_dirsrv_manager_password: Existing-dm\n  repl_manager_password: ''\n",
+        encoding="utf-8",
+    )
+    (env_dir / "vars_dirsrv.yml").write_text("---\n", encoding="utf-8")
+    result, out_dir = run_overlay(
+        tmp_path,
+        "389ds",
+        {"hostname": "dirsrv.example", "ocp_dirsrv_manager_password": ""},
+    )
+    assert result.returncode == 0, result.stderr
+    vault = yaml.safe_load((out_dir / "vault_dirsrv.yml").read_text(encoding="utf-8"))
+    assert vault["dirsrv"]["ocp_dirsrv_manager_password"] == "Existing-dm"
+
+
+def test_registry_rhbk_db_password_blank() -> None:
+    components = yaml.safe_load(REGISTRY.read_text(encoding="utf-8"))["components_defaults"]
+    assert components["rhbk"]["rhbk_db_password"] == ""
+    assert "changeme" not in str(components["rhbk"].get("rhbk_db_password", "")).lower()

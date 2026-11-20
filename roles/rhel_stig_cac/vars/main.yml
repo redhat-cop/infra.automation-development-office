@@ -6,6 +6,7 @@ rhel_stig_cac_valid_modes:
   - verify
 
 rhel_stig_cac_profile_label_map:
+  Match host OS: ""
   RHEL 8 STIG: "8"
   RHEL 9 STIG: "9"
   RHEL 10 STIG: "10"

@@ -28,6 +28,7 @@
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
   register: gitlab_manage_user_lookup
+  no_log: true
 
 - name: GitLab manage | Select user match
   ansible.builtin.set_fact:
@@ -64,6 +65,24 @@
   register: gitlab_manage_user_create
   no_log: true
 
+- name: GitLab manage | Note when user already exists on create
+  when:
+    - gitlab_manage_action == 'user_create'
+    - gitlab_manage_user_match | length == 1
+  ansible.builtin.debug:
+    msg: >-
+      GitLab user '{{ gitlab_manage_user_username }}' already exists
+      (id={{ gitlab_manage_user_match[0].id }}); create skipped.
+
+- name: GitLab manage | Fail block/delete when username does not exist
+  when:
+    - gitlab_manage_action in ['user_blocked', 'user_absent']
+    - gitlab_manage_user_match | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      {{ gitlab_manage_action }} refused: GitLab user
+      '{{ gitlab_manage_user_username }}' was not found.
+
 - name: GitLab manage | Block user
   when:
     - gitlab_manage_action == 'user_blocked'
@@ -78,8 +97,10 @@
       PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
-    status_code: [201]
+    # 201 = newly blocked; 403 = already blocked (idempotent success).
+    status_code: [201, 403]
   register: gitlab_manage_user_block
+  no_log: true
 
 - name: GitLab manage | Delete user
   when:
@@ -97,6 +118,7 @@
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [204]
   register: gitlab_manage_user_delete
+  no_log: true
 
 - name: GitLab manage | Show user result
   ansible.builtin.debug:

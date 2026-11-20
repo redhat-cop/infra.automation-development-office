@@ -4,9 +4,16 @@
   ansible.builtin.assert:
     that:
       - (zabbix_admin_password | default('') | string | trim | length) > 0
+      - >-
+          (zabbix_admin_password | default('') | string)
+          != (zabbix_default_admin_password | default('zabbix') | string)
+      - (zabbix_db_password | default('') | string | trim | length) > 0
+      - (zabbix_db_root_password | default('') | string | trim | length) > 0
     fail_msg: >-
-      No Zabbix Admin password was provided. Set zabbix_admin_password in the
-      generated group_vars (vault_zabbix.yml). The role has no built-in default.
+      Zabbix requires non-default Admin and database passwords in
+      vault_zabbix.yml (zabbix_admin_password, zabbix_db_password,
+      zabbix_db_root_password). The upstream Admin default ``zabbix`` is
+      refused. There is no built-in fallback.
 
 - name: Resolve Zabbix hostname
   ansible.builtin.set_fact:

@@ -2,7 +2,9 @@
 # yamllint disable rule:line-length
 controller_templates:
   - name: ADO | GitLab Manage User
-    description: Create, remove, or block GitLab users via the GitLab API
+    description: >-
+      Create, remove, or block GitLab users via the GitLab API.
+      Connection settings come from group_vars/all.
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/gitlab/ado-gitlab-manage-user-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'
@@ -33,18 +35,6 @@ controller_templates:
             - user_absent
             - user_blocked
           default: user_create
-        - question_name: ADO | GitLab API URL
-          question_description: Base GitLab URL (no /api/v4 suffix)
-          required: true
-          type: text
-          variable: gitlab_manage_api_url
-          default: ""
-        - question_name: ADO | GitLab API token
-          question_description: Admin personal access token with api scope
-          required: true
-          type: password
-          variable: gitlab_manage_api_token
-          default: ""
         - question_name: ADO | Username
           question_description: GitLab username
           required: true
@@ -78,12 +68,3 @@ controller_templates:
             - "false"
             - "true"
           default: "false"
-        - question_name: ADO | Validate TLS
-          question_description: Verify GitLab TLS certificates
-          required: true
-          type: multiplechoice
-          variable: gitlab_manage_validate_certs
-          choices:
-            - "true"
-            - "false"
-          default: "true"

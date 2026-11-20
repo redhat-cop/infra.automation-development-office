@@ -289,6 +289,19 @@ def test_unknown_oscap_result_is_an_error_not_a_pass(catalog):
     assert findings[0]["status"] == "error"
 
 
+def test_notchecked_is_not_evaluated_not_skipped(catalog):
+    """OpenSCAP notchecked must stay distinct from skipped/pass."""
+    findings, _not_selected = stig.build_findings(
+        catalog,
+        [{"rule": "sshd_set_keepalive", "result": "notchecked", "severity": "medium"}],
+    )
+    assert findings[0]["status"] == "not_evaluated"
+    summary = stig.summarize(findings, 0)
+    assert summary["not_evaluated"] == 1
+    assert summary["skipped"] == 0
+    assert [item["rule"] for item in stig.failures(findings)] == ["sshd_set_keepalive"]
+
+
 # --- modules ---------------------------------------------------------------
 
 
@@ -331,6 +344,20 @@ def test_resolve_module_allow_list_clears_block(tmp_path, capsys):
         allow_protected=["sshd_set_idle_timeout", "sshd_set_keepalive"],
     )
     assert out["blocked_protected"] == []
+
+
+def test_resolve_module_unmatched_allow_protected_fails(capsys):
+    code, out = _run(
+        resolve_module,
+        capsys,
+        datastream=str(DS),
+        controls=["V-257996"],
+        protected_patterns=DEFAULT_PATTERNS,
+        allow_protected=["sshd_set_idle_timeout", "typo_allow_entry"],
+    )
+    assert code == 1
+    assert "typo_allow_entry" in out["msg"]
+    assert "allow_protected" in out["msg"]
 
 
 def test_resolve_module_without_controls_resolves_nothing(tmp_path, capsys):

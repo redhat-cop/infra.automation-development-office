@@ -30,11 +30,11 @@ Automation Development Office
 | `rhel_stig_cac_remediation_approved` | Must be `true` for `remediate`. Never implied. | No | `false` |
 | `rhel_stig_cac_recovery_confirmed` | Operator attests a snapshot or backup exists. Required for `remediate`. | No | `false` |
 | `rhel_stig_cac_controls` | STIG IDs (`RHEL-09-255100`), vulnerability IDs (`V-257996`), rule IDs (`SV-257996r1134915_rule`), or SSG rule names. Required for `remediate` and `verify`. Optional for `audit` (empty scans the whole profile). | No | `[]` |
-| `rhel_stig_cac_allow_protected` | Controls allowed to bypass the protected patterns. | No | `[]` |
+| `rhel_stig_cac_allow_protected` | Controls allowed to bypass the protected patterns. Every entry must resolve to a rule in the profile; unmatched allow-list entries fail the run (no silent ignore). | No | `[]` |
 | `rhel_stig_cac_protected_patterns` | Regular expressions matched against SSG rule names. Remediation refuses a match unless allowed. | No | FIPS, SSH, SSSD/IdM, authentication, sudo, firewall/network (see `defaults/main.yml`) |
-| `rhel_stig_cac_fail_on_findings` | Fail `audit` when a control is failed, errored, or not evaluated. `remediate` and `verify` always fail. | No | `false` |
+| `rhel_stig_cac_fail_on_findings` | Fail `audit` when a control is failed, errored, or not evaluated. Default `false`: audit completes and reports findings without failing the job. `remediate` and `verify` always fail on non-compliance. | No | `false` |
 | `rhel_stig_cac_scan_timeout` | Seconds to wait for one `oscap` run. | No | `3600` |
-| `rhel_stig_cac_profile_label` | Preflight/JT label such as `RHEL 9 STIG` used to pick content when OS major is not forced. | No | `""` |
+| `rhel_stig_cac_profile_label` | Preflight/JT label. `Match host OS` (default) uses the target host major version. `RHEL 8/9/10 STIG` forces that content and requires the host major to match. | No | `""` |
 | `rhel_stig_cac_os_major` | Force content major version (`8`, `9`, or `10`). Empty uses label map or host facts. | No | `""` |
 | `rhel_stig_cac_xccdf_profile` | XCCDF profile ID from scap-security-guide. | No | `xccdf_org.ssgproject.content_profile_stig` |
 | `rhel_stig_cac_packages` | RPM packages installed by mode `prepare`. | No | see `defaults/main.yml` |
@@ -44,7 +44,9 @@ Automation Development Office
 | `rhel_stig_cac_publish_stats` | Publish the per-host result as the AAP job artifact `ado_stig_cac`. | No | `true` |
 
 `rhel_stig_cac_remediate` is retired. Setting it to `true` fails the run with
-a message that names the new variables. Nothing is scanned or changed.
+a message that names the new variables (`rhel_stig_cac_mode=remediate` plus
+approvals and an explicit control list). Nothing is scanned or changed. Remove
+the old variable from generated `group_vars` so audit jobs can run.
 
 ## 🚀 Role Usage
 
@@ -89,7 +91,7 @@ Remediate two reviewed controls. Both approvals are required:
 
 | Mode | Changes the host | What it does |
 | ---- | ---------------- | ------------ |
-| `audit` | No (evidence files only) | Fails if OpenSCAP is missing. Scans the profile, or only `rhel_stig_cac_controls`. |
+| `audit` | No (evidence files only) | Fails if OpenSCAP is missing. Scans the profile, or only `rhel_stig_cac_controls`. Completes successfully when findings are non-compliant unless `rhel_stig_cac_fail_on_findings=true`. Job artifacts distinguish audit completed from host compliant. |
 | `prepare` | Installs packages | Installs `rhel_stig_cac_packages`. Does not scan. |
 | `remediate` | Yes | Gates, audit `before`, `oscap --remediate`, audit `after`. Fails if any selected control is still not compliant. |
 | `verify` | No (evidence files only) | Audits `rhel_stig_cac_controls`. Fails if any is not compliant. |

@@ -1,0 +1,24 @@
+---
+# yamllint disable rule:line-length
+controller_templates:
+  - name: ADO | GitLab Onboard Validate
+    description: >-
+      Validate a GitLab-originated user onboard request before AAP approval.
+      Connection settings come from group_vars/all.
+    organization: '{{ bootstrap_controller_organization }}'
+    playbook: playbooks/gitlab/ado-gitlab-onboard-validate-bootstrap.yml
+    inventory: '{{ bootstrap_controller_inventory_name }}'
+    project: '{{ bootstrap_controller_project_name }}'
+    execution_environment: '{{ bootstrap_controller_execution_environment_name }}'
+    credentials:
+      - '{{ bootstrap_controller_creds }}'
+    ask_variables_on_launch: false
+    related: null
+    labels:
+      - name: ADO | gitlab
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | day2
+        organization: '{{ bootstrap_controller_organization }}'
+    extra_vars:
+      gitlab_manage_action: onboard_validate
+    survey_enabled: false

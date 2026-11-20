@@ -11,7 +11,8 @@ ocp_rhbk_hostname: "{{ rhbk_hostname | default('keycloak.apps.example.com') }}"
 ocp_rhbk_admin_user: "{{ rhbk_admin_user | default('admin') }}"
 ocp_rhbk_admin_password: "{{ rhbk_admin_password | default('') }}"
 ocp_rhbk_db_user: "{{ rhbk_db_user | default('keycloak') }}"
-ocp_rhbk_db_password: "{{ rhbk_db_password | default('changeme-db') }}"
+ocp_rhbk_db_password: "{{ rhbk_db_password | default('') }}"
+
 postgres_secret_name: keycloak-db-secret
 cert_manager: false
 # Prefer OpenShift edge TLS (router terminates HTTPS; Keycloak speaks HTTP).

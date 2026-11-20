@@ -203,7 +203,21 @@ def main():
     }
     if params["controls"]:
         resolution = stig.resolve_controls(catalog, params["controls"])
-        allowed = set(stig.resolve_controls(catalog, params["allow_protected"])["rules"])
+        allow_resolution = stig.resolve_controls(catalog, params["allow_protected"])
+        unmatched_allow = list(allow_resolution["unmatched"]) + list(
+            allow_resolution["not_in_profile"]
+        )
+        if unmatched_allow:
+            module.fail_json(
+                msg=(
+                    "allow_protected entries did not resolve to rules in this "
+                    "STIG profile: %s. Fix the allow list; unmatched entries "
+                    "are refused so a typo cannot silently leave a control blocked."
+                    % ", ".join(unmatched_allow)
+                ),
+                unmatched_allow_protected=unmatched_allow,
+            )
+        allowed = set(allow_resolution["rules"])
         result.update(
             {
                 "rules": resolution["rules"],

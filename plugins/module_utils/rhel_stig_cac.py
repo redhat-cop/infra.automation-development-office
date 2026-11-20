@@ -44,7 +44,9 @@ STATUS_MAP = {
     "error": "error",
     "unknown": "error",
     "notapplicable": "not_applicable",
-    "notchecked": "skipped",
+    # OpenSCAP did not evaluate the rule (missing probe/platform). Keep this
+    # distinct from skipped so audit/verify do not treat it as a pass.
+    "notchecked": "not_evaluated",
     "informational": "skipped",
     "notselected": "not_selected",
 }

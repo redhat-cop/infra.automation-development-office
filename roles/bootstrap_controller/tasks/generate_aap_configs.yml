@@ -222,6 +222,11 @@
         - ado-gitlab-manage-branch-bootstrap.jt.yml
         - ado-gitlab-manage-user-bootstrap.jt.yml
         - ado-gitlab-manage-member-bootstrap.jt.yml
+        - ado-gitlab-onboard-validate-bootstrap.jt.yml
+        - ado-gitlab-onboard-comment-bootstrap.jt.yml
+        - ado-gitlab-onboard-verify-bootstrap.jt.yml
+        - ado-gitlab-onboard-finalize-bootstrap.jt.yml
+        - ado-gitlab-onboard-failed-bootstrap.jt.yml
 
       gitlab_standalone:
         - ado-install-gitlab-standalone-bootstrap.jt.yml
@@ -920,6 +925,19 @@
     | select('match', '^grafana')
     | list
     | length) > 0
+
+- name: AAP configs | Copy GitLab onboard workflow when GitLab selected
+  ansible.builtin.copy:
+    src: workflows/ado-gitlab-onboard-workflow-bootstrap.wf.yml
+    dest: >-
+      {{
+        playbook_dir
+      }}/configs/workflows/ado-gitlab-onboard-workflow-bootstrap.wf.yml
+    mode: "0644"
+    force: "{{ bootstrap_controller_jt_wf_force | bool }}"
+  when: >-
+    ('gitlab' in bootstrap_controller_effective_components)
+    or ('gitlab_standalone' in bootstrap_controller_effective_components)
 
 - name: AAP configs | Copy component auth workflows when selected
   ansible.builtin.copy:

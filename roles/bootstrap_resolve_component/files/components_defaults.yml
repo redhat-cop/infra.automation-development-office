@@ -983,9 +983,9 @@ components_defaults:
     postgres_statefulset_name: postgresql-db
     postgres_secret_name: keycloak-db-secret
 
-    # DB credentials (do NOT reuse admin creds)
+    # DB credentials (do NOT reuse admin creds). No default password.
     rhbk_db_user: keycloak
-    rhbk_db_password: changeme-db
+    rhbk_db_password: ""
 
     # Native RHBK user-event metrics for Grafana login panels
     # (keycloak_user_events_total). Needs RHBK 26.2+ (user-event-metrics).

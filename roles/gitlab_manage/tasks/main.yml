@@ -30,10 +30,11 @@
     that:
       - >-
         gitlab_manage_action in [
-          'issue_create', 'issue_update', 'issue_close',
+          'issue_create', 'issue_update', 'issue_close', 'issue_comment',
           'branch_create', 'branch_delete',
           'user_create', 'user_absent', 'user_blocked',
-          'member_present', 'member_absent'
+          'member_present', 'member_absent',
+          'onboard_validate', 'verify_member'
         ]
     fail_msg: >-
       Unsupported gitlab_manage_action '{{ gitlab_manage_action }}'.
@@ -46,13 +47,16 @@
           'issue_create': 'issue.yml',
           'issue_update': 'issue.yml',
           'issue_close': 'issue_close.yml',
+          'issue_comment': 'issue_comment.yml',
           'branch_create': 'branch.yml',
           'branch_delete': 'branch.yml',
           'user_create': 'user.yml',
           'user_absent': 'user.yml',
           'user_blocked': 'user.yml',
           'member_present': 'member.yml',
-          'member_absent': 'member.yml'
+          'member_absent': 'member.yml',
+          'onboard_validate': 'onboard_validate.yml',
+          'verify_member': 'verify_member.yml'
         }[gitlab_manage_action]
       }}
 

@@ -15,6 +15,15 @@
       bootstrap (preflight component_config.rhbk.admin_password) so it reaches
       rhbk_admin_password / vault_rhbk_admin_password. There is no default.
 
+- name: Guard — Keycloak database password must be set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (ocp_rhbk_db_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No Keycloak database password was provided. Set
+      component_config.rhbk.db_password (or rhbk_db_password) in preflight.
+      There is no default database password.
+
 # -----------------------
 # Secrets: DB + Admin
 # -----------------------

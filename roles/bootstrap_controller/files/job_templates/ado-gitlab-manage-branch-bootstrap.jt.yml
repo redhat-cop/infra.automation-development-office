@@ -2,7 +2,9 @@
 # yamllint disable rule:line-length
 controller_templates:
   - name: ADO | GitLab Manage Branch
-    description: Create or delete branches in a GitLab project via the GitLab API
+    description: >-
+      Create or delete branches in a GitLab project via the GitLab API.
+      Connection settings come from group_vars/all.
     organization: '{{ bootstrap_controller_organization }}'
     playbook: playbooks/gitlab/ado-gitlab-manage-branch-bootstrap.yml
     inventory: '{{ bootstrap_controller_inventory_name }}'
@@ -32,24 +34,6 @@ controller_templates:
             - branch_create
             - branch_delete
           default: branch_create
-        - question_name: ADO | GitLab API URL
-          question_description: Base GitLab URL (no /api/v4 suffix)
-          required: true
-          type: text
-          variable: gitlab_manage_api_url
-          default: ""
-        - question_name: ADO | GitLab API token
-          question_description: Personal or project access token with api/write_repository scope
-          required: true
-          type: password
-          variable: gitlab_manage_api_token
-          default: ""
-        - question_name: ADO | Project path
-          question_description: group/project path (example redhat-lab/gitlab)
-          required: true
-          type: text
-          variable: gitlab_manage_project
-          default: ""
         - question_name: ADO | Branch name
           question_description: Branch to create or delete
           required: true
@@ -62,12 +46,3 @@ controller_templates:
           type: text
           variable: gitlab_manage_ref_branch
           default: main
-        - question_name: ADO | Validate TLS
-          question_description: Verify GitLab TLS certificates
-          required: true
-          type: multiplechoice
-          variable: gitlab_manage_validate_certs
-          choices:
-            - "true"
-            - "false"
-          default: "true"

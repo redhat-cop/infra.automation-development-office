@@ -603,6 +603,7 @@ def test_standalone_rhel_rhbk_preserves_custom_clients_like_openshift(
             "rhbk": {
                 "standalone_hostname": "keycloak.server.lab",
                 "realm": "demo",
+                "admin_password": "rhbk-admin-pass",
                 "clients": [GRAFANA],
             }
         },

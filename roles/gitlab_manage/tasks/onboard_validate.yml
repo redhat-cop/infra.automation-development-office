@@ -1,0 +1,67 @@
+---
+# yamllint disable rule:line-length
+# Validate a GitLab-originated onboard request before AAP approval.
+- name: GitLab manage | Assert onboard request fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_issue_iid | default('') | string | length > 0
+      - gitlab_manage_user_username | default('') | length > 0
+      - gitlab_manage_user_name | default('') | length > 0
+      - gitlab_manage_user_email | default('') | length > 0
+      - gitlab_manage_user_password | default('') | length > 0
+      - >-
+          gitlab_manage_member_access_level | default('')
+          in ['guest', 'reporter', 'developer', 'maintainer', 'owner']
+    fail_msg: >-
+      Onboard validation failed. Required:
+      gitlab_manage_issue_iid, gitlab_manage_user_username,
+      gitlab_manage_user_name, gitlab_manage_user_email,
+      gitlab_manage_user_password, gitlab_manage_member_access_level,
+      and gitlab_manage_project.
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  no_log: true
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Confirm originating issue exists
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues/{{ gitlab_manage_issue_iid }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  no_log: true
+  register: gitlab_manage_onboard_issue
+
+- name: GitLab manage | Assert issue is open
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_onboard_issue.json.state == 'opened'
+    fail_msg: >-
+      Originating issue IID {{ gitlab_manage_issue_iid }} is
+      '{{ gitlab_manage_onboard_issue.json.state }}' (expected opened).
+
+- name: GitLab manage | Show onboard validation result
+  ansible.builtin.debug:
+    msg: >-
+      Onboard request validated for user
+      '{{ gitlab_manage_user_username }}' (role
+      {{ gitlab_manage_member_access_level }}) against open issue
+      IID {{ gitlab_manage_issue_iid }} in {{ gitlab_manage_project }}.

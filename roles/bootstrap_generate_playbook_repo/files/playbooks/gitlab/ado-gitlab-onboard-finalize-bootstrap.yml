@@ -1,0 +1,36 @@
+---
+# yamllint disable rule:line-length
+# Comment success evidence on the originating issue, then close it.
+- name: ADO | GitLab onboard finalize (comment)
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/vault_gitlab_manage.yml"
+  pre_tasks:
+    - name: Build success comment when not provided  # noqa: var-naming[no-role-prefix]
+      when: gitlab_manage_issue_comment is not defined or (gitlab_manage_issue_comment | length == 0)
+      ansible.builtin.set_fact:
+        gitlab_manage_issue_comment: |-
+          ✅ AAP onboard workflow completed successfully.
+
+          - User: `{{ gitlab_manage_user_username | default('') }}`
+          - Project: `{{ gitlab_manage_project | default('') }}`
+          - Role: `{{ gitlab_manage_member_access_level | default('') }}`
+          - Workflow job: `{{ tower_workflow_job_id | default(awx_workflow_job_id) | default('n/a') }}`
+          - Closing this issue.
+  vars:
+    gitlab_manage_action: issue_comment
+  roles:
+    - role: gitlab_manage
+
+- name: ADO | GitLab onboard finalize (close issue)
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/vault_gitlab_manage.yml"
+  vars:
+    gitlab_manage_action: issue_close
+  roles:
+    - role: gitlab_manage

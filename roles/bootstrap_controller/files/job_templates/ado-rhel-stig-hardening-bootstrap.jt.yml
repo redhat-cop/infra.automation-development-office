@@ -54,16 +54,20 @@ controller_templates:
             - system_role
           default: cac
         - question_name: ADO | STIG profile
-          question_description: STIG baseline to apply
+          question_description: >-
+            STIG baseline to apply. "Match host OS" selects RHEL 8/9/10
+            content from the target host major version. An explicit RHEL N
+            STIG choice requires the host major to match.
           required: true
           type: multiplechoice
           variable: stig_profile
           choices:
-            - RHEL 9 STIG
+            - Match host OS
             - RHEL 8 STIG
+            - RHEL 9 STIG
             - RHEL 10 STIG
             - stig
-          default: RHEL 9 STIG
+          default: Match host OS
         - question_name: ADO | STIG mode
           question_description: >-
             audit scans only (default). prepare installs OpenSCAP. remediate

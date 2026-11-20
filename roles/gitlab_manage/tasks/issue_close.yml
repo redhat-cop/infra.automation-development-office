@@ -23,6 +23,7 @@
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
+  no_log: true
   register: gitlab_manage_project_info
 
 - name: GitLab manage | Find opened issue by title
@@ -38,6 +39,7 @@
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
+  no_log: true
   register: gitlab_manage_issue_search
 
 - name: GitLab manage | Select matching issue IID
@@ -93,6 +95,7 @@
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
+  no_log: true
   register: gitlab_manage_issue_close_result
 
 - name: GitLab manage | Show close result

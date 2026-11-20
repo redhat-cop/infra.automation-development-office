@@ -1,0 +1,52 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert issue comment fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_issue_iid | default('') | string | length > 0
+      - gitlab_manage_issue_comment | default('') | length > 0
+    fail_msg: >-
+      issue_comment requires gitlab_manage_project, gitlab_manage_issue_iid,
+      and gitlab_manage_issue_comment.
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  no_log: true
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Post issue comment
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/issues/{{ gitlab_manage_issue_iid }}/notes
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      body: "{{ gitlab_manage_issue_comment }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  no_log: true
+  register: gitlab_manage_issue_comment_result
+
+- name: GitLab manage | Show comment result
+  ansible.builtin.debug:
+    msg: >-
+      Posted comment on {{ gitlab_manage_project }} issue IID
+      {{ gitlab_manage_issue_iid }}
+      (note_id={{ gitlab_manage_issue_comment_result.json.id | default('n/a') }}).

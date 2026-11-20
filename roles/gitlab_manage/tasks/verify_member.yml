@@ -1,0 +1,111 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert verify fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_member_username | default('') | length > 0
+      - >-
+          gitlab_manage_member_access_level | default('')
+          in ['guest', 'reporter', 'developer', 'maintainer', 'owner']
+    fail_msg: >-
+      verify_member requires gitlab_manage_project,
+      gitlab_manage_member_username, and a valid access_level.
+
+- name: GitLab manage | Map expected access level
+  ansible.builtin.set_fact:
+    gitlab_manage_access_level_id: >-
+      {{
+        {
+          'guest': 10,
+          'reporter': 20,
+          'developer': 30,
+          'maintainer': 40,
+          'owner': 50
+        }[gitlab_manage_member_access_level]
+      }}
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  no_log: true
+  register: gitlab_manage_project_info
+
+- name: GitLab manage | Lookup user by username
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/users?username={{
+        gitlab_manage_member_username | urlencode
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  no_log: true
+  register: gitlab_manage_verify_user_lookup
+
+- name: GitLab manage | Select user match
+  ansible.builtin.set_fact:
+    gitlab_manage_verify_user: >-
+      {{
+        gitlab_manage_verify_user_lookup.json
+        | default([])
+        | selectattr('username', 'equalto', gitlab_manage_member_username)
+        | list
+      }}
+
+- name: GitLab manage | Assert user exists
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_verify_user | length == 1
+    fail_msg: >-
+      Verification failed: GitLab user
+      '{{ gitlab_manage_member_username }}' was not found.
+
+- name: GitLab manage | Lookup project membership
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members/all/{{ gitlab_manage_verify_user[0].id }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200, 404]
+  no_log: true
+  register: gitlab_manage_verify_member_lookup
+
+- name: GitLab manage | Assert membership and role
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_verify_member_lookup.status == 200
+      - >-
+          (gitlab_manage_verify_member_lookup.json.access_level | int)
+          >= (gitlab_manage_access_level_id | int)
+    fail_msg: >-
+      Verification failed: user '{{ gitlab_manage_member_username }}'
+      is missing from {{ gitlab_manage_project }} or has access_level
+      {{ gitlab_manage_verify_member_lookup.json.access_level | default('n/a') }}
+      (expected >= {{ gitlab_manage_access_level_id }} /
+      {{ gitlab_manage_member_access_level }}).
+
+- name: GitLab manage | Show verify result
+  ansible.builtin.debug:
+    msg: >-
+      Verified '{{ gitlab_manage_member_username }}' on
+      {{ gitlab_manage_project }} with access_level
+      {{ gitlab_manage_verify_member_lookup.json.access_level }}
+      ({{ gitlab_manage_member_access_level }}).

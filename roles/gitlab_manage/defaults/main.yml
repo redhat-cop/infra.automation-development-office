@@ -10,20 +10,23 @@ gitlab_manage_ca_path: ""
 gitlab_manage_project: ""
 
 # Action selector used by the shared playbooks:
-# issue_create | issue_update | issue_close |
+# issue_create | issue_update | issue_close | issue_comment |
 # branch_create | branch_delete |
 # user_create | user_absent | user_blocked |
-# member_present | member_absent
+# member_present | member_absent |
+# onboard_validate | verify_member
 gitlab_manage_action: ""
 
 # Issue fields
 gitlab_manage_issue_title: ""
 gitlab_manage_issue_description: ""
+gitlab_manage_issue_comment: ""
 gitlab_manage_issue_labels: []
 gitlab_manage_issue_assignees: []
 gitlab_manage_issue_type: issue
 gitlab_manage_issue_iid: ""
 gitlab_manage_issue_state_filter: opened
+
 
 # Branch fields
 gitlab_manage_branch_name: ""

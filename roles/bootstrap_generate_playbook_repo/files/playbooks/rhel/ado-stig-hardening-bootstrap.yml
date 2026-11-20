@@ -20,15 +20,23 @@
         compliance_profile
         | default(components_env.rhel.compliance_profile | default('STIG'))
       }}
+    # Default "Match host OS" so mixed RHEL 8/9/10 inventories use host facts.
+    # Explicit "RHEL N STIG" still requires the host major to match.
     rhel_stig_profile_label: >-
       {{
         stig_profile
-        | default(components_env.rhel.stig_profile | default('RHEL 9 STIG'))
+        | default(components_env.rhel.stig_profile | default('Match host OS'))
       }}
     rhel_stig_profile_value: >-
       {{
-        rhel_stig_profile_map[rhel_stig_profile_label]
-        | default(rhel_stig_profile_label)
+        'stig'
+        if (rhel_stig_profile_label | string | trim | lower) in [
+          'match host os', 'stig', ''
+        ]
+        else (
+          rhel_stig_profile_map[rhel_stig_profile_label]
+          | default(rhel_stig_profile_label)
+        )
       }}
     # cac only reads the host in audit mode. system_role always applies changes,
     # so it is gated below.

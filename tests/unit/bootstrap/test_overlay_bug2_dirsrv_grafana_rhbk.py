@@ -87,7 +87,16 @@ def make_preflight():
                 "hostname": "grafana.apps.example.test",
                 "oidc": {"enabled": True, "client_id": "grafana-client"},
             },
-            "dirsrv": {"hostname": "dirsrv.apps.example.test", "replicas": 1},
+            "dirsrv": {
+                "hostname": "dirsrv.apps.example.test",
+                "replicas": 1,
+                "ocp_dirsrv_manager_password": "unit-test-dm-pass",
+            },
+            "389ds": {
+                "hostname": "dirsrv.apps.example.test",
+                "replicas": 1,
+                "ocp_dirsrv_manager_password": "unit-test-dm-pass",
+            },
         },
     }
 

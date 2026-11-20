@@ -23,13 +23,16 @@
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
   register: gitlab_manage_project_info
+  no_log: true
 
-- name: GitLab manage | Search opened issues by title
+# Search without state filter so exact-title matching can see opened and closed.
+# GitLab ``search`` is substring-based; we filter to an exact title match below.
+- name: GitLab manage | Search issues by title
   ansible.builtin.uri:
     url: >-
       {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
         gitlab_manage_project_info.json.id
-      }}/issues?state=opened&search={{ gitlab_manage_issue_title | urlencode }}&in=title&per_page=50
+      }}/issues?search={{ gitlab_manage_issue_title | urlencode }}&in=title&per_page=100
     method: GET
     headers:
       PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
@@ -37,8 +40,9 @@
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
   register: gitlab_manage_issue_search
+  no_log: true
 
-- name: GitLab manage | Select matching opened issue
+- name: GitLab manage | Select exact title matches
   ansible.builtin.set_fact:
     gitlab_manage_issue_match: >-
       {{
@@ -53,11 +57,55 @@
     that:
       - gitlab_manage_issue_match | length <= 1
     fail_msg: >-
-      Multiple opened issues titled '{{ gitlab_manage_issue_title }}' in
+      Multiple issues titled '{{ gitlab_manage_issue_title }}' in
       {{ gitlab_manage_project }}; refine the title or close duplicates.
 
+- name: GitLab manage | Fail issue_create when the title already exists
+  when:
+    - gitlab_manage_action == 'issue_create'
+    - gitlab_manage_issue_match | length == 1
+  ansible.builtin.fail:
+    msg: >-
+      issue_create refused: an issue titled '{{ gitlab_manage_issue_title }}'
+      already exists (iid={{ gitlab_manage_issue_match[0].iid }},
+      state={{ gitlab_manage_issue_match[0].state }}). Use issue_update to
+      change it, or pick a unique title.
+
+- name: GitLab manage | Fail issue_update when no exact title match exists
+  when:
+    - gitlab_manage_action == 'issue_update'
+    - gitlab_manage_issue_match | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      issue_update refused: no issue titled '{{ gitlab_manage_issue_title }}'
+      in {{ gitlab_manage_project }}. Use issue_create to open a new issue.
+
+- name: GitLab manage | Build issue payload
+  ansible.builtin.set_fact:
+    gitlab_manage_issue_payload: >-
+      {{
+        {'title': gitlab_manage_issue_title}
+        | combine(
+          {'description': gitlab_manage_issue_description}
+          if (gitlab_manage_issue_description | default('') | length > 0)
+          else {}
+        )
+        | combine(
+          {'labels': (gitlab_manage_issue_labels | join(','))}
+          if (gitlab_manage_issue_labels | default([]) | length > 0)
+          else {}
+        )
+        | combine(
+          {'assignee_ids': gitlab_manage_issue_assignees}
+          if (gitlab_manage_issue_assignees | default([]) | length > 0)
+          else {}
+        )
+      }}
+
 - name: GitLab manage | Create issue
-  when: gitlab_manage_issue_match | length == 0
+  when:
+    - gitlab_manage_action == 'issue_create'
+    - gitlab_manage_issue_match | length == 0
   ansible.builtin.uri:
     url: >-
       {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
@@ -68,16 +116,17 @@
       PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
       Content-Type: application/json
     body_format: json
-    body:
-      title: "{{ gitlab_manage_issue_title }}"
-      description: "{{ gitlab_manage_issue_description | default('') }}"
+    body: "{{ gitlab_manage_issue_payload }}"
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [201]
   register: gitlab_manage_issue_create
+  no_log: true
 
 - name: GitLab manage | Update existing issue
-  when: gitlab_manage_issue_match | length == 1
+  when:
+    - gitlab_manage_action == 'issue_update'
+    - gitlab_manage_issue_match | length == 1
   ansible.builtin.uri:
     url: >-
       {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
@@ -88,19 +137,12 @@
       PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
       Content-Type: application/json
     body_format: json
-    body: >-
-      {{
-        {'title': gitlab_manage_issue_title}
-        | combine(
-          {'description': gitlab_manage_issue_description}
-          if (gitlab_manage_issue_description | default('') | length > 0)
-          else {}
-        )
-      }}
+    body: "{{ gitlab_manage_issue_payload }}"
     validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
     ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
     status_code: [200]
   register: gitlab_manage_issue_update
+  no_log: true
 
 - name: GitLab manage | Show issue result
   ansible.builtin.debug:

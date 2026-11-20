@@ -45,3 +45,15 @@ breaking_changes:
   - >-
     rhel_stig_cac - Package installation moved to mode ``prepare``. Other modes
     fail with a clear message when OpenSCAP or the SCAP data stream is missing.
+bugfixes:
+  - >-
+    rhel_stig_cac - OpenSCAP ``notchecked`` is reported as ``not_evaluated``
+    (not ``skipped``) so audit summaries do not treat unevaluated controls as
+    skipped passes.
+  - >-
+    rhel_stig_cac_resolve - Unmatched ``allow_protected`` entries fail the run
+    instead of being silently ignored.
+  - >-
+    bootstrap_controller / bootstrap_generate_playbook_repo - STIG profile
+    survey default is ``Match host OS`` so RHEL 8/9/10 inventories select
+    content from the target host major version instead of always RHEL 9.

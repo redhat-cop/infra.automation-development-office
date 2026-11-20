@@ -41,7 +41,7 @@
             rhel_stig_cac_profile_label_map[
               rhel_stig_cac_profile_label | default('', true)
             ]
-            | default(ansible_facts.distribution_major_version | string)
+            | default(ansible_facts.distribution_major_version | string, true)
           )
         )
       }}
