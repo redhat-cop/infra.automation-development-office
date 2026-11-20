@@ -42,6 +42,7 @@ TEST_PASSWORD_FIELDS = {
     "quay": ("admin_password",),
     "minio": ("root_password",),
     "acs": ("admin_password",),
+    "aap": ("admin_password",),
 }
 
 
@@ -51,6 +52,10 @@ def with_test_passwords(preflight, selected=None):
     names = set(selected or []) | set(out.get("components") or [])
     for apps in (out.get("component_apps") or {}).values():
         names.update(apps or [])
+    # Install / license-attach paths generate aap vars and require admin_password.
+    pre = out.get("pre_installs") or {}
+    if pre.get("install_aap") or pre.get("attach_aap_license"):
+        names.add("aap")
     for name, fields in TEST_PASSWORD_FIELDS.items():
         if name not in names:
             continue
