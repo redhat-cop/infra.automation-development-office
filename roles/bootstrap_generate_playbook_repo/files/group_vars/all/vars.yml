@@ -1,0 +1,8 @@
+---
+# yamllint disable rule:line-length
+# Shared GitLab manage connection settings (Contoller project group_vars/all).
+# Secret token lives in vault_gitlab_manage.yml as vault_gitlab_manage_api_token.
+gitlab_manage_api_url: ""
+gitlab_manage_validate_certs: true
+gitlab_manage_project: ""
+gitlab_manage_api_token: "{{ vault_gitlab_manage_api_token | default('') }}"

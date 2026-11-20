@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -12,6 +13,31 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 OVERLAY = ROOT / "roles/bootstrap_generate_env_vars/files/overlay_preflight_component_values.py"
+
+
+TEST_PASSWORD_FIELDS = {
+    "grafana": ("admin_password", "standalone_admin_password"),
+    "gitlab": ("root_password", "standalone_root_password"),
+    "quay": ("admin_password",),
+    "minio": ("root_password",),
+    "acs": ("admin_password",),
+}
+
+
+def with_test_passwords(preflight, selected=None):
+    """Overlay refuses missing passwords (no default); give selected components a fake one."""
+    out = copy.deepcopy(preflight)
+    names = set(selected or []) | set(out.get("components") or [])
+    for apps in (out.get("component_apps") or {}).values():
+        names.update(apps or [])
+    for name, fields in TEST_PASSWORD_FIELDS.items():
+        if name not in names:
+            continue
+        section = out.setdefault("component_config", {}).setdefault(name, {})
+        for field in fields:
+            if not section.get(field):
+                section[field] = "unit-test-password"
+    return out
 
 
 def run_overlay(tmp_path: Path, replicas):
@@ -31,7 +57,7 @@ def run_overlay(tmp_path: Path, replicas):
         },
     }
     preflight_path = tmp_path / "preflight.json"
-    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    preflight_path.write_text(json.dumps(with_test_passwords(preflight)), encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(OVERLAY)],
         env={

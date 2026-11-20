@@ -19,6 +19,8 @@
       Missing/invalid vars. Ensure:
       - ocp_acs_namespace is a non-system namespace (e.g. stackrox)
       - ocp_acs_admin_password is set and single-line (plaintext)
+      There is no default password. Set it in the bootstrap (preflight
+      component_config.acs.admin_password) so it reaches acs_admin_password.
   tags: [acs, rhacs, central]
 
 # ------------------------------------------------------------

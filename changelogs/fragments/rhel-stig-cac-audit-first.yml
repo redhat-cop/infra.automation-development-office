@@ -1,0 +1,59 @@
+---
+major_changes:
+  - >-
+    rhel_stig_cac - Reworked into an audit-first workflow with modes ``audit``
+    (default), ``prepare``, ``remediate`` and ``verify``. Audit changes nothing
+    on the host except evidence files. Remediation needs
+    ``rhel_stig_cac_remediation_approved``, ``rhel_stig_cac_recovery_confirmed``
+    and an explicit ``rhel_stig_cac_controls`` list, refuses protected controls
+    (FIPS, SSH, SSSD/IdM, authentication, sudo, firewall) unless allowed, and
+    fails when a selected control is still not compliant.
+  - >-
+    rhel_stig_cac - Results are mapped to STIG IDs, vulnerability IDs, SV rule
+    IDs and SRG IDs, written as ``stig-<N>-<phase>-findings.json`` with the
+    OpenSCAP results XML and HTML report, and published as the AAP job artifact
+    ``ado_stig_cac``.
+minor_changes:
+  - >-
+    plugins - Added the ``rhel_stig_cac_resolve`` and ``rhel_stig_cac_report``
+    modules and the ``rhel_stig_cac`` module utility.
+  - >-
+    bootstrap_generate_playbook_repo - The RHEL STIG hardening playbook now
+    defaults ``stig_engine`` to ``cac`` and passes ``stig_mode``,
+    ``stig_controls``, ``stig_remediation_approved``,
+    ``stig_recovery_confirmed`` and ``stig_allow_protected`` to the role.
+  - >-
+    bootstrap_controller - The ``ADO | RHEL STIG Hardening`` survey asks for
+    mode, controls, approval, recovery confirmation and allowed protected
+    controls instead of ``rhel_stig_cac_remediate``. The RHEL workflow node
+    therefore audits by default.
+  - >-
+    bootstrap_generate_env_vars - Map preflight ``component_config.stig``
+    ``mode``, ``remediation_approved``, ``recovery_confirmed``, ``controls``
+    and ``allow_protected`` to ``vars_stig.yml``.
+breaking_changes:
+  - >-
+    rhel_stig_cac - ``rhel_stig_cac_remediate`` is retired. ``true`` fails the
+    run with a message and changes nothing; use ``rhel_stig_cac_mode``. The
+    preflight ``remediate`` key and the old survey question are no longer
+    mapped, so existing exports run as audit until remediation is approved.
+  - >-
+    bootstrap_generate_playbook_repo - ``stig_engine=system_role`` now requires
+    ``stig_remediation_approved`` and ``stig_recovery_confirmed`` because that
+    engine always changes the host. The default engine moved from
+    ``system_role`` to ``cac``.
+  - >-
+    rhel_stig_cac - Package installation moved to mode ``prepare``. Other modes
+    fail with a clear message when OpenSCAP or the SCAP data stream is missing.
+bugfixes:
+  - >-
+    rhel_stig_cac - OpenSCAP ``notchecked`` is reported as ``not_evaluated``
+    (not ``skipped``) so audit summaries do not treat unevaluated controls as
+    skipped passes.
+  - >-
+    rhel_stig_cac_resolve - Unmatched ``allow_protected`` entries fail the run
+    instead of being silently ignored.
+  - >-
+    bootstrap_controller / bootstrap_generate_playbook_repo - STIG profile
+    survey default is ``Match host OS`` so RHEL 8/9/10 inventories select
+    content from the target host major version instead of always RHEL 9.

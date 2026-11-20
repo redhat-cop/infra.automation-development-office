@@ -30,7 +30,7 @@ See `defaults/main.yml`. Common overrides:
 | `name_space` | Target namespace |
 | `storage` / `storage_class` | PVC StorageClass |
 | `minio_storage_size` | PVC size (default `20Gi`) |
-| `minio_root_user` / `minio_root_password` | S3 root credentials (Secret `minio-creds`) |
+| `minio_root_user` / `minio_root_password` | S3 root credentials (Secret `minio-creds`). `minio_root_password` is **required — no default**; set it in the bootstrap. |
 | `minio_console_hostname` / `minio_api_hostname` | Route hosts |
 | `minio_container_name` | Container name to patch for OIDC (default `minio`) |
 | `minio_oidc_config_url` | Full OpenID discovery URL. Empty means derive from issuer or Keycloak host/realm |

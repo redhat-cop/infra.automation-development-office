@@ -7,6 +7,7 @@ row, is not an OIDC consumer, and gets no OIDC vars.
 from __future__ import annotations
 
 import importlib.util
+import copy
 import json
 import os
 import subprocess
@@ -30,6 +31,31 @@ GRAFANA_CLIENT = {
     "redirect_uris": "https://grafana.apps.example.test/*",
     "web_origins": "https://grafana.apps.example.test",
 }
+
+
+TEST_PASSWORD_FIELDS = {
+    "grafana": ("admin_password", "standalone_admin_password"),
+    "gitlab": ("root_password", "standalone_root_password"),
+    "quay": ("admin_password",),
+    "minio": ("root_password",),
+    "acs": ("admin_password",),
+}
+
+
+def with_test_passwords(preflight, selected=None):
+    """Overlay refuses missing passwords (no default); give selected components a fake one."""
+    out = copy.deepcopy(preflight)
+    names = set(selected or []) | set(out.get("components") or [])
+    for apps in (out.get("component_apps") or {}).values():
+        names.update(apps or [])
+    for name, fields in TEST_PASSWORD_FIELDS.items():
+        if name not in names:
+            continue
+        section = out.setdefault("component_config", {}).setdefault(name, {})
+        for field in fields:
+            if not section.get(field):
+                section[field] = "unit-test-password"
+    return out
 
 
 def _oidc():
@@ -61,7 +87,16 @@ def make_preflight():
                 "hostname": "grafana.apps.example.test",
                 "oidc": {"enabled": True, "client_id": "grafana-client"},
             },
-            "dirsrv": {"hostname": "dirsrv.apps.example.test", "replicas": 1},
+            "dirsrv": {
+                "hostname": "dirsrv.apps.example.test",
+                "replicas": 1,
+                "ocp_dirsrv_manager_password": "unit-test-dm-pass",
+            },
+            "389ds": {
+                "hostname": "dirsrv.apps.example.test",
+                "replicas": 1,
+                "ocp_dirsrv_manager_password": "unit-test-dm-pass",
+            },
         },
     }
 
@@ -70,7 +105,7 @@ def run_overlay(tmp_path, preflight, selected):
     env_dir = tmp_path / "env"
     env_dir.mkdir()
     preflight_path = tmp_path / "preflight.json"
-    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    preflight_path.write_text(json.dumps(with_test_passwords(preflight, selected)), encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(OVERLAY)],
         env={

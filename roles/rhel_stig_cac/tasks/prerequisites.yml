@@ -1,0 +1,45 @@
+---
+# Audit, remediate, and verify never install software.
+- name: Check OpenSCAP scanner is installed
+  ansible.builtin.stat:
+    path: "{{ rhel_stig_cac_oscap_path }}"
+  register: rhel_stig_cac_oscap_stat
+
+- name: Check scap-security-guide datastream exists
+  ansible.builtin.stat:
+    path: "{{ rhel_stig_cac_datastream }}"
+  register: rhel_stig_cac_datastream_stat
+
+- name: List missing STIG CaC prerequisites
+  ansible.builtin.set_fact:
+    rhel_stig_cac_missing: >-
+      {{
+        (
+          []
+          if rhel_stig_cac_oscap_stat.stat.exists
+          else [rhel_stig_cac_oscap_path ~ ' (openscap-scanner)']
+        ) + (
+          []
+          if rhel_stig_cac_datastream_stat.stat.exists
+          else [rhel_stig_cac_datastream ~ ' (scap-security-guide)']
+        )
+      }}
+
+- name: Fail when STIG CaC prerequisites are missing
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_missing | length == 0
+    fail_msg: >-
+      Missing on {{ inventory_hostname }}:
+      {{ rhel_stig_cac_missing | join(', ') }}.
+      Nothing was changed. Run this role with rhel_stig_cac_mode=prepare
+      (or install the packages) and run again.
+    quiet: true
+
+- name: Ensure STIG CaC results directory exists
+  ansible.builtin.file:
+    path: "{{ rhel_stig_cac_results_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"

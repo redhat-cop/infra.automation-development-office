@@ -16,4 +16,4 @@ install_elastic_eck_es_hostname: ""
 # Lab UI user created after ES Ready (security API)
 install_elastic_eck_create_lab_user: true
 install_elastic_eck_lab_user: kibana
-install_elastic_eck_lab_password: redhat123
+install_elastic_eck_lab_password: ""

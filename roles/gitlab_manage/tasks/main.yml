@@ -1,0 +1,64 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert connection settings
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_api_url | default('') | length > 0
+      - gitlab_manage_api_token | default('') | length > 0
+      - gitlab_manage_action | default('') | length > 0
+    fail_msg: >-
+      gitlab_manage requires gitlab_manage_api_url, gitlab_manage_api_token,
+      and gitlab_manage_action.
+
+- name: GitLab manage | Normalize API URL
+  ansible.builtin.set_fact:
+    gitlab_manage_api_url_clean: >-
+      {{
+        gitlab_manage_api_url
+        | regex_replace('/+$', '')
+        | regex_replace('/api/v4$', '')
+      }}
+
+# Ansible urlencode leaves "/" intact; GitLab project paths need %2F.
+- name: GitLab manage | Encode project path for API URLs
+  when: gitlab_manage_project | default('') | length > 0
+  ansible.builtin.set_fact:
+    gitlab_manage_project_api: "{{ gitlab_manage_project | regex_replace('/', '%2F') }}"
+
+- name: GitLab manage | Assert action is supported
+  ansible.builtin.assert:
+    that:
+      - >-
+        gitlab_manage_action in [
+          'issue_create', 'issue_update', 'issue_close', 'issue_comment',
+          'branch_create', 'branch_delete',
+          'user_create', 'user_absent', 'user_blocked',
+          'member_present', 'member_absent',
+          'onboard_validate', 'verify_member'
+        ]
+    fail_msg: >-
+      Unsupported gitlab_manage_action '{{ gitlab_manage_action }}'.
+
+- name: GitLab manage | Map action to task file
+  ansible.builtin.set_fact:
+    gitlab_manage_action_file: >-
+      {{
+        {
+          'issue_create': 'issue.yml',
+          'issue_update': 'issue.yml',
+          'issue_close': 'issue_close.yml',
+          'issue_comment': 'issue_comment.yml',
+          'branch_create': 'branch.yml',
+          'branch_delete': 'branch.yml',
+          'user_create': 'user.yml',
+          'user_absent': 'user.yml',
+          'user_blocked': 'user.yml',
+          'member_present': 'member.yml',
+          'member_absent': 'member.yml',
+          'onboard_validate': 'onboard_validate.yml',
+          'verify_member': 'verify_member.yml'
+        }[gitlab_manage_action]
+      }}
+
+- name: GitLab manage | Dispatch action
+  ansible.builtin.include_tasks: "{{ gitlab_manage_action_file }}"

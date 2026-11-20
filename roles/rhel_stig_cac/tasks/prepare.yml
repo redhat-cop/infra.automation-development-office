@@ -1,0 +1,25 @@
+---
+# The only mode that installs software.
+- name: Install STIG CaC packages
+  ansible.builtin.package:
+    name: "{{ rhel_stig_cac_packages }}"
+    state: present
+
+- name: Confirm scap-security-guide datastream exists
+  ansible.builtin.stat:
+    path: "{{ rhel_stig_cac_datastream }}"
+  register: rhel_stig_cac_datastream_stat
+
+- name: Fail when STIG CaC datastream is missing
+  ansible.builtin.fail:
+    msg: >-
+      Expected datastream {{ rhel_stig_cac_datastream }} was not found after
+      installing scap-security-guide. Verify the package version on this host.
+  when: not rhel_stig_cac_datastream_stat.stat.exists
+
+- name: Summarize STIG CaC prepare
+  ansible.builtin.debug:
+    msg:
+      - "Prepared RHEL {{ rhel_stig_cac_effective_os_major }} for STIG CaC."
+      - "Datastream: {{ rhel_stig_cac_datastream }}"
+      - "Next: run mode audit."

@@ -1,0 +1,14 @@
+---
+# yamllint disable rule:line-length
+# Shared GitLab connection settings come from group_vars/all/vars.yml + vault.
+- name: ADO | GitLab onboard verify
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/vault_gitlab_manage.yml"
+  vars:
+    gitlab_manage_action: "{{ gitlab_manage_action | default('verify_member') }}"
+    gitlab_manage_member_username: "{{ gitlab_manage_member_username | default(gitlab_manage_user_username) }}"
+  roles:
+    - role: gitlab_manage

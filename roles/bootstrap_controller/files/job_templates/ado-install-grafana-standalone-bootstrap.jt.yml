@@ -62,7 +62,7 @@ controller_templates:
           required: true
           type: password
           variable: grafana_admin_password
-          default: redhat123
+          default: ""
         - question_name: ADO | Path to Grafana RPM on Contoller/runner
           question_description: >-
             Disconnected by default. Absolute path to a staged grafana RPM on

@@ -1,4 +1,14 @@
 ---
+- name: Guard — Quay admin password must be set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (ocp_quay_admin_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No Quay admin password was provided. Set it in the bootstrap (preflight
+      component_config.quay.admin_password) so it reaches
+      quay_admin_password / vault_ocp_quay_admin_password. There is no default.
+  when: (state | default('present')) == 'present'
+
 - name: Resolve Quay storage class when unset
   when: (storage | default('') | string | trim | length) == 0
   block:

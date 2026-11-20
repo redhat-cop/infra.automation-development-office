@@ -4,7 +4,7 @@
 # defaults file for grafana_install (OpenShift operator path)
 
 grafana_install_admin_user: "{{ grafana_admin_user | default('admin') }}"
-grafana_install_admin_password: "{{ grafana_admin_password | default('redhat123') }}"
+grafana_install_admin_password: "{{ grafana_admin_password | default('') }}"
 grafana_install_validate_certs: false
 
 # Prefer these; public aliases grafana_database_* / grafana_postgres_* also work.

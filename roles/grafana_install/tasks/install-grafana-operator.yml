@@ -61,6 +61,15 @@
     fail_msg: >-
       grafana_install_hostname / grafana_hostname must be set (components_defaults grafana_hostname).
 
+- name: Assert Grafana admin password is set (no built-in default)
+  ansible.builtin.assert:
+    that:
+      - (grafana_install_admin_password | default('') | string | trim | length) > 0
+    fail_msg: >-
+      No Grafana admin password was provided. Set it in the bootstrap (preflight
+      component_config.grafana.admin_password) so it reaches
+      grafana_admin_password / grafana_install_admin_password. There is no default.
+
 - name: Build base Grafana config
   ansible.builtin.set_fact:
     grafana_install_config_base:

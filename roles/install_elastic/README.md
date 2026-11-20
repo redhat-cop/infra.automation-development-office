@@ -17,6 +17,7 @@ Automation Development Office
 | Variable | Description |
 |----------|-------------|
 | `install_elastic_state` | Desired state used by role tasks when supported. |
+| `install_elastic_eck_lab_password` | Password for the optional ECK lab Kibana/ES superuser. No default: when empty the lab user is not created (the `elastic` user Secret is unaffected). |
 
 ## 🚀 Role Usage
 

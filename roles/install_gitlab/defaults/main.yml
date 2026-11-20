@@ -9,7 +9,7 @@ state: present  # noqa: var-naming[no-role-prefix]
 install_gitlab_hostname: "{{ gitlab_hostname | default('') }}"
 install_gitlab_http_port: 80
 install_gitlab_https_port: 443
-install_gitlab_root_password: "{{ gitlab_root_password | default('redhat123') }}"
+install_gitlab_root_password: "{{ gitlab_root_password | default('') }}"
 
 # Edition: ce (default) or ee.
 install_gitlab_edition: "{{ gitlab_edition | default('ce') }}"

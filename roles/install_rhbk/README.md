@@ -22,7 +22,7 @@ Automation Development Office
 | `name_space` | OpenShift namespace (default `keycloak`) |
 | `ocp_rhbk_hostname` | Route hostname for Keycloak |
 | `rhbk_hostname` | Standalone hostname (`KC_HOSTNAME`) |
-| `rhbk_admin_password` / `rhbk_db_password` | Admin and Postgres passwords |
+| `rhbk_admin_password` / `rhbk_db_password` | Admin and Postgres passwords. Both are **required — no default** (including no `changeme-db`). Set them in the bootstrap / preflight. |
 | `event_metrics_user_enabled` / `install_rhbk_event_metrics_user_enabled` | Enable native RHBK user-event metrics (`keycloak_user_events_total`) for Grafana login panels. Default `false` — requires RHBK **26.2+** (`user-event-metrics` feature). Enabling on `stable-v26.0` crash-loops. |
 | `install_rhbk_user_event_metrics_feature` | Set CR `features.enabled: [user-event-metrics]` when event metrics are on (default follows event-metrics flag). |
 | `install_rhbk_event_metrics_user_events` | Comma-separated events (default `login,logout,register,refresh_token,code_to_token`) |

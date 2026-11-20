@@ -1,0 +1,3 @@
+---
+# Encrypt with: ansible-vault encrypt group_vars/all/vault_gitlab_manage.yml
+vault_gitlab_manage_api_token: "REPLACE_WITH_GITLAB_PAT"

@@ -53,6 +53,9 @@
     fail_msg: >-
       install_gitlab needs hostname, root password, and a resolvable
       external_url (set install_gitlab_external_url or hostname + optional TLS).
+      There is no default root password. Set it in the bootstrap (preflight
+      component_config.gitlab.standalone_root_password) so it reaches
+      gitlab_root_password / install_gitlab_root_password.
 
 - name: GitLab | Register with RHN when optional org/activation key set
   community.general.redhat_subscription:

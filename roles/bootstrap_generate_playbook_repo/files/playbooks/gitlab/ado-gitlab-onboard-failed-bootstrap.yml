@@ -1,0 +1,27 @@
+---
+# yamllint disable rule:line-length
+# Update originating issue after approval denial or verification failure.
+# Intentionally does NOT close the issue.
+- name: ADO | GitLab onboard failed (comment)
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - "{{ playbook_dir }}/../../group_vars/all/vars.yml"
+    - "{{ playbook_dir }}/../../group_vars/all/vault_gitlab_manage.yml"
+  pre_tasks:
+    - name: Build failure comment when not provided  # noqa: var-naming[no-role-prefix]
+      when: gitlab_manage_issue_comment is not defined or (gitlab_manage_issue_comment | length == 0)
+      ansible.builtin.set_fact:
+        gitlab_manage_issue_comment: |-
+          ⚠️ AAP onboard workflow did not complete successfully.
+
+          - Status: `{{ gitlab_onboard_status | default('failed') }}`
+          - User: `{{ gitlab_manage_user_username | default('') }}`
+          - Details: {{ gitlab_onboard_failure_detail | default('See AAP workflow job output.') }}
+          - Workflow job: `{{ tower_workflow_job_id | default(awx_workflow_job_id) | default('n/a') }}`
+
+          This issue remains **open** for follow-up.
+  vars:
+    gitlab_manage_action: issue_comment
+  roles:
+    - role: gitlab_manage

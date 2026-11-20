@@ -420,6 +420,22 @@
     - (install_elastic_eck_elastic_secret.resources | default([]) | length) > 0
   no_log: true
 
+- name: ECK  Resolve lab Kibana/ES user password (no built-in default)
+  ansible.builtin.set_fact:
+    install_elastic_eck_lab_password_effective: >-
+      {{ install_elastic_eck_lab_password | default(eck_lab_password | default('', true), true) }}
+  no_log: true
+
+- name: ECK  Skip lab Kibana/ES user when no password was provided
+  ansible.builtin.debug:
+    msg: >-
+      Lab Kibana/ES superuser not created: no password was provided and there is no
+      built-in default. Set install_elastic_eck_lab_password (or eck_lab_password)
+      in the bootstrap to create it, or use the elastic user secret.
+  when:
+    - install_elastic_eck_create_lab_user | default(true) | bool
+    - (install_elastic_eck_lab_password_effective | string | trim | length) == 0
+
 - name: ECK  Create lab Kibana/ES user via route security API
   ansible.builtin.uri:
     url: >-
@@ -432,12 +448,13 @@
     status_code: [200, 201]
     body_format: json
     body:
-      password: "{{ install_elastic_eck_lab_password | default(eck_lab_password | default('redhat123')) }}"
+      password: "{{ install_elastic_eck_lab_password_effective }}"
       roles:
         - superuser
       full_name: ADO lab Kibana user
   when:
     - install_elastic_eck_create_lab_user | default(true) | bool
+    - (install_elastic_eck_lab_password_effective | string | trim | length) > 0
     - install_elastic_eck_elastic_password is defined
     - (install_elastic_eck_es_hostname | default('') | string | trim | length) > 0
   failed_when: false

@@ -6,6 +6,7 @@ env dir and checks what lands in generated ``vars_rhbk.yml``.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -33,6 +34,31 @@ GITLAB = {
     "redirect_uris": "https://gitlab.apps.example.test/cb",
     "web_origins": "https://gitlab.apps.example.test",
 }
+
+
+TEST_PASSWORD_FIELDS = {
+    "grafana": ("admin_password", "standalone_admin_password"),
+    "gitlab": ("root_password", "standalone_root_password"),
+    "quay": ("admin_password",),
+    "minio": ("root_password",),
+    "acs": ("admin_password",),
+}
+
+
+def with_test_passwords(preflight, selected=None):
+    """Overlay refuses missing passwords (no default); give selected components a fake one."""
+    out = copy.deepcopy(preflight)
+    names = set(selected or []) | set(out.get("components") or [])
+    for apps in (out.get("component_apps") or {}).values():
+        names.update(apps or [])
+    for name, fields in TEST_PASSWORD_FIELDS.items():
+        if name not in names:
+            continue
+        section = out.setdefault("component_config", {}).setdefault(name, {})
+        for field in fields:
+            if not section.get(field):
+                section[field] = "unit-test-password"
+    return out
 
 
 def _generate(tmp_path: Path, rhbk_config: dict) -> dict:
@@ -103,7 +129,7 @@ def _overlay(
         "component_config": config,
     }
     preflight_path = tmp_path / "preflight.json"
-    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    preflight_path.write_text(json.dumps(with_test_passwords(preflight, selected)), encoding="utf-8")
     env = {
         **os.environ,
         "ADO_PREFLIGHT_JSON": str(preflight_path),
@@ -504,7 +530,7 @@ def test_custom_client_survives_when_grafana_component_deselected(
         },
     }
     preflight_path = tmp_path / "preflight-deselect.json"
-    preflight_path.write_text(json.dumps(preflight), encoding="utf-8")
+    preflight_path.write_text(json.dumps(with_test_passwords(preflight)), encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         env={
@@ -577,6 +603,7 @@ def test_standalone_rhel_rhbk_preserves_custom_clients_like_openshift(
             "rhbk": {
                 "standalone_hostname": "keycloak.server.lab",
                 "realm": "demo",
+                "admin_password": "rhbk-admin-pass",
                 "clients": [GRAFANA],
             }
         },

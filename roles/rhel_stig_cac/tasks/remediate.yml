@@ -1,0 +1,57 @@
+---
+# Changes the host. Nothing below runs until every gate passes.
+- name: Require approval, recovery confirmation, and controls
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_remediation_approved | bool
+      - rhel_stig_cac_recovery_confirmed | bool
+      - rhel_stig_cac_controls | length > 0
+    fail_msg: >-
+      Remediation was not started and nothing was changed. It needs all of:
+      rhel_stig_cac_remediation_approved=true,
+      rhel_stig_cac_recovery_confirmed=true (a snapshot or backup exists;
+      this role cannot undo SCAP remediation), and a non-empty
+      rhel_stig_cac_controls list. Run mode audit first to choose controls.
+    quiet: true
+
+- name: Check STIG CaC prerequisites
+  ansible.builtin.include_tasks: prerequisites.yml
+
+- name: Resolve STIG CaC controls
+  ansible.builtin.include_tasks: resolve.yml
+
+- name: Refuse protected controls
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_resolved.blocked_protected | length == 0
+    fail_msg: >-
+      Protected controls selected (FIPS, SSH, SSSD/IdM, authentication,
+      privilege, or network):
+      {{ rhel_stig_cac_resolved.blocked_protected | join(', ') }}.
+      They can lock you out of the host. No scan or remediation was run.
+      Remove them, or list them in rhel_stig_cac_allow_protected if you
+      accept the risk.
+    quiet: true
+
+- name: Audit selected controls before remediation
+  ansible.builtin.include_tasks: scan.yml
+  vars:
+    rhel_stig_cac_phase: before
+    rhel_stig_cac_phase_remediate: false
+
+- name: Remediate selected controls
+  ansible.builtin.include_tasks: scan.yml
+  vars:
+    rhel_stig_cac_phase: remediate
+    rhel_stig_cac_phase_remediate: true
+
+- name: Audit selected controls after remediation
+  ansible.builtin.include_tasks: scan.yml
+  vars:
+    rhel_stig_cac_phase: after
+    rhel_stig_cac_phase_remediate: false
+
+- name: Finish STIG CaC run
+  ansible.builtin.include_tasks: finish.yml
+  vars:
+    rhel_stig_cac_final_phase: after

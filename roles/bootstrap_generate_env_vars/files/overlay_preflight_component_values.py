@@ -285,6 +285,19 @@ def first_present(*values):
     return None
 
 
+def fail_missing_password(component, preflight_field):
+    """Stop generation when a required password was not supplied.
+
+    There is deliberately no fallback password: the user must set one in the
+    bootstrap (preflight form/JSON) so no well-known credential is ever generated.
+    """
+    raise SystemExit(
+        f"{component}: no password was provided. "
+        f"Set a password in preflight ({preflight_field}); "
+        "there is no default password."
+    )
+
+
 def _deep_merge_dict(base, overlay):
     """Recursive dict merge; overlay wins on scalar conflicts."""
     if not isinstance(base, dict):
@@ -847,6 +860,27 @@ def copy_repo_file_from_path(src, filename, default_name):
     shutil.copy2(str(src), target)
     target.chmod(0o600)
     return target
+
+
+def stig_control_list(value):
+    """Return STIG controls as a de-duplicated list of strings.
+
+    Accepts a list or a string separated by commas, semicolons, or whitespace.
+    """
+    if isinstance(value, str):
+        items = re.split(r"[\s,;]+", value)
+    elif isinstance(value, (list, tuple)):
+        items = []
+        for entry in value:
+            items.extend(re.split(r"[\s,;]+", str(entry)))
+    else:
+        items = []
+    result = []
+    for item in items:
+        item = item.strip()
+        if item and item not in result:
+            result.append(item)
+    return result
 
 
 def merge_component(component, cfg):
@@ -1764,10 +1798,11 @@ def merge_component(component, cfg):
                 vault_data.get("vault_grafana_admin_password"),
                 vault_data.get("grafana_admin_password"),
             ):
-                # Match components_defaults lab password so datasource assert passes.
-                vars_data["grafana_admin_password"] = "redhat123"
-                vars_data["grafana_install_admin_password"] = "redhat123"
-                vars_data_changed = True
+                fail_missing_password(
+                    "Grafana",
+                    "component_config.grafana.admin_password"
+                    + (" or standalone_admin_password" if grafana_standalone else ""),
+                )
             if not grafana_standalone:
                 purge_standalone_install_vars(vars_data, "grafana")
                 vars_data_changed = True
@@ -1868,11 +1903,10 @@ def merge_component(component, cfg):
                     vault_data.get("vault_gitlab_root_password"),
                     vault_data.get("gitlab_root_password"),
                 ):
-                    # Match components_defaults so OpenShift GitLab CR always has a password.
-                    vars_data["gitlab_root_password"] = "redhat123"
-                    vars_data["gitlab_install_root_password"] = "redhat123"
-                    vars_data["root_password"] = "redhat123"
-                    vars_data_changed = True
+                    fail_missing_password(
+                        "GitLab",
+                        "component_config.gitlab.root_password",
+                    )
             tls_crt = (
                 first_present(
                     secret_values.get("standalone_tls_crt"),
@@ -2087,6 +2121,65 @@ def merge_component(component, cfg):
                     str(pg_password)
                 )
                 vault_data_changed = True
+            zabbix_admin_password = first_present(
+                secret_values.get("admin_password"),
+                secret_values.get("zabbix_admin_password"),
+                public_values.get("admin_password"),
+            )
+            zabbix_db_password = first_present(
+                secret_values.get("db_password"),
+                secret_values.get("zabbix_db_password"),
+                public_values.get("db_password"),
+            )
+            zabbix_db_root_password = first_present(
+                secret_values.get("db_root_password"),
+                secret_values.get("zabbix_db_root_password"),
+                public_values.get("db_root_password"),
+            )
+            if zabbix_admin_password and str(zabbix_admin_password).strip():
+                if str(zabbix_admin_password).strip() == "zabbix":
+                    raise SystemExit(
+                        "zabbix: admin_password must not be the upstream default "
+                        "'zabbix'. Set component_config.zabbix.admin_password."
+                    )
+                vault_data["zabbix_admin_password"] = QuotedString(
+                    str(zabbix_admin_password).strip()
+                )
+                vault_data_changed = True
+            if zabbix_db_password and str(zabbix_db_password).strip():
+                vault_data["zabbix_db_password"] = QuotedString(
+                    str(zabbix_db_password).strip()
+                )
+                vault_data_changed = True
+            if zabbix_db_root_password and str(zabbix_db_root_password).strip():
+                vault_data["zabbix_db_root_password"] = QuotedString(
+                    str(zabbix_db_root_password).strip()
+                )
+                vault_data_changed = True
+            if not first_present(
+                vault_data.get("zabbix_admin_password"),
+                vars_data.get("zabbix_admin_password"),
+            ):
+                fail_missing_password(
+                    "zabbix",
+                    "component_config.zabbix.admin_password",
+                )
+            if not first_present(
+                vault_data.get("zabbix_db_password"),
+                vars_data.get("zabbix_db_password"),
+            ):
+                fail_missing_password(
+                    "zabbix",
+                    "component_config.zabbix.db_password",
+                )
+            if not first_present(
+                vault_data.get("zabbix_db_root_password"),
+                vars_data.get("zabbix_db_root_password"),
+            ):
+                fail_missing_password(
+                    "zabbix",
+                    "component_config.zabbix.db_root_password",
+                )
             vars_data_changed = True
             if rhbk_selected_in_preflight(preflight):
                 zabbix_issuer, zabbix_realm = rhbk_oidc_issuer_url(preflight, vars_data)
@@ -2239,8 +2332,17 @@ def merge_component(component, cfg):
             quay_admin_password = first_present(
                 secret_values.get("admin_password"),
                 public_values.get("admin_password"),
-                "redhat123",
             )
+            if not quay_admin_password and not first_present(
+                vars_data.get("quay_admin_password"),
+                vars_data.get("ocp_quay_admin_password"),
+                vault_data.get("vault_ocp_quay_admin_password"),
+                vault_data.get("quay_admin_password"),
+            ):
+                fail_missing_password(
+                    "Quay",
+                    "component_config.quay.admin_password",
+                )
             if quay_admin_password:
                 vars_data["ocp_quay_admin_password"] = vault_ref(
                     "vault_ocp_quay_admin_password"
@@ -2367,8 +2469,15 @@ def merge_component(component, cfg):
                     ((preflight.get("component_config") or {}).get("minio") or {}).get(
                         "root_password"
                     ),
-                    "redhat123",
                 )
+                if not secret_key and not first_present(
+                    vars_data.get("quay_s3_secret_key"),
+                    vault_data.get("vault_ocp_quay_s3_secret_key"),
+                ):
+                    fail_missing_password(
+                        "Quay (MinIO-backed storage)",
+                        "component_config.quay.s3_secret_key or component_config.minio.root_password",
+                    )
                 if secret_key:
                     vars_data["ocp_quay_s3_secret_key"] = vault_ref(
                         "vault_ocp_quay_s3_secret_key"
@@ -2513,7 +2622,10 @@ def merge_component(component, cfg):
                 vars_data["minio_oidc_enabled"] = as_bool(public_values.get("oidc_enabled"), True)
                 vars_data_changed = True
             root_user = first_present(public_values.get("root_user"))
-            root_password = first_present(public_values.get("root_password"))
+            root_password = first_present(
+                secret_values.get("root_password"),
+                public_values.get("root_password"),
+            )
             if root_user:
                 vars_data["minio_root_user"] = str(root_user)
                 vars_data_changed = True
@@ -2521,6 +2633,14 @@ def merge_component(component, cfg):
                 vars_data["minio_root_password"] = vault_ref("vault_minio_root_password")
                 vault_data["vault_minio_root_password"] = QuotedString(str(root_password))
                 vars_data_changed = True
+            elif not first_present(
+                vault_data.get("vault_minio_root_password"),
+                vault_data.get("minio_root_password"),
+            ):
+                fail_missing_password(
+                    "MinIO",
+                    "component_config.minio.root_password",
+                )
             oidc_secret = first_present(
                 public_values.get("oidc_client_secret"),
                 (oidc or {}).get("client_secret"),
@@ -2774,6 +2894,50 @@ def merge_component(component, cfg):
                 vault_data["rhbk_admin_password"] = QuotedString(str(_admin_password))
                 vault_data["ocp_rhbk_admin_password"] = QuotedString(str(_admin_password))
                 vault_data_changed = True
+            # Client/realm/idp against an existing Keycloak may reuse vault from a
+            # prior install. Fresh OpenShift/standalone installs must supply secrets.
+            _rhbk_installing = rhbk_standalone_selected or not bool(
+                _rhbk_existing_ops.intersection(rhbk_opts_lower)
+            )
+            if _rhbk_installing and not first_present(
+                vault_data.get("vault_rhbk_admin_password"),
+                vault_data.get("rhbk_admin_password"),
+                vars_data.get("rhbk_admin_password"),
+            ):
+                fail_missing_password(
+                    "rhbk",
+                    "component_config.rhbk.admin_password",
+                )
+            _db_password = first_present(
+                secret_values.get("db_password"),
+                secret_values.get("rhbk_db_password"),
+                public_values.get("db_password"),
+                public_values.get("rhbk_db_password"),
+            )
+            if _db_password is not None and str(_db_password).strip():
+                if str(_db_password).strip() in ("changeme-db", "change-me-db"):
+                    raise SystemExit(
+                        "rhbk: db_password must not be the historic default "
+                        "'changeme-db'. Set component_config.rhbk.db_password."
+                    )
+                vars_data["rhbk_db_password"] = vault_ref("vault_rhbk_db_password")
+                vars_data["ocp_rhbk_db_password"] = vault_ref("vault_rhbk_db_password")
+                vault_data["vault_rhbk_db_password"] = QuotedString(str(_db_password).strip())
+                vault_data["rhbk_db_password"] = QuotedString(str(_db_password).strip())
+                vault_data_changed = True
+            if (
+                _rhbk_installing
+                and not rhbk_standalone_selected
+                and not first_present(
+                    vault_data.get("vault_rhbk_db_password"),
+                    vault_data.get("rhbk_db_password"),
+                    vars_data.get("rhbk_db_password"),
+                )
+            ):
+                fail_missing_password(
+                    "rhbk",
+                    "component_config.rhbk.db_password",
+                )
             # TLS mode from preflight (edge default; cert-manager or manual PEM opt-in).
             tls_mode = str(
                 first_present(public_values.get("tls_mode"), "edge")
@@ -3322,6 +3486,14 @@ def merge_component(component, cfg):
                 vault_data_changed = True
                 vars_data["aap_ocp_install_admin_password"] = vault_ref("aap_admin_password")
                 vars_data["aap_ocp_install_admin_user"] = admin_username
+            if not first_present(
+                vault_data.get("aap_admin_password"),
+                vars_data.get("aap_ocp_install_admin_password"),
+            ):
+                fail_missing_password(
+                    "aap",
+                    "component_config.aap.admin_password or aap.admin_password",
+                )
             vault_data["aap_admin_user"] = admin_username
             vault_data_changed = True
             minimal_footprint = as_bool(
@@ -4227,6 +4399,24 @@ def merge_component(component, cfg):
                 vars_data_changed = True
 
         if component == "acs":
+            acs_admin_password = first_present(
+                secret_values.get("admin_password"),
+                public_values.get("admin_password"),
+            )
+            if acs_admin_password:
+                vars_data["acs_admin_password"] = vault_ref("vault_acs_admin_password")
+                vault_data["vault_acs_admin_password"] = QuotedString(str(acs_admin_password))
+                vault_data["acs_admin_password"] = QuotedString(str(acs_admin_password))
+                vault_data_changed = True
+                vars_data_changed = True
+            elif not first_present(
+                vault_data.get("vault_acs_admin_password"),
+                vault_data.get("acs_admin_password"),
+            ):
+                fail_missing_password(
+                    "ACS Central",
+                    "component_config.acs.admin_password",
+                )
             for src_key in (
                 "policies_source_type",
                 "policies_source",
@@ -5299,14 +5489,6 @@ def merge_component(component, cfg):
                 vars_data["stig_engine"] = rhel_values["stig_engine"]
                 vars_data.setdefault("components_env", {}).setdefault("rhel", {})
                 vars_data["components_env"]["rhel"]["stig_engine"] = rhel_values["stig_engine"]
-            if rhel_values.get("rhel_stig_cac_remediate") is not None:
-                vars_data["rhel_stig_cac_remediate"] = rhel_values[
-                    "rhel_stig_cac_remediate"
-                ]
-                vars_data.setdefault("components_env", {}).setdefault("rhel", {})
-                vars_data["components_env"]["rhel"][
-                    "rhel_stig_cac_remediate"
-                ] = rhel_values["rhel_stig_cac_remediate"]
             if public_values.get("profile"):
                 vars_data["stig_profile"] = public_values["profile"]
                 vars_data["rhel_stig_profile"] = public_values["profile"]
@@ -5314,12 +5496,19 @@ def merge_component(component, cfg):
                 vars_data["stig_engine"] = public_values["stig_engine"]
                 vars_data.setdefault("components_env", {}).setdefault("rhel", {})
                 vars_data["components_env"]["rhel"]["stig_engine"] = public_values["stig_engine"]
-            if public_values.get("remediate") is not None:
-                vars_data["rhel_stig_cac_remediate"] = public_values["remediate"]
-                vars_data.setdefault("components_env", {}).setdefault("rhel", {})
-                vars_data["components_env"]["rhel"][
-                    "rhel_stig_cac_remediate"
-                ] = public_values["remediate"]
+            # The old ``remediate`` boolean is intentionally not mapped. A host
+            # change now needs mode=remediate plus explicit approval, so an old
+            # export falls back to the audit-only default.
+            stig_mode = str(public_values.get("mode") or "").strip().lower()
+            if stig_mode in ("audit", "prepare", "remediate", "verify"):
+                vars_data["stig_mode"] = stig_mode
+            for key in ("remediation_approved", "recovery_confirmed"):
+                if public_values.get(key) is not None:
+                    # Only an explicit true approves; anything unclear is false.
+                    vars_data["stig_" + key] = as_bool(public_values[key], False)
+            for key in ("controls", "allow_protected"):
+                if public_values.get(key) is not None:
+                    vars_data["stig_" + key] = stig_control_list(public_values[key])
 
         if component in ("quay", "kafka", "acs", "acm") and vars_data.get("storage"):
             normalized_storage = effective_storage_class(preflight, vars_data.get("storage"))
@@ -5335,24 +5524,64 @@ def merge_component(component, cfg):
                     vars_data.get("component_config", {}).get(component, {}).pop("storage", None)
                 vars_data_changed = True
 
+        if component in ("389ds", "dirsrv"):
+            # Passwords live under vault_dirsrv.yml -> dirsrv: { ... }.
+            dirsrv_block = vault_data.get("dirsrv")
+            if not isinstance(dirsrv_block, dict):
+                dirsrv_block = {}
+                vault_data["dirsrv"] = dirsrv_block
+            mgr_password = first_present(
+                secret_values.get("ocp_dirsrv_manager_password"),
+                secret_values.get("manager_password"),
+                secret_values.get("dm_password"),
+                public_values.get("ocp_dirsrv_manager_password"),
+                public_values.get("manager_password"),
+                dirsrv_block.get("ocp_dirsrv_manager_password"),
+            )
+            if mgr_password is not None:
+                dirsrv_block["ocp_dirsrv_manager_password"] = str(mgr_password)
+                vault_data_changed = True
+            repl_password = first_present(
+                secret_values.get("repl_manager_password"),
+                public_values.get("repl_manager_password"),
+                dirsrv_block.get("repl_manager_password"),
+            )
+            if repl_password is not None:
+                dirsrv_block["repl_manager_password"] = str(repl_password)
+                vault_data_changed = True
+            if not first_present(dirsrv_block.get("ocp_dirsrv_manager_password")):
+                fail_missing_password(
+                    "389ds",
+                    "component_config.389ds.ocp_dirsrv_manager_password "
+                    "(or manager_password / dm_password)",
+                )
+
         write_yaml(vars_path, vars_data, "0644")
         if vault_data_changed:
             write_yaml(vault_path, vault_data, "0600")
 
     if secret_values:
         vault_data.setdefault("component_vault_config", {})
+        # Keep non-empty secrets only in component_vault_config so blank
+        # preflight fields never erase an already-generated credential.
+        _nonempty_secrets = {
+            k: v
+            for k, v in secret_values.items()
+            if v is not None and str(v).strip() != ""
+        }
         vault_data["component_vault_config"][component] = {
             **vault_data["component_vault_config"].get(component, {}),
-            **secret_values,
+            **_nonempty_secrets,
         }
 
-        for k, v in secret_values.items():
+        for k, v in _nonempty_secrets.items():
             vault_data[k] = v
 
         if component == "aap":
-            if secret_values.get("admin_password") is not None:
-                vault_data["aap_admin_password"] = secret_values["admin_password"]
-                vault_data["vault_controller_password"] = secret_values["admin_password"]
+            _aap_pw = first_present(secret_values.get("admin_password"))
+            if _aap_pw is not None:
+                vault_data["aap_admin_password"] = _aap_pw
+                vault_data["vault_controller_password"] = _aap_pw
             vault_data.pop("admin_password", None)
             vault_data_changed = True
 

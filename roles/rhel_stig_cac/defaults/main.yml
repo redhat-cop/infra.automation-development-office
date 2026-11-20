@@ -1,21 +1,108 @@
 ---
-# Apply remediations (true) or evaluate only (false).
-rhel_stig_cac_remediate: true
+# What this run does. The default changes nothing on the host except writing
+# evidence files under rhel_stig_cac_results_dir.
+#   audit     - evaluate only (default). Whole STIG profile, or only
+#               rhel_stig_cac_controls when set.
+#   prepare   - install OpenSCAP and scap-security-guide. Nothing else.
+#   remediate - audit selected controls, remediate them, audit them again.
+#               Requires rhel_stig_cac_remediation_approved,
+#               rhel_stig_cac_recovery_confirmed and rhel_stig_cac_controls.
+#   verify    - audit only rhel_stig_cac_controls. Fails when any is not
+#               compliant.
+rhel_stig_cac_mode: audit
+
+# Explicit approval to change the host. Remediation never runs without it.
+rhel_stig_cac_remediation_approved: false
+
+# Operator attests a snapshot or backup exists. SCAP remediation is not
+# reversible by this role. Required for remediate.
+rhel_stig_cac_recovery_confirmed: false
+
+# Controls to audit, verify, or remediate. Each entry may be a STIG ID
+# (RHEL-09-255100), a vulnerability ID (V-257996), a rule ID
+# (SV-257996r1134915_rule) or an SSG rule name (sshd_set_idle_timeout).
+# Audit with an empty list scans the whole STIG profile.
+rhel_stig_cac_controls: []
+
+# Controls that may be remediated even though they match a protected pattern.
+# Same formats as rhel_stig_cac_controls. Leave empty unless you accept the
+# risk.
+rhel_stig_cac_allow_protected: []
+
+# Regular expressions (matched with search against SSG rule names). Remediation
+# refuses a selected control that matches unless it is in
+# rhel_stig_cac_allow_protected. Dependencies pulled in by "requires" are
+# checked too.
+rhel_stig_cac_protected_patterns:
+  # FIPS mode and system crypto policy
+  - fips
+  - crypto_policy
+  - crypto_subpolicy
+  # SSH daemon and client
+  - sshd
+  - openssh
+  # SSSD, IdM/LDAP/Kerberos, smart cards, authselect
+  - sssd
+  - authselect
+  - ldap
+  - krb5
+  - kerberos
+  - smartcard
+  - opensc
+  # Authentication: PAM, passwords, lockout, sessions
+  - pam_
+  - faillock
+  - ^accounts_password
+  - ^accounts_passwords_
+  - ^accounts_max_concurrent
+  - ^accounts_tmout
+  - ^no_empty_passwords
+  - ^set_password_hashing
+  - ^use_pam_wheel
+  # Privilege escalation. sudo changes can lock out automation.
+  - ^sudo_
+  - ^sudoers
+  - bypass_password_sudo
+  # Firewall and network. A default-deny change can cut the AAP connection.
+  - firewalld
+  - ^network_
+  - ^networkmanager_
+
+# Fail the run when a controlled rule is failed, errored, or not evaluated.
+# Always true for remediate and verify. For audit, false keeps findings
+# informational; they are still in the findings file and job artifacts.
+rhel_stig_cac_fail_on_findings: false
+
+# Seconds to wait for one oscap run. A full STIG scan can take several minutes.
+rhel_stig_cac_scan_timeout: 3600
 
 # Optional label from preflight/JT survey (for example "RHEL 9 STIG").
 rhel_stig_cac_profile_label: ""
 
-# Force a major version (8, 9, or 10). Empty uses ansible_distribution_major_version.
+# Force a major version (8, 9, or 10). Empty uses the label map or
+# ansible_distribution_major_version.
 rhel_stig_cac_os_major: ""
 
 # XCCDF profile ID from scap-security-guide.
 rhel_stig_cac_xccdf_profile: xccdf_org.ssgproject.content_profile_stig
 
-# Packages providing DISA STIG Compliance-as-Code content on RHEL.
+# Packages installed by mode prepare. Other modes only check they are present.
 rhel_stig_cac_packages:
   - scap-security-guide
   - openscap-scanner
   - openscap-utils
 
-# Directory for OpenSCAP results and HTML reports.
+# Path to the oscap binary. Change only for a non-standard install.
+rhel_stig_cac_oscap_path: /usr/bin/oscap
+
+# Directory on the managed host for OpenSCAP results, reports, and findings.
 rhel_stig_cac_results_dir: /var/log/ado-stig-cac
+
+# Controller-side directory. When set, results (gzip), the HTML report, and the
+# findings JSON are fetched to <dir>/<inventory_hostname>/. In AAP the
+# execution environment is ephemeral, so rely on rhel_stig_cac_results_dir and
+# job artifacts unless this path is on a persistent volume.
+rhel_stig_cac_fetch_dir: ""
+
+# Publish the per-host summary as AAP job artifacts (set_stats).
+rhel_stig_cac_publish_stats: true

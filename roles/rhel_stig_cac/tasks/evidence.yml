@@ -1,0 +1,24 @@
+---
+# The SCAP results XML is the audit evidence. It embeds the whole benchmark
+# (about 19 MB on RHEL 9), so a gzip copy is what gets fetched.
+- name: Compress OpenSCAP results for evidence
+  ansible.builtin.command:
+    argv:
+      - gzip
+      - -9
+      - -k
+      - -f
+      - "{{ rhel_stig_cac_phase_results }}"
+  changed_when: false
+  when: rhel_stig_cac_fetch_dir | length > 0
+
+- name: Fetch STIG CaC evidence to the controller
+  ansible.builtin.fetch:
+    src: "{{ item }}"
+    dest: "{{ rhel_stig_cac_fetch_dir }}/{{ inventory_hostname }}/"
+    flat: true
+  loop:
+    - "{{ rhel_stig_cac_phase_results }}.gz"
+    - "{{ rhel_stig_cac_phase_html }}"
+    - "{{ rhel_stig_cac_phase_findings }}"
+  when: rhel_stig_cac_fetch_dir | length > 0

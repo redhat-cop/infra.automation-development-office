@@ -38,7 +38,7 @@ Controller / bootstrap wiring:
 | `install_gitlab_hostname` | GitLab hostname. Required — no default. |
 | `install_gitlab_http_port` | HTTP port. Default `80`. |
 | `install_gitlab_https_port` | HTTPS port. Default `443`. |
-| `install_gitlab_root_password` | Initial root password. Default `redhat123`. |
+| `install_gitlab_root_password` | Initial root password. **Required — no default.** Set it in the bootstrap (`component_config.gitlab.standalone_root_password`). |
 | `install_gitlab_edition` | Package edition (`ce` or `ee`). Default `ce`. |
 | `install_gitlab_external_url` | Omnibus `external_url`; derived from hostname/TLS when empty. |
 | `install_gitlab_tls_crt` / `install_gitlab_tls_key` | PEM paths for HTTPS nginx. |

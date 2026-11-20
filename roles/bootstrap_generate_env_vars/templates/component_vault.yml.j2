@@ -9,11 +9,11 @@ aap_token_oauth: ""
 
 {% elif component_name == 'aap24' %}
 aap24_admin_user: admin
-aap24_admin_password: redhat123
+aap24_admin_password: ""
 
 {% elif component_name == 'acs' %}
 acs_admin_user: admin
-acs_admin_password: redhat123
+acs_admin_password: ""
 
 {% elif component_name == 'cve_analyzer' %}
 # ACS + Grafana secrets for CVE Analyzer (OpenShift token stays in vault_openshift).
@@ -27,13 +27,13 @@ grafana_admin_password: ""
 # install_dirsrv expects vault_dirsrv.yml with top-level key dirsrv:
 dirsrv:
   ds_suffix: "dc=prod,dc=rhlab"
-  ocp_dirsrv_manager_password: redhat123
-  repl_manager_password: redhat123
+  ocp_dirsrv_manager_password: ""
+  repl_manager_password: ""
   test_user_uid: testuser
 
 {% elif component_name == 'grafana' %}
 grafana_admin_user: admin
-grafana_admin_password: redhat123
+grafana_admin_password: ""
 vault_grafana_api_key: ""
 # Optional: only needed for external postgres (provision=false).
 vault_grafana_postgres_password: ""
@@ -58,7 +58,7 @@ vault_satellite_rhn_org_id: "{{ bootstrap_generate_env_vars_satellite_rhn_org_id
 vault_satellite_rhn_activation_key: "{{ bootstrap_generate_env_vars_satellite_rhn_activation_key | default('') }}"
 vault_satellite_oidc_client_secret: "{{ bootstrap_generate_env_vars_satellite_oidc_client_secret | default('') }}"
 vault_rhbk_admin_user: "{{ bootstrap_generate_env_vars_satellite_oidc_admin_user | default('admin') }}"
-vault_rhbk_admin_password: "{{ bootstrap_generate_env_vars_satellite_oidc_admin_password | default('redhat123') }}"
+vault_rhbk_admin_password: "{{ bootstrap_generate_env_vars_satellite_oidc_admin_password | default('') }}"
 satellite_install_admin_password: "{% raw %}{{ vault_satellite_admin_password }}{% endraw %}"
 satellite_install_rhn_org_id: "{% raw %}{{ vault_satellite_rhn_org_id }}{% endraw %}"
 satellite_install_rhn_activation_key: "{% raw %}{{ vault_satellite_rhn_activation_key }}{% endraw %}"
@@ -71,9 +71,9 @@ capsule_install_loadbalancer_activation_key: "{% raw %}{{ vault_capsule_loadbala
 {% endif %}
 satellite_oidc_client_secret: "{% raw %}{{ vault_satellite_oidc_client_secret | default('') }}{% endraw %}"
 satellite_oidc_admin_user: "{% raw %}{{ vault_rhbk_admin_user | default('admin') }}{% endraw %}"
-satellite_oidc_admin_password: "{% raw %}{{ vault_rhbk_admin_password | default('redhat123') }}{% endraw %}"
+satellite_oidc_admin_password: "{% raw %}{{ vault_rhbk_admin_password | default('') }}{% endraw %}"
 rhbk_admin_user: "{% raw %}{{ vault_rhbk_admin_user | default('admin') }}{% endraw %}"
-rhbk_admin_password: "{% raw %}{{ vault_rhbk_admin_password | default('redhat123') }}{% endraw %}"
+rhbk_admin_password: "{% raw %}{{ vault_rhbk_admin_password | default('') }}{% endraw %}"
 
 {% elif component_name == 'idm' %}
 vault_idm_admin_password: ""
@@ -118,17 +118,17 @@ provision_openshift_virt_api_token: "{{ openshift_virt_config.api_token | defaul
 gitlab_tls_crt:
 gitlab_tls_key:
 gitlab_root_user: root
-gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default('redhat123'), true) }}"
-vault_gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default('redhat123'), true) }}"
+gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default(''), true) }}"
+vault_gitlab_root_password: "{{ gitlab_cfg.root_password | default(gitlab_cfg.standalone_root_password | default(''), true) }}"
 gitlab_install_root_password: "{% raw %}{{ vault_gitlab_root_password | default(gitlab_root_password) }}{% endraw %}"
 
 {% elif component_name == 'rhbk' %}
 rhbk_tls_cert:
 rhbk_tls_key:
 rhbk_admin_user: admin
-rhbk_admin_password: redhat123
+rhbk_admin_password: ""
 ocp_rhbk_admin_user: admin
-ocp_rhbk_admin_password: redhat123
+ocp_rhbk_admin_password: ""
 
 ldap_config:
   enabled: "true"
@@ -270,14 +270,16 @@ dev_hub_oidc_client_secret: ""
 dev_hub_gitlab_token: ""
 
 {% elif component_name == 'minio' %}
+{% set minio_root_cfg = bootstrap_generate_env_vars_preflight.component_config.minio | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
 minio_root_user: minioadmin
-minio_root_password: redhat123
+minio_root_password: {{ minio_root_cfg.root_password | default('', true) | to_json }}
 minio_oidc_client_secret: ""
 
 {% elif component_name == 'zabbix' %}
-zabbix_db_root_password: rootpass123!
-zabbix_db_password: zabbixpass123!
-zabbix_admin_password: zabbix
+{# Passwords come from preflight via overlay; never ship well-known defaults. #}
+zabbix_db_root_password: ""
+zabbix_db_password: ""
+zabbix_admin_password: ""
 
 {% elif component_name == 'quay' %}
 {% set quay_vault_cfg = bootstrap_generate_env_vars_preflight.component_config.quay | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
@@ -296,12 +298,12 @@ zabbix_admin_password: zabbix
     or ((quay_vault_cfg.use_minio | default(false)) | bool)
 %}
 quay_admin_user: {{ quay_vault_cfg.admin_user | default('quayadmin') | to_json }}
-vault_ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
-ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
-quay_admin_password: {{ quay_vault_cfg.admin_password | default('redhat123') | to_json }}
+vault_ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('', true) | to_json }}
+ocp_quay_admin_password: {{ quay_vault_cfg.admin_password | default('', true) | to_json }}
+quay_admin_password: {{ quay_vault_cfg.admin_password | default('', true) | to_json }}
 {% if quay_vault_use_minio %}
 {% set minio_vault_cfg = bootstrap_generate_env_vars_preflight.component_config.minio | default({}) if bootstrap_generate_env_vars_preflight is defined else {} %}
-vault_ocp_quay_s3_secret_key: {{ quay_vault_cfg.s3_secret_key | default(minio_vault_cfg.root_password | default('redhat123')) | to_json }}
+vault_ocp_quay_s3_secret_key: {{ quay_vault_cfg.s3_secret_key | default(minio_vault_cfg.root_password | default('', true), true) | to_json }}
 {% endif %}
 
 {% else %}

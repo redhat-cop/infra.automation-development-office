@@ -23,7 +23,7 @@ See `defaults/main.yml`. Common overrides:
 | `install_grafana_hostname` | Grafana `server.domain` / public hostname |
 | `install_grafana_http_port` | HTTP listen port (default `3000`) |
 | `install_grafana_admin_user` | Local admin username |
-| `install_grafana_admin_password` | Local admin password |
+| `install_grafana_admin_password` | Local admin password. **Required — no default.** Set it in the bootstrap. |
 | `install_grafana_skip_packages` | Skip package install when true |
 | `install_grafana_rpm_path` / `install_grafana_rpm_url` | Offline RPM path or URL |
 

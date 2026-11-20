@@ -1,0 +1,17 @@
+---
+bugfixes:
+  - >-
+    gitlab_manage - ``issue_create`` no longer upserts an existing title;
+    ``issue_update`` no longer creates a missing issue. Issue search filters to
+    an exact title match, and labels/assignees are sent when set.
+  - >-
+    gitlab_manage - User block accepts GitLab ``403`` (already blocked).
+    Block/delete refuse a missing username instead of succeeding silently.
+  - >-
+    gitlab_manage - Member lookups use ``/members/all/`` so inherited group
+    access is detected before a duplicate add. Direct membership is still
+    required to update or remove.
+security_fixes:
+  - >-
+    gitlab_manage - All ``uri`` calls that send ``PRIVATE-TOKEN`` now set
+    ``no_log: true`` so failed API tasks do not print the token in job output.

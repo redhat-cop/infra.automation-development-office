@@ -1,0 +1,237 @@
+---
+# yamllint disable rule:line-length
+- name: GitLab manage | Assert member fields
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_project | default('') | length > 0
+      - gitlab_manage_member_username | default('') | length > 0
+      - >-
+          gitlab_manage_action != 'member_present'
+          or (
+            gitlab_manage_member_access_level | default('')
+            in ['guest', 'reporter', 'developer', 'maintainer', 'owner']
+          )
+    fail_msg: >-
+      member actions require gitlab_manage_project and
+      gitlab_manage_member_username; member_present also needs a valid
+      access_level (guest/reporter/developer/maintainer/owner).
+
+- name: GitLab manage | Map access level to GitLab integer
+  ansible.builtin.set_fact:
+    gitlab_manage_access_level_id: >-
+      {{
+        {
+          'guest': 10,
+          'reporter': 20,
+          'developer': 30,
+          'maintainer': 40,
+          'owner': 50
+        }[gitlab_manage_member_access_level | default('developer')]
+      }}
+
+- name: GitLab manage | Resolve project ID
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_api
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_project_info
+  no_log: true
+
+- name: GitLab manage | Lookup user by username
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/users?username={{
+        gitlab_manage_member_username | urlencode
+      }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_member_user_lookup
+  no_log: true
+
+- name: GitLab manage | Select member user
+  ansible.builtin.set_fact:
+    gitlab_manage_member_user: >-
+      {{
+        gitlab_manage_member_user_lookup.json
+        | default([])
+        | selectattr('username', 'equalto', gitlab_manage_member_username)
+        | list
+      }}
+
+- name: GitLab manage | Assert member user exists
+  ansible.builtin.assert:
+    that:
+      - gitlab_manage_member_user | length == 1
+    fail_msg: >-
+      GitLab user '{{ gitlab_manage_member_username }}' was not found.
+      Create the user first (DEV | GitLab Manage User).
+
+# /members/all/ includes inherited group membership; /members/ is direct only.
+- name: GitLab manage | Lookup inherited or direct project member
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members/all/{{ gitlab_manage_member_user[0].id }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200, 404]
+  register: gitlab_manage_member_all_lookup
+  no_log: true
+
+- name: GitLab manage | Lookup direct project member
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members/{{ gitlab_manage_member_user[0].id }}
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200, 404]
+  register: gitlab_manage_member_lookup
+  no_log: true
+
+- name: GitLab manage | Add project member
+  when:
+    - gitlab_manage_action == 'member_present'
+    - gitlab_manage_member_all_lookup.status == 404
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members
+    method: POST
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      user_id: "{{ gitlab_manage_member_user[0].id }}"
+      access_level: "{{ gitlab_manage_access_level_id | int }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [201]
+  register: gitlab_manage_member_add
+  no_log: true
+
+- name: GitLab manage | Note inherited membership already satisfies present
+  when:
+    - gitlab_manage_action == 'member_present'
+    - gitlab_manage_member_all_lookup.status == 200
+    - gitlab_manage_member_lookup.status == 404
+    - >-
+        (gitlab_manage_member_all_lookup.json.access_level | default(0) | int)
+        >= (gitlab_manage_access_level_id | int)
+  ansible.builtin.debug:
+    msg: >-
+      '{{ gitlab_manage_member_username }}' already has access_level
+      {{ gitlab_manage_member_all_lookup.json.access_level }} on
+      {{ gitlab_manage_project }} via inherited membership; add skipped.
+
+- name: GitLab manage | Fail when inherited membership is below requested level
+  when:
+    - gitlab_manage_action == 'member_present'
+    - gitlab_manage_member_all_lookup.status == 200
+    - gitlab_manage_member_lookup.status == 404
+    - >-
+        (gitlab_manage_member_all_lookup.json.access_level | default(0) | int)
+        < (gitlab_manage_access_level_id | int)
+  ansible.builtin.fail:
+    msg: >-
+      '{{ gitlab_manage_member_username }}' has inherited access_level
+      {{ gitlab_manage_member_all_lookup.json.access_level }} on
+      {{ gitlab_manage_project }}, which is below the requested
+      {{ gitlab_manage_member_access_level }}. Raise the group role or add a
+      direct project membership manually; this role will not POST a duplicate
+      that GitLab rejects with 409.
+
+- name: GitLab manage | Update project member role
+  when:
+    - gitlab_manage_action == 'member_present'
+    - gitlab_manage_member_lookup.status == 200
+    - >-
+        (gitlab_manage_member_lookup.json.access_level | default(0) | int)
+        != (gitlab_manage_access_level_id | int)
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members/{{ gitlab_manage_member_user[0].id }}
+    method: PUT
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      access_level: "{{ gitlab_manage_access_level_id | int }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [200]
+  register: gitlab_manage_member_update
+  no_log: true
+
+- name: GitLab manage | Remove project member
+  when:
+    - gitlab_manage_action == 'member_absent'
+    - gitlab_manage_member_lookup.status == 200
+  ansible.builtin.uri:
+    url: >-
+      {{ gitlab_manage_api_url_clean }}/api/v4/projects/{{
+        gitlab_manage_project_info.json.id
+      }}/members/{{ gitlab_manage_member_user[0].id }}
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_manage_api_token }}"
+    validate_certs: "{{ gitlab_manage_validate_certs | bool }}"
+    ca_path: "{{ gitlab_manage_ca_path | default(omit, true) }}"
+    status_code: [204]
+  register: gitlab_manage_member_remove
+  no_log: true
+
+- name: GitLab manage | Note when absent target has only inherited membership
+  when:
+    - gitlab_manage_action == 'member_absent'
+    - gitlab_manage_member_lookup.status == 404
+    - gitlab_manage_member_all_lookup.status == 200
+  ansible.builtin.fail:
+    msg: >-
+      member_absent refused: '{{ gitlab_manage_member_username }}' is not a
+      direct member of {{ gitlab_manage_project }}; access comes from a parent
+      group. Remove the group membership separately.
+
+- name: GitLab manage | Show member result
+  ansible.builtin.debug:
+    msg: >-
+      Project member '{{ gitlab_manage_member_username }}' on
+      {{ gitlab_manage_project }}
+      action={{ gitlab_manage_action }}
+      access_level={{ gitlab_manage_member_access_level | default('n/a') }}
+      added={{
+        gitlab_manage_member_add is defined
+        and gitlab_manage_member_add is not skipped
+      }}
+      updated={{
+        gitlab_manage_member_update is defined
+        and gitlab_manage_member_update is not skipped
+      }}
+      removed={{
+        gitlab_manage_member_remove is defined
+        and gitlab_manage_member_remove is not skipped
+      }}.

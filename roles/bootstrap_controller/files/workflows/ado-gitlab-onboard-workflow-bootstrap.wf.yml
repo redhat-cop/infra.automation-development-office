@@ -1,0 +1,103 @@
+---
+# yamllint disable rule:line-length
+controller_workflow_job_templates:
+  - name: ADO | GitLab Onboard Workflow
+    description: >-
+      GitLab-triggered user onboard with AAP approval: validate request, comment
+      awaiting approval, pause for approval, create user, assign project role,
+      verify, then comment and close the originating issue on success.
+    organization: "{{ bootstrap_controller_organization }}"
+    inventory: "{{ bootstrap_controller_inventory_name }}"
+    ask_variables_on_launch: true
+    state: present
+    destroy_current_nodes: true
+    labels:
+      - ADO | gitlab
+      - ADO | day2
+    simplified_workflow_nodes:
+      - identifier: Validate Onboard Request
+        unified_job_template: ADO | GitLab Onboard Validate
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Comment Awaiting Approval
+        failure_nodes:
+          - Comment Failed
+
+      - identifier: Comment Awaiting Approval
+        unified_job_template: ADO | GitLab Onboard Comment
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        extra_data:
+          gitlab_manage_issue_comment: >-
+            ⏳ AAP onboard workflow received this request and is **awaiting
+            approval** in Ansible Automation Platform.
+        success_nodes:
+          - Approve Onboard
+        failure_nodes:
+          - Comment Failed
+
+      - identifier: Approve Onboard
+        approval_node:
+          name: Approve GitLab User Onboard
+          description: >-
+            Approve creating the requested GitLab user and granting the project
+            role described in the workflow extra vars / originating issue.
+          timeout: 86400
+        success_nodes:
+          - Create GitLab User
+        failure_nodes:
+          - Comment Denied
+
+      - identifier: Comment Denied
+        unified_job_template: ADO | GitLab Onboard Failed
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        extra_data:
+          gitlab_onboard_status: denied_or_timed_out
+          gitlab_onboard_failure_detail: >-
+            AAP workflow approval was denied or timed out. No user or membership
+            changes were applied.
+          gitlab_manage_issue_comment: >-
+            ⛔ AAP onboard approval was **denied or timed out**. No user or
+            membership changes were applied. This issue remains open.
+
+      - identifier: Create GitLab User
+        unified_job_template: ADO | GitLab Manage User
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        extra_data:
+          gitlab_manage_action: user_create
+        success_nodes:
+          - Assign Project Role
+        failure_nodes:
+          - Comment Failed
+
+      - identifier: Assign Project Role
+        unified_job_template: ADO | GitLab Manage Project Member
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        extra_data:
+          gitlab_manage_action: member_present
+        success_nodes:
+          - Verify User and Membership
+        failure_nodes:
+          - Comment Failed
+
+      - identifier: Verify User and Membership
+        unified_job_template: ADO | GitLab Onboard Verify
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        success_nodes:
+          - Finalize and Close Issue
+        failure_nodes:
+          - Comment Failed
+
+      - identifier: Comment Failed
+        unified_job_template: ADO | GitLab Onboard Failed
+        lookup_organization: "{{ bootstrap_controller_organization }}"
+        extra_data:
+          gitlab_onboard_status: failed
+          gitlab_onboard_failure_detail: >-
+            A required onboard step failed. Review the AAP workflow job output.
+          gitlab_manage_issue_comment: >-
+            ⚠️ AAP onboard workflow **failed**. Review the AAP workflow job for
+            details. This issue remains open.
+
+      - identifier: Finalize and Close Issue
+        unified_job_template: ADO | GitLab Onboard Finalize
+        lookup_organization: "{{ bootstrap_controller_organization }}"

@@ -1,0 +1,101 @@
+---
+# Publish the result, then decide pass or fail. Evidence is already on disk,
+# so a failing run still leaves everything needed to investigate.
+- name: Build STIG CaC result
+  ansible.builtin.set_fact:
+    rhel_stig_cac_final_summary: >-
+      {{ rhel_stig_cac_phases[rhel_stig_cac_final_phase] }}
+    rhel_stig_cac_result: >-
+      {{
+        {
+          'mode': rhel_stig_cac_mode,
+          'os_major': rhel_stig_cac_effective_os_major,
+          'controls': rhel_stig_cac_selected_rules,
+          'final_phase': rhel_stig_cac_final_phase,
+          'compliant': (
+            rhel_stig_cac_phases[rhel_stig_cac_final_phase].failed
+            + rhel_stig_cac_phases[rhel_stig_cac_final_phase].error
+            + rhel_stig_cac_phases[rhel_stig_cac_final_phase].not_evaluated
+          ) == 0,
+          'phases': rhel_stig_cac_phases,
+          'findings_file': rhel_stig_cac_phase_findings,
+          'results_file': rhel_stig_cac_phase_results,
+        }
+      }}
+
+- name: Summarize STIG CaC run
+  vars:
+    rhel_stig_cac_summary_percent: >-
+      {{
+        (rhel_stig_cac_final_summary.compliance_percent ~ '%')
+        if rhel_stig_cac_final_summary.compliance_percent is not none
+        else 'n/a (no rule was assessed)'
+      }}
+  ansible.builtin.debug:
+    msg:
+      - "STIG engine: DISA Compliance-as-Code (OpenSCAP)"
+      - "Mode: {{ rhel_stig_cac_mode }}"
+      - "Target OS major: {{ rhel_stig_cac_effective_os_major }}"
+      - >-
+        Profile label:
+        {{ rhel_stig_cac_profile_label | default('(from host facts)', true) }}
+      - "XCCDF profile: {{ rhel_stig_cac_scan_profile }}"
+      - >-
+        Controls:
+        {{
+          (rhel_stig_cac_selected_rules | length)
+          if rhel_stig_cac_selected_rules | length > 0 else 'whole profile'
+        }}
+      - >-
+        Passed {{ rhel_stig_cac_final_summary.passed }},
+        failed {{ rhel_stig_cac_final_summary.failed }},
+        error {{ rhel_stig_cac_final_summary.error }},
+        not evaluated {{ rhel_stig_cac_final_summary.not_evaluated }},
+        not applicable {{ rhel_stig_cac_final_summary.not_applicable }}
+      - >-
+        Failed by CAT: {{ rhel_stig_cac_final_summary.failed_by_category }}
+      - "Compliance: {{ rhel_stig_cac_summary_percent }}"
+      - "Findings: {{ rhel_stig_cac_phase_findings }}"
+      - >-
+        Evidence: {{ rhel_stig_cac_phase_results }},
+        {{ rhel_stig_cac_phase_html }}
+      - "Alternate ansible playbook: {{ rhel_stig_cac_playbook_path }}"
+
+- name: List non-compliant STIG controls
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.stig_id | default(item.rule, true) }}
+      {{ item.vuln_id | default('', true) }} {{ item.category }}
+      {{ item.status }} - {{ item.title }}
+  loop: "{{ (rhel_stig_cac_last_report.failures | default([]))[:50] }}"
+  loop_control:
+    label: "{{ item.stig_id | default(item.rule, true) }}"
+
+- name: Build per-host STIG CaC artifact
+  ansible.builtin.set_fact:
+    # set_stats does not template dict keys, so build the host-keyed dict here.
+    rhel_stig_cac_artifact: "{{ {inventory_hostname: rhel_stig_cac_result} }}"
+  when: rhel_stig_cac_publish_stats | bool
+
+- name: Publish STIG CaC result as job artifact
+  ansible.builtin.set_stats:
+    data:
+      ado_stig_cac: "{{ rhel_stig_cac_artifact }}"
+    per_host: false
+    aggregate: true
+  when: rhel_stig_cac_publish_stats | bool
+
+- name: Fail when selected STIG controls are not compliant
+  ansible.builtin.assert:
+    that:
+      - rhel_stig_cac_result.compliant
+    fail_msg: >-
+      {{ rhel_stig_cac_final_summary.failed }} failed,
+      {{ rhel_stig_cac_final_summary.error }} errored and
+      {{ rhel_stig_cac_final_summary.not_evaluated }} not evaluated in the
+      {{ rhel_stig_cac_final_phase }} scan on {{ inventory_hostname }}. See
+      {{ rhel_stig_cac_phase_findings }}.
+    quiet: true
+  when: >-
+    rhel_stig_cac_mode in rhel_stig_cac_strict_modes
+    or rhel_stig_cac_fail_on_findings | bool

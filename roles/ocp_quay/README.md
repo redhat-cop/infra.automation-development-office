@@ -23,7 +23,7 @@ Automation Development Office
 | `name_space` | Quay namespace (default `quay-enterprise`). |
 | `ocp_quay_hostname` | Route host. |
 | `ocp_quay_admin_user` | Database admin username. Default `quayadmin`. Created with `POST /api/v1/user/initialize` after Quay is up (not from `config.yaml`). |
-| `ocp_quay_admin_password` | Database admin password from the Quay tab (`vault_ocp_quay_admin_password`). Reused on reruns. An existing user is reset by writing a libcrypt bcrypt hash to `"user".password_hash`. |
+| `ocp_quay_admin_password` | **Required — no default.** Database admin password from the Quay tab (`vault_ocp_quay_admin_password`). Reused on reruns. An existing user is reset by writing a libcrypt bcrypt hash to `"user".password_hash`. |
 | `ocp_quay_image` | Quay container image. Default `registry.redhat.io/quay/quay-rhel8:v3.15.4` (not quay.io). |
 | `ocp_quay_redis_image` | Redis sidecar. Default `registry.redhat.io/rhel9/redis-6:latest` (not docker.io). |
 | `storage` | StorageClass for Postgres and, when not using MinIO, the registry PVC. |

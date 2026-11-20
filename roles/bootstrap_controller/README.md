@@ -171,6 +171,14 @@ includes RHEL, Satellite, IDM, compliance, and STIG. The workflow chain is
 `Register Host to Satellite` -> `RHEL Patch Host` -> `IdM Manage Client` ->
 `RHEL Compliance` -> `RHEL STIG Hardening`.
 
+`RHEL STIG Hardening` runs the `rhel_stig_cac` role in `audit` mode by
+default (survey `stig_mode`). The workflow node therefore scans and reports
+findings but never changes a host. To remediate, launch the job template on its
+own with `stig_mode=remediate`, `stig_remediation_approved=true`,
+`stig_recovery_confirmed=true`, and the controls listed in `stig_controls`.
+Re-run bootstrap after upgrading so the survey drops the old
+`rhel_stig_cac_remediate` question; the role refuses that variable.
+
 Generated Satellite workflows are created when Satellite is selected and run
 `Satellite Server Install` -> `Satellite Server Configure`.
 
