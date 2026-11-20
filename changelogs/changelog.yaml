@@ -3614,3 +3614,531 @@ releases:
     - ocp-oidc-keycloak-secret-fallback.yml
     - ocp-wait-operator-no-json-query.yml
     release_date: '2026-11-13'
+  2.1.4:
+    changes:
+      breaking_changes:
+      - bootstrap_controller - The GitLab, Grafana and RHBK standalone surveys no
+        longer pre-fill ``redhat123``, and the BookStack admin password survey field
+        is now required with no default. Re-run bootstrap so existing job templates
+        pick up the new surveys.
+      - bootstrap_generate_env_vars - The overlay no longer writes a ``redhat123``
+        fallback for Grafana, GitLab (OpenShift), Quay admin, Quay S3 secret key or
+        MinIO root password. Generation stops with a clear error when the password
+        is missing. ACS Central now takes ``component_config.acs.admin_password``.
+        ``component_vault.yml.j2`` emits empty values instead of ``redhat123``.
+      - bootstrap_generate_playbook_repo - GitLab and Quay playbook seeds no longer
+        fall back to ``redhat123``.
+      - bootstrap_generate_playbook_repo - ``stig_engine=system_role`` now requires
+        ``stig_remediation_approved`` and ``stig_recovery_confirmed`` because that
+        engine always changes the host. The default engine moved from ``system_role``
+        to ``cac``.
+      - bootstrap_resolve_component - ``components_defaults.yml`` no longer ships
+        default admin passwords for GitLab, Grafana, Quay, MinIO, Zabbix and ECK.
+      - install_gitlab, gitlab_install, install_grafana, grafana_install, install_rhbk,
+        ocp_quay, ocp_minio, ocp_zabbix, ocp_acs, install_elastic - Removed the built-in
+        default admin/root passwords (``redhat123`` and the ``changeme`` Keycloak
+        fallback). A password must now be supplied in the bootstrap (preflight JSON
+        or form). A run without one fails early with a message that names the variable
+        and the preflight field. For ECK, the optional lab Kibana/ES superuser is
+        simply not created when no ``install_elastic_eck_lab_password`` is set.
+      - 'ocp_oidc_auth - Keycloak TLS certificate verification is now on by default
+        (``ocp_rhbk_verify_ssl`` unset or blank means verify). It was off by default
+        before. An explicit ``ocp_rhbk_verify_ssl: false`` is still honored, so existing
+        configurations that set it keep working. A Keycloak certificate from a private
+        CA must now be trusted by the process running the role (for AAP, the execution
+        environment) or given as ``ocp_oidc_auth_ca_pem``.'
+      - rhel_stig_cac - Package installation moved to mode ``prepare``. Other modes
+        fail with a clear message when OpenSCAP or the SCAP data stream is missing.
+      - rhel_stig_cac - ``rhel_stig_cac_remediate`` is retired. ``true`` fails the
+        run with a message and changes nothing; use ``rhel_stig_cac_mode``. The preflight
+        ``remediate`` key and the old survey question are no longer mapped, so existing
+        exports run as audit until remediation is approved.
+      bugfixes:
+      - ansible-lint now checks role defaults, vars, meta, files, and the bootstrap_controller
+        htpasswd and iSCSI task files. Molecule, changelog data, and generated Controller
+        job templates, workflows, and playbook seeds stay excluded. Published role
+        variable names are not required to repeat the full role name. Placeholder
+        role metadata, the ``satellite_content_view`` Galaxy tag, and the Synology
+        CSI manifest indentation were corrected so that lint run passes.
+      - bookstack_openshift - Retrieve the Keycloak client secret before BookStack
+        OIDC is applied when ``bookstack_oidc_client_secret`` is empty. An explicit
+        secret is preserved. Retrieval is allowed for unmanaged clients. An empty
+        confidential-client secret fails the job and is not written to the BookStack
+        Secret.
+      - bookstack_openshift - Reuse an existing ``bookstack-app`` OIDC secret only
+        when ``oidc-client-id`` matches ``bookstack_oidc_client_id``. A previous client's
+        secret is not applied after a client ID change.
+      - bootstrap_controller - Add ``provision_openshift_virt_ssh_public_key``, ``provision_openshift_virt_network_mode``,
+        and ``provision_openshift_virt_multus_nad_name`` to the Provision OpenShift
+        Virt VM job-template survey so Contoller keeps those values on launch (undeclared
+        extra vars were dropped, leaving cloud-init without an SSH key).
+      - bootstrap_controller - Defer HTPasswd / registry / NFS / iSCSI cluster prep
+        until after playbook generation so a prep failure cannot leave a stale ``component-run-plan.json``
+        from a prior selection.
+      - bootstrap_controller - Pass vault HTPasswd users into ocp_htpasswd_admin through
+        a separate fact so include_role still receives the caller list without a self-referential
+        template.
+      - "bootstrap_controller - Resolve NFS test namespace/PVC/size into distinct
+        ``bootstrap_controller_nfs_csi_*`` facts before ``include_role`` so role vars
+        are never templated as ``\u2026 | default(ocp_nfs_storage_test_namespace)``
+        (Ansible recursive loop)."
+      - bootstrap_controller - an empty job-template selection no longer copies every
+        ``files/job_templates/*.jt.yml``. Overwrite all / Grafana-only runs were applying
+        the leftover full catalog (100+ JTs) because Controller apply loads every
+        file in ``configs/job_templates``.
+      - bootstrap_controller - do not fail AAP 2.5+ org-prefix template verification
+        when no job or workflow templates were generated. A skipped lookup still registered
+        as defined, so Hub force-update of ``infra.automation_development_office``
+        (Overwrite all, OpenShift with no apps, or AAP-tabs-only) failed after a successful
+        promote to ``validated``.
+      - bootstrap_controller / bootstrap_generate_playbook_repo - STIG profile survey
+        default is ``Match host OS`` so RHEL 8/9/10 inventories select content from
+        the target host major version instead of always RHEL 9.
+      - bootstrap_generate_env_vars - Always rebuild generated ``rhbk_clients`` from
+        the current preflight client list. Missing or empty lists drop seed and retained
+        rows so unmanaged and MinIO clients cannot keep being provisioned by Deploy
+        RHBK Client.
+      - bootstrap_generate_env_vars - Build and merge ``ldap_config`` without empty-string
+        wipe of ``connectionUrl`` / ``bindDn``; seed FreeIPA ``ldap_group_config``
+        when missing.
+      - bootstrap_generate_env_vars - Derive the OpenShift Keycloak redirect URI from
+        ``openshift.oauth_rhbk.idp_name`` (default ``Keycloak``) instead of a hardcoded
+        ``/oauth2callback/Keycloak/*`` path. Managed OpenShift client rows in ``rhbk_clients``
+        are rewritten to match. Externally managed clients are not updated in Keycloak;
+        the required callback is written as ``openshift_oidc_auth.openshift_oauth_redirect_uri``.
+      - bootstrap_generate_env_vars - Document that Hub file StorageClass inheritance
+        and overrides still apply when Minimal Footprint is enabled.
+      - bootstrap_generate_env_vars - Emit ``minio_oidc_config_url`` into ``vars_minio.yml``
+        from Preflight Keycloak host and realm.
+      - bootstrap_generate_env_vars - MinIO OIDC defaults ``keycloak_verify_ssl``
+        / ``rhbk_verify_ssl`` to false when unset, always writes the MinIO-scoped
+        value into ``vars_minio.yml``, and no longer sets ``ocp_rhbk_verify_ssl``
+        from the MinIO path so OpenShift OIDC TLS settings are not overwritten.
+      - 'bootstrap_generate_env_vars - Nest Install AAP ``platform_manifest_overrides``
+        database settings under ``spec.database`` so ``infra.aap_utilities`` 3.5.0
+        ``aap_ocp_install`` root-level combine places PostgreSQL StorageClass and
+        capacity on the AnsibleAutomationPlatform CR (AAP Operator 2.7 CRD). A bare
+        ``{database: ...}`` was previously applied as a sibling of ``spec`` and pruned,
+        leaving Operator defaults (for example 8Gi PVC).'
+      - bootstrap_generate_env_vars - OpenShift OIDC no longer falls back to the first
+        Keycloak client (``component_config.rhbk.client``) or an invented ``Openshift<Env>``
+        name. The client comes from ``openshift.oauth_rhbk.client_id``, ``component_config.rhbk.openshift_oidc_client_id``
+        or an OpenShift-specific row in ``component_config.rhbk.clients``. When ``oauth_rhbk``
+        is selected and none resolves, generation fails with a clear error (also for
+        an external Keycloak). An explicit ``openshift.oauth_rhbk.client_id`` is no
+        longer overwritten by another client, and stale ``openshift_oidc_client_id``
+        values from earlier runs are removed when OpenShift OIDC is not requested.
+      - bootstrap_generate_env_vars - Preserve an existing OpenShift OIDC ``mapping_method``
+        (``claim`` / ``lookup`` / ``add``) on regeneration unless Preflight sets it
+        explicitly. New configurations still default to ``add``.
+      - bootstrap_generate_env_vars - Preserve user-managed ``rhbk_clients`` across
+        regeneration. ADO-managed rows are tagged with ``ado_owner`` and dropped from
+        ``group_vars`` only when intentionally removed; Deploy RHBK Client never deletes
+        Keycloak clients merely because they were omitted.
+      - bootstrap_generate_env_vars - Publish ``bootstrap_controller_update_default_ingress``
+        and ``bootstrap_controller_cert_manager_explicit`` from preflight so Contoller
+        and playbook gates work in AAP and No-AAP modes.
+      - bootstrap_generate_env_vars - Refresh ``infra_config_vars.yml`` host/api_host
+        from preflight ``openshift`` whenever the API host is set, including Virt-only
+        selections. Previously ``force=false`` left a stale empty host after an earlier
+        generate, and the overlay skipped OpenShift connection updates unless the
+        OpenShift platform group was selected.
+      - bootstrap_generate_env_vars - Register the OpenShift Keycloak redirect URI
+        as the exact oauth-server callback ``https://oauth-openshift.<apps_domain>/oauth2callback/<idp_name>``.
+        A trailing ``/*`` does not match OpenShift's live redirect.
+      - bootstrap_generate_env_vars - Resolve Developer Hub ``dev_hub_keycloak_client_id``
+        from canonical ``keycloak_client_id``, with leftover ``oidc_client_id`` as
+        compatibility fallback.
+      - bootstrap_generate_env_vars - Stop putting a GitLab Keycloak client in generated
+        ``rhbk_clients`` when GitLab is selected. No GitLab OIDC role consumes that
+        client. Existing clients and preflight rows are not deleted.
+      - bootstrap_generate_env_vars - Write MinIO ``minio_oidc_client_id`` from Preflight
+        ``oidc_client_id`` (then nested ``oidc.client_id``) so a custom client ID
+        reaches the role instead of being ignored.
+      - bootstrap_generate_env_vars - ``minimal_footprint`` no longer forces Hub/EDA
+        off when Preflight explicitly sets ``install_hub`` / ``install_eda``.
+      - bootstrap_generate_env_vars - do not write the preflight UI bookkeeping key
+        ``component_config.rhbk.clients_dismissed`` (Keycloak clients the operator
+        removed in the form) into generated ``vars_rhbk.yml``. Removed clients no
+        longer appear anywhere in generated group_vars.
+      - bootstrap_generate_env_vars - drop the lab default realm ``rhlab`` for ``openshift.oauth_rhbk.realm``.
+        An empty realm inherits the RHBK realm, or must be set for an existing Keycloak.
+      - bootstrap_generate_env_vars - reject ``http://``, ``https://``, or a trailing
+        ``/`` in ``openshift.oauth_rhbk.keycloak_hostname``. The field is the Keycloak
+        route host only. The Preflight OAuth/RHBK tab shows the same error.
+      - bootstrap_generate_env_vars - selecting only the RHBK Client option no longer
+        generates Deploy RHBK, client scopes, or the login-events exporter. Install
+        is a separate option, same pattern as Grafana.
+      - bootstrap_generate_env_vars - the OpenShift OIDC settings are applied after
+        the RHBK component pass. Before, an explicit realm, hostname, mapping method
+        or scopes under ``openshift.oauth_rhbk`` were overwritten by the later RHBK
+        pass, and ``rhbk_client`` was set to the OpenShift client.
+      - bootstrap_generate_env_vars - when RHBK is in the run, OpenShift OIDC inherits
+        Keycloak hostname, realm, and admin credentials from the RHBK component. Leftover
+        ``openshift.oauth_rhbk`` connection overrides are ignored so they cannot silently
+        point OAuth at a different Keycloak. Client-only and other existing-Keycloak
+        operations require ``component_config.rhbk.realm``; overlay no longer invents
+        ``Dev`` or ``rhlab``.
+      - bootstrap_generate_env_vars - write the RHBK admin user from the preflight
+        into ``vault_rhbk.yml`` as well as ``vars_rhbk.yml``. The vault template pins
+        ``admin`` and loads after the vars file, so a non-default RHBK admin user
+        was paired with its own password under the user name ``admin``.
+      - bootstrap_generate_env_vars / bootstrap_controller - Pin the dedicated NFS
+        test PVC name/namespace from preflight so stale ``synology-nfs-pvc`` defaults
+        cannot be reintroduced.
+      - 'bootstrap_generate_env_vars / grafana_install - Preserve explicit ``grafana.oidc.enabled:
+        false``. Overlay no longer forces Grafana OIDC on, omits the Grafana client
+        from ``rhbk_clients``, and does not generate the Grafana OIDC job template.
+        The Grafana OIDC role skips Keycloak secret retrieval and CR patch when OIDC
+        is disabled.'
+      - 'bootstrap_generate_env_vars / preflight_oidc - Match the OpenShift OAuth
+        client by exact configured id, ``source: openshift``, or legacy exact ``openshift-prod``
+        only. Remove ``startswith("openshift")`` so unrelated clients such as ``openshift-gitops``
+        are never rewritten.'
+      - bootstrap_generate_playbook_repo - An empty ``selected_components`` list no
+        longer dumps the full playbook catalog. Galaxy / AAP-tabs-only runs generate
+        no OpenShift or RHEL playbooks unless a platform is selected.
+      - bootstrap_generate_playbook_repo - Keep the default-ingress playbook when
+        ``update_default_ingress`` is set in preflight even if ``aap_config_vars.yml``
+        is skipped (No-AAP). Ingress-only selection no longer keeps Deploy cert-manager
+        as a runnable playbook; explicit Certificate Manager selection is required.
+      - bootstrap_generate_playbook_repo - generated ``ansible.cfg`` sets ``display_skipped_hosts
+        = False`` so Controller and CLI recaps are not flooded with skipped tasks.
+        Set ``ANSIBLE_DISPLAY_SKIPPED_HOSTS=true`` to see them while debugging.
+      - bootstrap_generate_playbook_repo - the ``ado-configure-oauth-with-rhbk-bootstrap``
+        playbook no longer defaults ``keycloak_client_id`` to ``rhbk_client`` (the
+        first Keycloak client).
+      - bootstrap_generate_playbook_repo - the client-scopes playbook is tagged ``rhbk_client_scopes``
+        so a client-only run does not seed that playbook.
+      - galaxy.yml / requirements.txt - Keep CI, tests, Molecule, and backup files
+        out of the built collection, and remove the tracked ``CHANGELOG.rst.bak``.
+        Declare PyYAML, kubernetes, and tzdata for ansible-builder. ``requirements.txt``,
+        ``bindep.txt``, ``changelogs/fragments/``, and ``extensions/eda`` stay in
+        the artifact.
+      - gitlab_install - on ``state=present``, force-delete GitLab pods that are Terminating
+        on NotReady or unreachable nodes so PostgreSQL and webservice can reschedule.
+        A dead worker previously left GitLab down until those pods were deleted by
+        hand. Disable with ``gitlab_install_recover_stuck_pods=false``.
+      - gitlab_manage - Member lookups use ``/members/all/`` so inherited group access
+        is detected before a duplicate add. Direct membership is still required to
+        update or remove.
+      - gitlab_manage - User block accepts GitLab ``403`` (already blocked). Block/delete
+        refuse a missing username instead of succeeding silently.
+      - gitlab_manage - ``issue_create`` no longer upserts an existing title; ``issue_update``
+        no longer creates a missing issue. Issue search filters to an exact title
+        match, and labels/assignees are sent when set.
+      - grafana_install - Prefer ``oidc.verify_ssl`` / ``oidc.ca_pem`` (and ``grafana_install_oidc_*``)
+        over ``ocp_rhbk_verify_ssl`` for Grafana OIDC TLS. Private CA keeps verification
+        on via ConfigMap ``grafana-oidc-ca`` and ``tls_client_ca``. The role json-patches
+        the Grafana CR to mount that ConfigMap at ``/etc/grafana/oidc-ca`` on the
+        ``grafana`` container without replacing existing volumes or mounts (grafana-operator
+        v5).
+      - grafana_install - collect Grafana CR containers with one-line Jinja hops.
+        Nested folded ``{{ ((((x).spec | default({})).deployment)) }}`` parsed on
+        ansible-core 2.15 (Preflight pod) but raised ``unexpected ')'`` on ansible-core
+        2.16 in AAP ``ee-supported-rhel9``.
+      - grafana_install / bootstrap_generate_env_vars - Preflight Grafana Replicas
+        now writes ``grafana_install_replicas`` onto the Grafana CR ``spec.deployment.spec.replicas``.
+      - grafana_install / bootstrap_generate_env_vars - when RHBK is in the run, Grafana
+        OIDC inherits Keycloak hostname and realm from the RHBK component (same connection
+        as Client and OpenShift OAuth). Leftover ``ocp_rhbk_hostname`` / Grafana issuer
+        values are ignored unless the issuer was typed as a manual override. Overlay
+        no longer invents ``Dev`` or ``rhlab``. The play prints the effective hostname,
+        realm, and client ID before contacting Keycloak. Keycloak TLS verification
+        follows ``ocp_rhbk_verify_ssl`` (on by default). Mapping method is OpenShift-only.
+      - grafana_install / bootstrap_generate_playbook_repo - Grafana ``state=absent``
+        now deletes the Grafana CR, route, and postgres, waits until the CR is gone,
+        then removes the operator and namespace. The previous order deleted the namespace
+        first, so Grafana stayed ``Terminating`` and ``ocp_namespace`` failed with
+        advanced cleanup off.
+      - 'install_aap - Fix ansible-test sanity failures in ``aap_ocp_verify_assess.py``:
+        drop non-module shebang (script is invoked via ``python3``) and split ``assess``
+        helpers so McCabe complexity stays within pylint limits.'
+      - keycloak_login_events_exporter - default off. The exporter is optional Keycloak
+        login/logout monitoring; its playbook and job template are generated only
+        when enabled.
+      - ocp_absent_cleanup - Document the eight cleanup filters so ``ansible-doc --type
+        filter`` can build Automation Hub import docs. Each filter documents its real
+        arguments.
+      - 'ocp_minio - Honor ``create_client: false`` so the MinIO OIDC playbook does
+        not create, update, or add mappers to an externally managed Keycloak client.
+        Overlay omits that client from ``rhbk_clients`` so Deploy RHBK Client cannot
+        double-provision it when ADO does manage the client.'
+      - ocp_minio - Patch MinIO OIDC onto the live Deployment without JSON merge replacing
+        the ``containers`` array, which dropped image, mounts, probes, and resources
+        (``Deployment.apps is invalid``).
+      - ocp_minio - Treat empty ``minio_oidc_config_url`` as unset and derive the
+        OpenID discovery URL from issuer or Keycloak hostname/realm so ``MINIO_IDENTITY_OPENID_CONFIG_URL``
+        is never written blank (MinIO ``unexpected scheme found``).
+      - ocp_minio / bootstrap_generate_env_vars - MinIO OIDC can use an existing Keycloak
+        without selecting the RHBK component. Preflight collects Keycloak hostname,
+        realm, and admin credentials on the MinIO form when RHBK is not in the run;
+        overlay writes them for ``rhbk_client``. When RHBK is selected, those connection
+        settings are inherited and not duplicated. Clearer assert when admin credentials
+        are still missing.
+      - ocp_namespace - after ``state=absent``, wait until the Namespace is gone using
+        the existing Terminating retries instead of a three-second pause.
+      - ocp_nfs_storage - Report driver install, StorageClass, test namespace, and
+        test PVC Bound status independently; fail Bootstrap when required NFS validation
+        does not succeed (does not patch or delete existing lab PVCs).
+      - ocp_nfs_storage - Support ``auto`` NFS version (omit ``nfsvers`` mount option).
+        Look up an existing StorageClass and fail clearly when nfsvers conflicts instead
+        of silently changing mountOptions.
+      - ocp_nfs_storage - Use dedicated ``ado-nfs-csi-test`` / ``ado-nfs-csi-test-pvc``
+        for optional validation. Look up the claim before apply; if it exists with
+        a different StorageClass, fail clearly and never patch or delete the bound
+        PVC (including lab ``synology-nfs-pvc``).
+      - ocp_oidc_auth - Accept YAML boolean ``true``/``false`` for ``ocp_rhbk_verify_ssl``
+        on Ansible 2.15.
+      - ocp_oidc_auth - Allow publicly trusted Keycloak without ``openID.ca``. Do
+        not require a CA ConfigMap when the trust store is empty. Never use the cluster
+        ingress CA for external Keycloak; ingress CA is opt-in for in-cluster Keycloak
+        that uses the default ingress cert.
+      - ocp_oidc_auth - Build OpenShift oauth-server CA ConfigMap from the same discovered
+        CA material; never treat a leaf-only ``tls.crt`` as a trust anchor.
+      - ocp_oidc_auth - Discover Keycloak CA trust (IdM bundle, TLS Secret ``ca.crt``
+        / ``tls.crt`` intermediates, cert-manager issuer ACME ``caBundle``, then ingress
+        CA) before client-secret API calls so cert-manager / IdM ACME installs verify
+        with ``validate_certs`` still enabled.
+      - ocp_oidc_auth - OpenShift OIDC mapping method now defaults to ``add``. ``claim``
+        fails with ``Could not create user`` when that username already exists from
+        htpasswd. An explicit ``claim`` or ``lookup`` is still honored.
+      - ocp_oidc_auth - build the Keycloak REST client-secret URL on one line. The
+        folded YAML put a space in the path, so the REST fallback (used when the ``keycloak_clientsecret_info``
+        module returns no secret) could never succeed.
+      - ocp_oidc_auth - pass ``true``/``false`` (not Jinja ``True``/``False``) to
+        Keycloak ``validate_certs``. A non-empty string is a CA path for the HTTPS
+        library; the Preflight checkbox still defaults to verify.
+      - ocp_oidc_auth - when Keycloak returns ``Realm not found``, fail with ``Keycloak
+        realm '<realm>' does not exist`` instead of a permissions error. The role
+        still does not create realms.
+      - ocp_oidc_auth - when ``rhbk_hostname`` / ``rhbk_realm`` are set, leftover
+        ``ocp_oidc_auth_rhbk_*`` overrides are ignored so OAuth uses the same Keycloak
+        as ``rhbk_client``. The play prints the effective hostname, realm and client
+        ID before contacting Keycloak.
+      - ocp_oidc_auth - when the existing Keycloak client's secret cannot be read,
+        fail with a specific message (admin login failed, account may not list clients
+        or read the secret, client not found, client has no secret) instead of a message
+        hidden by ``no_log``. Nothing is created or changed in Keycloak or OpenShift.
+      - ocp_quay - Read the live Quay Deployment with kubernetes.core.k8s_info before
+        replacing a duplicate OIDC CA volume, and fail when that Deployment is missing.
+      - ocp_virtualization - For ``instance_type=custom``, set KubeVirt CPU topology
+        as ``sockets``/``cores``/``threads`` (default sockets from ``cpu_cores``,
+        cores=1, threads=1) so preferences such as ``rhel.9`` pass admission instead
+        of rejecting 0-socket VMs.
+      - ocp_virtualization - Lookup Multus NAD before create; skip when present so
+        kubernetes.core.k8s does not PATCH ``spec.config`` into a non-string object
+        (CRD 422).
+      - rhbk_client - On Keycloak client create/update failure, emit a non-secret
+        failure category (tls/auth/not-found/unreachable/api) so Preflight and Contoller
+        logs remain actionable while ``no_log`` still hides credentials and API response
+        bodies.
+      - rhbk_client - prints the effective Keycloak hostname, realm and client ID
+        before create or update, and fails clearly when those inputs are missing.
+      - rhbk_manage_federation - Stop reporting LDAP federation success when Connection
+        URL or Bind DN are blank; assemble ``ldap_config`` from Preflight ``federation_*``
+        aliases, apply FreeIPA attribute defaults (``ipaUniqueID``, subtree search),
+        and validate with Keycloak ``testLDAPConnection`` before success.
+      - rhbk_realm - Probe master-realm admin token endpoint with retries before realm
+        create so token read timeouts are diagnosed separately from LDAP failures.
+      - rhbk_setup_mapper - Update existing LDAP group mapper configuration instead
+        of skipping when the mapper already exists; verify mapper presence after apply.
+      - rhel_stig_cac - OpenSCAP ``notchecked`` is reported as ``not_evaluated`` (not
+        ``skipped``) so audit summaries do not treat unevaluated controls as skipped
+        passes.
+      - rhel_stig_cac_resolve - Unmatched ``allow_protected`` entries fail the run
+        instead of being silently ignored.
+      - roles - Set ``min_ansible_version`` to ``2.17.0`` so role metadata matches
+        ``meta/runtime.yml`` ``requires_ansible``. Role READMEs that still named an
+        older Ansible minimum now say 2.17.0.
+      doc_changes:
+      - README - Add Requirements and Support sections. Lead install instructions
+        with Red Hat Ansible Automation Hub, then Ansible Galaxy and a git install.
+      - bootstrap_controller / bootstrap_generate_playbook_repo - Replace the remaining
+        live ``infra.ado`` names with ``infra.automation_development_office`` in the
+        Hub publish task title and the generated playbook-repo README. Historical
+        changelog text is unchanged.
+      - ocp_minio - Document empty OpenID discovery URL / unexpected scheme failure.
+      - ocp_minio - Document the OIDC Deployment patch failure and safe recovery (rerun
+        Configure MinIO OIDC after collection rebuild; do not recreate PVC).
+      - ocp_oidc_auth - Document automatic Keycloak TLS trust discovery for cert-manager
+        and externally managed Keycloak.
+      major_changes:
+      - rhel_stig_cac - Results are mapped to STIG IDs, vulnerability IDs, SV rule
+        IDs and SRG IDs, written as ``stig-<N>-<phase>-findings.json`` with the OpenSCAP
+        results XML and HTML report, and published as the AAP job artifact ``ado_stig_cac``.
+      - rhel_stig_cac - Reworked into an audit-first workflow with modes ``audit``
+        (default), ``prepare``, ``remediate`` and ``verify``. Audit changes nothing
+        on the host except evidence files. Remediation needs ``rhel_stig_cac_remediation_approved``,
+        ``rhel_stig_cac_recovery_confirmed`` and an explicit ``rhel_stig_cac_controls``
+        list, refuses protected controls (FIPS, SSH, SSSD/IdM, authentication, sudo,
+        firewall) unless allowed, and fails when a selected control is still not compliant.
+      minor_changes:
+      - ansible-lint CI stays offline and now requires the production profile. ``args[module]``
+        and ``jinja[invalid]`` are no longer skipped. ``no-log-password`` is reported
+        as a warning.
+      - bootstrap_controller - Add GitLab onboard workflow with native AAP approval,
+        status comments, and issue close-on-success; shared GitLab connection settings
+        move to group_vars/all (vault for token) and out of JT surveys.
+      - bootstrap_controller - The ``ADO | RHEL STIG Hardening`` survey asks for mode,
+        controls, approval, recovery confirmation and allowed protected controls instead
+        of ``rhel_stig_cac_remediate``. The RHEL workflow node therefore audits by
+        default.
+      - bootstrap_generate_env_vars - Honor ``component_config.rhbk.clients[].create_client``
+        (default yes) so ADO provisions only the Keycloak clients it should manage.
+        Existing clients keep their application OIDC configuration and are omitted
+        from generated ``rhbk_clients``.
+      - bootstrap_generate_env_vars - Install AAP Minimal Footprint applies a thin
+        supported ``aap_ocp_install`` profile (Controller/EDA replicas=1, ``create_preload_data=false``,
+        ``projects_persistence=false`` unless a projects PVC is explicitly enabled)
+        without disabling Hub/EDA or inventing CPU/memory request cuts.
+      - bootstrap_generate_env_vars - Install AAP OpenShift component selection (``install_controller``
+        / ``install_hub`` / ``install_eda``) is independent of ``minimal_footprint``.
+        Hub file StorageClass inherits General ``storage`` unless ``hub_storage_override``
+        is set. Controller projects persistence and EDA replicas are passed through
+        when configured.
+      - bootstrap_generate_env_vars - Map Install AAP managed/external PostgreSQL
+        storage (``postgres_storage``, ``postgres_storage_size``, ``database_secret``)
+        into ``aap_ocp_install_platform.platform_manifest_overrides.spec.database``
+        so ``spec.database.postgres_storage_class`` is set independently of Hub file/S3
+        storage (required nesting for ``infra.aap_utilities`` 3.5.0 document-root
+        merge). Optional ``postgres_storage`` inherits General ``storage`` when blank;
+        both blank leaves the Operator/cluster default unset (no invented class).
+      - bootstrap_generate_env_vars - Map preflight ``component_config.stig`` ``mode``,
+        ``remediation_approved``, ``recovery_confirmed``, ``controls`` and ``allow_protected``
+        to ``vars_stig.yml``.
+      - bootstrap_generate_env_vars - OpenShift OIDC (``openshift`` option ``oauth_rhbk``)
+        now works against an existing Keycloak when RHBK is not part of the run. ``openshift.oauth_rhbk``
+        supplies the hostname, realm, client ID, admin user, admin password and optional
+        ``verify_ssl``. Generation writes ``vars_rhbk.yml`` and ``vault_rhbk.yml``
+        with the variables the ``ocp_oidc_auth`` role already reads. No Keycloak client
+        is created or changed, and the admin password is written only to the vault
+        file.
+      - bootstrap_generate_env_vars - add ``files/preflight_oidc.py``, run before
+        any component vars are generated, so a preflight JSON that bypasses the form
+        gets the same OIDC checks as the UI (a Keycloak client that was removed from
+        the client list, a missing OpenShift or GitLab client ID, missing or conflicting
+        OpenShift OIDC connection inputs). A blank client ID for Grafana, BookStack,
+        NetBox, Quay, MinIO and Developer Hub means the default client from ``components_defaults.yml``;
+        the Preflight UI resolves it the same way.
+      - bootstrap_generate_env_vars - with RHBK in the run, OpenShift OIDC inherits
+        the RHBK hostname, realm and admin credentials. Values set under ``openshift.oauth_rhbk``
+        are written as the role's own ``ocp_oidc_auth_rhbk_*`` inputs, so RHBK's own
+        variables are not rewritten.
+      - bootstrap_generate_env_vars - write ``ocp_rhbk_verify_ssl`` only when ``openshift.oauth_rhbk.verify_ssl``
+        is set in the preflight, and never remove an existing value. The default (verify)
+        is applied by the role. The Preflight form defaults the option to on.
+      - bootstrap_generate_playbook_repo - The RHEL STIG hardening playbook now defaults
+        ``stig_engine`` to ``cac`` and passes ``stig_mode``, ``stig_controls``, ``stig_remediation_approved``,
+        ``stig_recovery_confirmed`` and ``stig_allow_protected`` to the role.
+      - gitlab_manage - Add day-2 GitLab API role and Contoller job templates to create/update/close
+        issues, create/delete branches, create/block/remove users, and grant or revoke
+        project membership roles.
+      - gitlab_manage - Add onboard validation, issue comment, and membership verification
+        actions for GitLab-triggered AAP workflows.
+      - install_aap - After OpenShift install, run bounded post-install verification
+        with ``kubernetes.core.k8s_info`` (and optional ``ansible.builtin.uri`` HTTPS
+        probe). Discovers the live Gateway Route URL, checks Platform/Controller/Hub
+        readiness, PostgreSQL StorageClass, and writes ``aap-install-verify-result.json``
+        for Preflight Bootstrap Console display. Does not use AAP Controller APIs,
+        ``infra.aap_utilities``, or ``oc``/``kubectl``.
+      - keycloak_login_events_exporter - Correct the defaults comment (disabled by
+        default). When false, skip management and leave an existing exporter in place.
+      - ocp_oidc_auth - ``ocp_oidc_auth_ca_pem`` (a PEM certificate) can be used as
+        the trust anchor for the Keycloak calls, so a private CA is supported without
+        turning verification off. A value that is not a PEM certificate stops the
+        play with its own message.
+      - "ocp_oidc_auth - when Keycloak TLS verification fails, say so and point to
+        Preflight Step 2 \u2192 OAuth / RHBK to uncheck verification for a lab, or
+        to keep verification on and configure a trusted CA for production. Unrelated
+        login or network errors still use their own messages."
+      - plugins - Added the ``rhel_stig_cac_resolve`` and ``rhel_stig_cac_report``
+        modules and the ``rhel_stig_cac`` module utility.
+      - rhbk_client / overlay - Emit confidential OpenShift OIDC client defaults (standard
+        flow, client-secret authenticator, no direct-grant/implicit unless requested).
+      - tls_trust_bundle - New filter plugin to extract CA trust PEMs from Kubernetes
+        TLS Secret fields and PEM chains.
+      security_fixes:
+      - Removed well-known default administrator passwords from generated vault files,
+        role defaults, playbook seeds and Controller surveys. Deployments created
+        earlier with ``redhat123`` should have those passwords rotated.
+      - bootstrap_generate_env_vars - AAP and 389ds/dirsrv now fail generation when
+        the admin/manager password is missing. Empty preflight secret fields no longer
+        overwrite an existing non-empty vault value.
+      - 'gitlab_manage - All ``uri`` calls that send ``PRIVATE-TOKEN`` now set ``no_log:
+        true`` so failed API tasks do not print the token in job output.'
+      - install_rhbk / bootstrap_generate_env_vars - Removed ``changeme-db`` / ``change-me-db``
+        database password fallbacks. OpenShift RHBK requires ``db_password`` in preflight.
+      - ocp_oidc_auth - parse ``ocp_rhbk_verify_ssl`` strictly. Unrecognized values
+        (``garbage``, ``tru``, ``flase``, unexpected numbers) stop the play before
+        any Keycloak request. They are never passed through Ansible's ``bool`` filter,
+        which would have treated them as false and silently disabled verification.
+        The same rule is applied by ``bootstrap_generate_env_vars`` (preflight validator),
+        the Preflight UI and the Preflight server.
+      - ocp_oidc_auth - verify the Keycloak certificate for the admin login, client
+        lookup and client-secret read, for Keycloak installed by ADO and for an existing
+        external Keycloak. When the certificate is not trusted the play stops with
+        a clear message instead of continuing unverified.
+      - ocp_zabbix / bootstrap_generate_env_vars - Zabbix vault seeds no longer emit
+        ``zabbix`` / ``zabbixpass`` / ``rootpass123!``. Overlay and the role refuse
+        the upstream Admin default ``zabbix``.
+    fragments:
+    - aap-install-component-storage-selection.yml
+    - aap-install-minimal-footprint-hub-storage.yml
+    - aap-ocp-install-postgres-storage.yml
+    - aap-platform-database-override-spec-nest.yml
+    - align-min-ansible-version.yml
+    - ansible-lint-production-profile.yml
+    - bookstack-oidc-secret-gitlab-client.yml
+    - bootstrap-generate-env-vars-openshift-oidc-external-keycloak.yml
+    - bootstrap-generate-env-vars-rhbk-clients-dismissed.yml
+    - bootstrap-infra-config-openshift-host.yml
+    - bootstrap-ingress-noaap-playbook-gate.yml
+    - bootstrap-minio-devhub-oidc-client-id.yml
+    - bootstrap-rhbk-client-ownership.yml
+    - certification-lint-jinja-invalid.yml
+    - collection-build-ignore-and-python-deps.yml
+    - galaxy-only-empty-components.yml
+    - gitlab-manage-day2.yml
+    - gitlab-manage-pr363-review.yml
+    - gitlab-onboard-approval-workflow.yml
+    - gitlab-recover-stuck-pods.yml
+    - grafana-aap-jinja-replicas-skips.yml
+    - grafana-absent-instance-before-namespace.yml
+    - grafana-oidc-inherit-connection.yml
+    - hub-force-skip-empty-template-verify.yml
+    - install-aap-k8s-core-verify.yml
+    - install-aap-verify-assess-sanity.yml
+    - lint-role-defaults-vars-meta-files.yml
+    - minio-oidc-external-keycloak.yml
+    - minio-oidc-skip-tls-verify-default.yml
+    - nfs-test-pvc-collision.yml
+    - no-default-admin-passwords.yml
+    - ocp-absent-cleanup-filter-docs.yml
+    - ocp-minio-keycloak-ownership.yml
+    - ocp-oidc-auth-auto-keycloak-trust.yml
+    - ocp-oidc-auth-keycloak-client-errors.yml
+    - ocp-oidc-auth-keycloak-tls-default.yml
+    - ocp-oidc-auth-realm-missing.yml
+    - ocp-oidc-auth-tls-fail-msg.yml
+    - ocp-oidc-auth-validate-certs-lower.yml
+    - ocp-oidc-auth-verify-ssl-yaml-bool.yml
+    - ocp-oidc-mapping-method-add.yml
+    - ocp_minio_oidc_config_url_empty.yml
+    - ocp_minio_oidc_safe_deployment_patch.yml
+    - ocp_virtualization-custom-cpu-topology.yml
+    - ocp_virtualization-skip-existing-multus-nad.yml
+    - oidc-secret-ownership-callback-exact.yml
+    - openshift-idp-callback-grafana-oidc-enabled.yml
+    - openshift-oidc-keycloak-hostname-scheme.yml
+    - overwrite-all-empty-jt-selection.yml
+    - pr338-rhbk-oidc-review.yml
+    - provision-virt-ssh-survey.yml
+    - readme-requirements-support-hub-install.yml
+    - replace-leftover-infra-ado-references.yml
+    - rhbk-client-only-playbooks.yml
+    - rhbk-client-safe-failure-category.yml
+    - rhbk-ldap-federation-validate.yml
+    - rhbk-oauth-inherit-connection.yml
+    - rhel-stig-cac-audit-first.yml
+    release_date: '2026-11-20'

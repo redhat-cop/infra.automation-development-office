@@ -1,8 +1,0 @@
----
-# yamllint disable rule:line-length
-minor_changes:
-  - gitlab_manage - Add onboard validation, issue comment, and membership
-    verification actions for GitLab-triggered AAP workflows.
-  - bootstrap_controller - Add GitLab onboard workflow with native AAP approval,
-    status comments, and issue close-on-success; shared GitLab connection
-    settings move to group_vars/all (vault for token) and out of JT surveys.
