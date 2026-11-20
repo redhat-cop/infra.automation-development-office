@@ -1,6 +1,0 @@
----
-doc_changes:
-  - >-
-    README - Add Requirements and Support sections. Lead install
-    instructions with Red Hat Ansible Automation Hub, then Ansible Galaxy
-    and a git install.

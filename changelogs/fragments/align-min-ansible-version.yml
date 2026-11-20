@@ -1,6 +1,0 @@
----
-bugfixes:
-  - >-
-    roles - Set ``min_ansible_version`` to ``2.17.0`` so role metadata
-    matches ``meta/runtime.yml`` ``requires_ansible``. Role READMEs that
-    still named an older Ansible minimum now say 2.17.0.

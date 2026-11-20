@@ -1,5 +1,0 @@
----
-bugfixes:
-  - ocp_virtualization - Lookup Multus NAD before create; skip when present
-    so kubernetes.core.k8s does not PATCH ``spec.config`` into a non-string
-    object (CRD 422).

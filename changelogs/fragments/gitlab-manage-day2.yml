@@ -1,6 +1,0 @@
----
-# yamllint disable rule:line-length
-minor_changes:
-  - gitlab_manage - Add day-2 GitLab API role and Contoller job templates to
-    create/update/close issues, create/delete branches, create/block/remove
-    users, and grant or revoke project membership roles.
