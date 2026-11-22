@@ -11,7 +11,8 @@
     grant_admin: true
     update_htpass: true
     htpasswd_user: admin
-    htpasswd_pass: knuckle
+    # Supplied at run time; molecule never carries a password.
+    htpasswd_pass: "{{ lookup('ansible.builtin.env', 'MOLECULE_HTPASSWD_PASS') | mandatory('Set MOLECULE_HTPASSWD_PASS to run this scenario.') }}"
     # molecule only vars:
     _oauth: "cluster"
     _ns: "openshift-config"

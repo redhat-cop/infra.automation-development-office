@@ -1,0 +1,51 @@
+---
+# Route internal infrastructure topology into Ansible Vault before Git sees it.
+#
+# Internal hostnames, domains, API endpoints, SMTP relays, IP addresses and LDAP
+# base DNs in the generated vars files become "{{ vault_topology_... }}" references.
+# The values are stored in the environment's vault files, which the next pass
+# encrypts together with every other generated vault file. Variable names, nesting
+# and load order are unchanged, so roles and old generated playbooks keep working.
+# See files/ado_topology.py and the role README.
+#
+# Runs only while generated vault files are being encrypted: routing values into a
+# vault file that stays plaintext would protect nothing. Nothing here prints a
+# topology value.
+
+- name: Decide whether to route topology into Vault
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_topology_enabled: >-
+      {{
+        (bootstrap_generate_env_vars_encrypt_vault_files | bool)
+        and (
+          (bootstrap_generate_env_vars_preflight.vault | default({})).encrypt_topology
+          | default(bootstrap_generate_env_vars_encrypt_topology)
+          | bool
+        )
+      }}
+
+- name: Route internal infrastructure topology into Vault files
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/ado_topology.py"
+      - freeze
+      - --env-dir
+      - "{{ bootstrap_generate_env_vars_env_dir }}"
+      - --vault-password-file
+      - "{{ bootstrap_generate_env_vars_effective_vault_password_file }}"
+      - --json
+  register: bootstrap_generate_env_vars_topology_frozen
+  changed_when: (bootstrap_generate_env_vars_topology_frozen.stdout | from_json).routed | default(0) | int > 0
+  when: bootstrap_generate_env_vars_topology_enabled | bool
+
+- name: Report where topology was routed (counts only, never values)
+  ansible.builtin.debug:
+    msg: >-
+      Routed {{ (bootstrap_generate_env_vars_topology_frozen.stdout | from_json).routed }}
+      internal topology values from
+      {{ (bootstrap_generate_env_vars_topology_frozen.stdout | from_json).files | length }}
+      generated file(s) into
+      {{ (bootstrap_generate_env_vars_topology_frozen.stdout | from_json).vault_files | length }}
+      Vault file(s) for env {{ bootstrap_generate_env_vars_env }}.
+  when: bootstrap_generate_env_vars_topology_enabled | bool

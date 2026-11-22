@@ -33,6 +33,7 @@ Automation Development Office
 | `generate_env_vars_base_dir` | Base directory for generated environment variables. |
 | `generate_env_vars_create_dirs` | Creates bootstrap repository directories when true. |
 | `generate_env_vars_encrypt_vault_files` | Encrypts generated vault files when true. |
+| `generate_env_vars_encrypt_topology` | Routes internal hostnames, domains, endpoints and IP addresses into the encrypted vault files when vault encryption is on. Default `true`. Preflight `vault.encrypt_topology` overrides it. See [Encrypted infrastructure topology](#encrypted-infrastructure-topology-default). |
 | `generate_env_vars_components` | Component list for generated `vars_*.yml` and `vault_*.yml` files. |
 | `bootstrap_generate_env_vars_preflight_ui_openshift_apps` | OpenShift app ids the preflight UI exposes as checkboxes. Selected `component_apps.openshift` values outside this list are ignored for playbook and job-template generation. Includes `ocp_compliance`. |
 | `bootstrap_generate_env_vars_non_ui_openshift_playbook_apps` | Collection playbook apps that are not preflight UI checkboxes. Stale imports in top-level `components[]` are ignored (`gitlab_runner`, `web_terminal`, `ocp_descheduler`). |
@@ -205,6 +206,110 @@ Satellite dynamic inventory creates an AAP inventory source named like
 `ADO-Satellite-Dynamic-Inventory` on the RHEL inventory. It is not a separate
 inventory named `ADO Satellite Dynamic Inventory`; it is a source attached to
 `ADO-RHEL-Inventory` so synced Satellite hosts become managed RHEL targets.
+
+### Encrypted infrastructure topology (default)
+
+Internal hostnames, domains, API URLs, application endpoints, SMTP relays,
+Satellite/IdM/Controller/Hub names, IP addresses and LDAP base DNs describe how
+an environment is built. When `generate_env_vars_encrypt_vault_files` is true the
+role encrypts them with Ansible Vault in the same step that encrypts credentials.
+Set `generate_env_vars_encrypt_topology: false` (or Preflight
+`vault.encrypt_topology: false`) to keep them readable.
+
+What happens:
+
+1. **Thaw.** At the start of a run, existing references are resolved back into
+   the plaintext `vars_*.yml` files so the generator and its merge logic see real
+   values. The Vault password file is read with `ansible-vault view`; no value is
+   printed.
+2. **Generate.** Unchanged.
+3. **Freeze.** Before vault files are encrypted, each topology value is replaced
+   in its `vars_*.yml` file by a reference
+   `"{{ vault_topology_<file>__<path> }}"` and the value is written under that
+   name to the vault file that file's play already loads. Variable names such as
+   `api_host`, `apps_domain` and `domain` do not change, there is no second
+   plaintext definition, and roles need no edit.
+
+| Plaintext file | Vault file holding its topology |
+|---|---|
+| `infra_config_vars.yml`, `vars_<component>.yml` | `vault_openshift.yml` |
+| `aap_config_vars.yml`, `onboard_keycloak.yml` | `aap_vault.yml` |
+| `vars_satellite.yml`, `vars_idm.yml`, `vars_smtp.yml`, `vars_unifi.yml`, `vars_aws.yml` | the vault file with the same suffix when it exists |
+
+Only topology is routed. Component selections, feature flags, sizing, channels
+and ordinary options stay in plaintext. A URL, IPv4 address or LDAP DN is routed
+under any key. A bare dotted name is routed only under a host-like key
+(`hostname`, `domain`, `server`, `url`, `endpoint`, `relay`, ...), so module names
+(`ansible.builtin.copy`) and file names are left alone. Placeholders
+(`example.com`, `localhost`, `*.svc`) and public registries (`registry.redhat.io`,
+`quay.io`) stay readable. Environments are independent: each `group_vars/all/<env>/`
+directory has its own references and vault files.
+
+Both execution paths work. Controller loads the same `vars_*.yml` and vault files
+through `vars_files`/`include_vars`, and Ansible resolves the reference at use
+time; standalone `ansible-playbook` does the same with
+`--vault-password-file`. Anything that reads a vars file without Ansible must go
+through Ansible instead (the Controller virt job-template defaults now do).
+
+**Generated Controller configuration.** `configs/controller/*.yml` (hosts,
+projects, credentials, inventories, and so on) are rendered from decrypted
+variables, so the generator freezes them as well, at the end of
+`bootstrap_controller` `generate_aap_configs`. Each value is replaced by a
+`{{ vault_topology_cfg_<file>__<path> }}` reference and stored in
+`aap_vault.yml`; `load_controller_configs.yml` already loads that vault before the
+config directory, so the reference resolves when Controller objects are applied.
+`configs/job_templates/*.jt.yml` and `configs/workflows/*.wf.yml` are read as raw
+YAML, which cannot hold references, so they must never contain topology. The
+generator stops with the file and key (never the value) if one does.
+
+**Job template survey defaults.** The OpenShift Virt job template ships blank
+defaults for gateway, DNS servers, static IP and IP range. A blank answer reaches
+the playbook as an extra variable that outranks `group_vars`, so the generated
+`ado-provision-openshift-virt-vm-bootstrap.yml` computes
+`virt_gateway_effective` and `virt_dns_servers_effective` from the survey answer
+and falls back to `openshift_virt_network_defaults` (encrypted environment
+configuration). Typing a value at launch still wins. The prefix length stays a
+visible default.
+
+**Upgrading an existing bootstrap repository.** Job templates and playbooks that
+were generated earlier may still carry the old survey defaults. Re-run Bootstrap
+with "Override all" (or both the playbooks and the job templates). Overriding only
+the job templates would blank the survey while an old playbook still expects the
+value, so the VM would be created without a gateway or DNS.
+
+Check and migrate an existing environment (no Git history is rewritten):
+
+```bash
+python3 roles/bootstrap_generate_env_vars/files/ado_topology.py audit \
+  --env-dir group_vars/all/<env>              # exits 3 and lists key paths if plaintext topology remains
+python3 roles/bootstrap_generate_env_vars/files/ado_topology.py migrate \
+  --env-dir group_vars/all/<env> --vault-password-file /path/outside/repo/vault-pass --encrypt
+```
+
+`migrate` keeps variable names, writes references into the plaintext files and the
+values into the vault files, encrypts them, and leaves already-encrypted vault
+files that have no change byte-for-byte untouched. It stops with a clear error when
+a reference has no value, when the vault password is wrong, or when a plaintext
+file defines the same variable as a vault file. Re-running Bootstrap does the same.
+`ado_topology.py status|thaw|freeze` are available for diagnosis and never print
+a value.
+
+Remaining exposure: Ansible decrypts values at run time, so they can appear in
+`-v` output, rendered manifests and generated artifacts that a playbook writes
+elsewhere (VM cloud-init, Kubernetes manifests); a value a user types into a
+survey at launch is stored in the Controller job record; and topology already in
+Git history stays there until you clean it separately. The credential gate refuses
+to publish plaintext topology in `group_vars/` and `configs/` (see
+`bootstrap_generate_playbook_repo`), and the Bootstrap push steps run it before
+every commit.
+
+Audit the generated Controller configuration:
+
+```bash
+python3 roles/bootstrap_generate_env_vars/files/ado_topology.py audit-configs --configs-dir configs
+```
+
+It exits 3 and lists file and key paths if topology is still in plaintext.
 
 ### Shared AWS credentials (`vault_aws.yml`)
 

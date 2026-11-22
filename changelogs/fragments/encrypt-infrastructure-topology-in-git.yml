@@ -1,0 +1,54 @@
+---
+major_changes:
+  - >-
+    bootstrap_generate_env_vars - Internal hostnames, domains, API URLs,
+    application endpoints, SMTP relays, IP addresses and LDAP base DNs in the
+    generated ``group_vars/all/<env>/`` files are now stored in the encrypted
+    vault files by default. The plaintext ``vars_*.yml`` keep every variable
+    name and hold a ``vault_topology_*`` reference, so roles and generated
+    playbooks work unchanged on Controller and standalone. Set
+    ``generate_env_vars_encrypt_topology`` to ``false`` (or Preflight
+    ``vault.encrypt_topology``) to keep them readable.
+  - >-
+    bootstrap_controller - The generated ``configs/controller/*.yml`` are frozen
+    the same way (references in the file, values in ``aap_vault.yml`` under
+    ``vault_topology_cfg_*``), and the OpenShift Virt job template ships blank
+    gateway, DNS, static IP and IP range survey defaults. The generated provision
+    playbook falls back to the encrypted environment defaults when the survey
+    answer is blank. Re-run Bootstrap with Override all to update an existing
+    repository.
+minor_changes:
+  - >-
+    bootstrap_generate_env_vars - Added ``ado_topology.py`` with ``audit``,
+    ``audit-configs``, ``status``, ``thaw``, ``freeze``, ``freeze-configs`` and
+    ``migrate`` commands. It never prints a topology value and never rewrites Git
+    history.
+  - >-
+    bootstrap_generate_playbook_repo - The credential gate reports
+    ``plaintext-topology`` for internal hostnames, endpoints, addresses and
+    address ranges left in plaintext ``group_vars`` or ``configs`` (``repo``
+    profile). An environment named ``test`` or ``molecule`` is no longer exempt;
+    only a test directory above ``group_vars``/``configs`` is. The detection rules
+    are shipped as ``.githooks/ado_topology_rules.py``.
+  - >-
+    bootstrap_controller - The raw Git push steps (vars-only, pre-apply and
+    post-configs) now run the credential gate after staging and on the commit.
+bugfixes:
+  - >-
+    bootstrap_controller - The OpenShift Virt job-template defaults are read
+    through Ansible instead of a raw YAML read, so Vault references resolve.
+  - >-
+    bootstrap_generate_playbook_repo - The VPN access seed playbook no longer
+    ships a default user password (it uses ``vault_lab_user_password`` or the
+    request and stops with a message when neither exists), and the LDAP modify
+    seed no longer ships a Directory Manager bind password (it uses
+    ``vault_ldap_bind_password``) and no longer logs the bind arguments.
+  - >-
+    bootstrap_generate_env_vars - The RHBK ``ldap_config`` vault template no
+    longer ships a bind credential; the Preflight federation bind password fills
+    it. The gateway-auth and onboard-Keycloak steps no longer overwrite an
+    encrypted ``aap_vault.yml``.
+  - >-
+    bootstrap_generate_playbook_repo - The OpenShift Virt provision seed computes
+    its effective gateway and DNS servers under their own variable names, because
+    a blank survey answer is an extra variable that ``set_fact`` cannot replace.

@@ -649,7 +649,7 @@
       Example:
       ansible-playbook -c local -i inventory run-ado-scaffolding.yml \
         -e env=prod \
-        --vault-password-file ~/.vault_pass
+        --vault-password-file /path/outside/repo/vault-pass
 
 - name: Set internal env variable from provided env
   ansible.builtin.set_fact:
@@ -698,6 +698,12 @@
     - "{{ playbook_dir }}/configs/job_templates"
     - "{{ playbook_dir }}/configs/workflows"
   when: bootstrap_generate_env_vars_create_dirs | bool
+
+# Earlier runs route internal hostnames and endpoints into Vault. Restore the real
+# values first so templates and the preflight overlay work on plaintext; the freeze
+# pass before vault encryption routes them back. See files/ado_topology.py.
+- name: Restore Vault-routed topology before generating
+  ansible.builtin.include_tasks: topology_thaw.yml
 
 - name: Ask for base domain
   ansible.builtin.pause:
@@ -2183,6 +2189,12 @@
   when:
     - bootstrap_generate_env_vars_encrypt_vault_files | bool
     - bootstrap_generate_env_vars_effective_vault_password_file is not defined
+
+# Internal hostnames, domains and endpoints go into the vault files before they
+# are encrypted below, so Git never receives them in plaintext.
+- name: Route internal infrastructure topology into Vault
+  ansible.builtin.include_tasks: topology_freeze.yml
+  when: bootstrap_generate_env_vars_encrypt_vault_files | bool
 
 - name: Find generated vault files
   ansible.builtin.find:

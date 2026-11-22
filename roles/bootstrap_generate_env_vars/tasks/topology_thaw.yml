@@ -1,0 +1,126 @@
+---
+# Put Vault-routed topology back into the plaintext vars files before generation.
+#
+# A previous run replaced internal hostnames, domains and endpoints in
+# group_vars/all/<env>/ with "{{ vault_topology_... }}" references and stored the
+# values in the environment's vault files (see files/ado_topology.py). Templates and
+# the preflight overlay must see real values, so this restores them first. The
+# topology_freeze.yml pass routes them back into Vault at the end of generation.
+#
+# Reading Vault ciphertext needs the vault password file. Nothing here prints a
+# topology value.
+
+- name: Check whether the environment directory exists
+  ansible.builtin.stat:
+    path: "{{ bootstrap_generate_env_vars_env_dir }}"
+  register: bootstrap_generate_env_vars_topology_env_stat
+
+- name: Count references to Vault-routed topology in generated vars
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/ado_topology.py"
+      - status
+      - --env-dir
+      - "{{ bootstrap_generate_env_vars_env_dir }}"
+      - --json
+  register: bootstrap_generate_env_vars_topology_status
+  changed_when: false
+  when: bootstrap_generate_env_vars_topology_env_stat.stat.isdir | default(false)
+
+- name: Record whether topology must be restored
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_topology_references: >-
+      {{
+        (
+          bootstrap_generate_env_vars_topology_status.stdout
+          | default('{"references": 0}', true)
+          | from_json
+        ).references
+        | default(0)
+        | int
+      }}
+
+- name: Restore Vault-routed topology into the generated vars
+  when: bootstrap_generate_env_vars_topology_references | int > 0
+  block:
+    - name: Use the vault password file provided to this run
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_password_file: >-
+          {{
+            bootstrap_generate_env_vars_vault_password_file
+            | default(generate_env_vars_vault_password_file | default('', true), true)
+            | default(lookup('ansible.builtin.env', 'ANSIBLE_VAULT_PASSWORD_FILE'), true)
+            | string
+          }}
+        bootstrap_generate_env_vars_topology_temp_password_file: ""
+
+    - name: Take the vault password from the preflight JSON
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_password: >-
+          {{
+            (bootstrap_generate_env_vars_preflight.vault | default({})).password
+            | default(
+                (bootstrap_generate_env_vars_preflight.aap | default({})).vault_password
+                | default(bootstrap_generate_env_vars_preflight.vault_password | default('', true), true),
+                true
+              )
+          }}
+      no_log: true
+      when:
+        - bootstrap_generate_env_vars_topology_password_file | length == 0
+        - bootstrap_generate_env_vars_preflight is defined
+
+    - name: Ask for the vault password to read the existing topology
+      ansible.builtin.pause:
+        prompt: "Vault password (needed to read the existing Vault-encrypted topology)"
+        echo: false
+      register: bootstrap_generate_env_vars_topology_prompt
+      when:
+        - bootstrap_generate_env_vars_topology_password_file | length == 0
+        - bootstrap_generate_env_vars_preflight is not defined
+
+    - name: Create a temporary vault password file for the topology restore
+      ansible.builtin.tempfile:
+        state: file
+        suffix: topology-vault-pass
+      register: bootstrap_generate_env_vars_topology_temp
+      when: bootstrap_generate_env_vars_topology_password_file | length == 0
+
+    - name: Write the temporary vault password file
+      ansible.builtin.copy:
+        dest: "{{ bootstrap_generate_env_vars_topology_temp.path }}"
+        content: >-
+          {{
+            bootstrap_generate_env_vars_topology_password
+            | default(bootstrap_generate_env_vars_topology_prompt.user_input | default(''), true)
+          }}
+        mode: "0600"
+      no_log: true
+      when: bootstrap_generate_env_vars_topology_password_file | length == 0
+
+    - name: Use the temporary vault password file
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_password_file: "{{ bootstrap_generate_env_vars_topology_temp.path }}"
+        bootstrap_generate_env_vars_topology_temp_password_file: "{{ bootstrap_generate_env_vars_topology_temp.path }}"
+      when: bootstrap_generate_env_vars_topology_password_file | length == 0
+
+    - name: Restore topology values into the plaintext vars files
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ role_path }}/files/ado_topology.py"
+          - thaw
+          - --env-dir
+          - "{{ bootstrap_generate_env_vars_env_dir }}"
+          - --vault-password-file
+          - "{{ bootstrap_generate_env_vars_topology_password_file }}"
+      register: bootstrap_generate_env_vars_topology_thawed
+      changed_when: true
+
+  always:
+    - name: Remove the temporary vault password file used for the topology restore
+      ansible.builtin.file:
+        path: "{{ bootstrap_generate_env_vars_topology_temp_password_file }}"
+        state: absent
+      when: bootstrap_generate_env_vars_topology_temp_password_file | default('') | length > 0

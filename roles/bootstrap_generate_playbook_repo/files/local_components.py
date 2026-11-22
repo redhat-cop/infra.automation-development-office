@@ -1,6 +1,7 @@
 """Build and execute the generated local component plan (no Controller needed)."""
 import argparse
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -357,8 +358,12 @@ def commands(repo, plan, request):
                 if key in allowed_form and value not in (None, ""):
                     values[key] = value
         args = ["ansible-playbook", "-i", "inventory", step["playbook"], "-e", json.dumps(values)]
-        if (repo / ".vault_pass").is_file():
-            args += ["--vault-password-file", ".vault_pass"]
+        # The caller (Preflight Init, a workstation, or AAP) supplies the Vault password file
+        # through ANSIBLE_VAULT_PASSWORD_FILE. It lives outside the repository; never look
+        # for or create a .vault_pass inside the checkout.
+        vault_file = os.environ.get("ANSIBLE_VAULT_PASSWORD_FILE", "").strip()
+        if vault_file:
+            args += ["--vault-password-file", vault_file]
         # Global extra_args first (includes Common -e state=…), then per-step
         # overrides so playbook-specific state/channel/-e win.
         args += extra

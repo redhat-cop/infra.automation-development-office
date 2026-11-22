@@ -29,7 +29,8 @@ provisioner:
     K8S_AUTH_API_KEY: "${K8S_AUTH_API_KEY}"
     K8S_AUTH_HOST: "${K8S_AUTH_HOST}"
     K8S_AUTH_VERIFY_SSL: "${K8S_AUTH_VERIFY_SSL}"
-    ANSIBLE_VAULT_PASSWORD_FILE: ".vault-pass"
+    # Vault password file: from the environment, outside the repo.
+    ANSIBLE_VAULT_PASSWORD_FILE: "${ANSIBLE_VAULT_PASSWORD_FILE:-}"
 
 scenario:
   name: default

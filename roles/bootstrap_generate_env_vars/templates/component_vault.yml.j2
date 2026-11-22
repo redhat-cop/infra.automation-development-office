@@ -135,7 +135,8 @@ ldap_config:
   vendor: rhds
   connectionUrl: ldap://idm.server.lab
   bindDn: "cn=Directory Manager"
-  bindCredential: knuckle01
+  # No bind password is shipped. The Preflight federation_bind_password fills it; the role refuses a blank bind.
+  bindCredential: ""
   usersDn: "cn=users,cn=accounts,dc=server,dc=lab"
   authType: simple
   useTruststoreSpi: ldapsOnly
@@ -265,7 +266,7 @@ ldap_user_mappers:
       always.read.value.from.ldap: "true"
 
 {% elif component_name == 'dev_hub' %}
-dev_hub_backend_secret: changeme-backend-secret
+dev_hub_backend_secret: ""
 dev_hub_oidc_client_secret: ""
 dev_hub_gitlab_token: ""
 

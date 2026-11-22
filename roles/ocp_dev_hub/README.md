@@ -25,7 +25,7 @@ integration, and Keycloak OIDC settings.
 | `dev_hub_hostname` | Route hostname for Developer Hub. | ✅ | `""` |
 | `dev_hub_keycloak_realm` | Keycloak realm for OIDC. | ❌ | `rhlab` |
 | `dev_hub_keycloak_client_id` | Keycloak OIDC client ID. | ❌ | `rhdh` |
-| `dev_hub_backend_secret` | Backstage backend secret. | ❌ | `changeme-backend-secret` |
+| `dev_hub_backend_secret` | Backstage backend secret. When empty the role reuses the value already stored in the `rhdh-secrets` Secret, or generates one on first install. | ❌ | `""` |
 | `dev_hub_oidc_client_secret` | Keycloak OIDC client secret. | ❌ | `""` |
 | `dev_hub_gitlab_host` | GitLab host for catalog integration. | ❌ | `""` |
 | `dev_hub_catalog_url` | Catalog location URL. | ❌ | `""` |

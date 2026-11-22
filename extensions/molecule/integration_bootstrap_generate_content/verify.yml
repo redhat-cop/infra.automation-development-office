@@ -232,7 +232,7 @@
                 f"{data.get('ocp_quay_admin_user')!r}"
             )
             sys.exit(1)
-        if vault.get("vault_ocp_quay_admin_password") != "QuayFormPass1":
+        if vault.get("vault_ocp_quay_admin_password") != "SYNTHETIC-fixture-quay-password":
             print(
                 "expected vault_ocp_quay_admin_password from Quay tab, found "
                 f"{vault.get('vault_ocp_quay_admin_password')!r}"

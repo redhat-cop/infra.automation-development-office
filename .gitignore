@@ -50,3 +50,17 @@ importer_result.json
 
 # Editor and changelog backups. Also listed in galaxy.yml build_ignore.
 *.bak
+
+# Credentials: never commit Vault password files or plaintext preflight exports.
+# Defense in depth only; the credential gate (.githooks/pre-push) is the control.
+.vault_pass
+.vault_pass.*
+.vault-pass
+.vault-pass.*
+**/.vault_pass
+**/.vault-pass
+ado-preflight-*.json
+!ado-preflight-*.fixture.json
+!ado-preflight-*.json.vault.yml
+tmp-ado-preflight-*.json
+ado-extra-vars.json

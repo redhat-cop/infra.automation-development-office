@@ -96,7 +96,7 @@ Define the Satellite installation configuration in your playbook or inventory us
     satellite_install_rhn_connected: true
     satellite_install_rhn_org_id: "12345678"
     satellite_install_rhn_activation_key: "satellite-rhel9"
-    satellite_install_admin_password: "StrongAdminPassword123!"
+    satellite_install_admin_password: "{{ vault_satellite_admin_password }}"
     satellite_install_manifest_path: "{{ playbook_dir }}/../../files/satellite-manifest.zip"
     satellite_install_manifest_organization: "Default Organization"
     satellite_install_timezone: America/New_York

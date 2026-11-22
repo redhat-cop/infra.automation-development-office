@@ -1,0 +1,132 @@
+{
+  "scm_tool": "gitlab",
+  "environment": "molecule",
+  "domain": "lab-a.corp.invalid-zone.io",
+  "component": "all",
+  "platform": [
+    "all"
+  ],
+  "components": [
+    "openshift",
+    "rhel",
+    "patching",
+    "satellite",
+    "idm",
+    "grafana",
+    "jira",
+    "keycloak",
+    "aws",
+    "provision"
+  ],
+  "component_apps": {
+    "openshift": [
+      "aap",
+      "grafana",
+      "rhbk",
+      "cert_manager",
+      "openshift",
+      "console"
+    ],
+    "rhel": [
+      "rhel",
+      "satellite_server_install",
+      "satellite_client_tools",
+      "satellite_content_view",
+      "idm_server_install",
+      "idm_client_tools"
+    ],
+    "patching": [
+      "rhel",
+      "satellite_client_tools"
+    ],
+    "aws": [
+      "ec2_ami_copy"
+    ],
+    "satellite": [
+      "satellite"
+    ],
+    "provision": [
+      "openshift_virt"
+    ]
+  },
+  "component_options": {
+    "satellite": [
+      "satellite_server_install",
+      "satellite_client_tools",
+      "satellite_content_view"
+    ],
+    "idm": [
+      "idm_server_install",
+      "idm_client_tools"
+    ],
+    "acs": [
+      "acs_report"
+    ],
+    "aws": [
+      "ec2_ami_copy"
+    ]
+  },
+  "aap": {
+    "enabled": true,
+    "hostname": "https://aap.apps.lab-a.corp.invalid-zone.io",
+    "version": "26",
+    "organization": "ado-lab",
+    "inventory": "ado-inventory",
+    "project": "ado-project",
+    "git_url": "https://git.apps.lab-a.corp.invalid-zone.io/redhat-lab/bootstrap-sample.git",
+    "git_branch": "main",
+    "execution_environment": "ee-supported-rhel9",
+    "vault_credential_name": "ado-vault",
+    "oauth_token": "fake-e2e-token",
+    "admin_username": "admin",
+    "admin_password": "fake-e2e-admin-password",
+    "vault_password": "fake-e2e-vault-password"
+  },
+  "openshift": {
+    "api_host": "https://api.ocp.lab-a.corp.invalid-zone.io:6443",
+    "apps_domain": "apps.ocp.lab-a.corp.invalid-zone.io",
+    "token": "fake-e2e-openshift-token"
+  },
+  "jira": {
+    "enabled": false
+  },
+  "component_config": {
+    "openshift_virt": {
+      "gateway": "10.77.0.1",
+      "dns_servers": [
+        "10.77.0.53",
+        "10.77.0.54"
+      ],
+      "ip_range": "10.77.0.100-10.77.0.200",
+      "prefix_length": 24
+    },
+    "rhbk": {
+      "admin_user": "admin",
+      "admin_password": "fake-e2e-rhbk-admin-pw",
+      "hostname": "keycloak.apps.ocp.lab-a.corp.invalid-zone.io",
+      "realm": "lab",
+      "db_password": "fake-e2e-rhbk-db-pw"
+    },
+    "grafana": {
+      "admin_password": "fake-e2e-grafana-pw",
+      "smtp_host": "smtp.relay.lab-a.corp.invalid-zone.io",
+      "email": {
+        "smtp_host": "smtp.relay.lab-a.corp.invalid-zone.io"
+      }
+    },
+    "satellite": {
+      "server_url": "https://satellite.lab-a.corp.invalid-zone.io",
+      "hostname": "satellite.lab-a.corp.invalid-zone.io",
+      "admin_password": "fake-e2e-sat-pw",
+      "service_account_password": "fake-e2e-sat-svc-pw",
+      "organization": "LabA"
+    },
+    "idm": {
+      "server_hostname": "idm.lab-a.corp.invalid-zone.io",
+      "admin_password": "fake-e2e-idm-pw",
+      "ds_password": "fake-e2e-idm-ds-pw",
+      "realm": "LAB-A.CORP.INVALID-ZONE.IO",
+      "domain": "lab-a.corp.invalid-zone.io"
+    }
+  }
+}

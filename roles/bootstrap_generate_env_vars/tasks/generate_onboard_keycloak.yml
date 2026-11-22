@@ -91,6 +91,12 @@
     onboard_keycloak.chmod(0o600)
 
     vault_path = env_dir / "aap_vault.yml"
+    if vault_path.exists() and vault_path.read_text().startswith("$ANSIBLE_VAULT"):
+        # Ciphertext cannot be merged here and must not be replaced by a rewrite.
+        if admin_password:
+            raise SystemExit("aap_vault.yml is encrypted; regenerate with the preflight JSON so it is rewritten.")
+        print("aap_onboard_keycloak_configure unchanged (aap_vault.yml is encrypted, left unchanged)")
+        raise SystemExit(0)
     if vault_path.exists():
         vault_data = yaml.safe_load(vault_path.read_text()) or {}
         if not isinstance(vault_data, dict):

@@ -55,6 +55,23 @@
       }}
   changed_when: false
 
+# The test user is a smoke-test fixture. Its password is supplied (dirsrv.test_user_password)
+# or generated for this run; no password is shipped. A generated password is not recorded,
+# so the account cannot be used to log in until an operator sets one.
+- name: DirSrv Resolve test user password
+  ansible.builtin.set_fact:
+    install_dirsrv_test_user_password_effective: >-
+      {{
+        (
+          (vars['dirsrv'].test_user_password | default(''))
+          if (vars['dirsrv'] is defined)
+          else (vars['389ds'].test_user_password | default('') if (vars['389ds'] is defined) else '')
+        ) | string | trim
+        or lookup('ansible.builtin.password', '/dev/null length=32 chars=ascii_letters,digits')
+      }}
+  changed_when: false
+  no_log: true
+
 # kubernetes.core.k8s JSON-encodes quoted "{{ x | int }}" as strings → ServicePort int32 errors.
 # Build port maps in pure Jinja so | int stays numeric.
 - name: DirSrv Coerce Service / container ports to int
@@ -386,6 +403,8 @@
     - "test-group-member.ldif"
     - "user-groups.ldif"
     - "aci-anon-read.ldif"
+  # test-user.ldif carries the test user password; keep it out of task output.
+  no_log: "{{ item == 'test-user.ldif' }}"
   when: enable_bootstrap | default(true) | bool
 
 - name: Dirsrv Set ldap manager bind args for bootstrap
@@ -449,6 +468,22 @@
       -b "uid={{ install_dirsrv_test_user_uid_effective }},ou=people,{{ install_dirsrv_ds_suffix_effective }}"
       -s base "(objectClass=*)" dn >/dev/null 2>&1
       || ldapadd -x -H ldap://localhost:{{ ldap_port }} {{ install_dirsrv_ldap_mgr_bind }} -f /tmp/test-user.ldif'
+  when: enable_bootstrap | default(true) | bool
+
+- name: Dirsrv Remove the rendered test user LDIF from the pod
+  kubernetes.core.k8s_exec:
+    namespace: "{{ install_dirsrv_target_namespace }}"
+    pod: "{{ install_dirsrv_pods_list[0] }}"
+    container: dirsrv-container
+    command: sh -lc 'rm -f /tmp/test-user.ldif'
+  changed_when: false
+  when: enable_bootstrap | default(true) | bool
+
+- name: Dirsrv Remove the rendered test user LDIF from the controller
+  ansible.builtin.file:
+    path: /tmp/test-user.ldif
+    state: absent
+  changed_when: false
   when: enable_bootstrap | default(true) | bool
 
 - name: Dirsrv Ensure test user is member of test group (idempotent)

@@ -24,6 +24,9 @@ Automation Development Office
 | `ocp_quay_hostname` | Route host. |
 | `ocp_quay_admin_user` | Database admin username. Default `quayadmin`. Created with `POST /api/v1/user/initialize` after Quay is up (not from `config.yaml`). |
 | `ocp_quay_admin_password` | **Required — no default.** Database admin password from the Quay tab (`vault_ocp_quay_admin_password`). Reused on reruns. An existing user is reset by writing a libcrypt bcrypt hash to `"user".password_hash`. |
+| `ocp_quay_db_password` | PostgreSQL password. **No shipped default.** Empty: the role reuses the value in the `quay-db-credentials` Secret, adopts the one from an earlier install's `quay-config-secret`, or generates one on first install. An existing database whose password cannot be found stops the run. |
+| `ocp_quay_database_secret_key` | Quay `DATABASE_SECRET_KEY`. **No shipped default.** Same resolution order as `ocp_quay_db_password`. Do not change it on a running registry. |
+| `ocp_quay_db_credentials_secret` | Secret that stores both values (default `quay-db-credentials`). The Postgres StatefulSet reads its password from this Secret. |
 | `ocp_quay_image` | Quay container image. Default `registry.redhat.io/quay/quay-rhel8:v3.15.4` (not quay.io). |
 | `ocp_quay_redis_image` | Redis sidecar. Default `registry.redhat.io/rhel9/redis-6:latest` (not docker.io). |
 | `storage` | StorageClass for Postgres and, when not using MinIO, the registry PVC. |

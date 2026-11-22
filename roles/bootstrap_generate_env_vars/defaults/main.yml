@@ -7,6 +7,9 @@ generate_env_vars_base_dir: >-  # noqa: var-naming[no-role-prefix]
 generate_env_vars_create_dirs: true  # noqa: var-naming[no-role-prefix]
 generate_env_vars_encrypt_vault_files: true  # noqa: var-naming[no-role-prefix]
 generate_env_vars_vault_password_file: ""  # noqa: var-naming[no-role-prefix]
+# Route internal hostnames, domains and endpoints into the Vault files. Takes effect
+# only while generated vault files are encrypted. Preflight vault.encrypt_topology wins.
+generate_env_vars_encrypt_topology: true  # noqa: var-naming[no-role-prefix]
 
 generate_env_vars_components:  # noqa: var-naming[no-role-prefix]
   - aap
@@ -56,6 +59,8 @@ bootstrap_generate_env_vars_encrypt_vault_files: >-
   {{ generate_env_vars_encrypt_vault_files | bool }}
 bootstrap_generate_env_vars_vault_password_file: >-
   {{ generate_env_vars_vault_password_file }}
+bootstrap_generate_env_vars_encrypt_topology: >-
+  {{ generate_env_vars_encrypt_topology | bool }}
 bootstrap_generate_env_vars_components: "{{ generate_env_vars_components }}"
 
 # OpenShift app ids that preflight UI exposes as checkboxes.

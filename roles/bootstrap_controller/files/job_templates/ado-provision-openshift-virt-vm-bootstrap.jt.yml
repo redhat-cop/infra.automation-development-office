@@ -197,13 +197,13 @@ controller_templates:
           variable: provision_openshift_virt_prefix_length
           default: '{{ bootstrap_controller_openshift_virt_prefix_length }}'
         - question_name: ADO | Gateway
-          question_description: Optional gateway for static network config
+          question_description: Optional gateway for static network config. Leave blank to use the encrypted environment default.
           required: false
           type: text
           variable: provision_openshift_virt_gateway
           default: '{{ bootstrap_controller_openshift_virt_gateway }}'
         - question_name: ADO | DNS servers
-          question_description: Optional comma-separated DNS servers
+          question_description: Optional comma-separated DNS servers. Leave blank to use the encrypted environment default.
           required: false
           type: text
           variable: provision_openshift_virt_dns_servers

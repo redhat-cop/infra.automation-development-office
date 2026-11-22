@@ -9,7 +9,8 @@ dev_hub_gitlab_host: ""
 dev_hub_catalog_url: ""
 dev_hub_oidc_insecure_skip_tls_verify: true
 ocp_dev_hub_oidc_insecure_skip_tls_verify: true
-dev_hub_backend_secret: changeme-backend-secret
+# Empty: the role reuses the BACKEND_SECRET already in rhdh-secrets, or generates one.
+dev_hub_backend_secret: ""
 dev_hub_oidc_client_secret: ""
 dev_hub_gitlab_token: ""
 storage: ""

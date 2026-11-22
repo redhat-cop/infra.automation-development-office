@@ -10,8 +10,8 @@
     gitlab_install_tls_crt: "dummy-cert"
     gitlab_install_tls_key: "dummy-key"
     gitlab_install_admin_user: admin
-    gitlab_install_admin_password: "changeme"
-    gitlab_install_root_password: "changeme"
+    gitlab_install_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
+    gitlab_install_root_password: "{{ lookup('ansible.builtin.password', '/dev/null length=24 chars=ascii_letters,digits') }}"
     gitlab_install_validate_certs: false
     state: present
   roles:

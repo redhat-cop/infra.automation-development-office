@@ -47,7 +47,7 @@ Create, update, or delete an OpenShift **HTPasswd** identity provider and user(s
 
 | Variable         | Type            | Default | Notes |
 |------------------|-----------------|---------|-------|
-| `users`          | list of objects | —       | Example: `[{ name: admin, password: knuckle }]`. |
+| `users`          | list of objects | —       | Example: `[{ name: admin, password: <supplied-at-run-time> }]`. |
 | `htpasswd_user`  | string          | —       | Single user name (used if `users` not provided). |
 | `htpasswd_pass`  | string          | —       | Single user password (used if `users` not provided). |
 
@@ -66,7 +66,7 @@ Create, update, or delete an OpenShift **HTPasswd** identity provider and user(s
   gather_facts: false
   vars:
     htpasswd_user: admin
-    htpasswd_pass: knuckle
+    htpasswd_pass: "{{ lookup('ansible.builtin.env', 'MOLECULE_HTPASSWD_PASS') }}"
   roles:
     - ado.openshift.create_htpass_admin_user
 ```
@@ -78,7 +78,7 @@ Create, update, or delete an OpenShift **HTPasswd** identity provider and user(s
   gather_facts: false
   vars:
     htpasswd_user: admin
-    htpasswd_pass: knuckle
+    htpasswd_pass: "{{ lookup('ansible.builtin.env', 'MOLECULE_HTPASSWD_PASS') }}"
     update_htpass: true
   roles:
     - ado.openshift.create_htpass_admin_user
@@ -94,7 +94,7 @@ Create, update, or delete an OpenShift **HTPasswd** identity provider and user(s
       - name: admin
         password: newpass
       - name: breakglass-admin
-        password: knuckle
+        password: <supplied-at-run-time>
   roles:
     - ado.openshift.create_htpass_admin_user
 ```

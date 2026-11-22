@@ -546,6 +546,30 @@
     | default('cert') != 'aws_pca'
 
 # yamllint disable rule:line-length
+# Read through Ansible, not a raw YAML read, so Vault references are never mistaken for values.
+# Only the prefix length is used (see below); no topology value is read or templated here.
+- name: AAP configs | Load generated OpenShift Virt vars for job template defaults
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/group_vars/all/{{ env | default('prod', true) }}/vars_openshift_virt.yml"
+    name: bootstrap_controller_virt_vars
+  no_log: true
+  when:
+    - (playbook_dir ~ '/group_vars/all/' ~ (env | default('prod', true)) ~ '/vars_openshift_virt.yml') is file
+
+- name: AAP configs | Keep only the non-topology virt value used for survey defaults
+  ansible.builtin.set_fact:
+    bootstrap_controller_virt_prefix:
+      prefix_length: >-
+        {{
+          bootstrap_controller_virt_vars.provision_openshift_virt_prefix_length
+          | default(
+              (bootstrap_controller_virt_vars.openshift_virt_network_defaults | default({})).prefix_length
+              | default(24, true),
+              true
+            )
+        }}
+  when: bootstrap_controller_virt_vars is defined
+
 - name: AAP configs | Copy job templates for generated playbooks only
   ansible.builtin.shell: |
     set -euo pipefail
@@ -593,44 +617,22 @@
         selected = []
 
     env_name = "{{ env | default('prod', true) }}"
-    virt_vars_path = Path("{{ playbook_dir }}") / "group_vars" / "all" / env_name / "vars_openshift_virt.yml"
-    virt_vars = {}
-    if virt_vars_path.exists():
-        loaded = yaml.safe_load(virt_vars_path.read_text()) or {}
-        if isinstance(loaded, dict):
-            virt_vars = loaded
-    network_defaults = virt_vars.get("openshift_virt_network_defaults") or {}
-    if not isinstance(network_defaults, dict):
-        network_defaults = {}
+    # Only the prefix length is read from the generated virt vars. Gateway, DNS servers, the
+    # static IP and the IP range are internal topology: bootstrap keeps them in Ansible Vault,
+    # so they never become survey defaults in Git. The survey fields stay blank, and the
+    # provision playbook falls back to the encrypted environment defaults at launch.
+    loaded = json.loads({{ bootstrap_controller_virt_prefix | default({}, true) | to_json | to_json }})
+    prefix_values = loaded if isinstance(loaded, dict) else {}
 
-    def virt_default(key, fallback=""):
-        value = virt_vars.get(f"provision_openshift_virt_{key}", network_defaults.get(key, fallback))
-        if value is None:
-            return fallback
-        if isinstance(value, list):
-            return ",".join(str(item).strip() for item in value if str(item).strip())
-        return str(value)
-
-    # Static IP is launch-time only; preflight seeds gateway/DNS/prefix and an optional range hint.
     virt_static_ip = ""
     try:
-        virt_prefix_length = int(virt_default("prefix_length", "24") or 24)
+        virt_prefix_length = int(prefix_values.get("prefix_length") or 24)
     except (TypeError, ValueError):
         virt_prefix_length = 24
-    virt_gateway = virt_default("gateway", "")
-    virt_dns_servers = virt_default("dns_servers", "")
-    virt_ip_range = str(
-        network_defaults.get("ip_range")
-        or virt_vars.get("openshift_virt_ip_range")
-        or virt_vars.get("provision_openshift_virt_ip_range")
-        or ""
-    ).strip()
-    if virt_ip_range:
-        virt_static_ip_help = (
-            f"Optional static IP for the guest. Suggested range: {virt_ip_range}"
-        )
-    else:
-        virt_static_ip_help = "Optional static IP for the guest"
+    virt_gateway = ""
+    virt_dns_servers = ""
+    virt_ip_range = ""
+    virt_static_ip_help = "Optional static IP for the guest. Leave blank to use the environment default."
 
     lb = "{" * 2
     rb = "}" * 2
@@ -1637,3 +1639,15 @@
   changed_when: true
   when: bootstrap_controller_jt_wf_force | bool
 # yamllint enable rule:line-length
+
+# Controller configs are rendered from variables Ansible has already decrypted, so hostnames
+# and endpoints would land in Git as plaintext. Route them back into Vault as references.
+# This must stay the last step: every later git add sees the result.
+- name: AAP configs | Route internal topology in generated Controller configs into Vault
+  ansible.builtin.include_role:
+    name: infra.automation_development_office.bootstrap_generate_env_vars
+    tasks_from: topology_freeze_configs.yml
+  vars:
+    bootstrap_generate_env_vars_topology_configs_dir: "{{ playbook_dir }}/configs"
+    bootstrap_generate_env_vars_topology_configs_env_dir: "{{ playbook_dir }}/group_vars/all/{{ env }}"
+  when: env is defined

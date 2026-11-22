@@ -38,8 +38,8 @@
     "vault_credential_name": "ado-vault",
     "oauth_token": "MOLECULE_TOKEN",
     "admin_username": "admin",
-    "admin_password": "redhat123",
-    "vault_password": "redhat123"
+    "admin_password": "SYNTHETIC-fixture-admin-password",
+    "vault_password": "SYNTHETIC-fixture-vault-password"
   },
   "jira": {
     "enabled": false

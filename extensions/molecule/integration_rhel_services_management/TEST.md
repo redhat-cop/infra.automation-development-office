@@ -95,3 +95,10 @@ Auth/TLS notes
 Provide either:
 
 molecule_root_password: "YOURPASSWORD"
+
+Use a placeholder in the committed file and supply the real value at run time. Do not commit real
+passwords or a Vault password file (`.vault_pass`, `.vault-pass`). Either:
+
+- pass it as an extra var: `molecule converge -- -e molecule_root_password="$ROOT_PASSWORD"`, or
+- keep an Ansible Vault file and a password file outside the repository and export
+  `ANSIBLE_VAULT_PASSWORD_FILE=/path/outside/repo/vault-pass`.

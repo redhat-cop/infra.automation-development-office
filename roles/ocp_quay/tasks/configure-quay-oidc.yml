@@ -61,6 +61,9 @@
           Quay OIDC is enabled but no client secret is set. Create the Keycloak client
           (Deploy RHBK Client) then re-run, or set ocp_quay_oidc_client_secret in vault.
 
+    - name: Resolve Quay database credentials
+      ansible.builtin.include_tasks: resolve_db_credentials.yml
+
     - name: Build Quay config with OIDC
       ansible.builtin.set_fact:
         ocp_quay_config: "{{ lookup('template', 'quay-config.yaml.j2') }}"

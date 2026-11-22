@@ -138,10 +138,13 @@
     - (ocp_rhbk_client_secrets__value | string | length) > 0
   no_log: true
 
+- name: Resolve Quay database credentials
+  ansible.builtin.include_tasks: resolve_db_credentials.yml
+
 - name: Build Quay config
   ansible.builtin.set_fact:
     ocp_quay_config: "{{ lookup('template', 'quay-config.yaml.j2') }}"
-  no_log: "{{ quay_oidc_enabled | default(false) | bool }}"
+  no_log: true
 
 - name: Create Quay Configuration Secret
   kubernetes.core.k8s:
@@ -248,7 +251,10 @@
                   - name: POSTGRESQL_USER
                     value: quay
                   - name: POSTGRESQL_PASSWORD
-                    value: quaypass
+                    valueFrom:
+                      secretKeyRef:
+                        name: "{{ ocp_quay_db_credentials_secret }}"
+                        key: db-password
                   - name: POSTGRESQL_DATABASE
                     value: quay
                 securityContext:

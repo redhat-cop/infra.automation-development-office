@@ -105,7 +105,7 @@ Define the Capsule installation configuration in your playbook or inventory usin
     capsule_install_activation_key: "capsule-rhel9"
     capsule_install_location: AWS
     capsule_install_satellite_fqdn: satellite.example.com
-    capsule_install_admin_password: "StrongAdminPassword123!"
+    capsule_install_admin_password: "{{ vault_capsule_admin_password }}"
     capsule_install_dns_device: ens192
     capsule_install_dns_servers:
       - 10.0.0.10

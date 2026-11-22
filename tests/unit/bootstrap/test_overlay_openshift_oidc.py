@@ -190,8 +190,8 @@ def test_rhbk_admin_user_is_not_overridden_by_the_vault_default(tmp_path):
     seeded = tmp_path / "env"
     seeded.mkdir()
     (seeded / "vault_rhbk.yml").write_text(
-        "---\nrhbk_admin_user: admin\nrhbk_admin_password: redhat123\n"
-        "ocp_rhbk_admin_user: admin\nocp_rhbk_admin_password: redhat123\n",
+        "---\nrhbk_admin_user: admin\nrhbk_admin_password: synthetic-fixture-password\n"
+        "ocp_rhbk_admin_user: admin\nocp_rhbk_admin_password: synthetic-fixture-password\n",
         encoding="utf-8",
     )
     result, env_dir = run(
