@@ -579,15 +579,57 @@
     block: |
       ado-preflight-*.json
       !ado-preflight-*.json.vault.yml
+      tmp-ado-preflight-*.json
       ado-extra-vars.json
       .vault_pass
       .vault_pass.*
+      .vault-pass
+      .vault-pass.*
+
+# Defense in depth only: .gitignore does not stop `git add -f` or files that are
+# already tracked. The credential gate below is the control that fails closed.
+- name: Generate playbook repo | Create credential gate directory
+  ansible.builtin.file:
+    path: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/.githooks"
+    state: directory
+    mode: "0755"
+
+- name: Generate playbook repo | Install credential gate and pre-push hook
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: >-
+      {{ bootstrap_generate_playbook_repo_dest_resolved }}/.githooks/{{
+        item.dest }}
+    mode: "0755"
+  loop:
+    - src: ado_credential_gate.py
+      dest: ado_credential_gate.py
+    - src: ado_topology_rules.py
+      dest: ado_topology_rules.py
+    - src: generated_pre_push_hook.sh
+      dest: pre-push
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Generate playbook repo | Enable the pre-push credential gate
+  ansible.builtin.command:
+    argv:
+      - git
+      - config
+      - --local
+      - core.hooksPath
+      - .githooks
+  args:
+    chdir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+  changed_when: false
   when: bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
 
 - name: Generate playbook repo | Untrack plaintext preflight JSON if previously committed
   ansible.builtin.shell: |
     set -euo pipefail
-    git ls-files -z -- 'ado-preflight-*.json' 'ado-extra-vars.json' '.vault_pass' 2>/dev/null \
+    git ls-files -z -- 'ado-preflight-*.json' 'tmp-ado-preflight-*.json' \
+      'ado-extra-vars.json' '.vault_pass' '.vault_pass.*' \
+      '.vault-pass' '.vault-pass.*' 2>/dev/null \
       | while IFS= read -r -d '' f; do
           case "$f" in
             *.json.vault.yml) continue ;;
@@ -604,6 +646,11 @@
   ansible.builtin.shell: |
     set -euo pipefail
     git add -A
+    # Fail closed: refuse to commit credential files or literal secrets
+    # (tracked files and newly staged files are both checked).
+    python3 {{
+      (role_path ~ '/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo
     git diff --cached --quiet || \
       git commit -m "Generate bootstrap playbook repo"
   args:
@@ -658,6 +705,22 @@
       bootstrap_generate_playbook_repo_git_sync_before_push
       | default(true)
       | bool
+
+- name: Generate playbook repo | Credential gate before push
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/files/ado_credential_gate.py"
+      - --repo
+      - "{{ bootstrap_generate_playbook_repo_dest_resolved }}"
+      - --profile
+      - repo
+      - --rev
+      - HEAD
+  changed_when: false
+  when:
+    - bootstrap_generate_playbook_repo_git_mode | default('manual') == 'push'
+    - bootstrap_generate_playbook_repo_git_url | default('') | length > 0
 
 - name: Generate playbook repo | Push generated repo
   ansible.builtin.shell: |

@@ -6,7 +6,7 @@
   vars:
     jira_url: "https://example.com"
     jira_username: "admin"
-    jira_token: "token"
+    jira_token: "SYNTHETIC-fixture-token"
     jira_project_key: "PROJ"
     jira_track: "platform_4phase"
     readme_path: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}/README.md"

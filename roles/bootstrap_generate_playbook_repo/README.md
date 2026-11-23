@@ -135,8 +135,50 @@ python3 local_components.py --request /secure/component-request.json
 Select IDs from the generated plan. Required survey inputs belong in
 `values[playbook_id][variable]`. Secret survey inputs are masked in previews.
 The runner uses `inventory`, the generated environment, `state=present`, and
-`.vault_pass` when available. Extra arguments apply to each playbook and may
+the Vault password file named by `ANSIBLE_VAULT_PASSWORD_FILE` when it is set.
+The runner never looks for a `.vault_pass` inside the repository. Extra arguments apply to each playbook and may
 override these defaults. Execution uses subprocess arguments, not shell
 interpolation, and stops at the first nonzero exit. Target access and installed
 collections remain prerequisites. Never commit a request containing secrets.
 Steps with unresolved Controller-templated extra variables are unavailable.
+
+### Credential safety
+
+The generated repository must never receive a Vault password file, a plaintext
+Preflight export, or a literal credential.
+
+- `.gitignore` always lists `.vault_pass`, `.vault-pass`, `ado-preflight-*.json`
+  (except `*.json.vault.yml`), `tmp-ado-preflight-*.json` and
+  `ado-extra-vars.json`. This is a second layer only.
+- `.githooks/ado_credential_gate.py` and `.githooks/pre-push` are written into
+  the repository. In `push` mode the role sets `core.hooksPath` so the hook runs.
+- In `push` mode the role runs the gate after `git add -A` and before the commit
+  (tracked and staged files), and again against `HEAD` before `git push`. A
+  finding fails the task and names the file and rule, never the value.
+- Ansible Vault encrypted files are allowed. Clearly fake values in
+  `*.fixture.json` files, documentation, and test folders are allowed. Reviewed
+  fixtures can be listed in `.credential-gate-allow`.
+- Run it by hand: `python3 .githooks/ado_credential_gate.py --repo . --profile repo`.
+  The collection itself uses `--profile source`.
+- The gate also refuses **plaintext internal topology** under `group_vars/` and
+  `configs/` (rule `plaintext-topology`, `repo` profile only): internal
+  hostnames, domains, API endpoints, SMTP relays, LDAP base DNs, IP addresses and
+  address ranges. Bootstrap routes these into Ansible Vault (see
+  `bootstrap_generate_env_vars`), so a generated repository passes. The finding
+  names the key and line, never the value. Example and placeholder values
+  (`example.com`, `localhost`, `*.svc`) and public registries pass. A test
+  directory *above* `group_vars`/`configs` (for example `tests/` or `molecule/`)
+  is exempt; an environment that is itself named `test`, `molecule` or `examples`
+  is not. The rules live in `.githooks/ado_topology_rules.py`, which the role
+  writes next to the gate; the gate fails closed if that file is missing.
+- Seed playbooks ship no passwords. `playbooks/vpn/ado-manage-vpn-access-bootstrap.yml`
+  takes the initial user password from `vault_lab_user_password` (or from the
+  request's `new_password` / `temp_password`) and stops with a clear message when
+  neither exists. `playbooks/dirsrv/ado-ldap-modify-bootstrap.yml` takes the bind
+  password from `vault_ldap_bind_password` and stops when it is missing. A unit
+  test fails if a seed playbook defines a literal value for a secret-named variable.
+- The raw Controller push steps in `bootstrap_controller` (vars-only, pre-apply and
+  post-configs pushes) run the same gate after staging and again on the commit.
+- Supply the Vault password at run time with `ANSIBLE_VAULT_PASSWORD_FILE` or
+  `--vault-password-file` pointing outside the repository. Preflight Init does
+  this with a temporary file in memory-backed storage.

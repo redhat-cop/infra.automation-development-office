@@ -93,8 +93,14 @@
     }}
 
     git add -A -- group_vars || git add -A
+    # Fail closed: no credential file, literal secret or plaintext internal
+    # topology may be committed or pushed (index first, then the commit).
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo
     git diff --cached --quiet || \
       git commit -m "Update ADO group_vars (vars/vault only)"
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo --rev HEAD
     if [ "$sync_before_push" = "true" ]; then
       if git ls-remote \
         --exit-code \
@@ -632,8 +638,14 @@
     }}
 
     git add -A
+    # Fail closed: no credential file, literal secret or plaintext internal
+    # topology may be committed or pushed (index first, then the commit).
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo
     git diff --cached --quiet || \
       git commit -m "Generate bootstrap playbook repo"
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo --rev HEAD
     if [ "$sync_before_push" = "true" ]; then
       if git ls-remote \
         --exit-code \
@@ -703,8 +715,14 @@
     }}
 
     git add -A
+    # Fail closed: no credential file, literal secret or plaintext internal
+    # topology may be committed or pushed (index first, then the commit).
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo
     git diff --cached --quiet || \
       git commit -m "Generate bootstrap playbook repo"
+    python3 {{ (role_path ~ '/../bootstrap_generate_playbook_repo/files/ado_credential_gate.py') | quote }} \
+      --repo . --profile repo --rev HEAD
     if [ "$sync_before_push" = "true" ]; then
       if git ls-remote \
         --exit-code \

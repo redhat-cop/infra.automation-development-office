@@ -98,9 +98,24 @@
       runcmd:
         - systemctl restart sshd || systemctl restart ssh
       {% endif %}
+    # Gateway and DNS servers are internal topology: bootstrap keeps them in Ansible Vault and
+    # the survey defaults are blank. A blank survey answer arrives as an extra var that
+    # shadows group_vars (and cannot be overridden by set_fact), so the effective values are
+    # computed here under their own names and used below.
+    virt_gateway_effective: >-
+      {{
+        (provision_openshift_virt_gateway | default('') | string | trim)
+        or ((openshift_virt_network_defaults | default({})).get('gateway', '') | string | trim)
+      }}
+    virt_dns_servers_effective: >-
+      {{
+        provision_openshift_virt_dns_servers
+        if ((provision_openshift_virt_dns_servers | default('') | string | trim) | length > 0)
+        else ((openshift_virt_network_defaults | default({})).get('dns_servers', ''))
+      }}
     cloud_init_network_data: |
       {% if provision_openshift_virt_static_ip | default('') | length > 0 %}
-      {% set dns_servers = provision_openshift_virt_dns_servers | default([]) %}
+      {% set dns_servers = virt_dns_servers_effective | default([]) %}
       {% if dns_servers is string %}
       {% set dns_servers = dns_servers.split(',') | map('trim') | reject('equalto', '') | list %}
       {% endif %}
@@ -110,8 +125,8 @@
           dhcp4: false
           addresses:
             - {{ provision_openshift_virt_static_ip }}/{{ provision_openshift_virt_prefix_length | default(24) }}
-      {% if provision_openshift_virt_gateway | default('') | length > 0 %}
-          gateway4: {{ provision_openshift_virt_gateway }}
+      {% if virt_gateway_effective | default('') | length > 0 %}
+          gateway4: {{ virt_gateway_effective }}
       {% endif %}
       {% if dns_servers | length > 0 %}
           nameservers:

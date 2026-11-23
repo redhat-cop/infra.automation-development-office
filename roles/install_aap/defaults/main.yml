@@ -27,6 +27,11 @@ aap_ocp_install_controller_route_host: ""
 aap_ocp_install_reset_database: false
 aap_ocp_install_reset_delete_platform: true
 
+# Gateway re-check after infra.aap_utilities fails on a per-component route wait
+# (its one-shot /api/ detection can run before the gateway is ready).
+install_aap_gateway_recheck_retries: 40
+install_aap_gateway_recheck_delay: 15
+
 # Post-install verification (kubernetes.core only; not AAP Controller APIs).
 install_aap_verify_enabled: true
 install_aap_verify_retries: 60

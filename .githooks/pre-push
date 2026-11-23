@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Block a push that would publish credential files or literal secrets.
+# Enable once per clone:  git config core.hooksPath .githooks
+# Fails closed: if the gate cannot run, the push is refused.
+set -u
+root="$(git rev-parse --show-toplevel)" || exit 1
+zero=0000000000000000000000000000000000000000
+revs=()
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "${local_sha:-$zero}" = "$zero" ] && continue   # branch deletion
+  revs+=(--rev "$local_sha")
+done
+[ "${#revs[@]}" -eq 0 ] && exit 0
+exec python3 "$root/roles/bootstrap_generate_playbook_repo/files/ado_credential_gate.py" --repo "$root" --profile source "${revs[@]}"

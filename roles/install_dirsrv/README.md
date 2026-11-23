@@ -17,6 +17,7 @@ Automation Development Office
 | Variable | Description |
 |----------|-------------|
 | `install_dirsrv_state` | Desired state used by role tasks when supported. |
+| `dirsrv.test_user_password` | Password for the smoke-test user. **No shipped default.** Empty: a random password is generated for the run and not recorded, and the rendered LDIF is deleted from the pod and the controller after use. |
 
 ## 🚀 Role Usage
 

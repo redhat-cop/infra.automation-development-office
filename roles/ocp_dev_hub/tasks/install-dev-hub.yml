@@ -72,6 +72,30 @@
     - (ocp_dev_hub_gitlab_host | default('') | string | trim | length) > 0
     - (dev_hub_gitlab_token | default('') | string | trim | length) == 0
 
+- name: Read the existing Developer Hub application secrets
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: rhdh-secrets
+    namespace: "{{ name_space }}"
+  register: ocp_dev_hub_existing_secrets
+  no_log: true
+
+# Supplied value, else the value already in the cluster (so a re-run does not rotate it),
+# else a newly generated one. There is no shipped default.
+- name: Resolve the Developer Hub backend secret
+  ansible.builtin.set_fact:
+    ocp_dev_hub_backend_secret_effective: >-
+      {{
+        (dev_hub_backend_secret | default('', true) | string | trim)
+        or (
+          (ocp_dev_hub_existing_secrets.resources | default([]) | first | default({}, true))
+          .get('data', {}).get('BACKEND_SECRET', '') | b64decode
+        )
+        or lookup('ansible.builtin.password', '/dev/null length=48 chars=ascii_letters,digits')
+      }}
+  no_log: true
+
 - name: Create Developer Hub application secrets
   kubernetes.core.k8s:
     state: present
@@ -83,7 +107,7 @@
         namespace: "{{ name_space }}"
       type: Opaque
       stringData:
-        BACKEND_SECRET: "{{ dev_hub_backend_secret }}"
+        BACKEND_SECRET: "{{ ocp_dev_hub_backend_secret_effective }}"
         OIDC_CLIENT_SECRET: "{{ ocp_dev_hub_oidc_client_secret | default('') if (ocp_dev_hub_install_include_oidc | default(false) | bool) else '' }}"
         GITLAB_TOKEN: "{{ dev_hub_gitlab_token | default('') }}"
   no_log: true

@@ -2,14 +2,14 @@ SERVER_HOSTNAME: {{ ocp_quay_hostname }}
 PREFERRED_URL_SCHEME: https
 EXTERNAL_TLS_TERMINATION: true
 SETUP_COMPLETE: true
-DATABASE_SECRET_KEY: changeme-secret-key
+DATABASE_SECRET_KEY: {{ ocp_quay_database_secret_key_effective }}
 SUPER_USERS:
   - {{ ocp_quay_admin_user }}
 # First user is created via POST /api/v1/user/initialize after Quay is up.
 # USER_INITIALIZE in this file is not a Quay config key and does not set the
 # login password.
 FEATURE_USER_INITIALIZE: true
-DB_URI: postgresql://quay:quaypass@postgres-db:5432/quay
+DB_URI: postgresql://quay:{{ ocp_quay_db_password_effective | urlencode }}@postgres-db:5432/quay
 REDIS_HOST: localhost
 BUILDLOGS_REDIS:
   host: localhost

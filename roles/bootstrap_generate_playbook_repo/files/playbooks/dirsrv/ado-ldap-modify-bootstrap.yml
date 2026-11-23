@@ -6,7 +6,8 @@
     component: ldap_auth_openshift
     ldap_server_uri: ldaps://idm.server.lab
     ldap_bind_dn: cn=Directory Manager
-    ldap_bind_password: knuckle01
+    # Bind password comes from the encrypted environment vault; none is shipped in this seed.
+    ldap_bind_password: "{{ vault_ldap_bind_password | default('') }}"
     ldap_entry_dn: uid=chad,cn=users,cn=accounts,dc=server,dc=lab
     ldap_attribute_name: altSecurityIdentities
     ldap_attribute_values:
@@ -19,6 +20,14 @@
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vault_{{ component }}.yml"
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/vars_{{ component }}.yml"
   tasks:
+    - name: Require the LDAP bind password from Vault
+      ansible.builtin.assert:
+        that:
+          - ldap_bind_password | length > 0
+        fail_msg: >-
+          vault_ldap_bind_password is not defined. Put it in the encrypted environment vault
+          (group_vars/all/<env>/vault_ldap_auth_openshift.yml). This playbook does not ship a default.
+      no_log: true
     - name: Build LDAP attribute payload
       ansible.builtin.set_fact:
         ldap_attributes_payload: '{{ {} | combine({ ldap_attribute_name: ldap_attribute_values }) }}'
@@ -31,7 +40,7 @@
         attributes: '{{ ldap_attributes_payload }}'
         state: '{{ ldap_state }}'
         validate_certs: '{{ ldap_validate_certs }}'
-      no_log: false
+      no_log: true
     - name: Read back attribute
       community.general.ldap_search:
         server_uri: '{{ ldap_server_uri }}'

@@ -1,0 +1,116 @@
+---
+# Route internal topology in the generated Controller configs into Ansible Vault.
+#
+# bootstrap_controller renders configs/controller/*.yml from variables that Ansible has
+# already resolved, so hostnames and endpoints that live in the vault files come out as
+# plaintext. This pass puts them back behind "{{ vault_topology_cfg_... }}" references
+# stored in aap_vault.yml, which the Controller role loads before it reads those files.
+# Job template and workflow files are read as raw YAML and cannot hold references, so
+# the pass fails (naming files and keys, never values) if the generator put topology there.
+# See files/ado_topology.py and the role README.
+#
+# Used with: ansible.builtin.include_role + tasks_from: topology_freeze_configs.yml
+# Inputs (role vars): bootstrap_generate_env_vars_topology_configs_dir,
+#                     bootstrap_generate_env_vars_topology_configs_env_dir.
+# Nothing here prints a topology value.
+
+- name: Decide whether to route Controller config topology into Vault
+  ansible.builtin.set_fact:
+    bootstrap_generate_env_vars_topology_configs_enabled: >-
+      {{
+        (
+          bootstrap_generate_env_vars_encrypt_vault_files
+          | default(generate_env_vars_encrypt_vault_files | default(false, true), true)
+          | bool
+        )
+        and (
+          ((bootstrap_generate_env_vars_preflight | default({})).vault | default({})).encrypt_topology
+          | default(
+              bootstrap_generate_env_vars_encrypt_topology
+              | default(generate_env_vars_encrypt_topology | default(true, true), true),
+              true
+            )
+          | bool
+        )
+      }}
+
+- name: Route Controller config topology into Vault
+  when: bootstrap_generate_env_vars_topology_configs_enabled | bool
+  block:
+    - name: Use the vault password file provided to this run
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_configs_password_file: >-
+          {{
+            bootstrap_generate_env_vars_vault_password_file
+            | default(generate_env_vars_vault_password_file | default('', true), true)
+            | default(lookup('ansible.builtin.env', 'ANSIBLE_VAULT_PASSWORD_FILE'), true)
+            | string
+          }}
+        bootstrap_generate_env_vars_topology_configs_temp_file: ""
+
+    - name: Take the vault password from the preflight JSON
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_configs_password: >-
+          {{
+            ((bootstrap_generate_env_vars_preflight | default({})).vault | default({})).password
+            | default(
+                ((bootstrap_generate_env_vars_preflight | default({})).aap | default({})).vault_password
+                | default((bootstrap_generate_env_vars_preflight | default({})).vault_password | default('', true), true),
+                true
+              )
+          }}
+      no_log: true
+      when: bootstrap_generate_env_vars_topology_configs_password_file | length == 0
+
+    - name: Create a temporary vault password file for the Controller config pass
+      ansible.builtin.tempfile:
+        state: file
+        suffix: topology-configs-vault-pass
+      register: bootstrap_generate_env_vars_topology_configs_temp
+      when: bootstrap_generate_env_vars_topology_configs_password_file | length == 0
+
+    - name: Write the temporary vault password file
+      ansible.builtin.copy:
+        dest: "{{ bootstrap_generate_env_vars_topology_configs_temp.path }}"
+        content: "{{ bootstrap_generate_env_vars_topology_configs_password | default('') }}"
+        mode: "0600"
+      no_log: true
+      when: bootstrap_generate_env_vars_topology_configs_password_file | length == 0
+
+    - name: Use the temporary vault password file
+      ansible.builtin.set_fact:
+        bootstrap_generate_env_vars_topology_configs_password_file: "{{ bootstrap_generate_env_vars_topology_configs_temp.path }}"
+        bootstrap_generate_env_vars_topology_configs_temp_file: "{{ bootstrap_generate_env_vars_topology_configs_temp.path }}"
+      when: bootstrap_generate_env_vars_topology_configs_password_file | length == 0
+
+    - name: Route topology in generated Controller configs into aap_vault.yml
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ role_path }}/files/ado_topology.py"
+          - freeze-configs
+          - --configs-dir
+          - "{{ bootstrap_generate_env_vars_topology_configs_dir }}"
+          - --env-dir
+          - "{{ bootstrap_generate_env_vars_topology_configs_env_dir }}"
+          - --vault-password-file
+          - "{{ bootstrap_generate_env_vars_topology_configs_password_file }}"
+          - --encrypt
+          - --json
+      register: bootstrap_generate_env_vars_topology_configs_frozen
+      changed_when: (bootstrap_generate_env_vars_topology_configs_frozen.stdout | from_json).routed | default(0) | int > 0
+
+    - name: Report where Controller config topology was routed (counts only, never values)
+      ansible.builtin.debug:
+        msg: >-
+          Routed {{ (bootstrap_generate_env_vars_topology_configs_frozen.stdout | from_json).routed }}
+          internal topology values from
+          {{ (bootstrap_generate_env_vars_topology_configs_frozen.stdout | from_json).files | length }}
+          generated Controller config file(s) into aap_vault.yml.
+
+  always:
+    - name: Remove the temporary vault password file used for the Controller config pass
+      ansible.builtin.file:
+        path: "{{ bootstrap_generate_env_vars_topology_configs_temp_file }}"
+        state: absent
+      when: bootstrap_generate_env_vars_topology_configs_temp_file | default('') | length > 0

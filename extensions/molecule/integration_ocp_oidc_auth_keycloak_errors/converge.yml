@@ -14,7 +14,7 @@
   environment:
     K8S_AUTH_KUBECONFIG: /nonexistent
     K8S_AUTH_HOST: https://127.0.0.1:9
-    K8S_AUTH_API_KEY: unused
+    K8S_AUTH_API_KEY: SYNTHETIC-unused
     K8S_AUTH_VERIFY_SSL: "false"
 
   vars:
@@ -23,86 +23,86 @@
     cases:
       - name: client does not exist
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: no-such-client
         verify_ssl: false
         expect: "Keycloak client 'no-such-client' not found in realm 'corp'"
       - name: realm does not exist
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         realm: Dev
         verify_ssl: false
         expect: "Keycloak realm 'Dev' does not exist"
       - name: wrong admin password
         user: kcadmin
-        password: WRONG
+        password: SYNTHETIC-mock-wrong
         client: existing-confidential
         verify_ssl: false
         expect: "admin login to https://127.0.0.1:{{ mock_port }} (realm 'master') failed for user 'kcadmin' (HTTP 401"
       - name: admin account without permission to list clients
         user: noperm
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: false
         expect: "Keycloak did not allow user 'noperm' to list clients in realm 'corp' (HTTP 403)"
       - name: client exists but has no secret (public client)
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-public
         verify_ssl: false
         expect: "Failed to retrieve Keycloak client secret for client_id=existing-public in realm=corp"
       # --- TLS: verification is ON unless explicitly turned off ---------------
       - name: TLS verification on by default against an untrusted certificate
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         expect: "Keycloak TLS certificate verification failed"
       - name: TLS verification explicitly on against an untrusted certificate
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: true
         expect: "Keycloak TLS certificate verification failed"
       - name: TLS failure also reported on the REST fallback path
         user: restonly
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         expect: "Keycloak TLS certificate verification failed"
       - name: explicit verify_ssl false still works against an untrusted certificate
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: false
         reaches: true
       - name: internal CA given as ocp_oidc_auth_ca_pem is trusted (default verification)
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         ca_pem: "{{ mock_cert_pem }}"
         reaches: true
       - name: internal CA is trusted with verify_ssl explicitly true
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: true
         ca_pem: "{{ mock_cert_pem }}"
         reaches: true
       - name: internal CA is trusted on the REST fallback path too
         user: restonly
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         ca_pem: "{{ mock_cert_pem }}"
         reaches: true
       - name: a CA that did not issue the Keycloak certificate is still refused
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         ca_pem: "{{ mock_other_cert_pem }}"
         expect: "Keycloak TLS certificate verification failed"
       - name: a CA value that is not a PEM certificate is rejected without disabling verification
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         ca_pem: "not a certificate"
         expect: "is not a PEM certificate"
@@ -111,84 +111,84 @@
       # These stop at the first TLS task, so nothing is sent to Keycloak.
       - name: unrecognized verify_ssl (garbage) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "garbage"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (tru) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "tru"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (flase) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "flase"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (ture) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "ture"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (maybe) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "maybe"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (2) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 2
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (minus one) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: -1
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (the string 2) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "2"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (1.0 as text) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "1.0"
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (1.5) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 1.5
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl (a list) is rejected before any request
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: [true]
         expect: "is not recognized"
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl is rejected even with a trusted CA
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: flase
         ca_pem: "{{ mock_cert_pem }}"
@@ -196,7 +196,7 @@
         expect_task: Assert the Keycloak TLS verification setting is a recognized value
       - name: unrecognized verify_ssl is rejected before the REST fallback is reached
         user: restonly
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: tru
         expect: "is not recognized"
@@ -205,61 +205,61 @@
       # --- recognized spellings: off / no / 0 / false skip verification (explicitly) ---
       - name: verify_ssl 'off' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "off"
         reaches: true
       - name: verify_ssl 'OFF' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "OFF"
         reaches: true
       - name: verify_ssl 'no' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "no"
         reaches: true
       - name: verify_ssl 'No' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "No"
         reaches: true
       - name: verify_ssl '0' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "0"
         reaches: true
       - name: verify_ssl 0 turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 0
         reaches: true
       - name: verify_ssl 0.0 turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 0.0
         reaches: true
       - name: verify_ssl 'false' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "false"
         reaches: true
       - name: verify_ssl 'FALSE' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "FALSE"
         reaches: true
       - name: verify_ssl ' off ' turns verification off explicitly
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: " off "
         reaches: true
@@ -267,67 +267,67 @@
       # --- recognized spellings: on / yes / 1 / true / blank keep verification on ---
       - name: verify_ssl 'on' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "on"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'ON' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "ON"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'yes' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "yes"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'Yes' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "Yes"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl '1' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "1"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 1 keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 1
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 1.0 keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: 1.0
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'true' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "true"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl 'TRUE' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: "TRUE"
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl '' keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: ""
         expect: "Keycloak TLS certificate verification failed"
       - name: verify_ssl null keeps verification on
         user: kcadmin
-        password: GOOD
+        password: SYNTHETIC-mock-good
         client: existing-confidential
         verify_ssl: null
         expect: "Keycloak TLS certificate verification failed"

@@ -19,7 +19,7 @@
     vpn_access_profile: lab-access
     vpn_access_reason: ""
     vpn_access_deny_reason: Your lab / VPN access request was denied.
-    # Optional override for reset_password (otherwise lab default password is used).
+    # Optional override for reset_password (otherwise vault_lab_user_password is used).
     vpn_access_new_password: ""
     # Include plaintext password in reset email only when portal/operator opts in
     # (admin-approved temp password). Self-service changes must leave this false.
@@ -37,9 +37,11 @@
     vpn_access_idm_groups:
       - vpn-users
       - lab-users
-    vpn_access_default_password: redhat!23
-    vpn_access_idm_password: redhat!23
-    vpn_access_unifi_user_password: redhat!23
+    # No password is shipped in this seed. The initial password for approved or reset users comes
+    # from Vault (vault_lab_user_password) or from the request (new_password / temp_password).
+    vpn_access_default_password: ""
+    vpn_access_idm_password: ""
+    vpn_access_unifi_user_password: ""
 
     vpn_access_unifi_url: https://192.168.0.1
     vpn_access_unifi_user: ""
@@ -173,6 +175,19 @@
           }}
 
     # ---------- approve path ----------
+    - name: ADO | Require an initial password from Vault or the request
+      ansible.builtin.assert:
+        that:
+          - (vpn_access_new_password | length > 0) or (vpn_access_default_password | length > 0)
+        fail_msg: >-
+          No initial password available. Define vault_lab_user_password in the encrypted
+          environment vault, or pass new_password / temp_password with the request.
+          This playbook does not ship a default password.
+      no_log: true
+      when:
+        - vpn_access_action in ['approve', 'reset_password']
+        - (vpn_access_create_idm | bool) or (vpn_access_create_unifi | bool)
+
     - name: ADO | Use lab default password for IdM
       ansible.builtin.set_fact:
         vpn_access_idm_password: "{{ vpn_access_default_password }}"

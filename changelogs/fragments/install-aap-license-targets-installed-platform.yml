@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    install_aap - License activation after an install now targets the route of
+    the platform that run installed. It used the configured AAP hostname first,
+    which can be a different, already-existing AAP, so
+    ``Wait for Controller config API before license activation`` retried against
+    the wrong host for five minutes and failed. License-only runs still use the
+    configured hostname.
+  - >-
+    install_aap - ``Wait for Controller config API before license activation``
+    reported only ``attempts: 30, censored`` because of ``no_log``. The failure
+    now names the host, the last HTTP status and whether the installed platform
+    or the configured hostname was used. The admin password is never printed.

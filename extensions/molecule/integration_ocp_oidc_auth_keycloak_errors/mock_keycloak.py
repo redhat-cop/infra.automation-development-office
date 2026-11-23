@@ -3,9 +3,9 @@
 Serves HTTPS (self-signed) on 127.0.0.1 and records every request, so the
 scenario can prove the role only reads. Behaviour is chosen by user and client:
 
-* user ``kcadmin`` with password ``GOOD``: login works, full permissions
-* user ``noperm``  with password ``GOOD``: login works, admin API returns 403
-* user ``restonly`` with password ``GOOD``: same rights as ``kcadmin``, but the first
+* user ``kcadmin`` with password ``SYNTHETIC-mock-good``: login works, full permissions
+* user ``noperm``  with password ``SYNTHETIC-mock-good``: login works, admin API returns 403
+* user ``restonly`` with password ``SYNTHETIC-mock-good``: same rights as ``kcadmin``, but the first
   token request is refused. The role's module path fails on that login, so the REST
   fallback (second login) is the one that has to trust the certificate
 * any other login: 401 on the token endpoint
@@ -47,11 +47,11 @@ class Handler(BaseHTTPRequestHandler):
         LOG.write(f"POST {urlparse(self.path).path}\n")
         LOG.flush()
         LOGINS[user] = LOGINS.get(user, 0) + 1
-        if user == "restonly" and password == "GOOD":
+        if user == "restonly" and password == "SYNTHETIC-mock-good":
             if LOGINS[user] == 1:
                 return self._send(401, {"error": "invalid_grant"})
             return self._send(200, {"access_token": "tok-kcadmin", "expires_in": 60})
-        if user in ("kcadmin", "noperm") and password == "GOOD":
+        if user in ("kcadmin", "noperm") and password == "SYNTHETIC-mock-good":
             return self._send(200, {"access_token": f"tok-{user}", "expires_in": 60})
         return self._send(401, {"error": "invalid_grant"})
 
