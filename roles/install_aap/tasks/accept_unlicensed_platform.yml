@@ -1,8 +1,10 @@
 ---
 # aap_ocp_install still waits for controller/hub/eda routes and APIs after the
 # AAP 2.5+ gateway is up. Those routes often appear only after a subscription
-# is attached. When license_mode is none/skip, treat a stored platform route
-# as install success so license can be attached later.
+# is attached, and AAP 2.7 never creates them. When one of those waits is the
+# only thing that failed, the platform route is stored, and the gateway answers
+# (re-checked here with retries) the install is a success and the license step
+# runs next. With license_mode none/skip the gateway re-check is advisory.
 
 - name: Record aap_ocp_install failure context
   ansible.builtin.set_fact:
@@ -32,16 +34,6 @@
         )
       }}
 
-- name: Fail when license attach was requested during install
-  ansible.builtin.fail:
-    msg: >-
-      infra.aap_utilities.aap_ocp_install failed
-      ({{ install_aap_utilities_failed_task }}):
-      {{ install_aap_utilities_failed_msg }}
-  when: >-
-    (aap_ocp_install_license_mode | default('none') | lower)
-    not in ['', 'none', 'skip']
-
 - name: Fail when the platform/gateway route was never stored
   ansible.builtin.fail:
     msg: >-
@@ -63,11 +55,83 @@
       ignorecase=True
     )
 
-- name: Accept unlicensed platform install at the gateway
+# infra.aap_utilities decides "gateway only" with ONE GET of <route>/api/ and
+# no retry. The route can answer 200 on "/" a moment before the gateway reports
+# itself on /api/. When that happens the role looks for per-component routes
+# that AAP 2.7 never creates, waits 60 x 15s, and fails even though AAP is up.
+# Ask the gateway again, with retries, before deciding the install failed.
+- name: Re-check the gateway after the one-shot detection failed
+  ansible.builtin.uri:
+    url: "{{ aap_ocp_install_platform_route }}/api/"
+    validate_certs: >-
+      {{ aap_ocp_install_connection['validate_certs'] | default(omit) }}
+    ca_path: "{{ aap_ocp_install_connection['ca_cert'] | default(omit) }}"
+    method: GET
+    status_code:
+      - 200
+    return_content: true
+  register: install_aap_gateway_recheck
+  until: >-
+    install_aap_gateway_recheck.status | default(0) == 200
+    and (
+      (install_aap_gateway_recheck.x_api_product_name | default(''))
+      == 'AAP gateway'
+      or 'gateway' in (
+        (install_aap_gateway_recheck.json | default({})).apis | default({})
+      )
+    )
+  retries: "{{ install_aap_gateway_recheck_retries }}"
+  delay: "{{ install_aap_gateway_recheck_delay }}"
+  failed_when: false
+
+- name: Record whether the gateway answered as an AAP gateway
+  ansible.builtin.set_fact:
+    install_aap_gateway_confirmed: >-
+      {{
+        install_aap_gateway_recheck.status | default(0) == 200
+        and (
+          (install_aap_gateway_recheck.x_api_product_name | default(''))
+          == 'AAP gateway'
+          or 'gateway' in (
+            (install_aap_gateway_recheck.json | default({})).apis
+            | default({})
+          )
+        )
+      }}
+
+- name: Fail when license attach was requested and the gateway is silent
+  ansible.builtin.fail:
+    msg: >-
+      infra.aap_utilities.aap_ocp_install failed
+      ({{ install_aap_utilities_failed_task }}):
+      {{ install_aap_utilities_failed_msg }}.
+      {{ aap_ocp_install_platform_route }}/api/ did not identify itself as an
+      AAP gateway after {{ install_aap_gateway_recheck_retries }} checks, so
+      the license cannot be attached yet. Check the AnsibleAutomationPlatform
+      status and the gateway pods in the AAP namespace.
+  when:
+    - >-
+      (aap_ocp_install_license_mode | default('none') | lower)
+      not in ['', 'none', 'skip']
+    - not (install_aap_gateway_confirmed | bool)
+
+- name: Record how the install was accepted
+  ansible.builtin.set_fact:
+    install_aap_accept_license_next: >-
+      {{
+        (aap_ocp_install_license_mode | default('none') | lower)
+        not in ['', 'none', 'skip']
+      }}
+
+- name: Accept the platform install at the gateway
   ansible.builtin.debug:
     msg: >-
-      AAP platform is up at {{ aap_ocp_install_platform_route }}.
-      License mode is none — skipped waiting for controller/hub/eda
-      APIs. Attach a subscription later from the License tab
-      (attach_aap_license / aap_ocp_install_license_only) or the
-      AAP subscription wizard.
+      AAP platform is up at {{ aap_ocp_install_platform_route }}
+      ({{ 'gateway confirmed' if (install_aap_gateway_confirmed | bool)
+      else 'gateway not confirmed' }}). Skipped waiting for per-component
+      controller/hub/eda routes (AAP 2.7 serves them through the gateway).
+      {{ 'The license is attached next.'
+      if (install_aap_accept_license_next | bool)
+      else 'License mode is none. Attach a subscription later from the License
+      tab (attach_aap_license / aap_ocp_install_license_only) or the AAP
+      subscription wizard.' }}

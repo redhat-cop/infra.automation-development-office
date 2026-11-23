@@ -1,0 +1,13 @@
+---
+bugfixes:
+  - >-
+    install_aap - ``infra.aap_utilities.aap_ocp_install`` detects the AAP 2.7
+    gateway with one ``GET <route>/api/`` and no retry. When the gateway had
+    not identified itself yet, the role waited for controller/hub/EDA routes
+    that 2.7 does not create and failed an install that had succeeded, and a
+    requested license (``rhn``/``manifest``) made that failure fatal. The
+    rescue now re-checks the gateway ``/api/`` with retries
+    (``install_aap_gateway_recheck_retries`` and
+    ``install_aap_gateway_recheck_delay``), accepts the install when it answers
+    as an AAP gateway, and continues to the license step. If the gateway never
+    answers, it fails with the route and a pointer to the platform status.

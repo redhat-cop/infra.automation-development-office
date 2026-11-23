@@ -114,6 +114,20 @@ route is enough for install success. `aap_ocp_install` may still wait for
 controller/hub/eda routes that only appear after a subscription; ADO accepts
 that wait failure so you can license later.
 
+`infra.aap_utilities.aap_ocp_install` decides "gateway only" (AAP 2.7) with a
+single `GET <route>/api/` and no retry. If that request lands before the
+gateway identifies itself, the role waits 60 x 15s for per-component routes
+that 2.7 never creates and fails although AAP is up. When that is the only
+failure, the platform route is stored, and the gateway answers `/api/` as an
+AAP gateway (re-checked with retries), ADO accepts the install for **every**
+license mode and runs the license step next. If the gateway never answers
+and a license was requested, the play fails with a message naming the route.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `install_aap_gateway_recheck_retries` | `40` | Gateway `/api/` re-check attempts after the failure |
+| `install_aap_gateway_recheck_delay` | `15` | Seconds between re-check attempts |
+
 ### Post-install verification (`kubernetes.core`)
 
 After OpenShift install (not license-only), the role runs a bounded
