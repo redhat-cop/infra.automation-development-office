@@ -128,6 +128,15 @@ and a license was requested, the play fails with a message naming the route.
 | `install_aap_gateway_recheck_retries` | `40` | Gateway `/api/` re-check attempts after the failure |
 | `install_aap_gateway_recheck_delay` | `15` | Seconds between re-check attempts |
 
+**Which AAP gets the license.** When the run installed the platform
+(not `aap_ocp_install_license_only`), the license step uses the route that
+`aap_ocp_install` stored for that platform. The configured AAP hostname
+(`hostname` / `aap_hostname` / `aap_ocp_install_controller_route_host`) can
+belong to a different, already-existing AAP, so it is used only for
+license-only runs or when no installed route is known. If the Controller config
+API never returns JSON, the failure names the host, the last HTTP status and
+which of the two hosts was used. `no_log` still hides the password.
+
 ### Post-install verification (`kubernetes.core`)
 
 After OpenShift install (not license-only), the role runs a bounded

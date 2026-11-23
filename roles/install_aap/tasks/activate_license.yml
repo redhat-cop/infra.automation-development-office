@@ -4,13 +4,35 @@
   ansible.builtin.meta: end_host
   when: (aap_ocp_install_license_mode | default('none') | lower) in ['', 'none', 'skip']
 
+# A run that just installed the platform must license THAT platform. The
+# configured AAP hostname (aap_hostname / hostname) can point at a different,
+# already-existing AAP, so the route stored by aap_ocp_install wins. License-only
+# runs install nothing and keep using the configured hostname.
+- name: Resolve the route of the platform this run installed
+  ansible.builtin.set_fact:
+    install_aap_installed_route_host: >-
+      {{
+        (
+          aap_ocp_install_platform_route
+          | default('', true)
+          | regex_replace('^https?://', '')
+          | regex_replace('/$', '')
+        )
+        if not (aap_ocp_install_license_only | default(false) | bool)
+        else ''
+      }}
+
 - name: Resolve controller/gateway route host for license activation
   ansible.builtin.set_fact:
     install_aap_controller_route_host: >-
       {{
         (
-          aap_ocp_install_controller_route_host
+          install_aap_installed_route_host
           | default('', true)
+          | default(
+              aap_ocp_install_controller_route_host | default('', true),
+              true
+            )
           | default(
               (
                 aap_ocp_install_controller_route
@@ -42,23 +64,42 @@
       Set install_aap_controller_route_host or component_config.aap.hostname
       before license activation.
 
+# no_log hides the whole result, so a failure here used to read only
+# "attempts: 30, censored". The rescue reports the host and HTTP status instead
+# (the password is never part of the message).
 - name: Wait for Controller config API before license activation
-  ansible.builtin.uri:
-    url: "https://{{ install_aap_controller_route_host }}/api/controller/v2/config/"
-    method: GET
-    user: "{{ aap_ocp_install_admin_user | default(admin_user | default('admin')) }}"
-    password: "{{ aap_ocp_install_admin_password | default(aap_admin_password | default('')) }}"
-    force_basic_auth: true
-    validate_certs: false
-    status_code: [200]
-    return_content: true
-  register: install_aap_license_config_ready
-  retries: 30
-  delay: 10
-  until: >-
-    install_aap_license_config_ready is succeeded
-    and (install_aap_license_config_ready.json is mapping)
-  no_log: true
+  block:
+    - name: Wait for Controller config API before license activation (poll)
+      ansible.builtin.uri:
+        url: "https://{{ install_aap_controller_route_host }}/api/controller/v2/config/"
+        method: GET
+        user: "{{ aap_ocp_install_admin_user | default(admin_user | default('admin')) }}"
+        password: "{{ aap_ocp_install_admin_password | default(aap_admin_password | default('')) }}"
+        force_basic_auth: true
+        validate_certs: false
+        status_code: [200]
+        return_content: true
+      register: install_aap_license_config_ready
+      retries: 30
+      delay: 10
+      until: >-
+        install_aap_license_config_ready is succeeded
+        and (install_aap_license_config_ready.json is mapping)
+      no_log: true
+  rescue:
+    - name: Fail with the host and status of the Controller config API wait
+      ansible.builtin.fail:
+        msg: >-
+          Controller config API at
+          https://{{ install_aap_controller_route_host }}/api/controller/v2/config/
+          did not return JSON after 30 attempts
+          (last HTTP status {{ install_aap_license_config_ready.status | default('n/a') }};
+          401 = wrong admin user or password for that AAP, 503/502 = the
+          gateway is up but Controller is not serving yet, -1 = no connection
+          to that host). This license step targets
+          {{ 'the platform this run just installed' if (install_aap_installed_route_host | default('') | length > 0) else 'the configured AAP hostname' }}.
+          Confirm that host is the AAP you expect and that its admin password
+          matches.
 
 - name: Fail when Controller config API did not return JSON (wrong host or auth)
   ansible.builtin.fail:
