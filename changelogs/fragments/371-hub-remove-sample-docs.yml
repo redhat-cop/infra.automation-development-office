@@ -1,0 +1,6 @@
+---
+doc_changes:
+  - >-
+    docs - Remove collection-template RST scaffolding that documented plugins
+    and a ``run`` role which are not in the collection, so Automation Hub no
+    longer surfaces those stale doc entries from the shipped ``docs/`` tree.

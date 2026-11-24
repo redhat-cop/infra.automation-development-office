@@ -8,7 +8,5 @@
 Index of all Filter Plugins
 ===========================
 
-infra.automation_development_office
----------
-
-* :ansplugin:`infra.automation_development_office.sample_filter#filter` -- A custom filter plugin for Ansible.
+Filter plugins ship under ``plugins/filter/`` (for example TLS trust-bundle and
+OCP absent-cleanup filters).

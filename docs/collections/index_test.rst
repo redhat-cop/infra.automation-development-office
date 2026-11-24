@@ -8,7 +8,4 @@
 Index of all Test Plugins
 =========================
 
-infra.automation_development_office
----------
-
-* :ansplugin:`infra.automation_development_office.sample_test#test` -- A custom test plugin for Ansible.
+This collection does not currently ship test plugins.

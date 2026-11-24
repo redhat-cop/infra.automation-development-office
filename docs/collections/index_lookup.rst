@@ -8,7 +8,4 @@
 Index of all Lookup Plugins
 ===========================
 
-infra.automation_development_office
----------
-
-* :ansplugin:`infra.automation_development_office.sample_lookup#lookup` -- A custom lookup plugin for Ansible.
+This collection does not currently ship lookup plugins.

@@ -8,8 +8,6 @@
 Index of all Modules
 ====================
 
-infra.automation_development_office
----------
-
-* :ansplugin:`infra.automation_development_office.sample_action#module` -- A custom action plugin for Ansible.
-* :ansplugin:`infra.automation_development_office.sample_module#module` -- A custom module plugin for Ansible.
+Module documentation for this collection lives under ``docs/modules/`` and in
+each module's ``DOCUMENTATION`` string (for example
+``infra.automation_development_office.ec2_ami_copy``).
