@@ -1,0 +1,21 @@
+DOCUMENTATION:
+  name: tls_split_pem_certificates
+  author: Automation Development Office
+  short_description: Split a PEM string into individual certificate blocks
+  description:
+    - Return a list of PEM certificate strings found in O(pem_text).
+    - Each list item includes the C(BEGIN CERTIFICATE) / C(END CERTIFICATE) markers.
+    - An empty string or text with no certificate blocks returns an empty list.
+  options:
+    pem_text:
+      description: PEM text that may contain zero or more certificates.
+      type: str
+      required: true
+EXAMPLES: |
+  {{ leaf_and_chain | infra.automation_development_office.tls_split_pem_certificates | length }}
+  # 2
+RETURN:
+  _value:
+    description: List of PEM certificate strings.
+    type: list
+    elements: str

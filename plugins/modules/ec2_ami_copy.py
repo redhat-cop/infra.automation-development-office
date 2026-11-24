@@ -22,8 +22,10 @@ description:
   - Copies an Amazon Machine Image (AMI) from a source region
     to the destination region selected by O(region).
   - Returns the new AMI ID in the destination region.
-  - This module requires the C(amazon.aws) collection for AWS authentication
-    helpers and does not require C(community.aws).
+  - Runtime authentication uses C(amazon.aws) helpers
+    (C(AnsibleAWSModule)). Documentation is self-contained so
+    Automation Hub C(ansible-doc) does not require amazon.aws
+    doc fragments to be installed during import.
 options:
   source_region:
     description:
@@ -91,13 +93,78 @@ options:
       - Requires O(tags) to be set.
     type: bool
     default: false
+  access_key:
+    description:
+      - AWS access key ID.
+      - The C(AWS_ACCESS_KEY_ID) or C(AWS_ACCESS_KEY) environment
+        variables may also be used.
+      - Mutually exclusive with O(profile).
+    type: str
+    aliases: [aws_access_key_id, aws_access_key]
+  secret_key:
+    description:
+      - AWS secret access key.
+      - The C(AWS_SECRET_ACCESS_KEY) or C(AWS_SECRET_KEY) environment
+        variables may also be used.
+      - Mutually exclusive with O(profile).
+    type: str
+    aliases: [aws_secret_access_key, aws_secret_key]
+  session_token:
+    description:
+      - AWS STS session token for temporary credentials.
+      - The C(AWS_SESSION_TOKEN) environment variable may also be used.
+      - Mutually exclusive with O(profile).
+    type: str
+    aliases: [aws_session_token]
+  profile:
+    description:
+      - Named AWS profile for authentication.
+      - The C(AWS_PROFILE) environment variable may also be used.
+      - Mutually exclusive with O(access_key), O(secret_key), and
+        O(session_token).
+    type: str
+    aliases: [aws_profile]
+  region:
+    description:
+      - Destination AWS region for the copied AMI.
+      - The C(AWS_REGION) environment variable may also be used.
+    type: str
+    aliases: [aws_region]
+  endpoint_url:
+    description:
+      - URL to connect to instead of the default AWS endpoints.
+      - The C(AWS_URL) environment variable may also be used.
+    type: str
+    aliases: [aws_endpoint_url]
+  aws_ca_bundle:
+    description:
+      - Path to a CA bundle used when validating SSL certificates.
+      - The C(AWS_CA_BUNDLE) environment variable may also be used.
+    type: path
+  validate_certs:
+    description:
+      - When V(false), SSL certificates are not validated for AWS API
+        communication.
+    type: bool
+    default: true
+  aws_config:
+    description:
+      - Dictionary of botocore configuration overrides.
+    type: dict
+  debug_botocore_endpoint_logs:
+    description:
+      - When V(true), log unique botocore resource/action API calls.
+    type: bool
+    default: false
 author:
   - Automation Development Office (@Automation-Development-Office)
-extends_documentation_fragment:
-  - amazon.aws.common.modules
-  - amazon.aws.region.modules
-  - amazon.aws.boto3
+notes:
+  - Requires the C(amazon.aws) collection at runtime for
+    C(AnsibleAWSModule) and tagging helpers.
+  - The AWS SDK may also read credentials and region from its host
+    configuration files (typically C(~/.aws/credentials)).
 requirements:
+  - python >= 3.6
   - boto3
   - botocore
   - amazon.aws

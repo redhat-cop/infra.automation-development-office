@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    plugins/filter - Add ansible-doc sidecar YAML for
+    ``tls_first_pem_trust_bundle``, ``tls_pem_looks_like_certificate``,
+    ``tls_split_pem_certificates``, and ``tls_trust_bundle_from_secret``
+    so Automation Hub import can render filter documentation.
+  - >-
+    ec2_ami_copy - Inline AWS auth/region documentation instead of
+    ``extends_documentation_fragment: amazon.aws.*`` so ``ansible-doc``
+    succeeds during Hub import when those fragments are not installed.
