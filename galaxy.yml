@@ -87,15 +87,26 @@ build_ignore:
   # dependencies. changelogs/fragments/ stays so a release can still consume
   # notes that were not compiled into CHANGELOG.rst. extensions/eda stays;
   # only Molecule trees are ignored, including extensions/molecule.
+  # .ansible-lint ships in the tarball so Automation Hub / partner cert can
+  # apply production-profile excludes (do not build_ignore it).
+  # Role-level tests/ trees are ansible-galaxy init scaffolding; CI uses
+  # collection tests/ and extensions/molecule (also ignored below).
   - '*.bak'
   - '**/*.bak'
   - .github
   - .github/**
+  - .cursor
+  - .cursor/**
+  - .claude
+  - .claude/**
+  - .githooks
+  - .githooks/**
   - tests
   - tests/**
+  - roles/*/tests
+  - roles/*/tests/**
   - scripts
   - scripts/**
-  - .ansible-lint
   - .devcontainer
   - .devcontainer/**
   - .flake8

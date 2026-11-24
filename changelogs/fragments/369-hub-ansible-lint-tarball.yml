@@ -1,0 +1,9 @@
+---
+bugfixes:
+  - >-
+    collection packaging - Ship ``.ansible-lint`` in the collection tarball
+    (removed from ``build_ignore``) so Automation Hub / partner certification
+    can apply the production profile and exclude paths. Exclude role-level
+    ``roles/*/tests`` scaffolding and local editor/hook dirs (``.cursor``,
+    ``.claude``, ``.githooks``) from the build; CI continues to use collection
+    ``tests/`` and ``extensions/molecule``.
