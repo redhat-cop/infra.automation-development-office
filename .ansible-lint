@@ -11,19 +11,36 @@ offline: true
 warn_list:
     - no-log-password
 
+# Partner cert / Automation Hub example paths, plus repo-specific excludes.
+# Do not exclude plugins/, roles/, or extensions/ (except molecule under
+# extensions/). See:
+# https://docs.ansible.com/projects/partner-certification-requirements/static-analysis/#example-ansible-lint-configuration
 exclude_paths:
     - "**/.github/**"
     - .ansible-lint
     - "**/.ansible/**"
     - "**/.local/**"
     - "**/.cache/**"
-    # Molecule scenarios, changelog data, and generated Controller objects are
-    # not role content. Role defaults, vars, meta, files, and tasks are linted.
+    - tests/
+    - tests/**
+    - tests/unit
+    - tests/unit/**
+    - tests/integration
+    - tests/integration/**
+    - docs/
+    - docs/**
+    - changelogs/
+    - "**/changelogs/**"
+    # Molecule scenarios and generated Controller objects are not role content.
+    # Role defaults, vars, meta, files, and tasks are linted.
+    - extensions/molecule
+    - extensions/molecule/**
     - "**/molecule/**"
     - galaxy.yml
-    - "**/changelogs/**"
     - devfile.yaml
     - collections/requirements.yml
+    - roles/*/tests
+    - roles/*/tests/**
     - roles/bootstrap_controller/files/job_templates/**
     - roles/bootstrap_controller/files/job_templates.disabled/**
     - roles/bootstrap_controller/files/workflows/**
