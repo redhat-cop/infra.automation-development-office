@@ -44,6 +44,9 @@ exclude_paths:
     - roles/bootstrap_controller/files/job_templates/**
     - roles/bootstrap_controller/files/job_templates.disabled/**
     - roles/bootstrap_controller/files/workflows/**
+    # Contoller project seeds (not collection entry-point playbooks). Excluding
+    # them avoids Hub "Failed to find/load … playbook" noise when seeds
+    # import_playbook nested AWS FQCNs or reference env-specific vars_files.
     - roles/bootstrap_generate_playbook_repo/files/playbooks/**
     - roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/**
 

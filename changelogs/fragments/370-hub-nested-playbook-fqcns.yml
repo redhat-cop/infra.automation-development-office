@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - >-
+    playbooks/aws - Keep nested ``playbooks/aws/<service>/`` layout; document
+    that ansible-core >= 2.17 resolves dotted FQCNs such as
+    ``infra.automation_development_office.aws.ec2.ado_ec2_instance_*``. Hub
+    import noise for those FQCNs and for Contoller seed playbooks under
+    ``roles/bootstrap_generate_playbook_repo/files/playbooks/`` is mitigated by
+    shipping ``.ansible-lint`` exclude paths (see also packaging change for Hub
+    lint). Add unit coverage that the seven README-advertised AWS playbook
+    FQCNs resolve via the collection loader.
