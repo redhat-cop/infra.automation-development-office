@@ -1,0 +1,34 @@
+DOCUMENTATION:
+  name: tls_first_pem_trust_bundle
+  author: Automation Development Office
+  short_description: Return the first PEM candidate that contains a certificate
+  description:
+    - Evaluate PEM candidates in order and return the first that contains at
+      least one PEM certificate block, normalized as a PEM bundle.
+    - O(_input) is the piped / first candidate. Any additional positional
+      arguments are further PEM candidates (variadic) checked left to right
+      after O(_input). For example C(fallback_ca) in EXAMPLES is a second
+      candidate.
+    - Return an empty string when none of the candidates contain a certificate.
+  options:
+    _input:
+      description:
+        - First PEM candidate (piped input).
+        - Additional positional PEM strings may be passed after the filter name;
+          they are not separate named options because the filter accepts a
+          variable number of candidates.
+      type: str
+      required: true
+EXAMPLES: |
+  {{ primary_ca |
+     infra.automation_development_office.tls_first_pem_trust_bundle(
+       fallback_ca) }}
+  # Evaluates primary_ca, then fallback_ca.
+
+  {{ a |
+     infra.automation_development_office.tls_first_pem_trust_bundle(b, c) }}
+  # Evaluates a, then b, then c.
+RETURN:
+  _value:
+    description: First usable PEM trust bundle, or an empty string.
+    type: str
