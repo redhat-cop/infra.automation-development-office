@@ -1,0 +1,8 @@
+---
+doc_changes:
+  - >-
+    docs - Remove collection-template RST scaffolding for plugins/roles that
+    are not in the collection, and regenerate ``docs/collections/`` with
+    antsibull-docs so indexes match real plugins. Add
+    ``scripts/check_docs_plugin_refs.py`` (CI) so the built artifact cannot
+    reintroduce docs that reference missing plugins or roles.

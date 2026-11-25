@@ -88,6 +88,25 @@ jobs:
 
       - name: ansible-doc without amazon.aws (Hub import scenario)
         run: python scripts/check_ansible_doc_hub_import.py
+  docs-plugin-refs:
+    name: Docs Plugin Reference Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core>=2.17"
+
+      - name: Check shipped docs do not reference missing plugins/roles
+        run: python scripts/check_docs_plugin_refs.py
+
   nested-aws-playbook-fqcns:
     name: Nested AWS Playbook FQCN Check
     runs-on: ubuntu-latest
@@ -202,6 +221,7 @@ jobs:
       # - unit-source
       - ansible-lint
       - ansible-doc-hub-import
+      - docs-plugin-refs
       - nested-aws-playbook-fqcns
     runs-on: ubuntu-latest
     steps:
@@ -210,5 +230,6 @@ jobs:
           '${{ needs.unit-galaxy.result }}',
           '${{ needs.ansible-lint.result }}',
           '${{ needs.ansible-doc-hub-import.result }}',
+          '${{ needs.docs-plugin-refs.result }}',
           '${{ needs.nested-aws-playbook-fqcns.result }}'
           ])"
