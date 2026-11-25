@@ -7,6 +7,9 @@ Requires `amazon.aws` (see collection `galaxy.yml`).
 
 Collection path: `playbooks/aws/ec2/`.
 
+Nested collection playbooks resolve on ansible-core >= 2.17 as
+`namespace.collection.<subdir...>.<playbook>` (no flatten required for Hub).
+
 | Playbook | Collection FQCN | Purpose |
 | --- | --- | --- |
 | `ado_ec2_instance_create.yml` | `infra.automation_development_office.aws.ec2.ado_ec2_instance_create` | Create / ensure present |

@@ -7,6 +7,9 @@ Requires `amazon.aws` (see collection `galaxy.yml`).
 
 Collection path: `playbooks/aws/s3/`.
 
+Nested collection playbooks resolve on ansible-core >= 2.17 as
+`namespace.collection.<subdir...>.<playbook>` (no flatten required for Hub).
+
 | Playbook | Collection FQCN | Purpose |
 | --- | --- | --- |
 | `ado_s3_bucket_policy_set.yml` | `infra.automation_development_office.aws.s3.ado_s3_bucket_policy_set` | Create bucket + set inline policy |
