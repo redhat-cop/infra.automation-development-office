@@ -66,8 +66,11 @@ Use this index as the starting point for operators and automation users.
 ## Collection playbooks
 
 Portable AWS playbooks live under `playbooks/aws/` and are addressable by
-collection FQCN after `ansible-galaxy collection install`. Details, variables,
-and examples stay in each directory README:
+collection FQCN after `ansible-galaxy collection install`. Nested paths under
+`playbooks/` map to dotted FQCNs on **ansible-core >= 2.17** (the collection
+minimum): `playbooks/aws/ec2/ado_ec2_instance_create.yml` →
+`infra.automation_development_office.aws.ec2.ado_ec2_instance_create`. Details,
+variables, and examples stay in each directory README:
 
 | Path | FQCN prefix | Purpose |
 | --- | --- | --- |
@@ -80,6 +83,12 @@ When preflight selects the ``aws`` platform apps ``ec2_instance`` or
 per-app AWS vault). ``s3_bucket_policy`` also seeds a Jinja sample policy at
 ``playbooks/aws/s3/policies/allow_list_and_read.json`` (override with
 ``s3_bucket_policy_file``).
+
+Bootstrap seed YAML under
+`roles/bootstrap_generate_playbook_repo/files/playbooks/` is Contoller project
+content, not collection entry-point playbooks. The shipped `.ansible-lint`
+excludes that tree so Automation Hub / partner cert does not syntax-check those
+seeds as collection playbooks.
 
 ## Role documentation
 
