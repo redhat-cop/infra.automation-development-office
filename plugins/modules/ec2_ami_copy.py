@@ -96,30 +96,39 @@ options:
   access_key:
     description:
       - AWS access key ID.
-      - The C(AWS_ACCESS_KEY_ID) or C(AWS_ACCESS_KEY) environment
-        variables may also be used.
+      - See the AWS documentation for more information about access tokens
+        U(https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
+      - The C(AWS_ACCESS_KEY_ID) or C(AWS_ACCESS_KEY) environment variables
+        may also be used in decreasing order of preference.
       - Mutually exclusive with O(profile).
     type: str
     aliases: [aws_access_key_id, aws_access_key]
   secret_key:
     description:
       - AWS secret access key.
-      - The C(AWS_SECRET_ACCESS_KEY) or C(AWS_SECRET_KEY) environment
-        variables may also be used.
+      - See the AWS documentation for more information about access tokens
+        U(https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
+      - The C(AWS_SECRET_ACCESS_KEY) or C(AWS_SECRET_KEY) environment variables
+        may also be used in decreasing order of preference.
       - Mutually exclusive with O(profile).
     type: str
     aliases: [aws_secret_access_key, aws_secret_key]
   session_token:
     description:
-      - AWS STS session token for temporary credentials.
+      - AWS STS session token for use with temporary credentials.
+      - See the AWS documentation for more information about access tokens
+        U(https://docs.aws.amazon.com/general/latest/gr/aws-sec-cred-types.html#access-keys-and-secret-access-keys).
       - The C(AWS_SESSION_TOKEN) environment variable may also be used.
       - Mutually exclusive with O(profile).
     type: str
     aliases: [aws_session_token]
   profile:
     description:
-      - Named AWS profile for authentication.
-      - The C(AWS_PROFILE) environment variable may also be used.
+      - A named AWS profile to use for authentication.
+      - See the AWS documentation for more information about named profiles
+        U(https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-profiles.html).
+      - The C(AWS_PROFILE) or C(AWS_DEFAULT_PROFILE) environment variables may
+        also be used.
       - Mutually exclusive with O(access_key), O(secret_key), and
         O(session_token).
     type: str
@@ -127,7 +136,9 @@ options:
   region:
     description:
       - Destination AWS region for the copied AMI.
-      - The C(AWS_REGION) environment variable may also be used.
+      - The C(AWS_REGION) or C(AWS_DEFAULT_REGION) environment variables may
+        also be used.
+      - See U(http://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region).
     type: str
     aliases: [aws_region]
   endpoint_url:
@@ -138,36 +149,49 @@ options:
     aliases: [aws_endpoint_url]
   aws_ca_bundle:
     description:
-      - Path to a CA bundle used when validating SSL certificates.
+      - The location of a CA Bundle to use when validating SSL certificates.
       - The C(AWS_CA_BUNDLE) environment variable may also be used.
     type: path
   validate_certs:
     description:
-      - When V(false), SSL certificates are not validated for AWS API
-        communication.
+      - When V(false), SSL certificates will not be validated for
+        communication with the AWS APIs.
+      - Setting O(validate_certs=false) is strongly discouraged; consider
+        O(aws_ca_bundle) instead.
     type: bool
     default: true
   aws_config:
     description:
-      - Dictionary of botocore configuration overrides.
+      - A dictionary to modify the botocore configuration.
+      - Parameters can be found in the AWS documentation
+        U(https://botocore.amazonaws.com/v1/documentation/api/latest/reference/config.html#botocore.config.Config).
     type: dict
   debug_botocore_endpoint_logs:
     description:
-      - When V(true), log unique botocore resource/action API calls.
+      - When V(true), use a C(botocore.endpoint) logger to parse unique
+        C(resource:action) API calls made during a task.
+      - The C(ANSIBLE_DEBUG_BOTOCORE_LOGS) environment variable may also be used.
     type: bool
     default: false
 author:
   - Automation Development Office (@Automation-Development-Office)
 notes:
   - Requires the C(amazon.aws) collection at runtime for
-    C(AnsibleAWSModule) and tagging helpers.
-  - The AWS SDK may also read credentials and region from its host
-    configuration files (typically C(~/.aws/credentials)).
+    C(AnsibleAWSModule) and tagging helpers (C(amazon.aws) >= 8.0.0 per
+    this collection's dependency).
+  - Inline AWS option documentation mirrors C(amazon.aws) common/region
+    module doc fragments so Hub C(ansible-doc) does not need those fragments
+    installed. Runtime argument handling still comes from
+    C(AnsibleAWSModule) / C(aws_argument_spec).
+  - For modules, environment variables and configuration files are read from
+    the Ansible host context. The AWS SDK (boto3) may also read credentials
+    and region from host files such as C(~/.aws/credentials).
+    See U(https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html).
 requirements:
   - python >= 3.6
-  - boto3
-  - botocore
-  - amazon.aws
+  - boto3 >= 1.35.0
+  - botocore >= 1.35.0
+  - amazon.aws >= 8.0.0
 """
 
 EXAMPLES = r"""
