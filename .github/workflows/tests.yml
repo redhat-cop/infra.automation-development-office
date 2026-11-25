@@ -65,13 +65,8 @@ jobs:
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
         run: ansible-lint --offline
-<<<<<<< HEAD
-  nested-aws-playbook-fqcns:
-    name: Nested AWS Playbook FQCN Check
-=======
   ansible-doc-hub-import:
     name: Ansible-doc Hub Import Check
->>>>>>> origin/main
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     env:
@@ -86,7 +81,29 @@ jobs:
         with:
           python-version: "3.11"
 
-<<<<<<< HEAD
+      - name: Install ansible-core only
+        run: |
+          pip install "ansible-core>=2.17"
+          ansible-doc --version
+
+      - name: ansible-doc without amazon.aws (Hub import scenario)
+        run: python scripts/check_ansible_doc_hub_import.py
+  nested-aws-playbook-fqcns:
+    name: Nested AWS Playbook FQCN Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    env:
+      XDG_CACHE_HOME: /tmp/ado-xdg-cache
+      PYTHONUSERBASE: /tmp/ado-python-user
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
       - name: Install ansible-core
         run: pip install "ansible-core>=2.17"
 
@@ -109,15 +126,6 @@ jobs:
           python scripts/check_nested_aws_playbook_fqcns.py
           --collections-path "${{ github.workspace }}/.ansible/collections"
 
-=======
-      - name: Install ansible-core only
-        run: |
-          pip install "ansible-core>=2.17"
-          ansible-doc --version
-
-      - name: ansible-doc without amazon.aws (Hub import scenario)
-        run: python scripts/check_ansible_doc_hub_import.py
->>>>>>> origin/main
   readme-format:
     name: README Format Verification
     runs-on: ubuntu-latest
@@ -193,20 +201,14 @@ jobs:
       - unit-galaxy
       # - unit-source
       - ansible-lint
-<<<<<<< HEAD
-      - nested-aws-playbook-fqcns
-=======
       - ansible-doc-hub-import
->>>>>>> origin/main
+      - nested-aws-playbook-fqcns
     runs-on: ubuntu-latest
     steps:
       - run: >-
           python -c "assert 'failure' not in set([
           '${{ needs.unit-galaxy.result }}',
           '${{ needs.ansible-lint.result }}',
-<<<<<<< HEAD
+          '${{ needs.ansible-doc-hub-import.result }}',
           '${{ needs.nested-aws-playbook-fqcns.result }}'
-=======
-          '${{ needs.ansible-doc-hub-import.result }}'
->>>>>>> origin/main
           ])"
