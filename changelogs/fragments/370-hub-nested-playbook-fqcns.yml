@@ -8,5 +8,5 @@ minor_changes:
     ``roles/bootstrap_generate_playbook_repo/files/playbooks/`` is mitigated by
     shipping ``.ansible-lint`` exclude paths (see also packaging change for Hub
     lint). Add CI that builds the collection artifact and
-    ``ansible-playbook --syntax-check``s the seven nested AWS FQCNs plus the
+    runs ``ansible-playbook --syntax-check`` on the seven nested AWS FQCNs plus the
     Contoller AWS seed wrappers that import them.
