@@ -65,6 +65,29 @@ jobs:
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
         run: ansible-lint --offline
+  ansible-doc-hub-import:
+    name: Ansible-doc Hub Import Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    env:
+      XDG_CACHE_HOME: /tmp/ado-xdg-cache
+      PYTHONUSERBASE: /tmp/ado-python-user
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core only
+        run: |
+          pip install "ansible-core>=2.17"
+          ansible-doc --version
+
+      - name: ansible-doc without amazon.aws (Hub import scenario)
+        run: python scripts/check_ansible_doc_hub_import.py
   readme-format:
     name: README Format Verification
     runs-on: ubuntu-latest
@@ -140,10 +163,12 @@ jobs:
       - unit-galaxy
       # - unit-source
       - ansible-lint
+      - ansible-doc-hub-import
     runs-on: ubuntu-latest
     steps:
       - run: >-
           python -c "assert 'failure' not in set([
           '${{ needs.unit-galaxy.result }}',
-          '${{ needs.ansible-lint.result }}'
+          '${{ needs.ansible-lint.result }}',
+          '${{ needs.ansible-doc-hub-import.result }}'
           ])"

@@ -1,0 +1,26 @@
+DOCUMENTATION:
+  name: tls_pem_looks_like_certificate
+  author: Automation Development Office
+  short_description: Return whether text contains a PEM certificate block
+  description:
+    - Return C(true) when O(_input) contains at least one
+      C(BEGIN CERTIFICATE) / C(END CERTIFICATE) block.
+    - Used by OIDC trust resolution to decide whether a decoded Secret
+      field or config value can be treated as PEM material.
+    - This filter only detects PEM certificate markers. It does not decide
+      whether a certificate is trusted, self-signed, or suitable as a CA
+      trust anchor; see C(tls_trust_bundle_from_secret) for trust-bundle
+      construction.
+  options:
+    _input:
+      description: Text to inspect for PEM certificate markers (piped input).
+      type: str
+      required: true
+EXAMPLES: |
+  {{ ca_pem |
+     infra.automation_development_office.tls_pem_looks_like_certificate }}
+  # true
+RETURN:
+  _value:
+    description: Whether O(_input) contains a PEM certificate.
+    type: bool
