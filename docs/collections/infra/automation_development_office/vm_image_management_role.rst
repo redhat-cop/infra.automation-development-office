@@ -7,7 +7,7 @@
     :trim:
 
 .. meta::
-  :antsibull-docs: 2.24.0
+  :antsibull-docs: 2.29.1
 
 .. Anchors
 
@@ -16,17 +16,17 @@
 .. Title
 
 infra.automation_development_office.vm_image_management role -- Create a qcow2 virtual machine image from an existing base image.
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 .. Collection note
 
 .. note::
-    This role is part of the `infra.automation_development_office collection <https://galaxy.ansible.com/ui/repo/published/infra/automation_development_office/>`_ (version 1.0.0).
+    This role is part of the `infra.automation_development_office collection <https://galaxy.ansible.com/ui/repo/published/infra/automation_development_office/>`_ (version 2.1.4).
 
     It is not included in ``ansible-core``.
     To check whether it is installed, run :code:`ansible-galaxy collection list`.
 
-    To install it use: :code:`ansible\-galaxy collection install infra.automation_development_office`.
+    To install it use: :code:`ansible\-galaxy collection install infra.automation\_development\_office`.
 
     To use it in a playbook, specify: :code:`infra.automation_development_office.vm_image_management`.
 
@@ -187,7 +187,7 @@ Parameters
 
         <div class="ansible-option-cell">
 
-      Base image file name appended to vm\_image\_base\_path in prerequisites.
+      Base image file name appended to vm\_image\_management\_base\_path in prerequisites.
 
 
       .. raw:: html
@@ -224,7 +224,7 @@ Parameters
 
         <div class="ansible-option-cell">
 
-      Base image directory input. In prerequisites, this is expanded to the final base image path by appending vm\_image\_base\_name.
+      Base image directory input. In prerequisites, this is expanded to the final base image path by appending vm\_image\_management\_base\_name.
 
 
       .. raw:: html
@@ -261,7 +261,7 @@ Parameters
 
         <div class="ansible-option-cell">
 
-      Output image file name appended to vm\_image\_dest\_path in prerequisites.
+      Output image file name appended to vm\_image\_management\_dest\_path in prerequisites.
 
 
       .. raw:: html
@@ -298,7 +298,7 @@ Parameters
 
         <div class="ansible-option-cell">
 
-      Destination path for the output image. In prerequisites, this is expanded to the final output image path by appending vm\_image\_dest\_name.
+      Destination path for the output image. In prerequisites, this is expanded to the final output image path by appending vm\_image\_management\_dest\_name.
 
 
       .. raw:: html
@@ -576,13 +576,10 @@ Collection links
 .. ansible-links::
 
   - title: "Issue Tracker"
-    url: "http://example.com/issue/tracker"
-    external: true
-  - title: "Homepage"
-    url: "http://example.com"
+    url: "https://github.com/redhat-cop/infra.automation-development-office/issues"
     external: true
   - title: "Repository (Sources)"
-    url: "http://example.com/repository"
+    url: "https://github.com/redhat-cop/infra.automation-development-office"
     external: true
   - title: "Report an issue"
     url: "https://github.com/ansible-collections/infra.automation_development_office/issues/new/choose"

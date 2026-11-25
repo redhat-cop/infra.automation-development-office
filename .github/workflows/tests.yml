@@ -65,6 +65,25 @@ jobs:
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
         run: ansible-lint --offline
+  docs-plugin-refs:
+    name: Docs Plugin Reference Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core>=2.17"
+
+      - name: Check shipped docs do not reference missing plugins/roles
+        run: python scripts/check_docs_plugin_refs.py
+
   readme-format:
     name: README Format Verification
     runs-on: ubuntu-latest
@@ -140,10 +159,12 @@ jobs:
       - unit-galaxy
       # - unit-source
       - ansible-lint
+      - docs-plugin-refs
     runs-on: ubuntu-latest
     steps:
       - run: >-
           python -c "assert 'failure' not in set([
           '${{ needs.unit-galaxy.result }}',
-          '${{ needs.ansible-lint.result }}'
+          '${{ needs.ansible-lint.result }}',
+          '${{ needs.docs-plugin-refs.result }}'
           ])"
