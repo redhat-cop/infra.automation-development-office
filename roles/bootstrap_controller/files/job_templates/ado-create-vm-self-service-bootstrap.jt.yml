@@ -1,0 +1,88 @@
+---
+# yamllint disable rule:line-length
+# Self Service front door for OpenShift Virtualization VMs.
+#
+# Same playbook and role as "ADO | Provision OpenShift Virt VM" (the Advanced template).
+# Only the template differs: it sets ado_vm_template_mode, turns launch-time variables
+# off, and shows a short survey. The playbook enforces the approved policy itself, so a
+# hidden field is never the control. The choices below are filled at bootstrap from
+# openshift_virt_self_service_policy; this template is not generated when that policy is
+# missing or disabled.
+controller_templates:
+  - name: ADO | Create VM — Self Service
+    description: >-
+      Create an OpenShift Virtualization VM from an approved image and size.
+      Storage, network and login use approved defaults.
+    organization: '{{ bootstrap_controller_organization }}'
+    playbook: >-
+      playbooks/provision/ado-provision-openshift-virt-vm-bootstrap.yml
+    inventory: '{{ bootstrap_controller_inventory_name }}'
+    project: '{{ bootstrap_controller_project_name }}'
+    execution_environment: >-
+      {{ bootstrap_controller_execution_environment_name }}
+    credentials:
+      - '{{ bootstrap_controller_creds }}'
+    related: null
+    labels:
+      - name: ADO | bootstrap
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | provision
+        organization: '{{ bootstrap_controller_organization }}'
+      - name: ADO | openshift-virt
+        organization: '{{ bootstrap_controller_organization }}'
+    # Mode is fixed by the template. Launch-time variables are off so a caller cannot
+    # change it or add values the survey does not offer.
+    extra_vars:
+      ado_vm_template_mode: self_service
+      state: present
+    ask_variables_on_launch: false
+    survey_enabled: true
+    survey_spec:
+      name: ADO | Create VM — Self Service Survey
+      description: >-
+        Pick a project, name, image and size. Everything else uses approved defaults.
+      spec:
+        - question_name: ADO | What environment?
+          question_description: Target environment
+          required: true
+          type: multiplechoice
+          variable: env
+          choices: '{{ bootstrap_controller_environment_choices }}'
+          default: '{{ bootstrap_controller_default_environment }}'
+        - question_name: ADO | Project
+          question_description: OpenShift project (namespace) where the VM will be created
+          required: true
+          type: multiplechoice
+          variable: provision_openshift_virt_namespace
+          choices: '{{ bootstrap_controller_self_service_namespace_choices }}'
+          default: '{{ bootstrap_controller_self_service_default_namespace }}'
+        - question_name: ADO | VM name
+          question_description: >-
+            Lowercase letters, numbers and dashes. An existing VM with this name is never changed.
+          required: true
+          type: text
+          variable: provision_openshift_virt_vm_name
+          default: ""
+        - question_name: ADO | Operating system image
+          question_description: Approved image the VM boots from
+          required: true
+          type: multiplechoice
+          variable: provision_openshift_virt_source_name
+          choices: '{{ bootstrap_controller_self_service_image_choices }}'
+          default: '{{ bootstrap_controller_self_service_default_image }}'
+        - question_name: ADO | Size
+          question_description: Approved size for CPU and memory
+          required: true
+          type: multiplechoice
+          variable: provision_openshift_virt_size
+          choices: '{{ bootstrap_controller_self_service_size_choices }}'
+          default: '{{ bootstrap_controller_self_service_default_size }}'
+        - question_name: ADO | Start after creation
+          question_description: Start the VM as soon as it is created
+          required: false
+          type: multiplechoice
+          variable: provision_openshift_virt_start
+          choices:
+            - "true"
+            - "false"
+          default: "true"

@@ -358,6 +358,7 @@
 
       openshift_virt:
         - ado-provision-openshift-virt-vm-bootstrap.jt.yml
+        - ado-create-vm-self-service-bootstrap.jt.yml
 
       minio:
         - ado-minio-deploy-and-configure-bootstrap.jt.yml
@@ -568,6 +569,28 @@
               true
             )
         }}
+    # Names only (image ids, size labels, project names). Never the SSH key or other defaults.
+    bootstrap_controller_virt_self_service:
+      enabled: >-
+        {{
+          (bootstrap_controller_virt_vars.openshift_virt_self_service_policy | default({})).enabled
+          | default(false) | bool
+        }}
+      images: >-
+        {{
+          (bootstrap_controller_virt_vars.openshift_virt_self_service_policy | default({})).images
+          | default([]) | map(attribute='id') | list
+        }}
+      sizes: >-
+        {{
+          (bootstrap_controller_virt_vars.openshift_virt_self_service_policy | default({})).sizes
+          | default([]) | map(attribute='label') | list
+        }}
+      namespaces: >-
+        {{
+          (bootstrap_controller_virt_vars.openshift_virt_self_service_policy | default({})).namespaces
+          | default([])
+        }}
   when: bootstrap_controller_virt_vars is defined
 
 - name: AAP configs | Copy job templates for generated playbooks only
@@ -623,6 +646,20 @@
     # provision playbook falls back to the encrypted environment defaults at launch.
     loaded = json.loads({{ bootstrap_controller_virt_prefix | default({}, true) | to_json | to_json }})
     prefix_values = loaded if isinstance(loaded, dict) else {}
+
+    # Self Service choices come from the generated policy (names only). The template is
+    # skipped when the policy is missing, disabled or has an empty list, so a survey never
+    # ships with nothing to pick.
+    ss_loaded = json.loads({{ bootstrap_controller_virt_self_service | default({}, true) | to_json | to_json }})
+    ss = ss_loaded if isinstance(ss_loaded, dict) else {}
+    ss_images = [str(v) for v in (ss.get("images") or []) if str(v).strip()]
+    ss_sizes = [str(v) for v in (ss.get("sizes") or []) if str(v).strip()]
+    ss_namespaces = [str(v) for v in (ss.get("namespaces") or []) if str(v).strip()]
+    ss_ready = bool(ss.get("enabled")) and bool(ss_images) and bool(ss_sizes) and bool(ss_namespaces)
+    self_service_jt = "ado-create-vm-self-service-bootstrap.jt.yml"
+    if self_service_jt in selected and not ss_ready:
+        print("Skipping " + self_service_jt + ": no enabled openshift_virt self-service policy")
+        selected = [name for name in selected if name != self_service_jt]
 
     virt_static_ip = ""
     try:
@@ -723,6 +760,23 @@
     replacements[f"'{lb} bootstrap_controller_default_environment {rb}'"] = default_environment
     replacements[f"'{lb} controller_bootstrap_default_environment {rb}'"] = default_environment
 
+    # Survey choice lists are written as YAML flow lists so the survey keeps real choices.
+    ss_size_default = "Medium" if "Medium" in ss_sizes else (ss_sizes[0] if ss_sizes else "")
+    for key, value in (
+        ("bootstrap_controller_self_service_namespace_choices", ss_namespaces),
+        ("bootstrap_controller_self_service_image_choices", ss_images),
+        ("bootstrap_controller_self_service_size_choices", ss_sizes),
+    ):
+        replacements["'" + lb + " " + key + " " + rb + "'"] = json.dumps(value)
+        replacements[lb + " " + key + " " + rb] = json.dumps(value)
+    for key, value in (
+        ("bootstrap_controller_self_service_default_namespace", ss_namespaces[0] if ss_namespaces else ""),
+        ("bootstrap_controller_self_service_default_image", ss_images[0] if ss_images else ""),
+        ("bootstrap_controller_self_service_default_size", ss_size_default),
+    ):
+        replacements["'" + lb + " " + key + " " + rb + "'"] = json.dumps(value)
+        replacements[lb + " " + key + " " + rb] = json.dumps(value)
+
     copied = []
     playbook_dir = Path("{{ playbook_dir }}")
     for name in selected:
@@ -730,7 +784,7 @@
         if not src.exists():
             continue
 
-        text = src.read_text()
+        text = src.read_text(encoding="utf-8")
 
         for old, new in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
             if old:

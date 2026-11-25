@@ -1,0 +1,30 @@
+DOCUMENTATION:
+  name: ocp_virt_quota_shortfalls
+  author: Automation Development Office
+  short_description: Return namespace quota limits a new OpenShift Virt VM clearly cannot fit under
+  description:
+    - Read-only comparison of a VM's guest memory and root disk with the remaining C(ResourceQuota) in its namespace.
+    - Returns a list of plain-language shortfalls. An empty list means no quota clearly blocks the VM, not that it will fit.
+    - CPU is not compared, because the vCPUs a VM requests depend on the cluster's overcommit setting.
+  options:
+    quotas:
+      description: C(ResourceQuota) resources listed from the target namespace.
+      type: list
+      elements: dict
+      required: true
+    memory:
+      description: Guest memory of the selected size, as a Kubernetes quantity such as C(8Gi).
+      type: str
+      required: true
+    disk:
+      description: Root disk size as a Kubernetes quantity such as C(40Gi).
+      type: str
+      required: true
+EXAMPLES: |
+  {{ quotas | infra.automation_development_office.ocp_virt_quota_shortfalls('8Gi', '40Gi') }}
+  # []
+RETURN:
+  _value:
+    description: Quota shortfalls. Empty when no quota clearly blocks the VM.
+    type: list
+    elements: str

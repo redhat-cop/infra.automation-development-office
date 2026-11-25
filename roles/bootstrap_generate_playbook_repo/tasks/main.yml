@@ -537,6 +537,24 @@
     mode: "0644"
   when: bootstrap_generate_playbook_repo_git_url | default('') | length > 0
 
+# The project config above carries the Git URL in plaintext. The Controller pass that
+# normally routes topology into Vault only runs for AAP-enabled runs, and later than the
+# commit below, so a No-AAP run (or any run that commits first) would be refused by the
+# credential gate with ``plaintext-topology: scm_url``. Route it here, with the same task
+# and the same Vault files, so every run commits a file that holds only a reference.
+# It is a no-op when Vault encryption or topology routing is off (the gate then reports).
+- name: Generate playbook repo | Route topology in the controller project config into Vault
+  ansible.builtin.include_role:
+    name: infra.automation_development_office.bootstrap_generate_env_vars
+    tasks_from: topology_freeze_configs.yml
+  vars:
+    bootstrap_generate_env_vars_topology_configs_dir: "{{ bootstrap_generate_playbook_repo_dest_resolved }}/configs"
+    bootstrap_generate_env_vars_topology_configs_env_dir: >-
+      {{ bootstrap_generate_playbook_repo_dest_resolved }}/group_vars/all/{{ env }}
+  when:
+    - bootstrap_generate_playbook_repo_git_url | default('') | length > 0
+    - env is defined
+
 - name: Generate playbook repo | Show generated repo summary
   ansible.builtin.debug:
     msg:

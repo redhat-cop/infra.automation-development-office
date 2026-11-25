@@ -271,6 +271,26 @@ and falls back to `openshift_virt_network_defaults` (encrypted environment
 configuration). Typing a value at launch still wins. The prefix length stays a
 visible default.
 
+**Self Service policy.** `component_config.openshift_virt.self_service` is normalized
+into `openshift_virt_self_service_policy` in `vars_openshift_virt.yml`: `enabled`,
+`images` (`id`, `label`, `preference`), `sizes` (`label`, `instance_type`, never
+`custom`), `namespaces`, and `defaults` (`storage_class`, `network_mode`,
+`multus_network_name`, `root_disk_size`, `source_namespace`, `cloud_user`,
+`ssh_public_key`). It holds names and approved defaults only, never a password or
+token. The key is written only when preflight supplies it. The job template
+`ADO | Create VM — Self Service` is generated only when the policy is enabled and
+has at least one image, size and project.
+
+**Self Service policy.** `component_config.openshift_virt.self_service` is normalized
+into `openshift_virt_self_service_policy` in `vars_openshift_virt.yml`: `enabled`,
+`images` (`id`, `label`, `preference`), `sizes` (`label`, `instance_type`, never
+`custom`), `namespaces`, and `defaults` (`storage_class`, `network_mode`,
+`multus_network_name`, `root_disk_size`, `source_namespace`, `cloud_user`,
+`ssh_public_key`). It holds names and approved defaults only, never a password or
+token. The key is written only when preflight supplies it. The job template
+`ADO | Create VM — Self Service` is generated only when the policy is enabled and
+has at least one image, size and project.
+
 **Upgrading an existing bootstrap repository.** Job templates and playbooks that
 were generated earlier may still carry the old survey defaults. Re-run Bootstrap
 with "Override all" (or both the playbooks and the job templates). Overriding only

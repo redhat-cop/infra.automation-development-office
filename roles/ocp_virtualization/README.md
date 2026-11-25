@@ -73,6 +73,62 @@ stale `component_config` defaults.
 If the VMI shows `ErrorUnschedulable` with `Insufficient memory`, shrink the
 instance type rather than changing the guest image.
 
+### Two job templates, one playbook and role
+
+| Job template | For | Survey |
+|---|---|---|
+| **ADO \| Provision OpenShift Virt VM** (Advanced) | Platform engineers | Everything the role supports: custom CPU and memory, boot image, storage, network, cloud-init login, static IP, remove |
+| **ADO \| Create VM — Self Service** | Application teams | Project, VM name, approved image, approved size (Small, Medium, Large), start |
+
+Both run `ado-provision-openshift-virt-vm-bootstrap.yml` and this role. Use AAP
+permissions to decide who can launch each template.
+
+Self Service reads its approved values from `openshift_virt_self_service_policy`
+(generated from the Preflight OpenShift Virt VM form into `vars_openshift_virt.yml`).
+The playbook refuses a launch that is outside the policy, even if the value arrives as
+an extra variable: project, image and preference, size, storage class, network mode and
+attachment, root disk size, login user and SSH key, passwords, root SSH, hostname and
+removal. It also reads the project `ResourceQuota` (read-only) and refuses a size the
+quota clearly cannot hold: memory, storage, PVC count and VM count. CPU is not checked
+because the request depends on the cluster overcommit setting. If the quota cannot be
+read, the check is skipped with a message and OpenShift still enforces it at creation.
+
+The role looks the VM up first and creates it only when it is missing. An existing VM is
+never replaced or changed by either template.
+
+Not supported by the role, so not offered by either template: PVC, DataVolume or ISO
+boot sources, additional disks, node placement or scheduling, start or stop of an
+existing VM, and Windows. Self Service uses DHCP in the guest (no address pool in the
+policy).
+
+### Two job templates, one playbook and role
+
+| Job template | For | Survey |
+|---|---|---|
+| **ADO \| Provision OpenShift Virt VM** (Advanced) | Platform engineers | Everything the role supports: custom CPU and memory, boot image, storage, network, cloud-init login, static IP, remove |
+| **ADO \| Create VM — Self Service** | Application teams | Project, VM name, approved image, approved size (Small, Medium, Large), start |
+
+Both run `ado-provision-openshift-virt-vm-bootstrap.yml` and this role. Use AAP
+permissions to decide who can launch each template.
+
+Self Service reads its approved values from `openshift_virt_self_service_policy`
+(generated from the Preflight OpenShift Virt VM form into `vars_openshift_virt.yml`).
+The playbook refuses a launch that is outside the policy, even if the value arrives as
+an extra variable: project, image and preference, size, storage class, network mode and
+attachment, root disk size, login user and SSH key, passwords, root SSH, hostname and
+removal. It also reads the project `ResourceQuota` (read-only) and refuses a size the
+quota clearly cannot hold: memory, storage, PVC count and VM count. CPU is not checked
+because the request depends on the cluster overcommit setting. If the quota cannot be
+read, the check is skipped with a message and OpenShift still enforces it at creation.
+
+The role looks the VM up first and creates it only when it is missing. An existing VM is
+never replaced or changed by either template.
+
+Not supported by the role, so not offered by either template: PVC, DataVolume or ISO
+boot sources, additional disks, node placement or scheduling, start or stop of an
+existing VM, and Windows. Self Service uses DHCP in the guest (no address pool in the
+policy).
+
 ## 🧪 Role Molecule Testing
 
 No Molecule scenario ships with this role yet. Validate via Contoller JT

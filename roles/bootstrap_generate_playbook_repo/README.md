@@ -171,6 +171,12 @@ Preflight export, or a literal credential.
   is exempt; an environment that is itself named `test`, `molecule` or `examples`
   is not. The rules live in `.githooks/ado_topology_rules.py`, which the role
   writes next to the gate; the gate fails closed if that file is missing.
+- The rendered `configs/controller_projects.yml` holds the Git URL, so the role
+  runs the `bootstrap_generate_env_vars` topology pass (`topology_freeze_configs.yml`)
+  right after rendering it. The committed file then carries only a
+  `{{ vault_topology_cfg_... }}` reference, with or without AAP. When Vault
+  encryption or topology routing is turned off, the gate refuses the file
+  (`plaintext-topology`) and says to re-run with vault encryption on.
 - Seed playbooks ship no passwords. `playbooks/vpn/ado-manage-vpn-access-bootstrap.yml`
   takes the initial user password from `vault_lab_user_password` (or from the
   request's `new_password` / `temp_password`) and stops with a clear message when

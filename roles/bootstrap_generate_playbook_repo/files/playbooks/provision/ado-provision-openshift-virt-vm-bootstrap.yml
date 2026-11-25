@@ -4,33 +4,111 @@
   gather_facts: false
   vars:
     component: openshift_virt
+    # One playbook serves two job templates. "ADO | Provision OpenShift Virt VM" runs it
+    # as advanced (unchanged). "ADO | Create VM - Self Service" sets ado_vm_template_mode in
+    # the job template (launch-time variables are off for it). In self_service mode the
+    # role-facing values below come from the approved policy, and a guard in pre_tasks
+    # refuses any value outside it, wherever it came from. Same role, same variable names.
+    ado_vm_self_service: >-
+      {{ (ado_vm_template_mode | default('advanced') | string | lower) == 'self_service' }}
+    ado_vm_policy: "{{ openshift_virt_self_service_policy | default({}) }}"
+    ado_vm_defaults: "{{ ado_vm_policy.defaults | default({}) }}"
+    ado_vm_size: "{{ provision_openshift_virt_size | default('') }}"
+    ado_vm_policy_size: >-
+      {{
+        ado_vm_policy.sizes | default([])
+        | selectattr('label', 'equalto', ado_vm_size) | list | first | default({})
+      }}
+    ado_vm_policy_image: >-
+      {{
+        ado_vm_policy.images | default([])
+        | selectattr('id', 'equalto', provision_openshift_virt_source_name | default('')) | list
+        | first | default({})
+      }}
     vm_name: "{{ provision_openshift_virt_vm_name }}"
     vm_namespace: "{{ provision_openshift_virt_namespace }}"
-    source_kind: "{{ provision_openshift_virt_source_kind }}"
+    source_kind: >-
+      {{
+        'DataSource' if (ado_vm_self_service | bool)
+        else provision_openshift_virt_source_kind
+      }}
     source_name: "{{ provision_openshift_virt_source_name }}"
-    source_namespace: "{{ provision_openshift_virt_source_namespace }}"
-    instance_type: "{{ provision_openshift_virt_instance_type }}"
-    preference: "{{ provision_openshift_virt_preference }}"
+    source_namespace: >-
+      {{
+        ado_vm_defaults.source_namespace | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_source_namespace
+      }}
+    instance_type: >-
+      {{
+        ado_vm_policy_size.instance_type | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_instance_type
+      }}
+    preference: >-
+      {{
+        ado_vm_policy_image.preference | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_preference
+      }}
     cpu_cores: "{{ provision_openshift_virt_cpu_cores }}"
     memory: "{{ provision_openshift_virt_memory }}"
-    storage_class: "{{ provision_openshift_virt_storage_class }}"
-    root_disk_size: "{{ provision_openshift_virt_root_disk_size }}"
+    storage_class: >-
+      {{
+        ado_vm_defaults.storage_class | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_storage_class
+      }}
+    root_disk_size: >-
+      {{
+        ado_vm_defaults.root_disk_size | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_root_disk_size
+      }}
     network_name: "{{ provision_openshift_virt_network_name }}"
-    network_mode: "{{ provision_openshift_virt_network_mode | default('masquerade') }}"
+    network_mode: >-
+      {{
+        ado_vm_defaults.network_mode | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_network_mode | default('masquerade')
+      }}
     multus_network_name: >-
       {{
-        provision_openshift_virt_multus_network_name
-        | default('rhev-vms/br-ex-network')
+        ado_vm_defaults.multus_network_name | default('') if (ado_vm_self_service | bool)
+        else (
+          provision_openshift_virt_multus_network_name
+          | default('rhev-vms/br-ex-network')
+        )
       }}
     app_label: "{{ provision_openshift_virt_app_label }}"
     vm_start: "{{ provision_openshift_virt_start }}"
     vm_state: "{{ state | default('present') }}"
     wait_timeout: "{{ provision_openshift_virt_wait_timeout }}"
+    # Self Service has no passwords and no root SSH; the cloud user and SSH key are the approved ones.
     cloud_user_password: >-
-      {{ provision_openshift_virt_cloud_user_password | default('') }}
-    root_password: "{{ provision_openshift_virt_root_password | default('') }}"
+      {{
+        '' if (ado_vm_self_service | bool)
+        else provision_openshift_virt_cloud_user_password | default('')
+      }}
+    root_password: >-
+      {{
+        '' if (ado_vm_self_service | bool)
+        else provision_openshift_virt_root_password | default('')
+      }}
     enable_root_ssh: >-
-      {{ provision_openshift_virt_enable_root_ssh | default(false) }}
+      {{
+        false if (ado_vm_self_service | bool)
+        else provision_openshift_virt_enable_root_ssh | default(false)
+      }}
+    ado_vm_hostname: >-
+      {{
+        vm_name if (ado_vm_self_service | bool)
+        else provision_openshift_virt_hostname
+      }}
+    ado_vm_cloud_user: >-
+      {{
+        ado_vm_defaults.cloud_user | default('cloud-user') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_cloud_user
+      }}
+    ado_vm_ssh_public_key: >-
+      {{
+        ado_vm_defaults.ssh_public_key | default('') if (ado_vm_self_service | bool)
+        else provision_openshift_virt_ssh_public_key | default('')
+      }}
     # Prefer an explicit VM TLS override; otherwise inherit OpenShift form
     # skip_tls_verify / verify_ssl from infra_config_vars.yml.
     validate_certs: >-
@@ -47,31 +125,34 @@
         )
       }}
     # yamllint disable rule:line-length
-    cloud_init_user_data: |
+    # The cloud-init text is built under *_expected names; cloud_init_user_data and
+    # cloud_init_network_data (what the role reads) point at them. Self Service refuses a
+    # launch where the role-facing value no longer equals the expected text.
+    ado_cloud_init_user_data_expected: |
       #cloud-config
-      hostname: {{ provision_openshift_virt_hostname }}
+      hostname: {{ ado_vm_hostname }}
       ssh_pwauth: {{ ((cloud_user_password | length > 0) or (root_password | length > 0)) | bool | lower }}
       disable_root: {{ (not (enable_root_ssh | bool)) | bool | lower }}
       users:
         - default
-        - name: {{ provision_openshift_virt_cloud_user }}
+        - name: {{ ado_vm_cloud_user }}
           sudo: ALL=(ALL) NOPASSWD:ALL
           shell: /bin/bash
           lock_passwd: {{ (cloud_user_password | length == 0) | bool | lower }}
       {% if
-        provision_openshift_virt_ssh_public_key | default('') | length > 0
+        ado_vm_ssh_public_key | length > 0
       %}
           ssh_authorized_keys:
-            - {{ provision_openshift_virt_ssh_public_key }}
+            - {{ ado_vm_ssh_public_key }}
       {% endif %}
       {% if enable_root_ssh | bool %}
         - name: root
           lock_passwd: {{ (root_password | length == 0) | bool | lower }}
       {% if
-        provision_openshift_virt_ssh_public_key | default('') | length > 0
+        ado_vm_ssh_public_key | length > 0
       %}
           ssh_authorized_keys:
-            - {{ provision_openshift_virt_ssh_public_key }}
+            - {{ ado_vm_ssh_public_key }}
       {% endif %}
       {% endif %}
       {% if (cloud_user_password | length > 0) or (root_password | length > 0) %}
@@ -79,7 +160,7 @@
         expire: false
         users:
       {% if cloud_user_password | length > 0 %}
-          - name: {{ provision_openshift_virt_cloud_user }}
+          - name: {{ ado_vm_cloud_user }}
             password: {{ cloud_user_password }}
             type: text
       {% endif %}
@@ -98,6 +179,7 @@
       runcmd:
         - systemctl restart sshd || systemctl restart ssh
       {% endif %}
+    cloud_init_user_data: "{{ ado_cloud_init_user_data_expected }}"
     # Gateway and DNS servers are internal topology: bootstrap keeps them in Ansible Vault and
     # the survey defaults are blank. A blank survey answer arrives as an extra var that
     # shadows group_vars (and cannot be overridden by set_fact), so the effective values are
@@ -113,8 +195,9 @@
         if ((provision_openshift_virt_dns_servers | default('') | string | trim) | length > 0)
         else ((openshift_virt_network_defaults | default({})).get('dns_servers', ''))
       }}
-    cloud_init_network_data: |
-      {% if provision_openshift_virt_static_ip | default('') | length > 0 %}
+    # Self Service never sets a static IP (the policy has no address pool); the guest uses DHCP.
+    ado_cloud_init_network_data_expected: |
+      {% if (not (ado_vm_self_service | bool)) and provision_openshift_virt_static_ip | default('') | length > 0 %}
       {% set dns_servers = virt_dns_servers_effective | default([]) %}
       {% if dns_servers is string %}
       {% set dns_servers = dns_servers.split(',') | map('trim') | reject('equalto', '') | list %}
@@ -136,6 +219,33 @@
       {% endfor %}
       {% endif %}
       {% endif %}
+    cloud_init_network_data: "{{ ado_cloud_init_network_data_expected }}"
+    # The values the role will use, checked against the approved policy in pre_tasks.
+    ado_vm_effective:
+      vm_name: "{{ vm_name }}"
+      vm_namespace: "{{ vm_namespace }}"
+      source_kind: "{{ source_kind }}"
+      source_name: "{{ source_name }}"
+      source_namespace: "{{ source_namespace }}"
+      preference: "{{ preference }}"
+      instance_type: "{{ instance_type }}"
+      storage_class: "{{ storage_class }}"
+      network_mode: "{{ network_mode }}"
+      multus_network_name: "{{ multus_network_name }}"
+      root_disk_size: "{{ root_disk_size }}"
+      vm_state: "{{ vm_state }}"
+      size: "{{ ado_vm_size }}"
+      cloud_user: "{{ ado_vm_cloud_user }}"
+      ssh_public_key: "{{ ado_vm_ssh_public_key }}"
+      cloud_user_password: "{{ cloud_user_password }}"
+      root_password: "{{ root_password }}"
+      enable_root_ssh: "{{ enable_root_ssh }}"
+      hostname: "{{ ado_vm_hostname }}"
+    ado_vm_guest_memory: >-
+      {{
+        (ado_vm_instancetype.resources | default([{}]) | first | default({}))
+        .get('spec', {}).get('memory', {}).get('guest', '')
+      }}
     # yamllint enable rule:line-length
   vars_files:
     - "{{ playbook_dir }}/../../group_vars/all/{{ env }}/infra_config_vars.yml"
@@ -209,6 +319,81 @@
     - name: Set namespace for infra.automation_development_office.ocp_namespace from survey / extra_vars
       ansible.builtin.set_fact:
         name_space: "{{ provision_openshift_virt_namespace | default('ado-built-vm') }}"
+
+    # ---- Self Service guard (skipped for the Advanced template) -------------------
+    # Hiding a field in the survey is not a control: launch variables can arrive another
+    # way. This checks the final values the role will use, so an out-of-policy value
+    # fails the job whatever its source.
+    - name: Self Service | Refuse any value outside the approved policy
+      ansible.builtin.assert:
+        that:
+          - (ado_vm_effective | infra.automation_development_office.ocp_virt_self_service_violations(ado_vm_policy)) | length == 0
+          - cloud_init_user_data == ado_cloud_init_user_data_expected
+          - cloud_init_network_data == ado_cloud_init_network_data_expected
+        fail_msg: >-
+          Self Service refused this launch:
+          {{
+            (
+              ado_vm_effective
+              | infra.automation_development_office.ocp_virt_self_service_violations(ado_vm_policy)
+            ) | join(' ')
+            or 'cloud-init was changed outside the approved defaults.'
+          }}
+        quiet: true
+      when: ado_vm_self_service | bool
+
+    - name: Self Service | Read the namespace quota (read-only)
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: ResourceQuota
+        namespace: "{{ vm_namespace }}"
+      register: ado_vm_quota
+      failed_when: false
+      when: ado_vm_self_service | bool
+
+    - name: Self Service | Say when the quota could not be read
+      ansible.builtin.debug:
+        msg: >-
+          The namespace quota could not be read (missing permission or no quota set), so
+          the quota pre-check was skipped. OpenShift still enforces any quota at creation.
+      when:
+        - ado_vm_self_service | bool
+        - ado_vm_quota.msg is defined or ado_vm_quota.failed | default(false)
+
+    - name: Self Service | Read the selected instance type (read-only)
+      kubernetes.core.k8s_info:
+        api_version: instancetype.kubevirt.io/v1beta1
+        kind: VirtualMachineClusterInstancetype
+        name: "{{ instance_type }}"
+      register: ado_vm_instancetype
+      failed_when: false
+      when: ado_vm_self_service | bool
+
+    - name: Self Service | Refuse a size the namespace quota clearly cannot hold
+      ansible.builtin.assert:
+        that:
+          - >-
+            (
+              ado_vm_quota.resources | default([])
+              | infra.automation_development_office.ocp_virt_quota_shortfalls(
+                  ado_vm_guest_memory,
+                  root_disk_size
+                )
+            ) | length == 0
+        fail_msg: >-
+          Self Service refused this size:
+          {{
+            ado_vm_quota.resources | default([])
+            | infra.automation_development_office.ocp_virt_quota_shortfalls(
+                ado_vm_guest_memory,
+                root_disk_size
+              )
+            | join(' ')
+          }}
+        quiet: true
+      when:
+        - ado_vm_self_service | bool
+        - (ado_vm_quota.resources | default([]) | length) > 0
   roles:
     - role: infra.automation_development_office.ocp_namespace
     - role: infra.automation_development_office.ocp_virtualization

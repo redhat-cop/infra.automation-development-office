@@ -331,3 +331,180 @@ def test_a_second_bootstrap_run_converges_without_plaintext(lifecycle):
         capture_output=True, text=True, env=env, check=False,
     )
     assert done.returncode == 0
+
+
+# ---- Dual OpenShift Virt templates: Self Service and Advanced share one playbook ----
+
+SS_JT = "ado-create-vm-self-service-bootstrap.jt.yml"
+SELF_SERVICE_LAUNCH = {
+    "env": ENV,
+    "ado_vm_template_mode": "self_service",  # set by the job template, not the caller
+    "state": "present",
+    "provision_openshift_virt_namespace": "team-a",
+    "provision_openshift_virt_vm_name": "web-01",
+    "provision_openshift_virt_source_name": "rhel9",
+    "provision_openshift_virt_size": "Medium",
+    "provision_openshift_virt_start": "true",
+}
+
+
+def _run_generated_virt_playbook(lifecycle, launch, checks=None, *, quota=None, guest_memory="8Gi", raw=()):
+    """Run the generated provision playbook's pre_tasks the way a job template starts it.
+
+    The roles are dropped so nothing is created. The two read-only cluster lookups are
+    replaced by fixed data so the guard and quota logic run for real without a cluster.
+    """
+    source = lifecycle.repo / "playbooks" / "provision" / "ado-provision-openshift-virt-vm-bootstrap.yml"
+    play = yaml.safe_load(source.read_text())[0]
+    play.pop("roles", None)
+    pre_tasks = []
+    for task in play["pre_tasks"]:
+        module = next((key for key in task if key.startswith("kubernetes.core.")), None)
+        if module is None:
+            pre_tasks.append(task)
+        elif "quota" in task["name"]:
+            pre_tasks.append({"name": task["name"], "ansible.builtin.set_fact": {"ado_vm_quota": {"resources": quota or []}},
+                              "when": task["when"]})
+        else:
+            pre_tasks.append({"name": task["name"], "ansible.builtin.set_fact": {"ado_vm_instancetype": {
+                "resources": [{"spec": {"memory": {"guest": guest_memory}}}]}}, "when": task["when"]})
+    play["pre_tasks"] = pre_tasks
+    play["tasks"] = [{"ansible.builtin.assert": {"that": checks}}] if checks else []
+    derived = source.with_name("_derived_virt_templates.yml")
+    derived.write_text(yaml.safe_dump([play], sort_keys=False))
+    extra = []
+    for key, value in launch.items():
+        extra += ["-e", f"{key}={value}"]
+    for item in raw:
+        extra += ["-e", item]
+    return lifecycle.run(derived, *extra, cwd=derived.parent, check=False)
+
+
+def _refused(result):
+    return result.returncode != 0 and "Self Service refused" in result.stdout + result.stderr
+
+
+def test_generated_self_service_template_offers_only_the_approved_choices(lifecycle):
+    configs = lifecycle.repo / "configs" / "job_templates"
+    template = yaml.safe_load((configs / SS_JT).read_text())["controller_templates"][0]
+    advanced = yaml.safe_load((configs / "ado-provision-openshift-virt-vm-bootstrap.jt.yml").read_text())["controller_templates"][0]
+    assert template["name"].endswith("| Create VM \u2014 Self Service")
+    assert template["playbook"] == advanced["playbook"]
+    assert template["ask_variables_on_launch"] is False
+    assert template["extra_vars"]["ado_vm_template_mode"] == "self_service"
+    by_variable = {q["variable"]: q for q in template["survey_spec"]["spec"]}
+    assert by_variable["provision_openshift_virt_namespace"]["choices"] == "team-a\nteam-b"
+    assert by_variable["provision_openshift_virt_source_name"]["choices"] == "rhel9\nrhel10"
+    assert by_variable["provision_openshift_virt_size"]["choices"] == "Small\nMedium\nLarge"
+    assert by_variable["provision_openshift_virt_size"]["default"] == "Medium"
+    assert by_variable["provision_openshift_virt_namespace"]["default"] == "team-a"
+    assert "{{" not in json.dumps(template["survey_spec"]), "a survey placeholder was left unfilled"
+
+
+def test_generated_policy_holds_names_and_defaults_not_topology(lifecycle):
+    virt = yaml.safe_load((lifecycle.env_dir / "vars_openshift_virt.yml").read_text())
+    policy = virt["openshift_virt_self_service_policy"]
+    assert policy["enabled"] is True
+    assert [s["label"] for s in policy["sizes"]] == ["Small", "Medium", "Large"]
+    assert policy["defaults"]["storage_class"] == "fixture-rbd"
+    assert policy["defaults"]["cloud_user"] == "cloud-user"
+    assert "10.77" not in json.dumps(policy)
+
+
+def test_self_service_launch_inside_the_policy_uses_approved_values_only(lifecycle):
+    result = _run_generated_virt_playbook(
+        lifecycle,
+        {**SELF_SERVICE_LAUNCH,
+         # a caller (or an old survey) trying to widen things through the survey-era names
+         "provision_openshift_virt_instance_type": "custom", "provision_openshift_virt_storage_class": "other",
+         "provision_openshift_virt_cloud_user_password": "x", "provision_openshift_virt_root_password": "x",
+         "provision_openshift_virt_enable_root_ssh": "true", "provision_openshift_virt_static_ip": "10.77.0.150",
+         "provision_openshift_virt_preference": "rhel.10", "provision_openshift_virt_hostname": "other-host"},
+        [
+            "ado_vm_self_service | bool",
+            "instance_type == 'u1.large'",
+            "preference == 'rhel.9'",
+            "storage_class == 'fixture-rbd'",
+            "root_disk_size == '30Gi'",
+            "network_mode == 'masquerade'",
+            "source_namespace == 'openshift-virtualization-os-images'",
+            "cloud_user_password == '' and root_password == ''",
+            "not (enable_root_ssh | bool)",
+            "'hostname: web-01' in cloud_init_user_data",
+            "'ssh-ed25519 AAAA-fixture-key' in cloud_init_user_data",
+            "'chpasswd' not in cloud_init_user_data and 'PermitRootLogin' not in cloud_init_user_data",
+            "(cloud_init_network_data | default('', true)) == ''",  # DHCP: no static address, as before
+        ],
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_self_service_refuses_values_a_caller_adds_outside_the_survey(lifecycle):
+    attempts = {
+        "project outside the policy": ["provision_openshift_virt_namespace=kube-system"],
+        "image outside the policy": ["provision_openshift_virt_source_name=custom-image"],
+        "size outside the policy": ["provision_openshift_virt_size=Huge"],
+        "invalid VM name": ["provision_openshift_virt_vm_name=Bad_Name"],
+        "role-facing instance type": ["instance_type=u1.2xlarge"],
+        "role-facing storage class": ["storage_class=fast"],
+        "role-facing network mode": ["network_mode=bridge"],
+        "role-facing boot image namespace": ["source_namespace=default"],
+        "role-facing password": ["cloud_user_password=x"],
+        "role-facing root ssh": ["enable_root_ssh=true"],
+        "role-facing login user": ["ado_vm_cloud_user=root"],
+        "removal": ["state=absent"],
+        "replaced cloud-init": ["cloud_init_user_data=#cloud-config\\nruncmd: [id]"],
+        "replaced network data": ["cloud_init_network_data=version: 2"],
+    }
+    launch = {k: v for k, v in SELF_SERVICE_LAUNCH.items() if k != "state"}
+    failures = []
+    for label, extras in attempts.items():
+        launch_with_state = {**launch, "state": "present"} if label != "removal" else launch
+        result = _run_generated_virt_playbook(lifecycle, launch_with_state, raw=extras)
+        if not _refused(result):
+            failures.append(label)
+    assert failures == []
+
+
+def test_self_service_refuses_when_the_policy_is_missing_or_disabled(lifecycle):
+    for policy in ('{"openshift_virt_self_service_policy": {"enabled": false}}', '{"openshift_virt_self_service_policy": {}}'):
+        result = _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH, raw=[policy])
+        assert _refused(result), policy
+        assert "not configured" in result.stdout + result.stderr
+
+
+def test_self_service_refuses_a_size_the_namespace_quota_cannot_hold(lifecycle):
+    tight = [{"metadata": {"name": "team-a-compute"},
+              "status": {"hard": {"requests.memory": "10Gi"}, "used": {"requests.memory": "6Gi"}}}]
+    refused = _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH, quota=tight, guest_memory="8Gi")
+    assert refused.returncode != 0 and "Self Service refused this size" in refused.stdout + refused.stderr
+    assert "team-a-compute" in refused.stdout
+    roomy = [{"metadata": {"name": "team-a-compute"},
+              "status": {"hard": {"requests.memory": "64Gi"}, "used": {"requests.memory": "6Gi"}}}]
+    assert _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH, quota=roomy).returncode == 0
+    assert _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH, quota=[]).returncode == 0
+
+
+def test_advanced_template_is_not_restricted_and_keeps_its_behaviour(lifecycle):
+    """No mode set: the Advanced path resolves exactly what the survey says, including custom values."""
+    result = _run_generated_virt_playbook(
+        lifecycle,
+        {"env": ENV, "state": "present", "provision_openshift_virt_namespace": "any-namespace",
+         "provision_openshift_virt_vm_name": "Any_Name-1", "provision_openshift_virt_source_name": "custom-image",
+         "provision_openshift_virt_instance_type": "custom", "provision_openshift_virt_storage_class": "fast",
+         "provision_openshift_virt_hostname": "adv-host", "provision_openshift_virt_cloud_user": "ops",
+         "provision_openshift_virt_cloud_user_password": "fake-pw", "provision_openshift_virt_static_ip": "10.77.0.150",
+         "provision_openshift_virt_enable_root_ssh": "true", "provision_openshift_virt_preference": "rhel.10",
+         "provision_openshift_virt_source_namespace": "images", "provision_openshift_virt_root_disk_size": "100Gi"},
+        [
+            "not (ado_vm_self_service | bool)",
+            "instance_type == 'custom' and preference == 'rhel.10'",
+            "storage_class == 'fast' and root_disk_size == '100Gi'",
+            "source_namespace == 'images' and vm_namespace == 'any-namespace'",
+            "cloud_user_password == 'fake-pw' and (enable_root_ssh | bool)",
+            "'hostname: adv-host' in cloud_init_user_data and '- name: ops' in cloud_init_user_data",
+            "'10.77.0.150/24' in cloud_init_network_data",
+        ],
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Self Service refused" not in result.stdout

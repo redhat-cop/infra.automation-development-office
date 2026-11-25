@@ -156,6 +156,35 @@ def test_a_changed_value_is_merged_into_the_encrypted_vault(tree, vault_pass):
     assert f"other.{ZONE}" in values and HOST not in values
 
 
+@pytest.mark.skipif(not HAVE_VAULT, reason="needs ansible-vault")
+def test_the_top_level_project_config_the_playbook_repo_renders_is_routed_too(tmp_path, vault_pass):
+    """``configs/controller_projects.yml`` sits beside, not inside, ``configs/controller/``.
+
+    bootstrap_generate_playbook_repo renders it with the real Git URL and commits it. A
+    No-AAP run never reaches the Controller pass, so the playbook repo role runs the same
+    freeze pass right after rendering. The credential gate must then find nothing.
+    """
+    repo = tmp_path / "repo"
+    env = repo / "group_vars" / "all" / "dev"
+    env.mkdir(parents=True)
+    rendered = write(
+        repo / "configs" / "controller_projects.yml",
+        {"controller_projects": [{"name": "p", "scm_type": "git", "scm_url": GIT, "scm_branch": "main"}]},
+    )
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "-A", "-f"], check=True)
+    assert [f[2] for f in topology_findings(repo)] == ["scm_url line 4"], "precondition: the gate refuses the plaintext file"
+
+    report = topo.freeze_configs(repo / "configs", env, vault_pass)
+    assert report["routed"] == 1
+    topo.encrypt_files(env, ["aap_vault.yml"], vault_pass)
+    assert ZONE not in rendered.read_text()
+    assert "{{ vault_topology_cfg_" in rendered.read_text()
+    assert ZONE not in (env / "aap_vault.yml").read_text(), "the vault file is ciphertext"
+    subprocess.run(["git", "-C", str(repo), "add", "-A", "-f"], check=True)
+    assert topology_findings(repo) == []
+
+
 # --------------------------------------------------------------------------- gate scope
 
 

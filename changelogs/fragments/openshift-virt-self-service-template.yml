@@ -1,0 +1,23 @@
+---
+minor_changes:
+  - >-
+    bootstrap_controller - Added the job template ``ADO | Create VM — Self Service``.
+    It runs the same provision playbook and ``ocp_virtualization`` role as
+    ``ADO | Provision OpenShift Virt VM`` (the Advanced template, unchanged), with a short survey:
+    project, VM name, approved image, approved size (Small, Medium, Large) and start. Launch-time
+    variables are off. The template is generated only when the OpenShift Virt self-service policy
+    is enabled with at least one image, size and project.
+  - >-
+    bootstrap_generate_env_vars - ``component_config.openshift_virt.self_service`` is normalized
+    into ``openshift_virt_self_service_policy`` in ``vars_openshift_virt.yml`` (approved images,
+    sizes, projects and the defaults for storage, network, root disk and login). It is written
+    only when preflight supplies it.
+  - >-
+    bootstrap_generate_playbook_repo - ``ado-provision-openshift-virt-vm-bootstrap.yml`` serves
+    both templates. In Self Service mode the role values come from the policy and a pre-task
+    refuses any value outside it, including values passed as extra variables. A read-only
+    ResourceQuota check refuses a size the project quota clearly cannot hold. Advanced mode
+    resolves values exactly as before.
+  - >-
+    plugins - Added the filters ``ocp_virt_self_service_violations`` and
+    ``ocp_virt_quota_shortfalls``.
