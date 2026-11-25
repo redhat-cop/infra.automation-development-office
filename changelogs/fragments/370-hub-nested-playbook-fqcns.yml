@@ -7,5 +7,6 @@ minor_changes:
     import noise for those FQCNs and for Contoller seed playbooks under
     ``roles/bootstrap_generate_playbook_repo/files/playbooks/`` is mitigated by
     shipping ``.ansible-lint`` exclude paths (see also packaging change for Hub
-    lint). Add unit coverage that the seven README-advertised AWS playbook
-    FQCNs resolve via the collection loader.
+    lint). Add CI that builds the collection artifact and
+    ``ansible-playbook --syntax-check``s the seven nested AWS FQCNs plus the
+    Contoller AWS seed wrappers that import them.

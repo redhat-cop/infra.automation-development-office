@@ -47,6 +47,7 @@ exclude_paths:
     # Contoller project seeds (not collection entry-point playbooks). Excluding
     # them avoids Hub "Failed to find/load … playbook" noise when seeds
     # import_playbook nested AWS FQCNs or reference env-specific vars_files.
+    # CI still syntax-checks AWS seeds via scripts/check_nested_aws_playbook_fqcns.py.
     - roles/bootstrap_generate_playbook_repo/files/playbooks/**
     - roles/bootstrap_generate_playbook_repo/files/playbook_repo_seed/**
 
