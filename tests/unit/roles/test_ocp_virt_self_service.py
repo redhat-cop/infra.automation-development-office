@@ -218,8 +218,9 @@ USER_DATA = (
 )
 
 
-def _project(tmp_path, policy=POLICY, env="lab", raw=None):
+def _project(tmp_path, policy=None, env="lab", raw=None):
     """A project tree: <root>/playbooks/provision and <root>/group_vars/all/<env>/vars_openshift_virt.yml."""
+    policy = POLICY if policy is None else policy
     playbooks = tmp_path / "playbooks" / "provision"
     playbooks.mkdir(parents=True)
     env_dir = tmp_path / "group_vars" / "all" / env

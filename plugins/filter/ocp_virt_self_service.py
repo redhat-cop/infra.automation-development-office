@@ -179,7 +179,7 @@ class _StrictLoader(yaml.SafeLoader):
 
 def _construct_unique_mapping(loader, node, deep=False):
     seen = set()
-    for key_node, _ in node.value:
+    for key_node, _value_node in node.value:
         key = loader.construct_object(key_node, deep=True)
         if key in seen:
             raise yaml.constructor.ConstructorError(
