@@ -65,6 +65,86 @@ jobs:
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
         run: ansible-lint --offline
+  ansible-doc-hub-import:
+    name: Ansible-doc Hub Import Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    env:
+      XDG_CACHE_HOME: /tmp/ado-xdg-cache
+      PYTHONUSERBASE: /tmp/ado-python-user
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core only
+        run: |
+          pip install "ansible-core>=2.17"
+          ansible-doc --version
+
+      - name: ansible-doc without amazon.aws (Hub import scenario)
+        run: python scripts/check_ansible_doc_hub_import.py
+  docs-plugin-refs:
+    name: Docs Plugin Reference Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core>=2.17"
+
+      - name: Check shipped docs do not reference missing plugins/roles
+        run: python scripts/check_docs_plugin_refs.py
+
+  nested-aws-playbook-fqcns:
+    name: Nested AWS Playbook FQCN Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    env:
+      XDG_CACHE_HOME: /tmp/ado-xdg-cache
+      PYTHONUSERBASE: /tmp/ado-python-user
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core>=2.17"
+
+      - name: Verify Automation Hub connectivity
+        run: scripts/ci/verify-automation-hub.sh
+
+      - name: Install collection dependencies
+        run: |
+          collections_path="${{ github.workspace }}/.ansible/collections"
+          mkdir -p "$collections_path"
+          sh scripts/ci/ansible-galaxy-with-retry.sh collection install \
+            -r collections/requirements.yml -p "$collections_path"
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
+
+      - name: Syntax-check nested AWS FQCNs and Contoller seed wrappers
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/.ansible/collections
+        run: >-
+          python scripts/check_nested_aws_playbook_fqcns.py
+          --collections-path "${{ github.workspace }}/.ansible/collections"
+
   readme-format:
     name: README Format Verification
     runs-on: ubuntu-latest
@@ -140,10 +220,16 @@ jobs:
       - unit-galaxy
       # - unit-source
       - ansible-lint
+      - ansible-doc-hub-import
+      - docs-plugin-refs
+      - nested-aws-playbook-fqcns
     runs-on: ubuntu-latest
     steps:
       - run: >-
           python -c "assert 'failure' not in set([
           '${{ needs.unit-galaxy.result }}',
-          '${{ needs.ansible-lint.result }}'
+          '${{ needs.ansible-lint.result }}',
+          '${{ needs.ansible-doc-hub-import.result }}',
+          '${{ needs.docs-plugin-refs.result }}',
+          '${{ needs.nested-aws-playbook-fqcns.result }}'
           ])"
