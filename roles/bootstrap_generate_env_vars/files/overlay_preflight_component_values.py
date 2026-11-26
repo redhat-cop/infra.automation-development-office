@@ -726,6 +726,91 @@ def as_bool(value, default=True):
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
+def normalize_virt_self_service(raw):
+    """Turn component_config.openshift_virt.self_service into the policy the
+    "ADO | Create VM - Self Service" template enforces.
+
+    Only approved names and defaults are kept. A disabled or empty policy is
+    written as enabled=false so the Self Service template is not generated.
+    """
+    raw = raw if isinstance(raw, dict) else {}
+
+    def text(value):
+        return "" if value is None else str(value).strip()
+
+    images = []
+    seen_images = set()
+    for item in raw.get("images") or []:
+        item = item if isinstance(item, dict) else {"id": item}
+        image_id = text(item.get("id"))
+        preference = text(item.get("preference"))
+        if not preference:
+            match = re.match(r"^rhel[-_.]?(\d+)", image_id, re.IGNORECASE)
+            preference = "rhel." + match.group(1) if match else ""
+        if not image_id or not preference or image_id in seen_images:
+            continue
+        seen_images.add(image_id)
+        images.append(
+            {
+                "id": image_id,
+                "label": text(item.get("label")) or image_id,
+                "preference": preference,
+            }
+        )
+
+    sizes = []
+    seen_sizes = set()
+    for item in raw.get("sizes") or []:
+        item = item if isinstance(item, dict) else {}
+        label = text(item.get("label"))
+        instance_type = text(item.get("instance_type"))
+        if (
+            not label
+            or not instance_type
+            or instance_type == "custom"
+            or label in seen_sizes
+        ):
+            continue
+        seen_sizes.add(label)
+        sizes.append({"label": label, "instance_type": instance_type})
+
+    namespaces = []
+    for item in raw.get("namespaces") or []:
+        name = text(item)
+        if name and name not in namespaces:
+            namespaces.append(name)
+
+    raw_defaults = raw.get("defaults") if isinstance(raw.get("defaults"), dict) else {}
+    defaults = {
+        key: text(raw_defaults.get(key))
+        for key in (
+            "storage_class",
+            "network_mode",
+            "multus_network_name",
+            "root_disk_size",
+            "source_namespace",
+            "cloud_user",
+            "ssh_public_key",
+        )
+    }
+    defaults["network_mode"] = defaults["network_mode"] or "masquerade"
+    defaults["source_namespace"] = (
+        defaults["source_namespace"] or "openshift-virtualization-os-images"
+    )
+    defaults["cloud_user"] = defaults["cloud_user"] or "cloud-user"
+
+    enabled = as_bool(raw.get("enabled"), False) and bool(
+        images and sizes and namespaces
+    )
+    return {
+        "enabled": enabled,
+        "images": images,
+        "sizes": sizes,
+        "namespaces": namespaces,
+        "defaults": defaults,
+    }
+
+
 install_aap = as_bool(
     (preflight.get("pre_installs") or {}).get("install_aap"),
     False,
@@ -4579,6 +4664,13 @@ def merge_component(component, cfg):
                     "",
                 ),
             }
+
+            # Self Service policy: written only when preflight supplies it, so an
+            # existing hand-made policy is not removed by a run without one.
+            if "self_service" in public_values:
+                vars_data["openshift_virt_self_service_policy"] = (
+                    normalize_virt_self_service(public_values.get("self_service"))
+                )
 
         if component == "ec2_ami_copy":
             ec2_ami_copy_mapping = {

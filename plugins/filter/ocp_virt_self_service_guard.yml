@@ -1,0 +1,58 @@
+DOCUMENTATION:
+  name: ocp_virt_self_service_guard
+  author: Automation Development Office
+  short_description: Return why an OpenShift Virt Self Service launch is outside the approved policy
+  description:
+    - >-
+      Check the final values the C(ocp_virtualization) role is about to use against the approved
+      Self Service policy and return a list of plain-language reasons. An empty list means the
+      launch is allowed.
+    - >-
+      The policy is read from C(group_vars/all/<env>/vars_openshift_virt.yml) in the project, not
+      from an Ansible variable. An extra variable has higher precedence than any variable a
+      playbook sets, so a policy passed through a variable could be replaced by the caller.
+    - >-
+      The cloud-init user data is parsed and compared with the one approved structure (approved
+      login and SSH key, no passwords, no root SSH, nothing else). The cloud-init network data
+      must be empty.
+    - >-
+      A policy that holds template expressions, a missing policy file or an invalid environment
+      name is refused.
+  positional: _input, env, effective, cloud_init_user_data, cloud_init_network_data
+  options:
+    _input:
+      description: The playbook directory (C(playbook_dir)). The repository root is two levels above it.
+      type: str
+      required: true
+    env:
+      description: Environment name. Letters, numbers, dot, dash and underscore only.
+      type: str
+      required: true
+    effective:
+      description:
+        - Final role-facing values. See the C(ocp_virt_self_service_violations) filter.
+        - >-
+          Also C(role_state) (the C(state) variable the namespace role reads), C(namespace_effective)
+          (the project the namespace role would create) and C(cloud_user_password_set) /
+          C(root_password_set) (whether a password is set, so no password value is passed).
+      type: dict
+      required: true
+    cloud_init_user_data:
+      description: The C(cloud_init_user_data) value the role passes to the VM.
+      type: str
+      default: ""
+    cloud_init_network_data:
+      description: The C(cloud_init_network_data) value the role passes to the VM.
+      type: str
+      default: ""
+EXAMPLES: |
+  {{ playbook_dir
+     | infra.automation_development_office.ocp_virt_self_service_guard(
+         env, {'vm_name': vm_name, 'vm_namespace': vm_namespace},
+         cloud_init_user_data, cloud_init_network_data) }}
+  # []
+RETURN:
+  _value:
+    description: Reasons the launch is not allowed. Empty when allowed.
+    type: list
+    elements: str

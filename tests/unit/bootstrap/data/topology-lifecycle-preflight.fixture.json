@@ -98,7 +98,26 @@
         "10.77.0.54"
       ],
       "ip_range": "10.77.0.100-10.77.0.200",
-      "prefix_length": 24
+      "prefix_length": 24,
+      "self_service": {
+        "enabled": true,
+        "images": [
+          {"id": "rhel9", "label": "RHEL 9", "preference": "rhel.9"},
+          {"id": "rhel10", "label": "RHEL 10", "preference": "rhel.10"}
+        ],
+        "sizes": [
+          {"label": "Small", "instance_type": "u1.medium"},
+          {"label": "Medium", "instance_type": "u1.large"},
+          {"label": "Large", "instance_type": "u1.xlarge"}
+        ],
+        "namespaces": ["team-a", "team-b"],
+        "defaults": {
+          "storage_class": "fixture-rbd",
+          "network_mode": "masquerade",
+          "root_disk_size": "30Gi",
+          "ssh_public_key": "ssh-ed25519 AAAA-fixture-key fixture@example"
+        }
+      }
     },
     "rhbk": {
       "admin_user": "admin",

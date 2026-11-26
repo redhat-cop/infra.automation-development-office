@@ -1,0 +1,11 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - Fixed Bootstrap failing at
+    ``Commit generated files`` with
+    ``CREDENTIAL GATE ... configs/controller_projects.yml plaintext-topology
+    scm_url`` on runs that do not use AAP. The rendered project config carried
+    the Git URL in plaintext, and the pass that routes Controller config
+    topology into Vault only ran for AAP-enabled runs, after the commit. The
+    role now runs the same ``topology_freeze_configs.yml`` pass right after it
+    renders the file, so the committed file holds only a Vault reference.
