@@ -116,18 +116,64 @@ def test_the_policy_never_puts_secrets_or_defaults_in_the_survey_facts():
     assert "defaults" not in block and "ssh_public_key" not in block
 
 
+def _guard_task(play):
+    return next(task for task in play["pre_tasks"] if task["name"].startswith("Self Service | Refuse any value"))
+
+
+def _guard_task(play):
+    return next(task for task in play["pre_tasks"] if task["name"].startswith("Self Service | Refuse any value"))
+
+
 def test_one_playbook_decides_the_mode_and_enforces_the_policy():
     play = yaml.safe_load(PLAYBOOK.read_text())[0]
     assert "ado_vm_self_service" in play["vars"]
     assert play["vars"]["ado_vm_policy"] == "{{ openshift_virt_self_service_policy | default({}) }}"
     names = [task["name"] for task in play["pre_tasks"]]
     assert any(name.startswith("Self Service | Refuse any value outside") for name in names)
-    guard = next(task for task in play["pre_tasks"] if task["name"].startswith("Self Service | Refuse any value"))
-    assert guard["when"] == "ado_vm_self_service | bool"
+    guard = _guard_task(play)
     joined = " ".join(guard["ansible.builtin.assert"]["that"])
-    assert "ocp_virt_self_service_violations" in joined
-    assert "cloud_init_user_data == ado_cloud_init_user_data_expected" in joined
-    assert "cloud_init_network_data == ado_cloud_init_network_data_expected" in joined
+    assert "ocp_virt_self_service_guard" in joined
+
+
+def test_guard_does_not_trust_variables_a_caller_can_replace():
+    """An extra variable beats every variable the play sets. The guard must not read any of these."""
+    play = yaml.safe_load(PLAYBOOK.read_text())[0]
+    guard = _guard_task(play)
+    text = " ".join(str(part) for part in (guard["ansible.builtin.assert"], guard["when"]))
+    for shadowable in (
+        "ado_vm_policy",
+        "ado_vm_defaults",
+        "ado_vm_effective",
+        "ado_vm_self_service",
+        "openshift_virt_self_service_policy",
+        "ado_cloud_init_user_data_expected",
+        "ado_cloud_init_network_data_expected",
+    ):
+        assert shadowable not in text, f"the guard reads {shadowable}, which an extra variable can replace"
+    # It runs on the template mode OR the AAP job template name, not on the derived variable.
+    assert "ado_vm_template_mode" in guard["when"] and "awx_job_template_name" in guard["when"]
+    # It checks the cloud-init text the role will use, and the project the namespace role creates.
+    joined = " ".join(guard["ansible.builtin.assert"]["that"])
+    for final_value in ("cloud_init_user_data", "cloud_init_network_data", "ocp_namespace_name", "name_space", "state"):
+        assert final_value in joined, final_value
+
+
+def test_an_unknown_template_mode_fails_closed():
+    play = yaml.safe_load(PLAYBOOK.read_text())[0]
+    first = next(task for task in play["pre_tasks"] if task["name"] == "Self Service | Refuse an unknown template mode")
+    assert "when" not in first, "the mode check must run for both templates"
+    assert "'self_service'" in " ".join(first["ansible.builtin.assert"]["that"])
+    # The derived switch and the guard condition use the same two signals.
+    assert play["vars"]["ado_vm_self_service"].count("awx_job_template_name") == 1
+    assert "ado_vm_template_mode" in play["vars"]["ado_vm_self_service"]
+
+
+def test_dhcp_network_data_is_an_explicit_empty_string_expression():
+    """A template of block tags only renders to None or a lone newline, so DHCP is an expression."""
+    play = yaml.safe_load(PLAYBOOK.read_text())[0]["vars"]
+    expected = play["ado_cloud_init_network_data_expected"]
+    assert "else ''" in expected and "ado_cloud_init_network_data_static" in expected
+    assert "{%" not in expected, "the DHCP choice must not be a block-only template"
 
 
 def test_guard_runs_before_any_role_creates_anything():

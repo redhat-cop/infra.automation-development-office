@@ -4,7 +4,12 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
+import json
 from pathlib import Path
+
+import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -188,4 +193,159 @@ def test_spec_hard_is_used_when_status_is_missing():
 
 
 def test_filters_are_registered():
-    assert set(F.FilterModule().filters()) == {"ocp_virt_self_service_violations", "ocp_virt_quota_shortfalls"}
+    assert set(F.FilterModule().filters()) == {
+        "ocp_virt_self_service_violations",
+        "ocp_virt_self_service_guard",
+        "ocp_virt_quota_shortfalls",
+    }
+
+
+# ---- trusted policy, cloud-init and project checks ----
+
+USER_DATA = (
+    "#cloud-config\n"
+    "hostname: web-01\n"
+    "ssh_pwauth: false\n"
+    "disable_root: true\n"
+    "users:\n"
+    "  - default\n"
+    "  - name: cloud-user\n"
+    "    sudo: ALL=(ALL) NOPASSWD:ALL\n"
+    "    shell: /bin/bash\n"
+    "    lock_passwd: true\n"
+    "    ssh_authorized_keys:\n"
+    "      - ssh-ed25519 AAAA-example approved@lab\n"
+)
+
+
+def _project(tmp_path, policy=POLICY, env="lab", raw=None):
+    """A project tree: <root>/playbooks/provision and <root>/group_vars/all/<env>/vars_openshift_virt.yml."""
+    playbooks = tmp_path / "playbooks" / "provision"
+    playbooks.mkdir(parents=True)
+    env_dir = tmp_path / "group_vars" / "all" / env
+    env_dir.mkdir(parents=True)
+    text = raw if raw is not None else yaml.safe_dump({"openshift_virt_other": "kept", F.POLICY_KEY: policy})
+    (env_dir / F.POLICY_FILE).write_text(text)
+    return str(playbooks)
+
+
+def _guard(playbook_dir, user_data=USER_DATA, network_data="", env="lab", **changes):
+    return F.self_service_guard(playbook_dir, env, _effective(**changes), user_data, network_data)
+
+
+def test_guard_allows_the_approved_launch(tmp_path):
+    assert _guard(_project(tmp_path)) == []
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        pytest.param(lambda t: t + "runcmd:\n  - id\n", id="runcmd added"),
+        pytest.param(lambda t: t + "write_files:\n  - path: /etc/x\n    content: y\n", id="write_files added"),
+        pytest.param(lambda t: t + "chpasswd:\n  list: root:x\n", id="chpasswd added"),
+        pytest.param(lambda t: t + "bootcmd:\n  - id\n", id="bootcmd added"),
+        pytest.param(lambda t: t.replace("ssh_pwauth: false", "ssh_pwauth: true"), id="password login on"),
+        pytest.param(lambda t: t.replace("disable_root: true", "disable_root: false"), id="root login on"),
+        pytest.param(lambda t: t.replace("hostname: web-01", "hostname: other"), id="hostname changed"),
+        pytest.param(lambda t: t.replace("approved@lab", "attacker@evil"), id="other ssh key"),
+        pytest.param(lambda t: t.replace("NOPASSWD:ALL", "NOPASSWD:ALL, !requiretty"), id="sudo changed"),
+        pytest.param(lambda t: t + "  - name: root\n    lock_passwd: false\n", id="extra user (indent trick)"),
+        pytest.param(lambda t: t + "hostname: other\n", id="duplicate key hides a value"),
+        pytest.param(lambda t: t + "---\nruncmd: [id]\n", id="second YAML document"),
+        pytest.param(lambda t: t.replace("#cloud-config\n", ""), id="no cloud-config header"),
+        pytest.param(lambda t: t.replace("ssh_pwauth: false", "ssh_pwauth: &a false\nx: *a"), id="alias"),
+        pytest.param(lambda t: "#cloud-config\nruncmd: [id]\n", id="entirely different"),
+        pytest.param(lambda t: "", id="empty"),
+        pytest.param(lambda t: "#cloud-config\n: : :\n  [", id="not YAML"),
+    ],
+)
+def test_cloud_init_that_differs_from_the_approved_structure_is_refused(tmp_path, mutate):
+    problems = _guard(_project(tmp_path), user_data=mutate(USER_DATA))
+    assert any("Cloud-init user data" in item for item in problems), problems
+
+
+def test_cloud_init_network_data_must_be_empty(tmp_path):
+    playbook_dir = _project(tmp_path)
+    assert _guard(playbook_dir, network_data="") == []
+    assert _guard(playbook_dir, network_data="  \n") == []  # whitespace only is the same as none
+    problems = _guard(playbook_dir, network_data="version: 2\nethernets: {}\n")
+    assert any("network data" in item for item in problems)
+
+
+def test_the_policy_is_read_from_the_project_file_not_from_the_caller(tmp_path):
+    """There is no argument through which a caller's policy can reach the check."""
+    assert list(inspect.signature(F.self_service_guard).parameters) == [
+        "playbook_dir", "env", "effective", "cloud_init_user_data", "cloud_init_network_data",
+    ]
+    permissive = {**POLICY, "sizes": [{"label": "Huge", "instance_type": "u1.8xlarge"}]}
+    playbook_dir = _project(tmp_path, policy=POLICY)
+    problems = _guard(playbook_dir, size="Huge", instance_type="u1.8xlarge")
+    assert any("Size 'Huge' is not approved" in item for item in problems)
+    assert permissive != POLICY  # the permissive policy never had a way in
+
+
+@pytest.mark.parametrize("env", ["", ".", "..", "../lab", "lab/../lab", "a/b", "lab ", "-x", "l\nab", "/etc"])
+def test_an_environment_name_cannot_point_outside_group_vars(tmp_path, env):
+    playbook_dir = _project(tmp_path)
+    policy, problem = F.load_policy_file(playbook_dir, env)
+    assert policy == {} and problem
+    assert _guard(playbook_dir, env=env)
+
+
+def test_a_missing_or_empty_policy_file_is_refused_as_not_configured(tmp_path):
+    for raw in (None, "", "{}\n", "openshift_virt_other: 1\n", f"{F.POLICY_KEY}: {{}}\n", "[1, 2]\n", "a: [\n"):
+        sub = tmp_path / str(abs(hash(raw)))
+        sub.mkdir()
+        playbook_dir = _project(sub, raw=raw if raw is not None else "x: 1\n")
+        problems = _guard(playbook_dir)
+        assert problems and "not configured" in problems[0], (raw, problems)
+    assert "not configured" in _guard(str(tmp_path / "nowhere" / "a" / "b"))[0]
+
+
+def test_a_disabled_policy_is_refused(tmp_path):
+    problems = _guard(_project(tmp_path, policy={**POLICY, "enabled": False}))
+    assert "not configured" in problems[0]
+
+
+def test_a_policy_with_template_expressions_is_refused(tmp_path):
+    templated = {**POLICY, "defaults": {**POLICY["defaults"], "storage_class": "{{ vault_storage }}"}}
+    problems = _guard(_project(tmp_path, policy=templated))
+    assert problems and "template expressions" in problems[0]
+
+
+def test_vault_tags_elsewhere_in_the_vars_file_do_not_break_the_policy_read(tmp_path):
+    raw = "secret: !vault |\n  $ANSIBLE_VAULT;1.1;AES256\n  6162\n" + yaml.safe_dump({F.POLICY_KEY: POLICY})
+    assert _guard(_project(tmp_path, raw=raw)) == []
+
+
+def test_removal_through_the_state_the_namespace_role_reads_is_refused(tmp_path):
+    playbook_dir = _project(tmp_path)
+    # vm_state says present (the play's copy), but the namespace role reads ``state`` itself.
+    problems = _guard(playbook_dir, vm_state="present", role_state="absent")
+    assert any("Removal" in item for item in problems)
+    assert any("Removal" in item for item in _guard(playbook_dir, vm_state="absent", role_state="present"))
+    assert _guard(playbook_dir, vm_state="present", role_state="present") == []
+
+
+def test_the_namespace_role_cannot_create_a_different_project(tmp_path):
+    playbook_dir = _project(tmp_path)
+    problems = _guard(playbook_dir, namespace_effective="kube-system")
+    assert any("project to create" in item for item in problems)
+    assert _guard(playbook_dir, namespace_effective="team-a") == []
+    assert _guard(playbook_dir, namespace_effective="") != []
+
+
+def test_expected_user_data_matches_the_playbook_rendering():
+    """The expected structure is the one the generated playbook builds for Self Service."""
+    expected = F.expected_user_data("web-01", POLICY)
+    assert yaml.safe_load(USER_DATA) == expected
+    without_key = F.expected_user_data("web-01", {**POLICY, "defaults": {**POLICY["defaults"], "ssh_public_key": ""}})
+    assert "ssh_authorized_keys" not in without_key["users"][1]
+    assert json.dumps(expected, sort_keys=True)
+
+
+def test_a_password_is_refused_when_only_the_fact_that_one_is_set_reaches_the_guard():
+    """The generated playbook passes ``*_password_set`` so no password value enters the filter."""
+    assert any("Passwords" in item for item in _check(cloud_user_password_set=True))
+    assert any("Passwords" in item for item in _check(root_password_set="true"))
+    assert _check(cloud_user_password_set=False, root_password_set="false") == []

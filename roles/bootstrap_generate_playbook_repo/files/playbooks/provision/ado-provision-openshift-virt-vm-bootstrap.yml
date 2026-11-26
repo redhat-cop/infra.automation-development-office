@@ -9,8 +9,22 @@
     # the job template (launch-time variables are off for it). In self_service mode the
     # role-facing values below come from the approved policy, and a guard in pre_tasks
     # refuses any value outside it, wherever it came from. Same role, same variable names.
+    #
+    # Extra variables beat every variable a playbook sets, so nothing here can stop a value
+    # that reaches the play as an extra variable. What the guard does instead: it checks the
+    # final role-facing values, reads the policy from the project file (not from a variable)
+    # and re-checks the cloud-init text itself. The one thing it cannot protect is its own
+    # switch: self service is on when the template mode says so OR when AAP says the job
+    # template is a Self Service one, and an unknown mode fails closed. AAP must still not
+    # accept launch variables for the Self Service template. See roles/ocp_virtualization/README.md.
     ado_vm_self_service: >-
-      {{ (ado_vm_template_mode | default('advanced') | string | lower) == 'self_service' }}
+      {{
+        (ado_vm_template_mode | default('advanced') | string | trim | lower) == 'self_service'
+        or (
+          (awx_job_template_name | default(tower_job_template_name | default(''), true))
+          | string | lower is search('self[ _-]?service')
+        )
+      }}
     ado_vm_policy: "{{ openshift_virt_self_service_policy | default({}) }}"
     ado_vm_defaults: "{{ ado_vm_policy.defaults | default({}) }}"
     ado_vm_size: "{{ provision_openshift_virt_size | default('') }}"
@@ -196,8 +210,15 @@
         else ((openshift_virt_network_defaults | default({})).get('dns_servers', ''))
       }}
     # Self Service never sets a static IP (the policy has no address pool); the guest uses DHCP.
-    ado_cloud_init_network_data_expected: |
-      {% if (not (ado_vm_self_service | bool)) and provision_openshift_virt_static_ip | default('') | length > 0 %}
+    # DHCP must give an actual empty string. A template made only of block tags renders to
+    # None or to a lone newline depending on the Ansible version, so the text is built in its
+    # own variable and the choice is an expression that returns '' explicitly.
+    ado_vm_static_ip_requested: >-
+      {{
+        (not (ado_vm_self_service | bool))
+        and (provision_openshift_virt_static_ip | default('') | string | length > 0)
+      }}
+    ado_cloud_init_network_data_static: |
       {% set dns_servers = virt_dns_servers_effective | default([]) %}
       {% if dns_servers is string %}
       {% set dns_servers = dns_servers.split(',') | map('trim') | reject('equalto', '') | list %}
@@ -218,29 +239,9 @@
               - {{ dns_server }}
       {% endfor %}
       {% endif %}
-      {% endif %}
+    ado_cloud_init_network_data_expected: >-
+      {{ ado_cloud_init_network_data_static if (ado_vm_static_ip_requested | bool) else '' }}
     cloud_init_network_data: "{{ ado_cloud_init_network_data_expected }}"
-    # The values the role will use, checked against the approved policy in pre_tasks.
-    ado_vm_effective:
-      vm_name: "{{ vm_name }}"
-      vm_namespace: "{{ vm_namespace }}"
-      source_kind: "{{ source_kind }}"
-      source_name: "{{ source_name }}"
-      source_namespace: "{{ source_namespace }}"
-      preference: "{{ preference }}"
-      instance_type: "{{ instance_type }}"
-      storage_class: "{{ storage_class }}"
-      network_mode: "{{ network_mode }}"
-      multus_network_name: "{{ multus_network_name }}"
-      root_disk_size: "{{ root_disk_size }}"
-      vm_state: "{{ vm_state }}"
-      size: "{{ ado_vm_size }}"
-      cloud_user: "{{ ado_vm_cloud_user }}"
-      ssh_public_key: "{{ ado_vm_ssh_public_key }}"
-      cloud_user_password: "{{ cloud_user_password }}"
-      root_password: "{{ root_password }}"
-      enable_root_ssh: "{{ enable_root_ssh }}"
-      hostname: "{{ ado_vm_hostname }}"
     ado_vm_guest_memory: >-
       {{
         (ado_vm_instancetype.resources | default([{}]) | first | default({}))
@@ -322,25 +323,98 @@
 
     # ---- Self Service guard (skipped for the Advanced template) -------------------
     # Hiding a field in the survey is not a control: launch variables can arrive another
-    # way. This checks the final values the role will use, so an out-of-policy value
-    # fails the job whatever its source.
+    # way, and an extra variable beats anything this playbook sets. So the guard
+    #   - does not use ado_vm_policy, ado_vm_defaults, ado_vm_self_service or the *_expected
+    #     cloud-init text (an extra variable can replace any of them);
+    #   - reads the policy from group_vars/all/<env>/vars_openshift_virt.yml itself;
+    #   - checks the final values the roles read (instance_type, name_space, state, ...)
+    #     and parses the final cloud_init_user_data / cloud_init_network_data;
+    #   - decides whether to run from the expression below, not from ado_vm_self_service.
+    - name: Self Service | Refuse an unknown template mode
+      ansible.builtin.assert:
+        that:
+          - (ado_vm_template_mode | default('advanced') | string | trim | lower) in ['', 'advanced', 'self_service']
+        fail_msg: >-
+          Self Service refused this launch: ado_vm_template_mode must be advanced or
+          self_service (got '{{ ado_vm_template_mode | default('') }}').
+        quiet: true
+
     - name: Self Service | Refuse any value outside the approved policy
       ansible.builtin.assert:
         that:
-          - (ado_vm_effective | infra.automation_development_office.ocp_virt_self_service_violations(ado_vm_policy)) | length == 0
-          - cloud_init_user_data == ado_cloud_init_user_data_expected
-          - cloud_init_network_data == ado_cloud_init_network_data_expected
+          - >-
+            (
+              playbook_dir
+              | infra.automation_development_office.ocp_virt_self_service_guard(
+                  env,
+                  {
+                    'vm_name': vm_name,
+                    'vm_namespace': vm_namespace,
+                    'source_kind': source_kind,
+                    'source_name': source_name,
+                    'source_namespace': source_namespace,
+                    'preference': preference,
+                    'instance_type': instance_type,
+                    'storage_class': storage_class,
+                    'network_mode': network_mode,
+                    'multus_network_name': multus_network_name,
+                    'root_disk_size': root_disk_size,
+                    'vm_state': vm_state,
+                    'role_state': state | default('present'),
+                    'namespace_effective': (ocp_namespace_name | default(name_space)) | string | trim,
+                    'size': provision_openshift_virt_size | default(''),
+                    'cloud_user': ado_vm_cloud_user,
+                    'ssh_public_key': ado_vm_ssh_public_key,
+                    'cloud_user_password_set': cloud_user_password | length > 0,
+                    'root_password_set': root_password | length > 0,
+                    'enable_root_ssh': enable_root_ssh,
+                    'hostname': ado_vm_hostname
+                  },
+                  cloud_init_user_data,
+                  cloud_init_network_data
+                )
+            ) | length == 0
         fail_msg: >-
           Self Service refused this launch:
           {{
-            (
-              ado_vm_effective
-              | infra.automation_development_office.ocp_virt_self_service_violations(ado_vm_policy)
-            ) | join(' ')
-            or 'cloud-init was changed outside the approved defaults.'
+            playbook_dir
+            | infra.automation_development_office.ocp_virt_self_service_guard(
+                env,
+                {
+                  'vm_name': vm_name,
+                  'vm_namespace': vm_namespace,
+                  'source_kind': source_kind,
+                  'source_name': source_name,
+                  'source_namespace': source_namespace,
+                  'preference': preference,
+                  'instance_type': instance_type,
+                  'storage_class': storage_class,
+                  'network_mode': network_mode,
+                  'multus_network_name': multus_network_name,
+                  'root_disk_size': root_disk_size,
+                  'vm_state': vm_state,
+                  'role_state': state | default('present'),
+                  'namespace_effective': (ocp_namespace_name | default(name_space)) | string | trim,
+                  'size': provision_openshift_virt_size | default(''),
+                  'cloud_user': ado_vm_cloud_user,
+                  'ssh_public_key': ado_vm_ssh_public_key,
+                  'cloud_user_password_set': cloud_user_password | length > 0,
+                  'root_password_set': root_password | length > 0,
+                  'enable_root_ssh': enable_root_ssh,
+                  'hostname': ado_vm_hostname
+                },
+                cloud_init_user_data,
+                cloud_init_network_data
+              )
+            | join(' ')
           }}
         quiet: true
-      when: ado_vm_self_service | bool
+      when: >-
+        (ado_vm_template_mode | default('advanced') | string | trim | lower) == 'self_service'
+        or (
+          (awx_job_template_name | default(tower_job_template_name | default(''), true))
+          | string | lower is search('self[ _-]?service')
+        )
 
     - name: Self Service | Read the namespace quota (read-only)
       kubernetes.core.k8s_info:

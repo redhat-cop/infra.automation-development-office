@@ -1,0 +1,25 @@
+---
+bugfixes:
+  - >-
+    bootstrap_generate_playbook_repo - ``ado-provision-openshift-virt-vm-bootstrap.yml`` rendered an
+    empty ``cloud_init_network_data`` as a newline (or ``None``, depending on the Ansible version) when
+    no static IP was set. The DHCP case is now an explicit empty string; the static text is unchanged.
+security_fixes:
+  - >-
+    bootstrap_generate_playbook_repo - The Self Service guard in
+    ``ado-provision-openshift-virt-vm-bootstrap.yml`` no longer trusts variables a caller can replace.
+    It checks the final values the roles read (including ``name_space``, ``ocp_namespace_name`` and
+    ``state``), reads the policy from ``vars_openshift_virt.yml`` instead of
+    ``openshift_virt_self_service_policy``, and parses the final cloud-init instead of comparing it with
+    an expected variable. It runs when the template mode is ``self_service`` or the AAP job template
+    name says Self Service, and an unknown ``ado_vm_template_mode`` is refused. An
+    ``ado_vm_template_mode=advanced`` extra variable on a template AAP does not name Self Service is still
+    not guarded; AAP must not accept launch variables for that template (see the
+    ``ocp_virtualization`` README).
+minor_changes:
+  - >-
+    plugins - Added the filter ``ocp_virt_self_service_guard``.
+doc_changes:
+  - >-
+    ocp_virtualization - Removed a duplicated "Two job templates, one playbook and role" section and
+    documented how Self Service is enforced and where that stops.

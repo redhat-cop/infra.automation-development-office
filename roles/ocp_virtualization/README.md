@@ -93,33 +93,42 @@ quota clearly cannot hold: memory, storage, PVC count and VM count. CPU is not c
 because the request depends on the cluster overcommit setting. If the quota cannot be
 read, the check is skipped with a message and OpenShift still enforces it at creation.
 
-The role looks the VM up first and creates it only when it is missing. An existing VM is
-never replaced or changed by either template.
+#### How Self Service is enforced, and where it stops
 
-Not supported by the role, so not offered by either template: PVC, DataVolume or ISO
-boot sources, additional disks, node placement or scheduling, start or stop of an
-existing VM, and Windows. Self Service uses DHCP in the guest (no address pool in the
-policy).
+An extra variable has higher precedence than every variable a playbook sets, so no
+playbook can stop a value that reaches it as an extra variable from changing the
+variables it computes. The guard is therefore built so that replacing an internal
+variable does not help:
 
-### Two job templates, one playbook and role
+- It checks the **final values the roles read** (`instance_type`, `storage_class`,
+  `source_namespace`, `name_space`, `ocp_namespace_name`, `state`, `cloud_init_*`, ...)
+  against the policy, not a copy the playbook computed.
+- It reads the policy from `group_vars/all/<env>/vars_openshift_virt.yml` in the project,
+  not from the `openshift_virt_self_service_policy` variable, so a policy passed as an
+  extra variable has no effect on the check. A policy that holds template expressions, a
+  missing file or an invalid environment name is refused.
+- It parses the final `cloud_init_user_data` and compares it with the one approved
+  structure (approved login and SSH key, no passwords, no root SSH, nothing else). Extra
+  keys such as `runcmd` or `write_files`, a changed value or a duplicate key is refused.
+  `cloud_init_network_data` must be empty (DHCP).
+- It turns on when `ado_vm_template_mode` is `self_service` **or** AAP names a Self
+  Service job template (`awx_job_template_name`), and a mode other than `advanced` or
+  `self_service` is refused.
 
-| Job template | For | Survey |
-|---|---|---|
-| **ADO \| Provision OpenShift Virt VM** (Advanced) | Platform engineers | Everything the role supports: custom CPU and memory, boot image, storage, network, cloud-init login, static IP, remove |
-| **ADO \| Create VM — Self Service** | Application teams | Project, VM name, approved image, approved size (Small, Medium, Large), start |
+What it cannot do: if an extra variable named `ado_vm_template_mode=advanced` reaches the
+play and AAP does not also name a Self Service job template, the run is treated as
+Advanced and is not guarded. Keep that from happening in AAP: leave **Prompt on launch**
+off for variables, job tags, limit and inventory on the Self Service template, give users
+**Execute** on that template only (not on the Advanced one or on the project), and do not
+add it to a workflow whose nodes pass variables. The survey answers are the only variables
+the template accepts. Whether your AAP discards undeclared extra variables, and whether it
+sets `awx_job_template_name` after user variables, is AAP behavior this repository cannot
+verify; check it on your instance.
 
-Both run `ado-provision-openshift-virt-vm-bootstrap.yml` and this role. Use AAP
-permissions to decide who can launch each template.
-
-Self Service reads its approved values from `openshift_virt_self_service_policy`
-(generated from the Preflight OpenShift Virt VM form into `vars_openshift_virt.yml`).
-The playbook refuses a launch that is outside the policy, even if the value arrives as
-an extra variable: project, image and preference, size, storage class, network mode and
-attachment, root disk size, login user and SSH key, passwords, root SSH, hostname and
-removal. It also reads the project `ResourceQuota` (read-only) and refuses a size the
-quota clearly cannot hold: memory, storage, PVC count and VM count. CPU is not checked
-because the request depends on the cluster overcommit setting. If the quota cannot be
-read, the check is skipped with a message and OpenShift still enforces it at creation.
+Not covered by the guard (not part of the approved image, size, project or cloud-init):
+the OpenShift API address and token (`provision_openshift_virt_api_host`, `..._api_token`,
+`host`, `token`), `multus_nad_name` / `multus_nad_config`, `app_label`, wait timeouts and
+the interface name. They are not survey variables, so AAP rejects them the same way.
 
 The role looks the VM up first and creates it only when it is missing. An existing VM is
 never replaced or changed by either template.

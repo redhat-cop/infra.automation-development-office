@@ -14,6 +14,9 @@ says a VM will fit, only that it clearly does not.
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+import yaml
 
 _DNS_LABEL = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
 
@@ -47,6 +50,10 @@ def quantity_bytes(value):
     if suffix == "m":
         return number / 1000
     return None
+
+
+def _flag(value) -> bool:
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 def _by(items, key, wanted):
@@ -129,16 +136,166 @@ def self_service_violations(effective, policy):
         problems.append("Login user does not match the approved default.")
     if _text(effective.get("ssh_public_key")) != _text(defaults.get("ssh_public_key")):
         problems.append("SSH public key does not match the approved default.")
-    if _text(effective.get("cloud_user_password")) or _text(effective.get("root_password")):
+    # The generated playbook passes only whether a password is set (``*_password_set``), so no
+    # password value reaches the filter or a generated file; the value keys are still honoured.
+    if (
+        _text(effective.get("cloud_user_password")) or _text(effective.get("root_password"))
+        or _flag(effective.get("cloud_user_password_set")) or _flag(effective.get("root_password_set"))
+    ):
         problems.append("Passwords cannot be set from Self Service. Use the Advanced template.")
     if str(effective.get("enable_root_ssh")).strip().lower() in ("1", "true", "yes", "on"):
         problems.append("Root SSH cannot be enabled from Self Service. Use the Advanced template.")
     if _text(effective.get("hostname")) != name:
         problems.append("Guest hostname must match the VM name.")
 
-    if _text(effective.get("vm_state") or "present") != "present":
-        problems.append("Self Service can only create VMs. Removal is not available from this template.")
+    # ``vm_state`` is the playbook's copy of ``state``; the namespace role reads ``state``
+    # itself, so both are checked. Either one set to absent would delete something.
+    for key in ("vm_state", "role_state"):
+        if _text(effective.get(key) or "present") != "present":
+            problems.append("Self Service can only create VMs. Removal is not available from this template.")
+            break
+
+    # The namespace role creates whatever ``ocp_namespace_name`` or ``name_space`` names. It must be
+    # the approved project the VM is created in, not a second one.
+    if "namespace_effective" in effective and _text(effective.get("namespace_effective")) != namespace:
+        problems.append("The project to create must be the project selected for the VM.")
     return problems
+
+
+# ---- trusted policy and cloud-init checks (do not depend on caller-controlled variables) ----
+
+_ENV_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+POLICY_KEY = "openshift_virt_self_service_policy"
+POLICY_FILE = "vars_openshift_virt.yml"
+_NOT_CONFIGURED = (
+    "The self-service policy is not configured. Enable it in the Preflight OpenShift Virt VM "
+    "form (approved images, sizes and projects) and run Bootstrap again."
+)
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """Safe YAML loader that refuses duplicate keys, so a value cannot be hidden by a repeated key."""
+
+
+def _construct_unique_mapping(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(
+                None, None, f"duplicate key {key!r}", key_node.start_mark
+            )
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping)
+
+
+class _PlainLoader(yaml.SafeLoader):
+    """Reads a Bootstrap vars file and ignores tags such as ``!vault`` instead of failing on them."""
+
+
+_PlainLoader.add_multi_constructor("!", lambda loader, suffix, node: None)
+
+
+def _has_template(value) -> bool:
+    if isinstance(value, str):
+        return "{{" in value or "{%" in value
+    if isinstance(value, dict):
+        return any(_has_template(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_template(v) for v in value)
+    return False
+
+
+def load_policy_file(playbook_dir, env):
+    """The approved policy exactly as written in the project's ``vars_openshift_virt.yml``.
+
+    Returns ``(policy, problem)``. The file is read directly, not through an Ansible variable,
+    because an extra variable has higher precedence than every variable a playbook can set and
+    could replace the policy. ``env`` must be a plain environment name. A policy that contains
+    template expressions is refused: the guard cannot evaluate them without the variable it is
+    meant not to trust.
+    """
+    name = "" if env is None else str(env)  # exactly as Ansible uses it: no trimming
+    if not _ENV_NAME.fullmatch(name) or name in (".", ".."):
+        return {}, "The environment name is not valid, so the self-service policy cannot be read."
+    base = (Path(_text(playbook_dir)) / ".." / ".." / "group_vars" / "all").resolve()
+    path = (base / name / POLICY_FILE).resolve()
+    if path.parent.parent != base:
+        return {}, "The environment name is not valid, so the self-service policy cannot be read."
+    try:
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=_PlainLoader)  # noqa: S506 - SafeLoader subclass
+    except (OSError, yaml.YAMLError):
+        return {}, _NOT_CONFIGURED
+    policy = document.get(POLICY_KEY) if isinstance(document, dict) else None
+    if not isinstance(policy, dict) or not policy:
+        return {}, _NOT_CONFIGURED
+    if _has_template(policy):
+        return {}, (
+            "The self-service policy contains template expressions. Self Service only accepts "
+            "literal values in the policy file so the guard can check them without trusting a variable."
+        )
+    return policy, ""
+
+
+def expected_user_data(vm_name, policy):
+    """The only cloud-init user data Self Service creates: approved login, key, no passwords, no root SSH."""
+    defaults = policy.get("defaults") if isinstance(policy.get("defaults"), dict) else {}
+    user = {
+        "name": _text(defaults.get("cloud_user") or "cloud-user"),
+        "sudo": "ALL=(ALL) NOPASSWD:ALL",
+        "shell": "/bin/bash",
+        "lock_passwd": True,
+    }
+    key = _text(defaults.get("ssh_public_key"))
+    if key:
+        user["ssh_authorized_keys"] = [key]
+    return {
+        "hostname": _text(vm_name),
+        "ssh_pwauth": False,
+        "disable_root": True,
+        "users": ["default", user],
+    }
+
+
+def cloud_init_violations(user_data, network_data, vm_name, policy):
+    """Reasons the cloud-init the role would use is not the approved Self Service cloud-init.
+
+    The user data is parsed and compared with the one approved structure, so any extra key
+    (``runcmd``, ``write_files``, ``chpasswd``, ``bootcmd``, ...) or a changed value is refused.
+    The network data must be empty: Self Service uses DHCP.
+    """
+    problems = []
+    text = "" if user_data is None else str(user_data)
+    try:
+        parsed = yaml.load(text, Loader=_StrictLoader)  # noqa: S506 - SafeLoader subclass
+    except yaml.YAMLError:
+        parsed = None
+    if not text.lstrip().startswith("#cloud-config") or parsed != expected_user_data(vm_name, policy):
+        problems.append("Cloud-init user data was changed outside the approved Self Service defaults.")
+    if _text(network_data):
+        problems.append("Cloud-init network data must be empty for Self Service (the guest uses DHCP).")
+    return problems
+
+
+def self_service_guard(playbook_dir, env, effective, cloud_init_user_data="", cloud_init_network_data=""):
+    """Every reason the launch is outside the approved Self Service policy. Empty means allowed.
+
+    ``effective`` holds the final role-facing values (see ``self_service_violations``).
+    The policy comes from the project file, and cloud-init is checked as the final text the
+    role will pass to the VM, so neither depends on a variable a caller can set.
+    """
+    policy, problem = load_policy_file(playbook_dir, env)
+    if problem:
+        return [problem]
+    problems = self_service_violations(effective, policy)
+    if problems:
+        return problems
+    return cloud_init_violations(
+        cloud_init_user_data, cloud_init_network_data, (effective or {}).get("vm_name"), policy
+    )
 
 
 def _remaining(hard, used, key):
@@ -190,5 +347,6 @@ class FilterModule:
     def filters(self):
         return {
             "ocp_virt_self_service_violations": self_service_violations,
+            "ocp_virt_self_service_guard": self_service_guard,
             "ocp_virt_quota_shortfalls": quota_shortfalls,
         }
